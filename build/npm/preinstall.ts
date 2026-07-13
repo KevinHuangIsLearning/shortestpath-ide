@@ -128,18 +128,27 @@ function installHeaders() {
 	const node_gyp = process.platform === 'win32'
 		? path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
 		: path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
+	const nodeGypEnv = { ...process.env };
+	// npm exports the project's Electron target configuration into lifecycle
+	// scripts. node-gyp gives those environment variables precedence over the
+	// explicit target passed below, which makes the Node headers install request
+	// a non-existent node-v<electron-version>-headers archive.
+	delete nodeGypEnv.npm_config_target;
+	delete nodeGypEnv.npm_config_disturl;
+	delete nodeGypEnv.npm_config_runtime;
+	const nodeGypDevDir = path.join(import.meta.dirname, '..', '..', '.build', 'node-gyp');
 
 	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
 	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
 
 	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
+		child_process.execFileSync(node_gyp, ['install', '--devdir', nodeGypDevDir, '--dist-url', local.disturl, local.target], { shell: true, env: nodeGypEnv });
 	}
 
 	if (remote !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
+		child_process.execFileSync(node_gyp, ['install', '--devdir', nodeGypDevDir, '--dist-url', remote.disturl, remote.target], { shell: true, env: nodeGypEnv });
 	}
 
 	// Overlay any custom headers shipped in build/npm/gyp/custom-headers on top of
