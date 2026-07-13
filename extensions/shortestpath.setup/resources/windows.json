@@ -19,14 +19,8 @@
 			"controls": [{ "key": "editor", "type": "boolean", "default": true, "label": { "en": "Apply editor and save defaults", "zh-CN": "应用编辑器与保存体验预设" } }, { "key": "installToolchain", "type": "boolean", "default": true, "label": { "en": "Install g++ and clangd when missing", "zh-CN": "缺少时下载 g++ 与 clangd" } }, { "key": "fontLigatures", "type": "boolean", "default": true, "label": { "en": "Enable font ligatures", "zh-CN": "启用字体连字" } }, { "key": "fontSize", "type": "number", "default": 14, "min": 10, "max": 32, "label": { "en": "Editor font size", "zh-CN": "编辑器字体大小" } }, { "key": "vjudgeOpenInBrowser", "type": "boolean", "default": true, "label": { "en": "Show problems in CPH VJudge", "zh-CN": "在 CPH 的 VJudge 中显示题目" } }]
 		}
 	],
-	"downloadSourceLabel": { "en": "Package download source", "zh-CN": "软件包下载源" },
-	"downloadSources": [
-		{ "id": "official", "condaForgeChannel": "conda-forge", "msys2Channel": "msys2", "label": { "en": "Official conda-forge", "zh-CN": "官方 conda-forge" } },
-		{ "id": "tuna", "condaForgeChannel": "https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge", "msys2Channel": "https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/msys2", "label": { "en": "Tsinghua TUNA mirror", "zh-CN": "清华大学 TUNA 镜像" } },
-		{ "id": "aliyun", "unavailable": true, "condaForgeChannel": "https://mirrors.aliyun.com/anaconda/cloud/conda-forge", "label": { "en": "Alibaba Cloud mirror (currently unavailable)", "zh-CN": "阿里云镜像（当前不可用）" } }
-	],
 	"portableToolchain": true,
-	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\env\\Library\\mingw-w64\\bin\\g++.exe"],
-	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\env\\Library\\bin\\clangd.exe"],
-	"installDescription": "Download an isolated Portable GCC and LLVM environment into ShortestPath IDE data"
+	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\gcc\\mingw64\\bin\\g++.exe"],
+	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\clangd\\clangd_22.1.6\\bin\\clangd.exe"],
+	"installDescription": "Download isolated WinLibs GCC and clangd archives into ShortestPath IDE data"
 }

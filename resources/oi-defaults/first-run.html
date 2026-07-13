@@ -30,9 +30,16 @@
 		.skip { border: 0; background: transparent; color: #aeb8c9; }
 		.note { color: #8d98aa; font-size: 14px; }
 		[hidden] { display: none !important; }
-		.progress { margin-top: 34px; padding: 20px; height: 230px; overflow: auto; border: 1px solid #30394d; border-radius: 12px; background: #0b0d12; color: #b7c8e8; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+		.progress-panel { margin-top: 34px; }
+		.progress-track { height: 10px; overflow: hidden; border-radius: 999px; background: #252d3d; box-shadow: inset 0 1px 2px #070a10; }
+		.progress-bar { width: 38%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #78a9ff, #a8c7ff); animation: progress-indeterminate 1.5s ease-in-out infinite; }
+		.progress-panel.determinate .progress-bar { width: var(--progress); animation: none; }
+		.progress-panel.complete .progress-bar { width: 100%; animation: none; }
+		.progress-panel.error .progress-bar { width: 100%; animation: none; background: #f48771; }
+		.progress-description { min-height: 1.6em; margin: 14px 0 0; color: #b7c8e8; font-size: 14px; line-height: 1.6; }
 		.status { color: #a8c7ff; font-size: 18px; }
 		.drag-region { position: fixed; inset: 0 0 auto; height: 32px; -webkit-app-region: drag; }
+		@keyframes progress-indeterminate { from { transform: translateX(-110%); } to { transform: translateX(290%); } }
 	</style>
 </head>
 <body>
@@ -56,7 +63,10 @@
 			<div class="badge">Toolchain</div>
 			<h1 id="download-title">正在准备编译环境。</h1>
 			<p id="download-status" class="status">正在连接下载源…</p>
-			<div id="progress" class="progress"></div>
+			<div id="progress" class="progress-panel" role="progressbar" aria-label="安装进度" aria-valuetext="正在准备">
+				<div class="progress-track"><div class="progress-bar"></div></div>
+				<p id="progress-description" class="progress-description" aria-live="polite">正在准备安装…</p>
+			</div>
 			<div class="actions"><span class="note">请保持此窗口打开。下载完成后可继续配置。</span><span><button id="retry" class="primary" hidden>重试</button><button id="download-next" class="primary" hidden>下一步</button></span></div>
 		</section>
 		<section id="configure-page" hidden>
@@ -79,12 +89,12 @@
 			'en': {
 				choiceTitle: 'Ready for competitive programming.', choiceLead: 'Choose an environment setup. We will detect compilers, provide system-specific installation steps, and save your preferences before opening the IDE.',
 				recommended: 'Configure the C++ toolchain, editor experience, CPH, and common online-judge mappings.', custom: 'Choose the editor, CPH, and toolchain options yourself.',
-				permission: 'Installation may require confirmation or administrator permission.', skip: 'Configure later', continue: 'Continue', downloadTitle: 'Preparing your toolchain.', configurationTitle: 'Your toolchain is ready.', configurationLead: 'Confirm the ShortestPath IDE preferences to save before opening the workbench.'
+				permission: 'Installation may require confirmation or administrator permission.', skip: 'Configure later', continue: 'Continue', downloadTitle: 'Preparing your toolchain.', configurationTitle: 'Your toolchain is ready.', configurationLead: 'Confirm the ShortestPath IDE preferences to save before opening the workbench.', preparing: 'Preparing installation…', completed: 'Download complete. Select Next to continue configuration.', failed: 'Download failed: {message}'
 			},
 			'zh-CN': {
 				choiceTitle: '准备好开始竞赛编程。', choiceLead: '先选择一套环境方案。我们会探测编译器、按你的系统提供安装步骤，并把设置写入你的个人配置。完成后才会打开 IDE。',
 				recommended: '配置 C++ 竞赛环境、编辑体验、CPH 与常用 OJ 映射。缺少 g++ 或 clangd 时提供对应系统的安装步骤。', custom: '自行决定是否应用编辑器预设、CPH/OJ 映射和自动下载编译器。',
-				permission: '安装需要确认，可能要求管理员权限。', skip: '稍后配置', continue: '继续', downloadTitle: '正在准备编译环境。', configurationTitle: '工具链已准备就绪。', configurationLead: '确认要写入的 ShortestPath IDE 配置，然后进入工作台。'
+				permission: '安装需要确认，可能要求管理员权限。', skip: '稍后配置', continue: '继续', downloadTitle: '正在准备编译环境。', configurationTitle: '工具链已准备就绪。', configurationLead: '确认要写入的 ShortestPath IDE 配置，然后进入工作台。', preparing: '正在准备安装…', completed: '下载完成。点击“下一步”继续配置。', failed: '下载失败：{message}'
 			}
 		};
 		const t = translations[language];
@@ -136,7 +146,17 @@
 		const downloadPage = document.getElementById('download-page');
 		const configurePage = document.getElementById('configure-page');
 		const progress = document.getElementById('progress');
+		const progressDescription = document.getElementById('progress-description');
 		const status = document.getElementById('download-status');
+		const setProgressDescription = message => {
+			progressDescription.textContent = message;
+			progress.setAttribute('aria-valuetext', message);
+			const percent = /(?:^|\\s)(\\d{1,3})%/.exec(message)?.[1];
+			if (percent !== undefined) {
+				progress.classList.add('determinate');
+				progress.style.setProperty('--progress', `${Math.min(100, Number(percent))}%`);
+			}
+		};
 		const request = () => ({
 			mode,
 			editor: mode === 'recommended' || (document.getElementById('editor')?.checked ?? true),
@@ -164,7 +184,9 @@
 			const page = stage === 'xcode' ? xcodePage : stage === 'homebrew' ? homebrewPage : toolchainPage;
 			choicePage.hidden = true;
 			downloadPage.hidden = false;
-			progress.textContent = '';
+			progress.className = 'progress-panel';
+			progress.style.removeProperty('--progress');
+			setProgressDescription(t.preparing);
 			document.getElementById('download-title').textContent = localize(page.title);
 			status.textContent = localize(page.text);
 			document.getElementById('retry').hidden = true;
@@ -172,14 +194,18 @@
 			const result = await window.shortestPathSetup.installToolchain(sourceSelect.value || undefined, stage);
 			if (result.success) {
 				toolchainReady = true;
-				status.textContent = '下载完成。点击“下一步”继续配置。';
+				progress.classList.add('complete');
+				status.textContent = t.completed;
+				setProgressDescription(t.completed);
 				document.getElementById('download-next').hidden = false;
 			} else {
-				status.textContent = `下载失败：${result.message}`;
+				progress.classList.add('error');
+				status.textContent = t.failed.replace('{message}', result.message);
+				setProgressDescription(status.textContent);
 				document.getElementById('retry').hidden = false;
 			}
 		};
-		window.shortestPathSetup.onProgress(message => { progress.textContent += `${message}\n`; progress.scrollTop = progress.scrollHeight; });
+		window.shortestPathSetup.onProgress(message => setProgressDescription(message));
 		document.getElementById('continue').addEventListener('click', () => mode === 'recommended' ? download(xcodePage ? 'xcode' : homebrewPage ? 'homebrew' : 'toolchain') : showConfiguration());
 		document.getElementById('retry').addEventListener('click', () => download(downloadStage));
 		document.getElementById('download-next').addEventListener('click', () => {

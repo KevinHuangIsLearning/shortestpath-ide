@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, ipcMain, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, ipcMain, net, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
 import * as fs from 'original-fs';
 import { spawn } from 'child_process';
 import { createRequire } from 'module';
+import { Readable } from 'stream';
+import { finished } from 'stream/promises';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
+import { CancellationToken } from '../../base/common/cancellation.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
@@ -139,6 +142,7 @@ import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
 import { normalizeNFC } from '../../base/common/normalization.js';
+import { extract as extractZip } from '../../base/node/zip.js';
 import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
 import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
@@ -175,7 +179,16 @@ interface IShortestPathDownloadSource {
 }
 
 interface IShortestPathPlatformInstaller {
-	createProcess(input: { readonly toolchainRoot: string; readonly source?: IShortestPathDownloadSource; readonly stage?: string; readonly locale?: string }): { readonly executable: string; readonly args: readonly string[]; readonly displayName: string };
+	createProcess?(input: { readonly toolchainRoot: string; readonly source?: IShortestPathDownloadSource; readonly stage?: string; readonly locale?: string }): { readonly executable: string; readonly args: readonly string[]; readonly displayName: string };
+	getPortableAssets?(): readonly IShortestPathPortableAsset[];
+}
+
+interface IShortestPathPortableAsset {
+	readonly id: string;
+	readonly urls: readonly string[];
+	readonly archiveName: string;
+	readonly targetDirectory: string;
+	readonly requiredFile: string;
 }
 
 const nodeRequire = createRequire(import.meta.url);
@@ -865,9 +878,18 @@ export class CodeApplication extends Disposable {
 			? preset.downloadSources?.find(candidate => candidate.id === sourceId && !candidate.unavailable)
 			: undefined;
 		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
-		let processDefinition: ReturnType<IShortestPathPlatformInstaller['createProcess']>;
+		const installer = this.getShortestPathPlatformInstaller();
+		const assets = installer.getPortableAssets?.();
+		if (assets?.length) {
+			return this.installShortestPathPortableAssets(toolchainRoot, assets, reportProgress);
+		}
+
+		let processDefinition: NonNullable<ReturnType<NonNullable<IShortestPathPlatformInstaller['createProcess']>>>;
 		try {
-			processDefinition = this.getShortestPathPlatformInstaller().createProcess({
+			if (!installer.createProcess) {
+				throw new Error('No installer is available for this platform.');
+			}
+			processDefinition = installer.createProcess({
 				toolchainRoot,
 				source,
 				stage,
@@ -896,6 +918,73 @@ export class CodeApplication extends Disposable {
 					: { success: false, message: `Toolchain installer exited with code ${code ?? 'unknown'}.` });
 			});
 		});
+	}
+
+	private async installShortestPathPortableAssets(toolchainRoot: string, assets: readonly IShortestPathPortableAsset[], reportProgress: (message: string) => void): Promise<{ readonly success: boolean; readonly message: string }> {
+		try {
+			await fs.promises.mkdir(toolchainRoot, { recursive: true });
+			for (const asset of assets) {
+				const archivePath = join(toolchainRoot, asset.archiveName);
+				const targetPath = join(toolchainRoot, asset.targetDirectory);
+				reportProgress(`Downloading ${asset.id}… 0%`);
+				await this.downloadShortestPathAsset(asset.urls, archivePath, reportProgress);
+				reportProgress(`Extracting ${asset.id}…`);
+				await extractZip(archivePath, targetPath, { overwrite: true }, CancellationToken.None);
+				await fs.promises.unlink(archivePath);
+				if (!fs.existsSync(join(targetPath, asset.requiredFile))) {
+					throw new Error(`${asset.id} archive did not contain ${asset.requiredFile}.`);
+				}
+			}
+			reportProgress('Portable toolchain installation complete.');
+			return { success: true, message: 'Toolchain download completed.' };
+		} catch (error) {
+			return { success: false, message: toErrorMessage(error) };
+		}
+	}
+
+	private async downloadShortestPathAsset(urls: readonly string[], targetPath: string, reportProgress: (message: string) => void): Promise<void> {
+		let lastError: unknown;
+		for (const [index, url] of urls.entries()) {
+			try {
+				if (index > 0) {
+					reportProgress('Mirror unavailable; retrying with the official source…');
+				}
+				await this.downloadShortestPathAssetFromUrl(url, targetPath, reportProgress);
+				return;
+			} catch (error) {
+				lastError = error;
+				await fs.promises.rm(targetPath, { force: true });
+			}
+		}
+		throw lastError ?? new Error('No download source is configured.');
+	}
+
+	private async downloadShortestPathAssetFromUrl(url: string, targetPath: string, reportProgress: (message: string) => void): Promise<void> {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 120_000);
+		try {
+			const response = await net.fetch(url, { signal: controller.signal });
+			if (!response.ok || !response.body) {
+				throw new Error(`Download failed with HTTP ${response.status}.`);
+			}
+			const totalBytes = Number(response.headers.get('content-length') ?? 0);
+			let receivedBytes = 0;
+			let lastReportedPercent = -1;
+			const input = Readable.fromWeb(response.body as never);
+			input.on('data', (chunk: Buffer) => {
+				receivedBytes += chunk.length;
+				if (totalBytes > 0) {
+					const percent = Math.floor(receivedBytes * 100 / totalBytes);
+					if (percent !== lastReportedPercent && (percent === 100 || percent - lastReportedPercent >= 5)) {
+						lastReportedPercent = percent;
+						reportProgress(`Downloading… ${percent}%`);
+					}
+				}
+			});
+			await finished(input.pipe(fs.createWriteStream(targetPath)));
+		} finally {
+			clearTimeout(timeout);
+		}
 	}
 
 	private async setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): Promise<IInitialProtocolUrls | undefined> {

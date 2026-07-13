@@ -1,10 +1,26 @@
 'use strict';
 
-exports.createCommand = ({ toolchainRoot, source }) => {
-	const condaForge = source?.condaForgeChannel ?? 'conda-forge';
-	const msys2 = source?.msys2Channel ?? 'msys2';
-	const command = `$root='${toolchainRoot}'; New-Item -ItemType Directory -Force $root | Out-Null; $archive=Join-Path $root 'micromamba.tar.bz2'; Invoke-WebRequest -Uri https://micro.mamba.pm/api/micromamba/win-64/latest -OutFile $archive; tar xf $archive -C $root; $mamba=Join-Path $root 'Library\\bin\\micromamba.exe'; & $mamba create -y -p (Join-Path $root 'env') -c '${condaForge}' -c '${msys2}' m2w64-gcc llvm`;
-	return command;
-};
-
-exports.createProcess = input => ({ executable: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', exports.createCommand(input)], displayName: 'Portable toolchain' });
+// Downloaded and extracted by the Electron main process. No shell, package
+// manager, or system-wide PATH change is involved.
+exports.getPortableAssets = () => [
+	{
+		id: 'gcc',
+		urls: [
+			'https://mirrors.tuna.tsinghua.edu.cn/github-release/brechtsanders/winlibs_mingw/16.1.0posix-14.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64msvcrt-14.0.0-r3.zip',
+			'https://github.com/brechtsanders/winlibs_mingw/releases/download/16.1.0posix-14.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64msvcrt-14.0.0-r3.zip'
+		],
+		archiveName: 'winlibs-gcc.zip',
+		targetDirectory: 'gcc',
+		requiredFile: 'mingw64/bin/g++.exe'
+	},
+	{
+		id: 'clangd',
+		urls: [
+			'https://mirrors.tuna.tsinghua.edu.cn/github-release/clangd/clangd/22.1.6/clangd-windows-22.1.6.zip',
+			'https://github.com/clangd/clangd/releases/download/22.1.6/clangd-windows-22.1.6.zip'
+		],
+		archiveName: 'clangd-22.1.6.zip',
+		targetDirectory: 'clangd',
+		requiredFile: 'clangd_22.1.6/bin/clangd.exe'
+	}
+];

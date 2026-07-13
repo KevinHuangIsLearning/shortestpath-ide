@@ -14,7 +14,7 @@ type PlatformPreset = {
 type DownloadSource = { id: string; condaForgeChannel: string; msys2Channel?: string; unavailable?: boolean };
 
 type PlatformInstaller = {
-	createCommand(input: { toolchainRoot: string; source?: DownloadSource; stage?: string; locale?: string }): string;
+	createCommand?(input: { toolchainRoot: string; source?: DownloadSource; stage?: string; locale?: string }): string;
 };
 
 type SetupSelection = 'recommended' | 'custom';
@@ -247,6 +247,16 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 		const source = preset.downloadSources?.find(candidate => candidate.id === 'tuna' && !candidate.unavailable)
 			?? preset.downloadSources?.find(candidate => !candidate.unavailable);
 		const installer = loadPlatformInstaller(context);
+		if (!installer.createCommand) {
+			const restart = await vscode.window.showInformationMessage(
+				'Portable toolchains are downloaded by the first-run setup window. Restart setup to download them.',
+				'Restart setup now'
+			);
+			if (restart === 'Restart setup now') {
+				await rerunFirstRunSetup();
+			}
+			return;
+		}
 		const installCommand = process.platform === 'darwin'
 			? `${installer.createCommand({ toolchainRoot, source, stage: 'xcode', locale: vscode.env.language })}; ${installer.createCommand({ toolchainRoot, source, stage: 'homebrew', locale: vscode.env.language })}; ${installer.createCommand({ toolchainRoot, source, stage: 'toolchain', locale: vscode.env.language })}`
 			: installer.createCommand({ toolchainRoot, source, stage: 'toolchain', locale: vscode.env.language });
