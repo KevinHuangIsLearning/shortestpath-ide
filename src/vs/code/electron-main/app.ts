@@ -1061,7 +1061,12 @@ export class CodeApplication extends Disposable {
 
 	private async verifyShortestPathAssetChecksum(filePath: string, expectedChecksum: string): Promise<void> {
 		const checksum = createHash('sha256');
-		await finished(fs.createReadStream(filePath).pipe(checksum));
+		await new Promise<void>((resolve, reject) => {
+			const input = fs.createReadStream(filePath);
+			input.on('data', chunk => checksum.update(chunk));
+			input.on('error', reject);
+			input.on('end', resolve);
+		});
 		if (checksum.digest('hex') !== expectedChecksum) {
 			throw new Error(`Checksum verification failed for ${basename(filePath)}.`);
 		}
@@ -1122,27 +1127,53 @@ export class CodeApplication extends Disposable {
 
 	private async downloadShortestPathAssetFromUrl(url: string, targetPath: string, reportProgress: (message: string) => void): Promise<void> {
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 120_000);
+		let timeoutMessage = 'Download connection timed out.';
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		const resetTimeout = (message: string, delay: number) => {
+			clearTimeout(timeout);
+			timeoutMessage = message;
+			timeout = setTimeout(() => controller.abort(), delay);
+		};
 		try {
+			reportProgress('Connecting to download source…');
+			resetTimeout('Download connection timed out.', 45_000);
 			const response = await net.fetch(url, { signal: controller.signal });
 			if (!response.ok || !response.body) {
 				throw new Error(`Download failed with HTTP ${response.status}.`);
 			}
+			resetTimeout('Download stalled while waiting for data.', 60_000);
 			const totalBytes = Number(response.headers.get('content-length') ?? 0);
 			let receivedBytes = 0;
 			let lastReportedPercent = -1;
+			let lastProgressReport = 0;
 			const input = Readable.fromWeb(response.body as never);
 			input.on('data', (chunk: Buffer) => {
 				receivedBytes += chunk.length;
+				resetTimeout('Download stalled while receiving data.', 60_000);
 				if (totalBytes > 0) {
 					const percent = Math.floor(receivedBytes * 100 / totalBytes);
 					if (percent !== lastReportedPercent && (percent === 100 || percent - lastReportedPercent >= 5)) {
 						lastReportedPercent = percent;
 						reportProgress(`Downloading… ${percent}%`);
 					}
+				} else if (Date.now() - lastProgressReport >= 1_000) {
+					lastProgressReport = Date.now();
+					reportProgress(`Downloading… ${(receivedBytes / 1024 / 1024).toFixed(1)} MB`);
 				}
 			});
-			await finished(input.pipe(fs.createWriteStream(targetPath)));
+			try {
+				await finished(input.pipe(fs.createWriteStream(targetPath)));
+			} catch (error) {
+				if (controller.signal.aborted) {
+					throw new Error(timeoutMessage);
+				}
+				throw error;
+			}
+		} catch (error) {
+			if (controller.signal.aborted) {
+				throw new Error(timeoutMessage);
+			}
+			throw error;
 		} finally {
 			clearTimeout(timeout);
 		}
