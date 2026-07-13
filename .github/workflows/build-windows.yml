@@ -30,6 +30,17 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      - name: Locate Visual Studio C++ toolchain
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ([string]::IsNullOrWhiteSpace($vsPath)) {
+            throw 'No Visual Studio installation with the MSVC C++ build tools was found on this runner.'
+          }
+          "vs2022_install=$vsPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Using Visual Studio at $vsPath"
+
       - name: Install dependencies
         shell: pwsh
         run: |
