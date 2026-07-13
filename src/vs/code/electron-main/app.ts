@@ -1098,10 +1098,12 @@ export class CodeApplication extends Disposable {
 	}
 
 	private async extractShortestPathArchive(archivePath: string, targetPath: string, archiveFormat: 'tar.xz' | 'tar.zst'): Promise<void> {
-		// MSYS2 packages and LLVM archives are compressed tarballs. Use the
-		// 7-Zip binary bundled with the application so setup does not depend on
+		// MSYS2 packages and LLVM archives are compressed tarballs. Use the full
+		// 7-Zip binary bundled with the application, because the standalone 7za
+		// build does not support MSYS2's Zstandard-compressed archives.
+		// This keeps setup independent of
 		// PowerShell, a system installation of 7-Zip, or administrator privileges.
-		const extractorPath = nodeRequire.resolve('7zip-bin/win/x64/7za.exe').replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+		const extractorPath = nodeRequire.resolve('7zip-bin-full/win/x64/7z.exe').replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 		await fs.promises.mkdir(targetPath, { recursive: true });
 		const tarPath = join(targetPath, basename(archivePath).slice(0, -archiveFormat.slice('tar'.length).length));
 		await this.runBundled7Zip(extractorPath, ['x', '-y', `-o${targetPath}`, archivePath]);
