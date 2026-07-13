@@ -1,0 +1,160 @@
+- source: '#'
+  scopesBegin:
+    - meta.preprocessor.include
+    - keyword.control.directive.include
+  scopes:
+    - punctuation.definition.directive
+- source: include
+  scopesEnd:
+    - keyword.control.directive.include
+- source: <
+  scopesBegin:
+    - string.quoted.other.lt-gt.include
+  scopes:
+    - punctuation.definition.string.begin
+- source: iostream
+- source: '>'
+  scopes:
+    - punctuation.definition.string.end
+  scopesEnd:
+    - meta.preprocessor.include
+    - string.quoted.other.lt-gt.include
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: b
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.b
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: auto
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: str
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.str
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+- source: '"'
+  scopesBegin:
+    - string.quoted.double
+  scopes:
+    - punctuation.definition.string.begin
+- source: abdce
+- source: '"'
+  scopes:
+    - punctuation.definition.string.end
+  scopesEnd:
+    - string.quoted.double
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: ''''
+  scopesBegin:
+    - string.quoted.single
+  scopes:
+    - punctuation.definition.string.begin
+- source: '%'
+- source: ''''
+  scopes:
+    - punctuation.definition.string.end
+  scopesEnd:
+    - string.quoted.single
+- source: +
+  scopes:
+    - keyword.operator.arithmetic
+- source: foo
+  scopes:
+    - entity.name.function.call
+- source: (
+  scopes:
+    - punctuation.section.arguments.begin.bracket.round.function.call
+- source: )
+  scopes:
+    - punctuation.section.arguments.end.bracket.round.function.call
+- source: float
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: c
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.c
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: d
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.d
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: auto
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: ch
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.ch
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+- source: ''''
+  scopesBegin:
+    - string.quoted.single
+  scopes:
+    - punctuation.definition.string.begin
+- source: a
+- source: ''''
+  scopes:
+    - punctuation.definition.string.end
+  scopesEnd:
+    - string.quoted.single
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: float
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: e
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.e
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: f
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.f
+- source: ;
+  scopes:
+    - punctuation.terminator.statement

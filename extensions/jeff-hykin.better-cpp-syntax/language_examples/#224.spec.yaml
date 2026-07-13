@@ -1,0 +1,193 @@
+- source: int
+  scopesBegin:
+    - meta.function.definition
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: main
+  scopesBegin:
+    - meta.head.function.definition
+  scopes:
+    - entity.name.function.definition
+- source: (
+  scopes:
+    - punctuation.section.parameters.begin.bracket.round
+- source: )
+  scopes:
+    - punctuation.section.parameters.end.bracket.round
+- source: '{'
+  scopes:
+    - punctuation.section.block.begin.bracket.curly.function.definition
+  scopesEnd:
+    - meta.head.function.definition
+- source: for
+  scopesBegin:
+    - meta.body.function.definition
+  scopes:
+    - keyword.control.for
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: const
+  scopesBegin:
+    - meta.parens.control.for
+    - meta.binding
+  scopes:
+    - storage.modifier.specifier.const
+- source: auto
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '&'
+  scopes:
+    - storage.modifier.reference
+- source: '['
+  scopes:
+    - punctuation.definition.begin.bracket.square.binding
+- source: a
+  scopes:
+    - variable.other.for
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: b
+  scopes:
+    - variable.other.for
+- source: ']'
+  scopes:
+    - punctuation.definition.end.bracket.square.binding
+- source: ':'
+  scopes:
+    - punctuation.separator.colon.range-based
+  scopesEnd:
+    - meta.binding
+- source: c
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.c
+  scopesEnd:
+    - meta.parens.control.for
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.object.access.a
+- source: '->'
+  scopes:
+    - punctuation.separator.pointer-access
+- source: bug
+  scopes:
+    - entity.name.function.member
+- source: (
+  scopes:
+    - punctuation.section.arguments.begin.bracket.round.function.member
+- source: bug
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.bug
+- source: )
+  scopes:
+    - punctuation.section.arguments.end.bracket.round.function.member
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: //
+  scopesBegin:
+    - comment.line.double-slash
+  scopes:
+    - punctuation.definition.comment
+- source: ' bug'
+  scopesEnd:
+    - comment.line.double-slash
+- source: for
+  scopes:
+    - keyword.control.for
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: const
+  scopesBegin:
+    - meta.parens.control.for
+    - meta.binding
+  scopes:
+    - storage.modifier.specifier.const
+- source: auto
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '['
+  scopes:
+    - punctuation.definition.begin.bracket.square.binding
+- source: a
+  scopes:
+    - variable.other.for
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: b
+  scopes:
+    - variable.other.for
+- source: ']'
+  scopes:
+    - punctuation.definition.end.bracket.square.binding
+- source: ':'
+  scopes:
+    - punctuation.separator.colon.range-based
+  scopesEnd:
+    - meta.binding
+- source: c
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.c
+  scopesEnd:
+    - meta.parens.control.for
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.object.access.a
+- source: '->'
+  scopes:
+    - punctuation.separator.pointer-access
+- source: bug
+  scopes:
+    - entity.name.function.member
+- source: (
+  scopes:
+    - punctuation.section.arguments.begin.bracket.round.function.member
+- source: bug
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.bug
+- source: )
+  scopes:
+    - punctuation.section.arguments.end.bracket.round.function.member
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: //
+  scopesBegin:
+    - comment.line.double-slash
+  scopes:
+    - punctuation.definition.comment
+- source: ' bug'
+  scopesEnd:
+    - comment.line.double-slash
+- source: '}'
+  scopes:
+    - punctuation.section.block.end.bracket.curly.function.definition

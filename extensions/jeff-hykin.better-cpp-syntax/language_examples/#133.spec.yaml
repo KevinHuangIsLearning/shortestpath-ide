@@ -1,0 +1,18 @@
+- source: std
+  scopes:
+    - entity.name.scope-resolution
+- source: '::'
+  scopes:
+    - punctuation.separator.namespace.access
+    - punctuation.separator.scope-resolution
+- source: size_t
+  scopes:
+    - storage.type
+    - storage.type.built-in
+- source: size
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.size
+- source: ;
+  scopes:
+    - punctuation.terminator.statement

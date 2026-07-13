@@ -1,0 +1,87 @@
+- source: auto
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: re_pattern
+  scopes:
+    - variable.snake-case
+    - variable.other.unknown.re_pattern
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+- source: R
+  scopesBegin:
+    - string.quoted.double.raw._r
+    - punctuation.definition.string._r.begin
+  scopes:
+    - meta.encoding
+- source: '"_r('
+  scopesEnd:
+    - punctuation.definition.string._r.begin
+- source: '[0-9''"\+]+'
+- source: )_r"
+  scopes:
+    - punctuation.definition.string._r.end
+  scopesEnd:
+    - string.quoted.double.raw._r
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: auto
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: re_pattern
+  scopes:
+    - variable.snake-case
+    - variable.other.unknown.re_pattern
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+- source: R
+  scopesBegin:
+    - string.quoted.double.raw.re
+    - punctuation.definition.string.re.begin
+  scopes:
+    - meta.encoding
+- source: '"re('
+  scopesEnd:
+    - punctuation.definition.string.re.begin
+- source: '[0-9''"\+]+'
+- source: )re"
+  scopes:
+    - punctuation.definition.string.re.end
+  scopesEnd:
+    - string.quoted.double.raw.re
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: auto
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: re_pattern
+  scopes:
+    - variable.snake-case
+    - variable.other.unknown.re_pattern
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+- source: R
+  scopesBegin:
+    - string.quoted.double.raw.regex
+    - punctuation.definition.string.regex.begin
+  scopes:
+    - meta.encoding
+- source: '"regex('
+  scopesEnd:
+    - punctuation.definition.string.regex.begin
+- source: '[0-9''"\+]+'
+- source: )regex"
+  scopes:
+    - punctuation.definition.string.regex.end
+  scopesEnd:
+    - string.quoted.double.raw.regex
+- source: ;
+  scopes:
+    - punctuation.terminator.statement

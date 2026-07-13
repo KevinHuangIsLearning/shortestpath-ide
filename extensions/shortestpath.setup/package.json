@@ -1,0 +1,25 @@
+{
+	"name": "shortestpath-setup",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "shortestpath",
+	"engines": {
+		"vscode": "^1.129.0"
+	},
+	"categories": ["Other"],
+	"activationEvents": ["onStartupFinished", "onCommand:shortestpath.setupEnvironment"],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "shortestpath.setupEnvironment",
+				"title": "%command.configure%"
+			},
+			{
+				"command": "shortestpath.rerunFirstRunSetup",
+				"title": "%command.rerunFirstRun%"
+			}
+		]
+	}
+}

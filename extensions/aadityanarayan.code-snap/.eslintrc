@@ -1,0 +1,10 @@
+{
+  "extends": ["adpyke-es6", "prettier"],
+  "globals": {
+    "ClipboardItem": true
+  },
+  "env": {
+    "browser": false,
+    "node": true
+  }
+}

@@ -1,0 +1,47 @@
+{
+	"pages": [
+		{
+			"id": "method",
+			"title": { "en": "ShortestPath IDE", "zh-CN": "ShortestPath IDE" },
+			"text": { "en": "Select your configuration method.", "zh-CN": "选择你的配置方式。" },
+			"selections": {
+				"Recommended": { "label": { "en": "Recommended", "zh-CN": "推荐配置" }, "jumpto": 2, "description": { "en": "Install GCC and LLVM with Homebrew, then apply the contest preset.", "zh-CN": "使用 Homebrew 安装 GCC 与 LLVM，并应用竞赛预设。" } },
+				"Custom": { "label": { "en": "Custom", "zh-CN": "自定义配置" }, "jumpto": 3, "description": { "en": "Choose the settings to apply.", "zh-CN": "自行选择要应用的设置。" } }
+			}
+		},
+		{
+			"id": "xcode",
+			"title": { "en": "Command Line Tools Required", "zh-CN": "需要 Xcode Command Line Tools" },
+			"text": { "en": "Installing Apple's Command Line Tools. Complete the system dialog if it appears.", "zh-CN": "正在安装 Apple Command Line Tools。如出现系统对话框，请完成安装。" },
+			"onSuccess": "homebrew"
+		},
+		{
+			"id": "homebrew",
+			"title": { "en": "Homebrew Required", "zh-CN": "需要 Homebrew" },
+			"text": { "en": "Homebrew is required on macOS. The official installer opens in Terminal, where you can securely enter your administrator password.", "zh-CN": "macOS 需要先安装 Homebrew。将使用 HomebrewCN 国内安装脚本，并在“终端”中打开；请在终端里安全输入管理员密码。" },
+			"onSuccess": "toolchain"
+		},
+		{
+			"id": "toolchain",
+			"title": { "en": "Installing Toolchain", "zh-CN": "正在安装编译环境" },
+			"text": { "en": "Installing GCC and LLVM with Homebrew…", "zh-CN": "正在通过 Homebrew 安装 GCC 与 LLVM…" },
+			"onSuccess": "configuration"
+		},
+		{
+			"id": "configuration",
+			"title": { "en": "Configuration", "zh-CN": "配置" },
+			"text": { "en": "Choose the editor and Competitive Programming Helper settings.", "zh-CN": "选择编辑器与 Competitive Programming Helper 设置。" },
+			"controls": [
+				{ "key": "editor", "type": "boolean", "default": true, "label": { "en": "Apply editor and save defaults", "zh-CN": "应用编辑器与保存体验预设" } },
+				{ "key": "installToolchain", "type": "boolean", "default": true, "label": { "en": "Install g++ and clangd when missing", "zh-CN": "缺少时下载 g++ 与 clangd" } },
+				{ "key": "fontLigatures", "type": "boolean", "default": true, "label": { "en": "Enable font ligatures", "zh-CN": "启用字体连字" } },
+				{ "key": "fontSize", "type": "number", "default": 14, "min": 10, "max": 32, "label": { "en": "Editor font size", "zh-CN": "编辑器字体大小" } },
+				{ "key": "vjudgeOpenInBrowser", "type": "boolean", "default": true, "label": { "en": "Show problems in CPH VJudge", "zh-CN": "在 CPH 的 VJudge 中显示题目" } }
+			]
+		}
+	],
+	"portableToolchain": false,
+	"compilerCandidates": ["g++-16", "g++-15", "g++"],
+	"clangdCandidates": ["/opt/homebrew/opt/llvm/bin/clangd", "/usr/local/opt/llvm/bin/clangd", "clangd"],
+	"installDescription": "Install GCC and LLVM (clangd) with Homebrew"
+}

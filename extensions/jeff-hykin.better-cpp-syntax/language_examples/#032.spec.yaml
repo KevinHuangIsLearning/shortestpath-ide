@@ -1,0 +1,58 @@
+- source: const
+  scopes:
+    - storage.modifier.specifier.const
+- source: char
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - keyword.operator.arithmetic
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+- source: '"'
+  scopesBegin:
+    - string.quoted.double
+  scopes:
+    - punctuation.definition.string.begin
+- source: foo ??/
+- source: '"'
+  scopes:
+    - punctuation.definition.string.end
+  scopesEnd:
+    - string.quoted.double
+- source: '?'
+  scopesBegin:
+    - keyword.operator.ternary
+- source: '?'
+  scopesEnd:
+    - keyword.operator.ternary
+- source: /
+  scopes:
+    - keyword.operator.arithmetic
+- source: '?'
+  scopesBegin:
+    - keyword.operator.ternary
+- source: '?'
+  scopesEnd:
+    - keyword.operator.ternary
+- source: /
+  scopes:
+    - keyword.operator.arithmetic
+- source: '"'
+  scopesBegin:
+    - string.quoted.double
+  scopes:
+    - punctuation.definition.string.begin
+- source: ;
+- source: '                                            class A <'
+- source: '% A'
+  scopes:
+    - constant.other.placeholder
+- source: (); // test
+- source: '% > ;'

@@ -1,0 +1,145 @@
+# cph development guide
+
+This document contains a basic developer guide to get started with the extension
+development. In case of any confusions/ need for additional information, please
+create an issue in the [repo](https://github.com/agrawal-d/cph). You should also
+take a look at the [user guide](user-guide.md) to understand the user-facing
+terms.
+
+## Architecture
+
+The extension runs in a Node.JS context with the
+[VS Code API](https://code.visualstudio.com/api/references/vscode-api). The
+extension shows the results in a web-view (code in `src/webview`). It
+communicates to-and-from the extension by posting messages. See the
+[webview API](https://code.visualstudio.com/api/extension-guides/webview) for
+details. The webview is currently a React App.
+
+It compiles and runs code by spawning binaries, and pipes input to STDIN and
+compares each line of STDOUT with expected output to judge results.
+
+Generated testcases are stored as JSON files (`.prob` extension) either in the
+folder of the source code or the folder mentioned in extension preferences.
+
+## Competitive Companion Integration
+
+The extension is integrated with the
+[competitive companion](https://github.com/jmerle/competitive-companion) browser
+extension. Our extension runs a HTTP server on port `27121`, and companion
+`POST`s a new problem to this server, and we process it.
+
+## Kattis Auto-Submit Integration
+
+The extension summons a python shell when the `Submit to Kattis` button is
+clicked, calling the
+[Kattis submission client python file](https://github.com/Kattis/kattis-cli/blob/main/submit.py),
+with tag `-f` to force the guessing of the submission. This is ensured to work
+as the naming system for Kattis problems uses the problem ID. The
+[Kattis configuration file](https://open.kattis.com/help/submit) is also needed
+for submission.
+
+The submission process checks for these two files in a `.kattisrc` folder in the
+home directory of the user.
+
+## Developer Tools
+
+Currently, TypeScript is used to develop both the Node.JS and the webview parts
+of the extension. ESLint with Prettier is used to enforce linting and formatting
+rules. Webpack is used to bundle the extension to reduce extension size and
+number of individual components.
+
+Most of the TypeScript type definitions are stored in `src/types.ts`, the most
+important of which is `Problem` and `Case`.
+
+Several common functions have brief JSDocs on their purpose/ workings.
+
+## Building and Hacking the extension in VS Code
+
+The root source file is `src/extension.ts`, which registers the commands etc.
+
+After making changes to code, you will want to test the extension. It's easy.
+The launch config is in `.vscode/launch/json`. To launch the extension, just
+press `F5`. It will bundle the extension using Webpack first, saving the output
+in `dist/`.
+
+We recommend installing `Prettier` and `ESLint` VS Code extensions. Before
+commiting, make sure you are passing the following tests:
+
+-   ESLint lint: `npm run lint`.
+-   Jest unit tests: `npm run test`.
+-   Typescript compilation: `npm run test-compile`.
+-   Pre-publish bundling: `npm run vscode:prepublish`.
+
+## Bundling as `.vsix`
+
+To generate the extension bundle for publishing, install
+[VSCE package](https://www.npmjs.com/package/vsce) first (globally).
+
+Then, in the root directory, run `vsce package` to generate the extension file.
+
+## Adding support for a new language
+
+To add support for a new language, follow these steps:
+
+1.  **Update `src/config.ts`**:
+
+    -   Add the file extension to the `extensions` object.
+    -   Add the default compiler command to the `compilers` object.
+    -   Add the extension to the `supportedExtensions` array.
+    -   If the language doesn't need compilation (interpreted), add it to the
+        `skipCompile` array.
+    -   If it supports auto-submit, add the compiler names and their
+        corresponding IDs to `compilerToId`.
+
+2.  **Update `package.json`**:
+
+    -   Add configuration properties for the new language (Args, Command,
+        SubmissionCompiler) under `contributes.configuration.properties`. Use
+        `%cph.language.name.Args.title%` etc. for localized strings.
+    -   Add the language name to the `enum` of `cph.general.defaultLanguage`.
+
+3.  **Update `package.nls.json` and `package.nls.zh-cn.json`**:
+
+    -   Add the titles and descriptions for the new configuration properties.
+
+4.  **Update `src/preferences.ts`**:
+
+    -   Add getter functions for the new language's arguments and command.
+    -   Update `getLanguageId` to return the correct compiler ID for the new
+        extension.
+
+5.  **Update `src/utils.ts`**:
+
+    -   Update the `getLanguage` function to return a `Language` object for the
+        new language, using the getters created in `src/preferences.ts`.
+
+6.  **Update `src/executions.ts` (if needed)**:
+    -   If the language requires special logic to run (like Java's classpath or
+        C#'s dotnet/mono), update the `switch` statement in `runTestCase`.
+
+## Adding a new translation
+
+To add support for a new display language:
+
+1.  **Extension Metadata & Backend**:
+
+    -   Create a new file `package.nls.<locale>.json` in the root directory
+        (e.g., `package.nls.fr.json` for French).
+    -   Copy the keys from `package.nls.json` and translate the values. This
+        covers settings titles, descriptions, commands, and extension-side error
+        messages.
+
+2.  **Webview Frontend**:
+
+    -   Open `src/webview/translations.ts`.
+    -   Add a new entry to the `translations` object with your locale key and
+        the translated strings.
+
+3.  **Verification**:
+    -   The extension automatically detects the language using
+        `vscode.env.language`. To test, change your VS Code display language.
+
+## Getting help
+
+To discuss ideas and problems while development, please create an issue in the
+[repo](https://github.com/agrawal-d/cph).

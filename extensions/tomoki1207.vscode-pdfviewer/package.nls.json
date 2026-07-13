@@ -1,0 +1,10 @@
+{
+  "shortestpath.001": "Display pdf file in VSCode.",
+  "shortestpath.002": "Pdf Preview",
+  "shortestpath.003": "PDF Preview",
+  "shortestpath.004": "The default cursor tool for preview.",
+  "shortestpath.005": "The default zoom level for preview. Allowed values are `auto`, `page-actual`, `page-fit`, `page-width`, and 1-based scale values. (`1.0` means 100%)",
+  "shortestpath.006": "Show the sidebar on load. The default visibility of sidebar for preview.",
+  "shortestpath.007": "The default scroll mode for preview.",
+  "shortestpath.008": "The default spread mode for preview."
+}

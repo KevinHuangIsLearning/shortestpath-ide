@@ -1,0 +1,8 @@
+**
+!*.md
+!*.png
+!doc-assets/**
+!icon.png
+!LICENSE
+!out/bundle.js
+!package.json

@@ -1,0 +1,151 @@
+{
+  "name": "codesnap",
+  "displayName": "CodeSnap",
+  "description": "%shortestpath.001%",
+  "version": "1.3.4",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kufii/CodeSnap"
+  },
+  "publisher": "adpyke",
+  "icon": "icon.png",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.52.0"
+  },
+  "keywords": [
+    "screenshot",
+    "snippet",
+    "snap",
+    "clipboard",
+    "share",
+    "polacode",
+    "carbon",
+    "codesnap"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:codesnap.start"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codesnap.start",
+        "title": "CodeSnap 📸"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codesnap.start"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "CodeSnap",
+      "properties": {
+        "codesnap.backgroundColor": {
+          "scope": "resource",
+          "type": "string",
+          "default": "#abb8c3",
+          "description": "%shortestpath.002%"
+        },
+        "codesnap.boxShadow": {
+          "scope": "resource",
+          "type": "string",
+          "default": "rgba(0, 0, 0, 0.55) 0px 20px 68px",
+          "description": "%shortestpath.003%"
+        },
+        "codesnap.containerPadding": {
+          "scope": "resource",
+          "type": "string",
+          "default": "3em",
+          "description": "%shortestpath.004%"
+        },
+        "codesnap.roundedCorners": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "%shortestpath.005%"
+        },
+        "codesnap.showWindowControls": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "%shortestpath.006%"
+        },
+        "codesnap.showWindowTitle": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": false,
+          "description": "%shortestpath.007%"
+        },
+        "codesnap.showLineNumbers": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "%shortestpath.008%"
+        },
+        "codesnap.realLineNumbers": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": false,
+          "description": "%shortestpath.009%"
+        },
+        "codesnap.transparentBackground": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": false,
+          "description": "%shortestpath.010%"
+        },
+        "codesnap.target": {
+          "scope": "resource",
+          "type": "string",
+          "enum": [
+            "container",
+            "window"
+          ],
+          "default": "container",
+          "description": "%shortestpath.011%"
+        },
+        "codesnap.shutterAction": {
+          "scope": "resource",
+          "type": "string",
+          "enum": [
+            "save",
+            "copy"
+          ],
+          "default": "save",
+          "description": "%shortestpath.012%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{js,jsx,md,json,css,prettierrc,eslintrc,html}\"",
+    "check:format": "prettier --check \"**/*.{js,jsx,md,json,css,prettierrc,eslintrc,html}\"",
+    "check": "npm run lint && npm run check:format"
+  },
+  "devDependencies": {
+    "eslint": "^7.24.0",
+    "eslint-config-adpyke-es6": "^1.4.13",
+    "eslint-config-prettier": "^8.2.0",
+    "prettier": "^2.2.1",
+    "@types/vscode": "^1.52.0",
+    "@types/glob": "^7.1.3",
+    "@types/mocha": "^8.2.2",
+    "@types/node": "^14.14.40",
+    "glob": "^7.1.6",
+    "mocha": "^8.3.2",
+    "typescript": "^4.2.4",
+    "vscode-test": "^1.5.2"
+  },
+  "dependencies": {
+    "dom-to-image-even-more": "^1.0.4"
+  }
+}

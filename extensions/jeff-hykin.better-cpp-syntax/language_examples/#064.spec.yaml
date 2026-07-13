@@ -1,0 +1,1093 @@
+- source: void
+  scopesBegin:
+    - meta.function.definition
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: function
+  scopesBegin:
+    - meta.head.function.definition
+  scopes:
+    - entity.name.function.definition
+- source: (
+  scopes:
+    - punctuation.section.parameters.begin.bracket.round
+- source: )
+  scopes:
+    - punctuation.section.parameters.end.bracket.round
+- source: '{'
+  scopes:
+    - punctuation.section.block.begin.bracket.curly.function.definition
+  scopesEnd:
+    - meta.head.function.definition
+- source: int
+  scopesBegin:
+    - meta.body.function.definition
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: ' ::'
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+  scopesEnd:
+    - meta.assignment
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+  scopesEnd:
+    - meta.assignment
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: ' ::'
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: '[]'
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+  scopesEnd:
+    - meta.assignment
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: '[]'
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+  scopesEnd:
+    - meta.assignment
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: ' ::'
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.assignment
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.assignment
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: ' ::'
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: '[] '
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.assignment
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: '[] '
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.assignment
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: ' ::'
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: '2'
+  scopes:
+    - constant.numeric.decimal
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: f
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.f
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+  scopesEnd:
+    - meta.assignment
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: '2'
+  scopes:
+    - constant.numeric.decimal
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: f
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.f
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+  scopesEnd:
+    - meta.assignment
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: ' ::'
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: '2'
+  scopes:
+    - constant.numeric.decimal
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: f
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.f
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: '[]'
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+  scopesEnd:
+    - meta.assignment
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: '2'
+  scopes:
+    - constant.numeric.decimal
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: f
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.f
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: '[]'
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+  scopesEnd:
+    - meta.assignment
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: ' ::'
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: '2'
+  scopes:
+    - constant.numeric.decimal
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: f
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.f
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+- source: (
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.assignment
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: '2'
+  scopes:
+    - constant.numeric.decimal
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: f
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.f
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+- source: (
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.assignment
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: ' ::'
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: '2'
+  scopes:
+    - constant.numeric.decimal
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: f
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.f
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: '[] '
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.assignment
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: int
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: '*'
+  scopes:
+    - storage.modifier.pointer
+- source: a
+  scopesBegin:
+    - meta.assignment
+  scopes:
+    - variable.lower-case
+    - variable.other.assignment
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+  scopesEnd:
+    - meta.assignment
+- source: new
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.new
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: '2'
+  scopes:
+    - constant.numeric.decimal
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: f
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.f
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: '[] '
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: int
+  scopes:
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.assignment
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: '    ::'
+- source: delete
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.delete
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: delete
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.delete
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: '    ::'
+- source: delete
+  scopesBegin:
+    - keyword.operator.wordlike
+  scopes:
+    - keyword.operator.delete.array
+- source: '[]'
+  scopes:
+    - keyword.operator.delete.array.bracket
+  scopesEnd:
+    - keyword.operator.wordlike
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: delete
+  scopesBegin:
+    - keyword.operator.wordlike
+  scopes:
+    - keyword.operator.delete.array
+- source: '[]'
+  scopes:
+    - keyword.operator.delete.array.bracket
+  scopesEnd:
+    - keyword.operator.wordlike
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: '    ::'
+- source: delete
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.delete
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: delete
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.delete
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: '    ::'
+- source: delete
+  scopesBegin:
+    - keyword.operator.wordlike
+  scopes:
+    - keyword.operator.delete.array
+- source: '[]'
+  scopes:
+    - keyword.operator.delete.array.bracket
+  scopesEnd:
+    - keyword.operator.wordlike
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: delete
+  scopesBegin:
+    - keyword.operator.wordlike
+  scopes:
+    - keyword.operator.delete.array
+- source: '[]'
+  scopes:
+    - keyword.operator.delete.array.bracket
+  scopesEnd:
+    - keyword.operator.wordlike
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: '    ::'
+- source: delete
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.delete
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: b
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.b
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: delete
+  scopes:
+    - keyword.operator.wordlike
+    - keyword.operator.delete
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: b
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.b
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: '    ::'
+- source: delete
+  scopesBegin:
+    - keyword.operator.wordlike
+  scopes:
+    - keyword.operator.delete.array
+- source: '[]'
+  scopes:
+    - keyword.operator.delete.array.bracket
+  scopesEnd:
+    - keyword.operator.wordlike
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: b
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.b
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: delete
+  scopesBegin:
+    - keyword.operator.wordlike
+  scopes:
+    - keyword.operator.delete.array
+- source: '[]'
+  scopes:
+    - keyword.operator.delete.array.bracket
+  scopesEnd:
+    - keyword.operator.wordlike
+- source: (
+  scopesBegin:
+    - meta.parens
+  scopes:
+    - punctuation.section.parens.begin.bracket.round
+- source: a
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.a
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: b
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.b
+- source: )
+  scopes:
+    - punctuation.section.parens.end.bracket.round
+  scopesEnd:
+    - meta.parens
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: '}'
+  scopes:
+    - punctuation.section.block.end.bracket.curly.function.definition

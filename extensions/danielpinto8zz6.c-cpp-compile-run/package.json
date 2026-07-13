@@ -1,0 +1,427 @@
+{
+  "name": "c-cpp-compile-run",
+  "displayName": "%shortestpath.001%",
+  "description": "%shortestpath.002%",
+  "version": "1.0.92",
+  "publisher": "danielpinto8zz6",
+  "author": {
+    "name": "Daniel Pinto",
+    "email": "danielpinto@duck.com",
+    "url": "https://danielpinto8zz6.github.io"
+  },
+  "icon": "resources/logo.png",
+  "engines": {
+    "vscode": "^1.109.4"
+  },
+  "capabilities": {
+    "workspaceTrust": {
+      "request": "onDemand",
+      "description": "%shortestpath.003%"
+    }
+  },
+  "main": "./dist/extension.js",
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "c",
+    "cpp",
+    "c++",
+    "compile",
+    "run",
+    "debug",
+    "build",
+    "gcc",
+    "g++",
+    "clang"
+  ],
+  "bugs": {
+    "url": "https://github.com/danielpinto8zz6/c-cpp-compile-run/issues",
+    "email": "danielpinto8zz6@gmail.com"
+  },
+  "license": "GPL-3.0",
+  "homepage": "https://github.com/danielpinto8zz6/c-cpp-compile-run/blob/master/README.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danielpinto8zz6/c-cpp-compile-run.git"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "Log",
+        "mimetypes": [
+          "text/x-code-output"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "Log",
+        "scopeName": "code.log",
+        "path": "./syntaxes/log.tmLanguage"
+      }
+    ],
+    "commands": [
+      {
+        "command": "extension.CompileRun",
+        "title": "%shortestpath.004%",
+        "icon": "$(play)"
+      },
+      {
+        "command": "extension.CompileRunInExternalTerminal",
+        "title": "%shortestpath.005%"
+      },
+      {
+        "command": "extension.CustomCompileRun",
+        "title": "%shortestpath.006%"
+      },
+      {
+        "command": "extension.Compile",
+        "title": "%shortestpath.007%"
+      },
+      {
+        "command": "extension.Run",
+        "title": "%shortestpath.008%"
+      },
+      {
+        "command": "extension.Debug",
+        "title": "%shortestpath.009%",
+        "icon": "$(bug)"
+      },
+      {
+        "command": "extension.CustomCompile",
+        "title": "%shortestpath.010%"
+      },
+      {
+        "command": "extension.CustomRun",
+        "title": "%shortestpath.011%"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "extension.CompileRun",
+          "when": "editorLangId == c",
+          "group": "navigation@0"
+        },
+        {
+          "command": "extension.CompileRun",
+          "when": "editorLangId == cpp",
+          "group": "navigation@0"
+        },
+        {
+          "command": "extension.CompileRun",
+          "when": "editorLangId == cc",
+          "group": "navigation@0"
+        },
+        {
+          "command": "extension.Debug",
+          "when": "editorLangId == c",
+          "group": "navigation@1"
+        },
+        {
+          "command": "extension.Debug",
+          "when": "editorLangId == cpp",
+          "group": "navigation@1"
+        },
+        {
+          "command": "extension.Debug",
+          "when": "editorLangId == cc",
+          "group": "navigation@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "extension.CompileRun",
+          "when": "editorLangId == c"
+        },
+        {
+          "command": "extension.CompileRun",
+          "when": "editorLangId == cpp"
+        },
+        {
+          "command": "extension.CompileRun",
+          "when": "editorLangId == cc"
+        },
+        {
+          "command": "extension.CompileRunInExternalTerminal",
+          "when": "editorLangId == c"
+        },
+        {
+          "command": "extension.CompileRunInExternalTerminal",
+          "when": "editorLangId == cpp"
+        },
+        {
+          "command": "extension.CompileRunInExternalTerminal",
+          "when": "editorLangId == cc"
+        },
+        {
+          "command": "extension.CustomCompileRun",
+          "when": "editorLangId == c"
+        },
+        {
+          "command": "extension.CustomCompileRun",
+          "when": "editorLangId == cpp"
+        },
+        {
+          "command": "extension.CustomCompileRun",
+          "when": "editorLangId == cc"
+        },
+        {
+          "command": "extension.Compile",
+          "when": "editorLangId == c"
+        },
+        {
+          "command": "extension.Compile",
+          "when": "editorLangId == cpp"
+        },
+        {
+          "command": "extension.Compile",
+          "when": "editorLangId == cc"
+        },
+        {
+          "command": "extension.Run",
+          "when": "editorLangId == c"
+        },
+        {
+          "command": "extension.Run",
+          "when": "editorLangId == cpp"
+        },
+        {
+          "command": "extension.Run",
+          "when": "editorLangId == cc"
+        },
+        {
+          "command": "extension.CustomCompile",
+          "when": "editorLangId == c"
+        },
+        {
+          "command": "extension.CustomCompile",
+          "when": "editorLangId == cpp"
+        },
+        {
+          "command": "extension.CustomCompile",
+          "when": "editorLangId == cc"
+        },
+        {
+          "command": "extension.CustomRun",
+          "when": "editorLangId == c"
+        },
+        {
+          "command": "extension.CustomRun",
+          "when": "editorLangId == cpp"
+        },
+        {
+          "command": "extension.CustomRun",
+          "when": "editorLangId == cc"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "mac": "cmd+6",
+        "win": "ctrl+6",
+        "linux": "ctrl+6",
+        "key": "ctrl+6",
+        "command": "extension.CompileRun",
+        "when": "editorLangId == c || editorLangId == cpp || editorLangId == cc"
+      },
+      {
+        "mac": "f6",
+        "win": "f6",
+        "linux": "f6",
+        "key": "f6",
+        "command": "extension.CompileRun",
+        "when": "editorLangId == c || editorLangId == cpp || editorLangId == cc"
+      },
+      {
+        "mac": "f8",
+        "win": "f8",
+        "linux": "f8",
+        "key": "f8",
+        "command": "extension.CompileRunInExternalTerminal",
+        "when": "editorLangId == c || editorLangId == cpp || editorLangId == cc"
+      },
+      {
+        "mac": "f7",
+        "win": "f7",
+        "linux": "f7",
+        "key": "f7",
+        "command": "extension.CustomCompileRun",
+        "when": "editorLangId == c || editorLangId == cpp || editorLangId == cc"
+      },
+      {
+        "mac": "f5",
+        "win": "f5",
+        "linux": "f5",
+        "key": "f5",
+        "command": "extension.Debug",
+        "when": "editorLangId == c || editorLangId == cpp || editorLangId == cc"
+      }
+    ],
+    "configuration": {
+      "title": "%shortestpath.012%",
+      "properties": {
+        "c-cpp-compile-run.c-compiler": {
+          "type": "string",
+          "default": "gcc",
+          "description": "%shortestpath.013%",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.cpp-compiler": {
+          "type": "string",
+          "default": "g++",
+          "description": "%shortestpath.014%",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.save-before-compile": {
+          "type": "boolean",
+          "default": true,
+          "description": "%shortestpath.015%",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.c-flags": {
+          "type": "string",
+          "description": "%shortestpath.016%",
+          "default": "-std=c17 -O2 -Wall -Wextra",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.c-linker-flags": {
+          "type": "string",
+          "description": "%shortestpath.017%",
+          "default": "",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.cpp-flags": {
+          "type": "string",
+          "description": "%shortestpath.018%",
+          "default": "-std=c++23 -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.cpp-linker-flags": {
+          "type": "string",
+          "description": "%shortestpath.019%",
+          "default": "",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.run-args": {
+          "type": "string",
+          "description": "%shortestpath.020%",
+          "default": "",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.run-in-external-terminal": {
+          "type": "boolean",
+          "default": false,
+          "description": "%shortestpath.021%",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.should-show-notifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "%shortestpath.022%",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.output-location": {
+          "type": "string",
+          "description": "%shortestpath.023%",
+          "scope": "resource",
+          "default": "output"
+        },
+        "c-cpp-compile-run.mirror-output-location": {
+          "type": "boolean",
+          "description": "Mirror the source folder structure under the output directory. When enabled, a file at src/foo/bar.cpp with output-location 'out' produces out/foo/bar.exe. When disabled (default), the output is placed directly in a folder relative to the source file (e.g. src/foo/out/bar.exe).",
+          "scope": "resource",
+          "default": false
+        },
+        "c-cpp-compile-run.custom-run-prefix": {
+          "type": "string",
+          "description": "%shortestpath.024%",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.additional-include-paths": {
+          "type": "array",
+          "description": "Additional directories to add to the compiler's include path (e.g. [\"${workspaceFolder}/include\", \"${workspaceFolder}/libs\"]).",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.debugger-mimode": {
+          "type": "string",
+          "default": "gdb",
+          "description": "%shortestpath.025%",
+          "enum": [
+            "gdb",
+            "lldb"
+          ],
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.debugger-path": {
+          "type": "string",
+          "default": "",
+          "description": "%shortestpath.026%",
+          "scope": "resource"
+        },
+        "c-cpp-compile-run.trust-single-files": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically trust single files opened without a workspace folder. When disabled, the extension will prompt for confirmation before compiling or running.",
+          "scope": "application"
+        },
+        "c-cpp-compile-run.skip-if-compiled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Skip compilation if the executable is already up-to-date (no changes detected in source or header files). Disable this to always recompile.",
+          "scope": "resource"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "release": "release-it --disable-metrics --ci"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/glob": "^9.0.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^25.3.0",
+    "@types/vscode": "^1.109.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.0",
+    "@typescript-eslint/parser": "^8.56.0",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/test-cli": "^0.0.12",
+    "eslint": "^10.0.0",
+    "git-cz": "^4.9.0",
+    "glob": "^13.0.6",
+    "gulp": "^5.0.1",
+    "mocha": "^11.7.5",
+    "release-it": "^19.2.4",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "webpack": "^5.105.2",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "find-process": "^2.0.0",
+    "fs-extra": "^11.3.3",
+    "is-wsl": "^3.1.1",
+    "lookpath": "^1.2.3"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/git-cz"
+    }
+  }
+}

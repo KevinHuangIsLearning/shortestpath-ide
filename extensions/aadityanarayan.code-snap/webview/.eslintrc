@@ -1,0 +1,14 @@
+{
+  "extends": ["adpyke-es6", "prettier"],
+  "env": {
+    "browser": true,
+    "node": false
+  },
+  "parserOptions": {
+    "sourceType": "module"
+  },
+  "globals": {
+    "acquireVsCodeApi": true,
+    "domtoimage": true
+  }
+}

@@ -1,0 +1,200 @@
+- source: sscanf
+  scopes:
+    - entity.name.function.call
+- source: (
+  scopes:
+    - punctuation.section.arguments.begin.bracket.round.function.call
+- source: user_input
+  scopes:
+    - variable.snake-case
+    - variable.other.unknown.user_input
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: '"'
+  scopesBegin:
+    - string.quoted.double
+  scopes:
+    - punctuation.definition.string.begin
+- source: '%c'
+  scopes:
+    - constant.other.placeholder
+- source: ' %[^'
+- source: \n
+  scopes:
+    - constant.character.escape
+- source: ']'
+- source: '"'
+  scopes:
+    - punctuation.definition.string.end
+  scopesEnd:
+    - string.quoted.double
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: '&'
+  scopes:
+    - keyword.operator.bitwise
+- source: arg0
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.arg0
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: arg_str
+  scopes:
+    - variable.snake-case
+    - variable.other.unknown.arg_str
+- source: )
+  scopes:
+    - punctuation.section.arguments.end.bracket.round.function.call
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: //
+  scopesBegin:
+    - comment.line.double-slash
+  scopes:
+    - punctuation.definition.comment
+- source: ' reads char into arg0, the remainder until \n to arg_str'
+  scopesEnd:
+    - comment.line.double-slash
+- source: void
+  scopesBegin:
+    - meta.function.definition
+  scopes:
+    - meta.qualified-type
+    - storage.type.primitive
+    - storage.type.built-in.primitive
+- source: test
+  scopesBegin:
+    - meta.head.function.definition
+  scopes:
+    - entity.name.function.definition
+- source: (
+  scopes:
+    - punctuation.section.parameters.begin.bracket.round
+- source: )
+  scopes:
+    - punctuation.section.parameters.end.bracket.round
+- source: '{'
+  scopes:
+    - punctuation.section.block.begin.bracket.curly.function.definition
+  scopesEnd:
+    - meta.head.function.definition
+- source: t
+  scopesBegin:
+    - meta.body.function.definition
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.t
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+- source: time
+  scopes:
+    - entity.name.function.call
+- source: (
+  scopes:
+    - punctuation.section.arguments.begin.bracket.round.function.call
+- source: 'NULL'
+  scopes:
+    - constant.language.NULL
+- source: )
+  scopes:
+    - punctuation.section.arguments.end.bracket.round.function.call
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: tmp
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.tmp
+- source: '='
+  scopes:
+    - keyword.operator.assignment
+- source: localtime
+  scopes:
+    - entity.name.function.call
+- source: (
+  scopes:
+    - punctuation.section.arguments.begin.bracket.round.function.call
+- source: '&'
+  scopes:
+    - keyword.operator.bitwise
+- source: t
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.t
+- source: )
+  scopes:
+    - punctuation.section.arguments.end.bracket.round.function.call
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: strftime
+  scopes:
+    - entity.name.function.call
+- source: (
+  scopes:
+    - punctuation.section.arguments.begin.bracket.round.function.call
+- source: timestr
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.timestr
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: sizeof
+  scopes:
+    - keyword.operator.functionlike
+    - keyword.operator.sizeof
+- source: (
+  scopes:
+    - punctuation.section.arguments.begin.bracket.round.operator.sizeof
+- source: timestr
+  scopes:
+    - meta.arguments.operator.sizeof
+    - variable.lower-case
+    - variable.other.unknown.timestr
+- source: )
+  scopes:
+    - punctuation.section.arguments.end.bracket.round.operator.sizeof
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: '"'
+  scopesBegin:
+    - string.quoted.double
+  scopes:
+    - punctuation.definition.string.begin
+- source: '%Y-%m-'
+- source: '%d'
+  scopes:
+    - constant.other.placeholder
+- source: ' %H:%M:'
+- source: '%s'
+  scopes:
+    - constant.other.placeholder
+- source: '"'
+  scopes:
+    - punctuation.definition.string.end
+  scopesEnd:
+    - string.quoted.double
+- source: ','
+  scopes:
+    - punctuation.separator.delimiter.comma
+- source: tmp
+  scopes:
+    - variable.lower-case
+    - variable.other.unknown.tmp
+- source: )
+  scopes:
+    - punctuation.section.arguments.end.bracket.round.function.call
+- source: ;
+  scopes:
+    - punctuation.terminator.statement
+- source: '}'
+  scopes:
+    - punctuation.section.block.end.bracket.curly.function.definition

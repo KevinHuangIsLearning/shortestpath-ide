@@ -1,0 +1,32 @@
+{
+	"pages": [
+		{
+			"title": { "en": "ShortestPath IDE", "zh-CN": "ShortestPath IDE" },
+			"text": { "en": "Select your configuration method.", "zh-CN": "选择你的配置方式。" },
+			"selections": {
+				"Recommended": { "label": { "en": "Recommended", "zh-CN": "推荐配置" }, "jumpto": 2, "description": { "en": "Download the Portable toolchain and apply the contest preset.", "zh-CN": "下载 Portable 工具链并应用竞赛预设。" } },
+				"Custom": { "label": { "en": "Custom", "zh-CN": "自定义配置" }, "jumpto": 3, "description": { "en": "Choose the settings to apply.", "zh-CN": "自行选择要应用的设置。" } }
+			}
+		},
+		{
+			"title": { "en": "Installing Portable Toolchain", "zh-CN": "正在安装 Portable 编译环境" },
+			"text": { "en": "Downloading GCC and clangd into ShortestPath IDE data…", "zh-CN": "正在下载 GCC 与 clangd 到 ShortestPath IDE 数据目录…" },
+			"jumpto": 3
+		},
+		{
+			"title": { "en": "Configuration", "zh-CN": "配置" },
+			"text": { "en": "Choose the editor and Competitive Programming Helper settings.", "zh-CN": "选择编辑器与 Competitive Programming Helper 设置。" },
+			"controls": [{ "key": "editor", "type": "boolean", "default": true, "label": { "en": "Apply editor and save defaults", "zh-CN": "应用编辑器与保存体验预设" } }, { "key": "installToolchain", "type": "boolean", "default": true, "label": { "en": "Install g++ and clangd when missing", "zh-CN": "缺少时下载 g++ 与 clangd" } }, { "key": "fontLigatures", "type": "boolean", "default": true, "label": { "en": "Enable font ligatures", "zh-CN": "启用字体连字" } }, { "key": "fontSize", "type": "number", "default": 14, "min": 10, "max": 32, "label": { "en": "Editor font size", "zh-CN": "编辑器字体大小" } }, { "key": "vjudgeOpenInBrowser", "type": "boolean", "default": true, "label": { "en": "Show problems in CPH VJudge", "zh-CN": "在 CPH 的 VJudge 中显示题目" } }]
+		}
+	],
+	"downloadSourceLabel": { "en": "Package download source", "zh-CN": "软件包下载源" },
+	"downloadSources": [
+		{ "id": "official", "condaForgeChannel": "conda-forge", "msys2Channel": "msys2", "label": { "en": "Official conda-forge", "zh-CN": "官方 conda-forge" } },
+		{ "id": "tuna", "condaForgeChannel": "https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge", "msys2Channel": "https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/msys2", "label": { "en": "Tsinghua TUNA mirror", "zh-CN": "清华大学 TUNA 镜像" } },
+		{ "id": "aliyun", "unavailable": true, "condaForgeChannel": "https://mirrors.aliyun.com/anaconda/cloud/conda-forge", "label": { "en": "Alibaba Cloud mirror (currently unavailable)", "zh-CN": "阿里云镜像（当前不可用）" } }
+	],
+	"portableToolchain": true,
+	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\env\\Library\\mingw-w64\\bin\\g++.exe"],
+	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\env\\Library\\bin\\clangd.exe"],
+	"installDescription": "Download an isolated Portable GCC and LLVM environment into ShortestPath IDE data"
+}
