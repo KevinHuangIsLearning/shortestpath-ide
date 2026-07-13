@@ -1,0 +1,54 @@
+name: Build ShortestPath IDE (Windows)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      VSCODE_ARCH: x64
+      npm_config_arch: x64
+      npm_config_foreground_scripts: "true"
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = 'Stop'
+          exec { npm ci }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package ShortestPath IDE
+        shell: pwsh
+        run: npm run gulp vscode-win32-x64-min
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShortestPath-IDE-windows-x64
+          path: VSCode-win32-x64
+          if-no-files-found: error
+          retention-days: 14
