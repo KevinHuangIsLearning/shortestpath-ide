@@ -50,23 +50,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install bundled extension dependencies
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $extensions = @(
-            'extensions/aadityanarayan.code-snap',
-            'extensions/danielpinto8zz6.c-cpp-compile-run',
-            'extensions/divyanshuagrawal.competitive-programming-helper',
-            'extensions/llvm-vs-code-extensions.vscode-clangd',
-            'extensions/tomoki1207.vscode-pdfviewer'
-          )
-          foreach ($extension in $extensions) {
-            Write-Host "Installing production dependencies for $extension"
-            npm ci --omit=dev --prefix $extension
-            if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed for $extension" }
-          }
-
       - name: Package ShortestPath IDE
         shell: pwsh
         run: npm run gulp vscode-win32-x64-min
@@ -77,6 +60,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ShortestPath-IDE-windows-x64
-          path: VSCode-win32-x64
+          path: ../VSCode-win32-x64
           if-no-files-found: error
           retention-days: 14
