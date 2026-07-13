@@ -77,6 +77,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
 
 	@memoize
+	get shortestPathTrustWorkspace() { return this.args['shortestpath-trust-workspace']; }
+
+	@memoize
 	get expectsResolverExtension() { return !!this.configuration.remoteAuthority?.includes('+'); }
 
 	@memoize

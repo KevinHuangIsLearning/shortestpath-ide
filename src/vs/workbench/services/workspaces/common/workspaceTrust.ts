@@ -137,6 +137,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
 
 		this._trustStateInfo = this.loadTrustInfo();
+		this.trustShortestPathOnboardingWorkspace();
 		this._isTrusted = this.calculateWorkspaceTrust();
 
 		this.initializeWorkspaceTrust();
@@ -273,6 +274,21 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		result.uriTrustInfo = result.uriTrustInfo.filter(info => info.trusted);
 
 		return result;
+	}
+
+	private trustShortestPathOnboardingWorkspace(): void {
+		const workspacePath = this.environmentService.shortestPathTrustWorkspace;
+		if (!workspacePath) {
+			return;
+		}
+
+		const workspaceUri = this.uriIdentityService.extUri.removeTrailingPathSeparator(URI.file(workspacePath));
+		if (this._trustStateInfo.uriTrustInfo.some(info => this.uriIdentityService.extUri.isEqual(info.uri, workspaceUri))) {
+			return;
+		}
+
+		this._trustStateInfo.uriTrustInfo.push({ trusted: true, uri: workspaceUri });
+		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 	}
 
 	private async saveTrustInfo(): Promise<void> {

@@ -260,6 +260,8 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
+	get shortestPathTrustWorkspace(): string | undefined { return undefined; }
+
 	@memoize
 	get isSessionsWindow(): boolean { return this.payload?.get('isSessionsWindow') === 'true'; }
 

@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { homedir } from 'os';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
 
@@ -27,9 +28,66 @@ type FirstRunSelection = {
 	fontLigatures: boolean;
 	fontSize: number;
 	vjudgeOpenInBrowser: boolean;
+	cppStandard: 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
+	workspaceFolder: string;
 };
 
 const SETUP_COMPLETE = 'shortestpath.setupComplete';
+
+function defaultClangdProjectConfig(compiler: string, cppStandard: FirstRunSelection['cppStandard']): string {
+	const includePath = process.platform === 'darwin' ? '\n    - -I/opt/homebrew/include' : '';
+	const compilerPath = compiler.replaceAll('\\', '/');
+	return `CompileFlags:
+  Add:
+    - -std=${cppStandard}
+    - -Wall
+    - -Wextra
+    - "-Drsize_t=size_t"
+    - "-D__STDC_WANT_LIB_EXT1__=1"
+    - "-D__float128=long double"
+    - -U__SIZEOF_FLOAT128__${includePath}
+  BuiltinHeaders: QueryDriver
+  Compiler: ${JSON.stringify(compilerPath)}
+
+Completion:
+  HeaderInsertion: Never
+
+Index:
+  Background: Build
+`;
+}
+
+function clangdUserConfigPath(): string {
+	if (process.platform === 'win32') {
+		return path.join(process.env.LOCALAPPDATA || path.join(homedir(), 'AppData', 'Local'), 'clangd', 'config.yaml');
+	}
+	if (process.platform === 'darwin') {
+		return path.join(homedir(), 'Library', 'Preferences', 'clangd', 'config.yaml');
+	}
+	return path.join(process.env.XDG_CONFIG_HOME || path.join(homedir(), '.config'), 'clangd', 'config.yaml');
+}
+
+function createDefaultClangdConfig(configPath: string, compiler: string, cppStandard: FirstRunSelection['cppStandard']): void {
+	if (fs.existsSync(configPath)) {
+		return;
+	}
+	fs.mkdirSync(path.dirname(configPath), { recursive: true });
+	try {
+		fs.writeFileSync(configPath, defaultClangdProjectConfig(compiler, cppStandard), { encoding: 'utf8', flag: 'wx' });
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+			throw error;
+		}
+	}
+}
+
+function createDefaultClangdUserConfig(compiler: string, cppStandard: FirstRunSelection['cppStandard']): void {
+	createDefaultClangdConfig(clangdUserConfigPath(), compiler, cppStandard);
+}
+
+function createDefaultClangdProjectConfig(workspaceFolder: string, compiler: string, cppStandard: FirstRunSelection['cppStandard']): void {
+	createDefaultClangdConfig(path.join(workspaceFolder, '.clangd'), compiler, cppStandard);
+}
 
 const editorSettings: Record<string, unknown> = {
 	'editor.fontFamily': "Fira Code, Menlo, Monaco, 'Courier New', monospace",
@@ -41,7 +99,7 @@ const editorSettings: Record<string, unknown> = {
 	'editor.cursorBlinking': 'smooth',
 	'editor.fontSize': 14,
 	'files.autoSave': 'onFocusChange',
-	'editor.formatOnSave': true,
+	'editor.formatOnSave': false,
 	'editor.formatOnPaste': true,
 	'editor.mouseWheelZoom': true
 };
@@ -176,10 +234,17 @@ async function configure(context: vscode.ExtensionContext, selection: SetupSelec
 			settings['cph.general.vjudgeOpenInBrowser'] = firstRunSelection.vjudgeOpenInBrowser;
 		}
 	}
+	const cppStandard = firstRunSelection?.cppStandard ?? 'c++23';
 	if (compiler) {
 		settings['cph.language.cpp.Command'] = compiler;
+		settings['cph.language.cpp.Args'] = `-std=${cppStandard} -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG`;
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
-		settings['clangd.arguments'] = [`--background-index`, `--query-driver=${compiler}`];
+		settings['c-cpp-compile-run.cpp-flags'] = `-std=${cppStandard} -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG`;
+		createDefaultClangdUserConfig(compiler, cppStandard);
+		if (firstRunSelection) {
+			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard);
+		}
+		settings['clangd.arguments'] = ['--background-index', `--query-driver=${compiler}`];
 	}
 	if (clangd) {
 		settings['clangd.path'] = clangd;
@@ -212,7 +277,10 @@ function isFirstRunSelection(candidate: unknown): candidate is FirstRunSelection
 		&& typeof value.installToolchain === 'boolean'
 		&& typeof value.fontLigatures === 'boolean'
 		&& typeof value.fontSize === 'number'
-		&& typeof value.vjudgeOpenInBrowser === 'boolean';
+		&& typeof value.vjudgeOpenInBrowser === 'boolean'
+		&& (value.cppStandard === 'c++11' || value.cppStandard === 'c++14' || value.cppStandard === 'c++17' || value.cppStandard === 'c++20' || value.cppStandard === 'c++23')
+		&& typeof value.workspaceFolder === 'string'
+		&& path.isAbsolute(value.workspaceFolder);
 }
 
 function loadPreset(context: vscode.ExtensionContext): PlatformPreset {

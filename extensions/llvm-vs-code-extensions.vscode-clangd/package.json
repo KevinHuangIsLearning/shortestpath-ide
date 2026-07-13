@@ -126,7 +126,15 @@
         },
         "clangd.fallbackFlags": {
           "type": "array",
-          "default": [],
+          "default": [
+            "-std=c++23",
+            "-Wall",
+            "-Wextra",
+            "-Drsize_t=size_t",
+            "-D__STDC_WANT_LIB_EXT1__=1",
+            "-D__float128=long double",
+            "-U__SIZEOF_FLOAT128__"
+          ],
           "items": {
             "type": "string"
           },

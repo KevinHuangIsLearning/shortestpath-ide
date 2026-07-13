@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, ipcMain, net, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, dialog, globalShortcut, GPUFeatureStatus, ipcMain, net, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -13,7 +13,7 @@ import { createRequire } from 'module';
 import { Readable } from 'stream';
 import { finished } from 'stream/promises';
 import { createHash } from 'crypto';
-import { basename } from 'path';
+import { basename, isAbsolute } from 'path';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
@@ -164,6 +164,8 @@ interface IShortestPathSetupRequest {
 	readonly fontLigatures: boolean;
 	readonly fontSize: number;
 	readonly vjudgeOpenInBrowser: boolean;
+	readonly cppStandard: 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
+	readonly workspaceFolder: string;
 }
 
 interface IShortestPathToolchainPreset {
@@ -220,7 +222,10 @@ function isShortestPathSetupRequest(candidate: unknown): candidate is IShortestP
 		&& typeof value.installToolchain === 'boolean'
 		&& typeof value.fontLigatures === 'boolean'
 		&& typeof value.fontSize === 'number'
-		&& typeof value.vjudgeOpenInBrowser === 'boolean';
+		&& typeof value.vjudgeOpenInBrowser === 'boolean'
+		&& (value.cppStandard === 'c++11' || value.cppStandard === 'c++14' || value.cppStandard === 'c++17' || value.cppStandard === 'c++20' || value.cppStandard === 'c++23')
+		&& typeof value.workspaceFolder === 'string'
+		&& isAbsolute(value.workspaceFolder);
 }
 
 /**
@@ -765,10 +770,10 @@ export class CodeApplication extends Disposable {
 
 		// The competitive-programming setup is intentionally shown before the
 		// workbench is created, so a first launch never flashes a VS Code window.
-		await this.showShortestPathFirstRun();
+		const onboardingWorkspaceFolder = await this.showShortestPathFirstRun();
 
 		// Open Windows
-		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls));
+		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls, onboardingWorkspaceFolder));
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
@@ -790,9 +795,9 @@ export class CodeApplication extends Disposable {
 		eventuallyPhaseScheduler.schedule();
 	}
 
-	private async showShortestPathFirstRun(): Promise<void> {
+	private async showShortestPathFirstRun(): Promise<string | undefined> {
 		if (this.configurationService.getValue<boolean>('shortestpath.setup.completed')) {
-			return;
+			return undefined;
 		}
 
 		const onboardingPath = join(this.environmentMainService.appRoot, 'resources', 'oi-defaults', 'first-run.html');
@@ -815,23 +820,25 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		await new Promise<void>(resolve => {
+		return new Promise<string | undefined>(resolve => {
 			const channel = 'shortestpath:onboarding-complete';
 			const installChannel = 'shortestpath:onboarding-install-toolchain';
 			const scriptChannel = 'shortestpath:onboarding-script';
 			const localeChannel = 'shortestpath:onboarding-locale';
+			const workspaceChannel = 'shortestpath:onboarding-pick-workspace';
 			const finish = async (request: IShortestPathSetupRequest | undefined) => {
 				ipcMain.removeListener(channel, listener);
 				ipcMain.removeHandler(installChannel);
 				ipcMain.removeHandler(scriptChannel);
 				ipcMain.removeHandler(localeChannel);
+				ipcMain.removeHandler(workspaceChannel);
 				if (request) {
 					await this.configurationService.updateValue('shortestpath.setup.pending', request, ConfigurationTarget.USER);
 				}
+				resolve(request?.workspaceFolder);
 				if (!onboardingWindow.isDestroyed()) {
 					onboardingWindow.destroy();
 				}
-				resolve();
 			};
 			const listener = (event: Electron.IpcMainEvent, candidate: unknown) => {
 				if (event.sender !== onboardingWindow.webContents) {
@@ -859,12 +866,22 @@ export class CodeApplication extends Disposable {
 				}
 				return this.environmentMainService.args.locale ?? app.getLocale();
 			});
+			ipcMain.handle(workspaceChannel, async event => {
+				if (event.sender !== onboardingWindow.webContents) {
+					throw new Error('Unexpected sender for ShortestPath workspace selection.');
+				}
+				const result = await dialog.showOpenDialog(onboardingWindow, {
+					properties: ['openDirectory', 'createDirectory']
+				});
+				return result.canceled ? undefined : result.filePaths[0];
+			});
 			onboardingWindow.once('closed', () => {
 				ipcMain.removeListener(channel, listener);
 				ipcMain.removeHandler(installChannel);
 				ipcMain.removeHandler(scriptChannel);
 				ipcMain.removeHandler(localeChannel);
-				resolve();
+				ipcMain.removeHandler(workspaceChannel);
+				resolve(undefined);
 			});
 			onboardingWindow.once('ready-to-show', () => onboardingWindow.show());
 			const onboardingHtml = fs.readFileSync(onboardingPath, 'utf8');
@@ -1858,7 +1875,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
 	}
 
-	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
+	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined, onboardingWorkspaceFolder?: string): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		this.auxiliaryWindowsMainService = accessor.get(IAuxiliaryWindowsMainService);
 
@@ -1870,6 +1887,15 @@ export class CodeApplication extends Disposable {
 			return windowsMainService.openAgentsWindow({
 				context,
 				cli: args,
+				initialStartup: true
+			});
+		}
+
+		if (onboardingWorkspaceFolder) {
+			return windowsMainService.open({
+				context,
+				cli: { ...args, 'shortestpath-trust-workspace': onboardingWorkspaceFolder },
+				urisToOpen: [{ folderUri: URI.file(onboardingWorkspaceFolder) }],
 				initialStartup: true
 			});
 		}
