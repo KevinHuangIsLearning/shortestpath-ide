@@ -11,6 +11,23 @@
 	"activationEvents": ["onStartupFinished", "onCommand:shortestpath.setupEnvironment"],
 	"main": "./out/extension.js",
 	"contributes": {
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"shortestpath.setup.completed": {
+					"type": "boolean",
+					"default": false,
+					"scope": "window",
+					"description": "%configuration.completed%"
+				},
+				"shortestpath.setup.pending": {
+					"type": "object",
+					"default": {},
+					"scope": "window",
+					"description": "%configuration.pending%"
+				}
+			}
+		},
 		"commands": [
 			{
 				"command": "shortestpath.setupEnvironment",

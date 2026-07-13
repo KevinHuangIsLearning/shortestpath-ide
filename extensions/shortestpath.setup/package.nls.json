@@ -1,4 +1,7 @@
 {
+	"configuration.title": "ShortestPath IDE Setup",
+	"configuration.completed": "Whether the first-run setup has been completed.",
+	"configuration.pending": "The configuration selected by the first-run setup before it is applied.",
 	"displayName": "ShortestPath IDE Setup",
 	"description": "First-run competitive programming environment setup for ShortestPath IDE.",
 	"command.configure": "ShortestPath IDE: Configure Competitive Programming Environment",

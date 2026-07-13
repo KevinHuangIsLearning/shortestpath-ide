@@ -1,4 +1,7 @@
 {
+	"configuration.title": "ShortestPath IDE 配置",
+	"configuration.completed": "首次配置是否已经完成。",
+	"configuration.pending": "首次配置完成前暂存的配置选择。",
 	"displayName": "ShortestPath IDE 配置",
 	"description": "为 ShortestPath IDE 提供首次竞赛编程环境配置。",
 	"command.configure": "ShortestPath IDE：配置竞赛编程环境",
