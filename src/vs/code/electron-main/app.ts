@@ -122,7 +122,6 @@ import { ExtensionsScannerService } from '../../platform/extensionManagement/nod
 import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
 import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
 import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
-import { CancellationToken } from '../../base/common/cancellation.js';
 import { resolveMachineId, resolveSqmId, resolveDevDeviceId, validateDevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
