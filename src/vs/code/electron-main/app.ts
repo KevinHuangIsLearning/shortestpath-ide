@@ -12,6 +12,8 @@ import { spawn } from 'child_process';
 import { createRequire } from 'module';
 import { Readable } from 'stream';
 import { finished } from 'stream/promises';
+import { createHash } from 'crypto';
+import { basename } from 'path';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
@@ -180,16 +182,30 @@ interface IShortestPathDownloadSource {
 interface IShortestPathPlatformInstaller {
 	createProcess?(input: { readonly toolchainRoot: string; readonly source?: IShortestPathDownloadSource; readonly stage?: string; readonly locale?: string }): { readonly executable: string; readonly args: readonly string[]; readonly displayName: string };
 	getPortableAssets?(): readonly IShortestPathPortableAsset[];
+	getMsys2PackageRoots?(): readonly string[];
 }
 
 interface IShortestPathPortableAsset {
 	readonly id: string;
 	readonly urls: readonly string[];
 	readonly archiveName: string;
-	readonly archiveFormat?: 'zip' | 'tar.xz';
+	readonly archiveFormat?: 'zip' | 'tar.xz' | 'tar.zst';
 	readonly targetDirectory: string;
 	readonly requiredFile: string;
 }
+
+interface IMsys2Package {
+	readonly name: string;
+	readonly fileName: string;
+	readonly sha256: string;
+	readonly dependencies: readonly string[];
+	readonly provides: readonly string[];
+}
+
+const msys2MingwRepositoryUrls = [
+	'https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/mingw64/',
+	'https://mirror.msys2.org/mingw/mingw64/'
+];
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -883,6 +899,10 @@ export class CodeApplication extends Disposable {
 		if (assets?.length) {
 			return this.installShortestPathPortableAssets(toolchainRoot, assets, reportProgress);
 		}
+		const msys2PackageRoots = installer.getMsys2PackageRoots?.();
+		if (msys2PackageRoots?.length) {
+			return this.installShortestPathMsys2Packages(toolchainRoot, msys2PackageRoots, reportProgress);
+		}
 
 		let processDefinition: NonNullable<ReturnType<NonNullable<IShortestPathPlatformInstaller['createProcess']>>>;
 		try {
@@ -942,21 +962,129 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
+	private async installShortestPathMsys2Packages(toolchainRoot: string, roots: readonly string[], reportProgress: (message: string) => void): Promise<{ readonly success: boolean; readonly message: string }> {
+		const metadataRoot = join(toolchainRoot, '.msys2-repository');
+		const packageCacheRoot = join(metadataRoot, 'packages');
+		const databaseArchivePath = join(metadataRoot, 'mingw64.db.tar.zst');
+		const installRoot = join(toolchainRoot, 'msys2');
+		try {
+			await fs.promises.mkdir(metadataRoot, { recursive: true });
+			reportProgress('Downloading the MSYS2 package index… 0%');
+			await this.downloadShortestPathAsset(msys2MingwRepositoryUrls.map(base => `${base}mingw64.db.tar.zst`), databaseArchivePath, reportProgress);
+			await fs.promises.rm(join(metadataRoot, 'database'), { recursive: true, force: true });
+			await this.extractShortestPathArchive(databaseArchivePath, join(metadataRoot, 'database'), 'tar.zst');
+			await fs.promises.unlink(databaseArchivePath);
+
+			const packages = await this.readMsys2PackageDatabase(join(metadataRoot, 'database'));
+			const selectedPackages = this.resolveMsys2Packages(packages, roots);
+			await fs.promises.mkdir(packageCacheRoot, { recursive: true });
+			for (const [index, pkg] of selectedPackages.entries()) {
+				const packagePath = join(packageCacheRoot, pkg.fileName);
+				reportProgress(`Downloading ${pkg.name} (${index + 1}/${selectedPackages.length})…`);
+				await this.downloadShortestPathAsset(msys2MingwRepositoryUrls.map(base => `${base}${pkg.fileName}`), packagePath, reportProgress);
+				await this.verifyShortestPathAssetChecksum(packagePath, pkg.sha256);
+				reportProgress(`Extracting ${pkg.name} (${index + 1}/${selectedPackages.length})…`);
+				await this.extractShortestPathArchive(packagePath, installRoot, 'tar.zst');
+				await fs.promises.unlink(packagePath);
+			}
+
+			if (!fs.existsSync(join(installRoot, 'mingw64', 'bin', 'g++.exe')) || !fs.existsSync(join(installRoot, 'mingw64', 'bin', 'clangd.exe'))) {
+				throw new Error('The installed MSYS2 packages did not contain g++.exe and clangd.exe.');
+			}
+			reportProgress('MSYS2 MinGW toolchain installation complete.');
+			return { success: true, message: 'Toolchain download completed.' };
+		} catch (error) {
+			return { success: false, message: toErrorMessage(error) };
+		}
+	}
+
+	private async readMsys2PackageDatabase(databaseRoot: string): Promise<Map<string, IMsys2Package>> {
+		const packages = new Map<string, IMsys2Package>();
+		for (const entry of await fs.promises.readdir(databaseRoot, { withFileTypes: true })) {
+			if (!entry.isDirectory()) {
+				continue;
+			}
+			const descPath = join(databaseRoot, entry.name, 'desc');
+			if (!fs.existsSync(descPath)) {
+				continue;
+			}
+			const fields = this.parseMsys2PackageMetadata(await fs.promises.readFile(descPath, 'utf8'));
+			const name = fields.get('NAME')?.[0];
+			const fileName = fields.get('FILENAME')?.[0];
+			const sha256 = fields.get('SHA256SUM')?.[0];
+			if (name && fileName && sha256) {
+				packages.set(name, { name, fileName, sha256, dependencies: fields.get('DEPENDS') ?? [], provides: fields.get('PROVIDES') ?? [] });
+			}
+		}
+		return packages;
+	}
+
+	private parseMsys2PackageMetadata(contents: string): Map<string, string[]> {
+		const fields = new Map<string, string[]>();
+		const blocks = contents.replaceAll('\r\n', '\n').trim().split('\n\n');
+		for (const block of blocks) {
+			const [header, ...values] = block.split('\n');
+			const match = /^%(.+)%$/.exec(header);
+			if (match) {
+				fields.set(match[1], values.filter(Boolean));
+			}
+		}
+		return fields;
+	}
+
+	private resolveMsys2Packages(packages: Map<string, IMsys2Package>, roots: readonly string[]): IMsys2Package[] {
+		const resolved = new Map<string, IMsys2Package>();
+		const providers = new Map<string, string>();
+		for (const pkg of packages.values()) {
+			for (const provided of pkg.provides) {
+				providers.set(provided.replace(/[<>=].*$/, ''), pkg.name);
+			}
+		}
+		const visit = (name: string) => {
+			if (resolved.has(name)) {
+				return;
+			}
+			const pkg = packages.get(name) ?? packages.get(providers.get(name) ?? '');
+			if (!pkg) {
+				throw new Error(`MSYS2 package ${name} was not found in the repository index.`);
+			}
+			resolved.set(name, pkg);
+			for (const dependency of pkg.dependencies) {
+				visit(dependency.replace(/[<>=].*$/, ''));
+			}
+		};
+		for (const root of roots) {
+			visit(root);
+		}
+		return [...resolved.values()];
+	}
+
+	private async verifyShortestPathAssetChecksum(filePath: string, expectedChecksum: string): Promise<void> {
+		const checksum = createHash('sha256');
+		await finished(fs.createReadStream(filePath).pipe(checksum));
+		if (checksum.digest('hex') !== expectedChecksum) {
+			throw new Error(`Checksum verification failed for ${basename(filePath)}.`);
+		}
+	}
+
 	private async extractShortestPathAsset(asset: IShortestPathPortableAsset, archivePath: string, targetPath: string, reportProgress: (message: string) => void): Promise<void> {
-		if (asset.archiveFormat !== 'tar.xz') {
+		if (!asset.archiveFormat || asset.archiveFormat === 'zip') {
 			return extractZip(archivePath, targetPath, { overwrite: true }, CancellationToken.None);
 		}
+		await this.extractShortestPathArchive(archivePath, targetPath, asset.archiveFormat);
+		reportProgress(`Extracted ${asset.id}.`);
+	}
 
-		// LLVM is published as a .tar.xz archive. Use the 7-Zip binary bundled
-		// with the application so setup does not depend on PowerShell, a system
-		// installation of 7-Zip, or administrator privileges.
+	private async extractShortestPathArchive(archivePath: string, targetPath: string, archiveFormat: 'tar.xz' | 'tar.zst'): Promise<void> {
+		// MSYS2 packages and LLVM archives are compressed tarballs. Use the
+		// 7-Zip binary bundled with the application so setup does not depend on
+		// PowerShell, a system installation of 7-Zip, or administrator privileges.
 		const extractorPath = nodeRequire.resolve('7zip-bin/win/x64/7za.exe').replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 		await fs.promises.mkdir(targetPath, { recursive: true });
-		const tarPath = join(targetPath, asset.archiveName.slice(0, -'.xz'.length));
+		const tarPath = join(targetPath, basename(archivePath).slice(0, -archiveFormat.slice('tar'.length).length));
 		await this.runBundled7Zip(extractorPath, ['x', '-y', `-o${targetPath}`, archivePath]);
 		await this.runBundled7Zip(extractorPath, ['x', '-y', `-o${targetPath}`, tarPath]);
 		await fs.promises.rm(tarPath, { force: true });
-		reportProgress(`Extracted ${asset.id}.`);
 	}
 
 	private async runBundled7Zip(extractorPath: string, args: readonly string[]): Promise<void> {

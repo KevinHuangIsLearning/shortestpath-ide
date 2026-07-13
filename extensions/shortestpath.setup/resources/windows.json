@@ -20,7 +20,7 @@
 		}
 	],
 	"portableToolchain": true,
-	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\gcc\\mingw64\\bin\\g++.exe"],
-	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\llvm\\clang+llvm-22.1.8-x86_64-pc-windows-msvc\\bin\\clangd.exe"],
-	"installDescription": "Download isolated WinLibs GCC and LLVM (clangd) archives into ShortestPath IDE data"
+	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\msys2\\mingw64\\bin\\g++.exe"],
+	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\msys2\\mingw64\\bin\\clangd.exe"],
+	"installDescription": "Download isolated MSYS2 MinGW GCC and clangd packages into ShortestPath IDE data"
 }
