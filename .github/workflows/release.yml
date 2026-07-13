@@ -128,6 +128,8 @@ jobs:
     needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
     steps:
+      # `gh release create` derives the repository from the local Git checkout.
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v8
         with:
           path: release
@@ -136,13 +138,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "${{ github.ref_name }}" == Beta-v* ]]; then
-            gh release create "${{ github.ref_name }}" release/* \
+          tag="${{ github.ref_name }}"
+          if [[ "$tag" == Beta-v* ]]; then
+            gh release create "$tag" release/* \
               --prerelease \
-              --title "ShortestPath IDE Beta ${{ github.ref_name }}" \
+              --title "ShortestPath IDE Beta v${tag#Beta-v}" \
               --notes "Beta release — preview build for testing."
           else
-            gh release create "${{ github.ref_name }}" release/* \
+            gh release create "$tag" release/* \
               --generate-notes \
-              --title "ShortestPath IDE Release ${{ github.ref_name }}"
+              --title "ShortestPath IDE Release v${tag#Release-v}"
           fi
