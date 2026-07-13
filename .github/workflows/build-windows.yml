@@ -72,10 +72,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Stage Windows package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = Join-Path (Split-Path $env:GITHUB_WORKSPACE -Parent) 'VSCode-win32-x64'
+          $artifactRoot = Join-Path $env:GITHUB_WORKSPACE '.build\artifacts'
+          $destination = Join-Path $artifactRoot 'VSCode-win32-x64'
+          if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+            throw "Packaged application was not found at $source."
+          }
+          New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+          Move-Item -LiteralPath $source -Destination $destination
+          if (-not (Test-Path -LiteralPath (Join-Path $destination 'ShortestPath.exe') -PathType Leaf)) {
+            throw "ShortestPath.exe was not found in the staged package at $destination."
+          }
+          Write-Host "Staged Windows package at $destination"
+
       - name: Upload Windows package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ShortestPath-IDE-windows-x64
-          path: ../VSCode-win32-x64
+          path: .build/artifacts/VSCode-win32-x64
           if-no-files-found: error
           retention-days: 14
