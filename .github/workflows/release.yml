@@ -1,0 +1,113 @@
+name: Release ShortestPath IDE
+
+on:
+  push:
+    tags:
+      - 'Release-v*'
+      - 'Beta-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      VSCODE_ARCH: x64
+      npm_config_arch: x64
+      npm_config_foreground_scripts: "true"
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = 'Stop'
+          exec { npm ci }
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Build Windows package
+        shell: pwsh
+        run: npm run gulp vscode-win32-x64-min
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Archive Windows package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+          Compress-Archive -Path "${{ github.workspace }}\..\VSCode-win32-x64\*" -DestinationPath artifacts\ShortestPath-IDE-windows-x64.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-x64
+          path: artifacts/ShortestPath-IDE-windows-x64.zip
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS ARM64
+    runs-on: macos-14
+    timeout-minutes: 90
+    env:
+      VSCODE_ARCH: arm64
+      npm_config_arch: arm64
+      npm_config_foreground_scripts: "true"
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Build macOS package
+        run: npm run gulp vscode-darwin-arm64-min
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Archive macOS application
+        run: |
+          mkdir artifacts
+          ditto -c -k --sequesterRsrc --keepParent "../VSCode-darwin-arm64/ShortestPath IDE.app" artifacts/ShortestPath-IDE-macos-arm64.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-arm64
+          path: artifacts/ShortestPath-IDE-macos-arm64.zip
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: release
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${{ github.ref_name }}" == Beta-v* ]]; then
+            gh release create "${{ github.ref_name }}" release/* \
+              --prerelease \
+              --title "ShortestPath IDE Beta ${{ github.ref_name }}" \
+              --notes "Beta release — preview build for testing."
+          else
+            gh release create "${{ github.ref_name }}" release/* \
+              --generate-notes \
+              --title "ShortestPath IDE Release ${{ github.ref_name }}"
+          fi
