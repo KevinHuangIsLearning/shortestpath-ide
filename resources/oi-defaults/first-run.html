@@ -12,7 +12,7 @@
 		.badge { color: #a8c7ff; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 		h1 { font-size: clamp(42px, 6vw, 72px); margin: 14px 0; letter-spacing: -.04em; }
 		.lead { font-size: 20px; line-height: 1.6; color: #b7bfce; max-width: 680px; }
-		.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 44px 0 26px; }
+		.cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin: 44px 0 26px; }
 		button { appearance: none; font: inherit; color: inherit; cursor: pointer; }
 		.card { text-align: left; min-height: 200px; padding: 28px; border: 1px solid #30394d; border-radius: 18px; background: #171b25; transition: .16s ease; }
 		.card:hover, .card.selected { border-color: #78a9ff; background: #1b2540; transform: translateY(-2px); }
@@ -50,8 +50,7 @@
 		<h1 id="choice-title">准备好开始竞赛编程。</h1>
 		<p id="choice-lead" class="lead">先选择一套环境方案。我们会探测编译器、按你的系统提供安装步骤，并把设置写入你的个人配置。完成后才会打开 IDE。</p>
 		<section class="cards">
-			<button class="card selected" data-mode="recommended"><strong id="recommended-label">Recommended</strong><span id="recommended-description">配置 C++ 竞赛环境、编辑体验、CPH 与常用 OJ 映射。缺少 g++ 或 clangd 时提供对应系统的安装步骤。</span></button>
-			<button class="card" data-mode="custom"><strong id="custom-label">Custom</strong><span id="custom-description">自行决定是否应用编辑器预设、CPH/OJ 映射和自动下载编译器。</span></button>
+			<div class="card selected"><strong id="recommended-label">Recommended</strong><span id="recommended-description">配置 C++ 竞赛环境、编辑体验、CPH 与常用 OJ 映射。缺少 g++ 或 clangd 时提供对应系统的安装步骤。</span></div>
 		</section>
 		<div id="source-choice" class="source-choice" hidden><label><span id="source-label">下载源</span><select id="download-source"></select></label></div>
 		<div class="actions">
@@ -87,13 +86,13 @@
 		const sources = Array.isArray(script.downloadSources) ? script.downloadSources : [];
 		const translations = {
 			'en': {
-				choiceTitle: 'Ready for competitive programming.', choiceLead: 'Choose an environment setup. We will detect compilers, provide system-specific installation steps, and save your preferences before opening the IDE.',
-				recommended: 'Configure the C++ toolchain, editor experience, CPH, and common online-judge mappings.', custom: 'Choose the editor, CPH, and toolchain options yourself.',
+				choiceTitle: 'Ready for competitive programming.', choiceLead: 'We will detect compilers, provide system-specific installation steps, and save your preferences before opening the IDE.',
+				recommended: 'Configure the C++ toolchain, editor experience, CPH, and common online-judge mappings.',
 				permission: 'Installation may require confirmation or administrator permission.', skip: 'Configure later', continue: 'Continue', downloadTitle: 'Preparing your toolchain.', configurationTitle: 'Your toolchain is ready.', configurationLead: 'Confirm the ShortestPath IDE preferences to save before opening the workbench.', preparing: 'Preparing installation…', completed: 'Download complete. Select Next to continue configuration.', failed: 'Download failed: {message}'
 			},
 			'zh-CN': {
-				choiceTitle: '准备好开始竞赛编程。', choiceLead: '先选择一套环境方案。我们会探测编译器、按你的系统提供安装步骤，并把设置写入你的个人配置。完成后才会打开 IDE。',
-				recommended: '配置 C++ 竞赛环境、编辑体验、CPH 与常用 OJ 映射。缺少 g++ 或 clangd 时提供对应系统的安装步骤。', custom: '自行决定是否应用编辑器预设、CPH/OJ 映射和自动下载编译器。',
+				choiceTitle: '准备好开始竞赛编程。', choiceLead: '我们会探测编译器、按你的系统提供安装步骤，并把设置写入你的个人配置。完成后才会打开 IDE。',
+				recommended: '配置 C++ 竞赛环境、编辑体验、CPH 与常用 OJ 映射。缺少 g++ 或 clangd 时提供对应系统的安装步骤。',
 				permission: '安装需要确认，可能要求管理员权限。', skip: '稍后配置', continue: '继续', downloadTitle: '正在准备编译环境。', configurationTitle: '工具链已准备就绪。', configurationLead: '确认要写入的 ShortestPath IDE 配置，然后进入工作台。', preparing: '正在准备安装…', completed: '下载完成。点击“下一步”继续配置。', failed: '下载失败：{message}'
 			}
 		};
@@ -102,7 +101,6 @@
 		document.getElementById('choice-title').textContent = t.choiceTitle;
 		document.getElementById('choice-lead').textContent = t.choiceLead;
 		document.getElementById('recommended-description').textContent = t.recommended;
-		document.getElementById('custom-description').textContent = t.custom;
 		document.getElementById('permission-note').textContent = t.permission;
 		document.getElementById('skip').textContent = t.skip;
 		document.getElementById('continue').textContent = t.continue;
@@ -112,9 +110,7 @@
 		document.getElementById('choice-title').textContent = localize(pages[0].title);
 		document.getElementById('choice-lead').textContent = localize(pages[0].text);
 		document.getElementById('recommended-description').textContent = localize(pages[0].selections.Recommended.description);
-		document.getElementById('custom-description').textContent = localize(pages[0].selections.Custom.description);
 		document.getElementById('recommended-label').textContent = localize(pages[0].selections.Recommended.label);
-		document.getElementById('custom-label').textContent = localize(pages[0].selections.Custom.label);
 		const pageById = id => pages.find(page => page.id === id);
 		const toolchainPage = pageById('toolchain') ?? pages.find(page => page.controls === undefined && page !== pages[0]);
 		const xcodePage = pageById('xcode');
@@ -133,15 +129,7 @@
 			if (language === 'zh-CN' && chineseSource) sourceSelect.value = chineseSource.id;
 			sourceChoice.hidden = false;
 		}
-		let mode = 'recommended';
 		let toolchainReady = false;
-		let pendingCustomRequest;
-		const cards = document.querySelectorAll('[data-mode]');
-		cards.forEach(card => card.addEventListener('click', () => {
-			mode = card.dataset.mode;
-			cards.forEach(item => item.classList.toggle('selected', item === card));
-			sourceChoice.hidden = mode !== 'recommended' || sources.length === 0;
-		}));
 		const choicePage = document.getElementById('choice-page');
 		const downloadPage = document.getElementById('download-page');
 		const configurePage = document.getElementById('configure-page');
@@ -158,10 +146,10 @@
 			}
 		};
 		const request = () => ({
-			mode,
-			editor: mode === 'recommended' || (document.getElementById('editor')?.checked ?? true),
-			cph: mode === 'recommended' || (document.getElementById('cph')?.checked ?? true),
-			installToolchain: mode === 'recommended' || (document.getElementById('installToolchain')?.checked ?? true),
+			mode: 'recommended',
+			editor: true,
+			cph: true,
+			installToolchain: true,
 			fontLigatures: document.getElementById('fontLigatures')?.checked ?? true,
 			fontSize: Math.min(32, Math.max(10, Number(document.getElementById('fontSize')?.value ?? 14) || 14)),
 			vjudgeOpenInBrowser: document.getElementById('vjudgeOpenInBrowser')?.checked ?? true
@@ -171,9 +159,7 @@
 			downloadPage.hidden = true;
 			configurePage.hidden = false;
 			const target = document.getElementById('final-options');
-			const controls = mode === 'recommended'
-				? configurationPage.controls.filter(control => !['editor', 'cph', 'installToolchain'].includes(control.key))
-				: configurationPage.controls;
+			const controls = configurationPage.controls.filter(control => !['editor', 'cph', 'installToolchain'].includes(control.key));
 			target.innerHTML = controls.map(control => control.type === 'number'
 				? `<label>${localize(control.label)} <input id="${control.key}" type="number" min="${control.min}" max="${control.max}" value="${control.default}"></label>`
 				: `<label><input id="${control.key}" type="checkbox" ${control.default ? 'checked' : ''}>${localize(control.label)}</label>`).join('');
@@ -206,26 +192,19 @@
 			}
 		};
 		window.shortestPathSetup.onProgress(message => setProgressDescription(message));
-		document.getElementById('continue').addEventListener('click', () => mode === 'recommended' ? download(xcodePage ? 'xcode' : homebrewPage ? 'homebrew' : 'toolchain') : showConfiguration());
+		document.getElementById('continue').addEventListener('click', () => download(xcodePage ? 'xcode' : homebrewPage ? 'homebrew' : 'toolchain'));
 		document.getElementById('retry').addEventListener('click', () => download(downloadStage));
 		document.getElementById('download-next').addEventListener('click', () => {
 			if (downloadStage === 'xcode') {
 				download('homebrew');
 			} else if (downloadStage === 'homebrew') {
 				download('toolchain');
-			} else if (pendingCustomRequest) {
-				window.shortestPathSetup.complete({ ...pendingCustomRequest, installToolchain: true });
 			} else {
 				showConfiguration();
 			}
 		});
 		document.getElementById('finish').addEventListener('click', () => {
 			const selectedRequest = request();
-			if (mode === 'custom' && selectedRequest.installToolchain && !toolchainReady) {
-				pendingCustomRequest = selectedRequest;
-				download(xcodePage ? 'xcode' : homebrewPage ? 'homebrew' : 'toolchain');
-				return;
-			}
 			window.shortestPathSetup.complete({ ...selectedRequest, installToolchain: toolchainReady });
 		});
 		document.getElementById('skip').addEventListener('click', () => window.shortestPathSetup.complete(undefined));

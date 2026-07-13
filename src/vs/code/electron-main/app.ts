@@ -186,6 +186,7 @@ interface IShortestPathPortableAsset {
 	readonly id: string;
 	readonly urls: readonly string[];
 	readonly archiveName: string;
+	readonly archiveFormat?: 'zip' | 'tar.xz';
 	readonly targetDirectory: string;
 	readonly requiredFile: string;
 }
@@ -928,7 +929,7 @@ export class CodeApplication extends Disposable {
 				reportProgress(`Downloading ${asset.id}… 0%`);
 				await this.downloadShortestPathAsset(asset.urls, archivePath, reportProgress);
 				reportProgress(`Extracting ${asset.id}…`);
-				await extractZip(archivePath, targetPath, { overwrite: true }, CancellationToken.None);
+				await this.extractShortestPathAsset(asset, archivePath, targetPath, reportProgress);
 				await fs.promises.unlink(archivePath);
 				if (!fs.existsSync(join(targetPath, asset.requiredFile))) {
 					throw new Error(`${asset.id} archive did not contain ${asset.requiredFile}.`);
@@ -939,6 +940,39 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			return { success: false, message: toErrorMessage(error) };
 		}
+	}
+
+	private async extractShortestPathAsset(asset: IShortestPathPortableAsset, archivePath: string, targetPath: string, reportProgress: (message: string) => void): Promise<void> {
+		if (asset.archiveFormat !== 'tar.xz') {
+			return extractZip(archivePath, targetPath, { overwrite: true }, CancellationToken.None);
+		}
+
+		// LLVM is published as a .tar.xz archive. Use the 7-Zip binary bundled
+		// with the application so setup does not depend on PowerShell, a system
+		// installation of 7-Zip, or administrator privileges.
+		const extractorPath = nodeRequire.resolve('7zip-bin/win/x64/7za.exe').replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+		await fs.promises.mkdir(targetPath, { recursive: true });
+		const tarPath = join(targetPath, asset.archiveName.slice(0, -'.xz'.length));
+		await this.runBundled7Zip(extractorPath, ['x', '-y', `-o${targetPath}`, archivePath]);
+		await this.runBundled7Zip(extractorPath, ['x', '-y', `-o${targetPath}`, tarPath]);
+		await fs.promises.rm(tarPath, { force: true });
+		reportProgress(`Extracted ${asset.id}.`);
+	}
+
+	private async runBundled7Zip(extractorPath: string, args: readonly string[]): Promise<void> {
+		await new Promise<void>((resolve, reject) => {
+			const process = spawn(extractorPath, args, { windowsHide: true });
+			let errorOutput = '';
+			process.stderr.on('data', (data: Buffer) => errorOutput += data.toString());
+			process.on('error', reject);
+			process.on('close', code => {
+				if (code === 0) {
+					resolve();
+				} else {
+					reject(new Error(`Bundled extractor exited with code ${code ?? 'unknown'}${errorOutput ? `: ${errorOutput.trim()}` : ''}.`));
+				}
+			});
+		});
 	}
 
 	private async downloadShortestPathAsset(urls: readonly string[], targetPath: string, reportProgress: (message: string) => void): Promise<void> {

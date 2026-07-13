@@ -132,6 +132,7 @@
     "@xterm/addon-webgl": "^0.20.0-beta.287",
     "@xterm/headless": "^6.1.0-beta.288",
     "@xterm/xterm": "^6.1.0-beta.288",
+    "7zip-bin": "5.2.0",
     "chrome-remote-interface": "^0.33.0",
     "detect-libc": "^2.1.2",
     "http-proxy-agent": "^7.0.0",

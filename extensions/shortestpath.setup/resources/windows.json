@@ -21,6 +21,6 @@
 	],
 	"portableToolchain": true,
 	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\gcc\\mingw64\\bin\\g++.exe"],
-	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\clangd\\clangd_22.1.6\\bin\\clangd.exe"],
-	"installDescription": "Download isolated WinLibs GCC and clangd archives into ShortestPath IDE data"
+	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\llvm\\clang+llvm-22.1.8-x86_64-pc-windows-msvc\\bin\\clangd.exe"],
+	"installDescription": "Download isolated WinLibs GCC and LLVM (clangd) archives into ShortestPath IDE data"
 }

@@ -13,12 +13,14 @@ exports.getPortableAssets = () => [
 		requiredFile: 'mingw64/bin/g++.exe'
 	},
 	{
-		id: 'clangd',
+		id: 'llvm',
 		urls: [
-			'https://github.com/clangd/clangd/releases/download/22.1.6/clangd-windows-22.1.6.zip'
+			'https://mirrors.bfsu.edu.cn/github-release/llvm/llvm-project/LatestRelease/clang%2Bllvm-22.1.8-x86_64-pc-windows-msvc.tar.xz',
+			'https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/clang%2Bllvm-22.1.8-x86_64-pc-windows-msvc.tar.xz'
 		],
-		archiveName: 'clangd-22.1.6.zip',
-		targetDirectory: 'clangd',
-		requiredFile: 'clangd_22.1.6/bin/clangd.exe'
+		archiveName: 'llvm-22.1.8.tar.xz',
+		archiveFormat: 'tar.xz',
+		targetDirectory: 'llvm',
+		requiredFile: 'clang+llvm-22.1.8-x86_64-pc-windows-msvc/bin/clangd.exe'
 	}
 ];
