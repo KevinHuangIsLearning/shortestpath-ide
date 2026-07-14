@@ -1225,7 +1225,7 @@ export class CodeApplication extends Disposable {
 					const percent = Math.floor(receivedBytes * 100 / totalBytes);
 					if (percent !== lastReportedPercent && (percent === 100 || percent - lastReportedPercent >= 5)) {
 						lastReportedPercent = percent;
-						reportProgress(`Downloading ${label}… ${percent}%`);
+						reportProgress(`Downloading ${label}… ${percent}% (${this.formatShortestPathBytes(receivedBytes)} / ${this.formatShortestPathBytes(totalBytes)})`);
 					}
 				} else if (Date.now() - lastProgressReport >= 1_000) {
 					lastProgressReport = Date.now();
@@ -1248,6 +1248,10 @@ export class CodeApplication extends Disposable {
 		} finally {
 			clearTimeout(timeout);
 		}
+	}
+
+	private formatShortestPathBytes(bytes: number): string {
+		return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 	}
 
 	private async setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): Promise<IInitialProtocolUrls | undefined> {
