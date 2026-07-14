@@ -8,6 +8,7 @@ import path from 'path';
 import { onlineJudgeEnv } from './compiler';
 import telmetry from './telmetry';
 import localize from './i18n';
+import { promises as fs } from 'fs';
 
 const runningBinaries: ChildProcessWithoutNullStreams[] = [];
 
@@ -173,40 +174,81 @@ export const runTestCase = (
     return ret;
 };
 
-/** Remove the generated binary from the file system, if present */
+const DEFAULT_BINARY_CLEANUP_DELAY_SECONDS = 60;
+
+const getBinaryCleanupDelayMs = () => {
+    const seconds = vscode.workspace.getConfiguration('shortestpath').get<number>('executableCleanupDelaySeconds', DEFAULT_BINARY_CLEANUP_DELAY_SECONDS);
+    return Math.max(0, Math.min(86_400, Number.isFinite(seconds) ? Math.floor(seconds) : DEFAULT_BINARY_CLEANUP_DELAY_SECONDS)) * 1_000;
+};
+
+const isBinaryCleanupEnabled = () => vscode.workspace.getConfiguration('shortestpath').get<boolean>('executableCleanupEnabled', true) !== false;
+
+const binaryVersion = async (binPath: string) => {
+    try {
+        const stat = await fs.stat(binPath);
+        return { mtimeMs: stat.mtimeMs, size: stat.size };
+    } catch {
+        return undefined;
+    }
+};
+
+/** Remove generated binaries after execution, using the configured Windows delay. */
 export const deleteBinary = (language: Language, binPath: string) => {
-    if (language.skipCompile) {
+    if (language.skipCompile || !isBinaryCleanupEnabled()) {
         globalThis.logger.log(
             "Skipping deletion of binary as it's not a compiled language.",
         );
         return;
     }
-    globalThis.logger.log('Deleting binary', binPath);
-    try {
-        const isLinux = platform() == 'linux';
-        const isFile = path.extname(binPath);
-
-        if (isLinux) {
-            if (isFile) {
-                spawn('rm', [binPath]);
-            } else {
-                spawn('rm', ['-r', binPath]);
-            }
-        } else {
-            const nrmBinPath = '"' + binPath + '"';
-            if (isFile) {
-                spawn('cmd.exe', ['/c', 'del', nrmBinPath], {
-                    windowsVerbatimArguments: true,
-                });
-            } else {
-                spawn('cmd.exe', ['/c', 'rd', '/s', '/q', nrmBinPath], {
-                    windowsVerbatimArguments: true,
-                });
-            }
-        }
-    } catch (err) {
-        globalThis.logger.error('Error while deleting binary', err);
-    }
+    const cleanupDelay = getBinaryCleanupDelayMs();
+    globalThis.logger.log(
+        `Scheduled binary deletion in ${cleanupDelay}ms`,
+        binPath,
+    );
+    const expectedVersion = binaryVersion(binPath);
+    const timer = setTimeout(() => {
+        void Promise.all([expectedVersion, binaryVersion(binPath)])
+            .then(async ([expected, current]) => {
+                // A later compilation may have replaced the same output path.
+                // Its cleanup timer owns that newer executable.
+                if (
+                    !expected ||
+                    !current ||
+                    expected.mtimeMs !== current.mtimeMs ||
+                    expected.size !== current.size
+                ) {
+                    return false;
+                }
+                await Promise.all([
+                    fs.rm(binPath, {
+                        recursive: true,
+                        force: true,
+                        maxRetries: 3,
+                        retryDelay: 500,
+                    }),
+                    fs.rm(`${binPath}.dSYM`, {
+                        recursive: true,
+                        force: true,
+                        maxRetries: 3,
+                        retryDelay: 500,
+                    }),
+                ]);
+                return true;
+            })
+            .then(
+                (deleted) => {
+                    if (deleted) {
+                        globalThis.logger.log('Deleted binary', binPath);
+                    }
+                },
+                (err) =>
+                    globalThis.logger.error(
+                        'Error while deleting binary',
+                        err,
+                    ),
+            );
+    }, cleanupDelay);
+    timer.unref();
 };
 
 /** Kill all running binaries. Usually, only one should be running at a time. */

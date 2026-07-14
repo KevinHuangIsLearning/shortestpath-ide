@@ -11,9 +11,21 @@ permissions:
 
 jobs:
   build-windows:
-    name: Build Windows x64
+    name: Build Windows x64 (${{ matrix.label }})
     runs-on: windows-latest
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: exclude
+            label: Exclude Compiler
+            artifact: windows-x64-exclude-compiler
+            archive: ShortestPath-IDE-windows-x64-Exclude-Compiler.zip
+          - id: include
+            label: Include Compiler
+            artifact: windows-x64-include-compiler
+            archive: ShortestPath-IDE-windows-x64-Include-Compiler.zip
     env:
       VSCODE_ARCH: x64
       npm_config_arch: x64
@@ -71,6 +83,17 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Build bundled OI extensions
         run: npm run compile-oi-extensions
+      - name: Add bundled WinLibs compiler
+        if: matrix.id == 'include'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/brechtsanders/winlibs_mingw/releases/download/16.1.0posix-14.0.0-ucrt-r3/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip'
+          $destination = 'resources\oi-defaults\toolchains\winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip'
+          curl.exe -fL --retry 3 --connect-timeout 30 $url --output $destination
+          if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 100MB) {
+            throw "The bundled WinLibs archive was not downloaded correctly."
+          }
       - name: Build Windows package
         shell: pwsh
         run: npm run gulp vscode-win32-x64-min
@@ -103,11 +126,11 @@ jobs:
               throw "Required extension entry file was not packaged: $entry"
             }
           }
-          Compress-Archive -Path "$destination\*" -DestinationPath ShortestPath-IDE-windows-x64.zip
+          Compress-Archive -Path "$destination\*" -DestinationPath "${{ matrix.archive }}"
       - uses: actions/upload-artifact@v7
         with:
-          name: windows-x64
-          path: ShortestPath-IDE-windows-x64.zip
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.archive }}
           if-no-files-found: error
 
   build-macos:

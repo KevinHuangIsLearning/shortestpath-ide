@@ -6,7 +6,7 @@
 import { join } from '../common/path.js';
 import { promises } from 'fs';
 import { mark } from '../common/performance.js';
-import { ILanguagePacks, INLSConfiguration } from '../../nls.js';
+import { ILanguagePack, ILanguagePacks, INLSConfiguration } from '../../nls.js';
 import { Promises } from './pfs.js';
 
 export interface IResolveNLSConfigurationContext {
@@ -52,7 +52,7 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 	}
 
 	try {
-		const languagePacks = await getLanguagePackConfigurations(userDataPath);
+		const languagePacks = await getLanguagePackConfigurations(userDataPath, nlsMetadataPath);
 		if (!languagePacks) {
 			return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 		}
@@ -167,27 +167,55 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
  *
  * The file is updated whenever a new language pack is installed or removed.
  */
-async function getLanguagePackConfigurations(userDataPath: string): Promise<ILanguagePacks | undefined> {
+async function getLanguagePackConfigurations(userDataPath: string, nlsMetadataPath: string): Promise<ILanguagePacks | undefined> {
 	const configFile = join(userDataPath, 'languagepacks.json');
+	let languagePacks: ILanguagePacks = {};
 	try {
-		return JSON.parse(await promises.readFile(configFile, 'utf-8'));
-	} catch {
-		// The OI distribution ships Simplified Chinese as a built-in language pack.
-		// Development launches do not have an installed-extension generated
-		// languagepacks.json yet, so make the built-in pack available directly.
-		const builtInTranslation = join(import.meta.dirname, '../../../../extensions/MS-CEINTL.vscode-language-pack-zh-hans/translations/main.i18n.json');
-		if (await Promises.exists(builtInTranslation)) {
-			return {
-				'zh-cn': {
-					hash: 'builtin-zh-hans',
-					label: '中文(简体)',
-					extensions: [{ extensionIdentifier: { id: 'ms-ceintl.vscode-language-pack-zh-hans' }, version: '1.128.0' }],
-					translations: { vscode: builtInTranslation }
-				}
-			};
+		const storedLanguagePacks: unknown = JSON.parse(await promises.readFile(configFile, 'utf-8'));
+		if (storedLanguagePacks && typeof storedLanguagePacks === 'object' && !Array.isArray(storedLanguagePacks)) {
+			languagePacks = storedLanguagePacks as ILanguagePacks;
 		}
-		return undefined;
+	} catch {
+		// A fresh profile does not have languagepacks.json yet.
 	}
+
+	// `nls.ts` is bundled into out/main.js for packaged builds, so paths based
+	// on import.meta.dirname point at a different directory in development and
+	// in a packaged application. nlsMetadataPath is stable in both layouts:
+	// <app>/out-build in development and <app>/out when packaged.
+	const extensionRoot = join(nlsMetadataPath, '..', 'extensions', 'MS-CEINTL.vscode-language-pack-zh-hans');
+	const manifestPath = join(extensionRoot, 'package.json');
+	try {
+		const manifest = JSON.parse(await promises.readFile(manifestPath, 'utf-8')) as {
+			version?: string;
+			contributes?: { localizations?: Array<{ languageId?: string; localizedLanguageName?: string; translations?: Array<{ id?: string; path?: string }> }> };
+		};
+		const localization = manifest.contributes?.localizations?.find(candidate => candidate.languageId?.toLowerCase() === 'zh-cn');
+		if (localization?.translations?.length) {
+			const translations: Record<string, string> = {};
+			for (const translation of localization.translations) {
+				if (translation.id && translation.path) {
+					translations[translation.id] = join(extensionRoot, translation.path);
+				}
+			}
+			if (translations['vscode'] && await Promises.exists(translations['vscode'])) {
+				const version = manifest.version ?? 'builtin';
+				const builtInPack: ILanguagePack = {
+					hash: `builtin-zh-hans-${version}`,
+					label: localization.localizedLanguageName ?? '中文(简体)',
+					extensions: [{ extensionIdentifier: { id: 'ms-ceintl.vscode-language-pack-zh-hans' }, version }],
+					translations
+				};
+				// Always prefer the bundled pack. Existing profiles can contain an
+				// empty or stale entry whose absolute path belongs to another build.
+				languagePacks['zh-cn'] = builtInPack;
+			}
+		}
+	} catch (error) {
+		console.error('Loading the bundled Simplified Chinese language pack failed.', error);
+	}
+
+	return languagePacks;
 }
 
 function resolveLanguagePackLanguage(languagePacks: ILanguagePacks, locale: string | undefined): string | undefined {

@@ -13,10 +13,16 @@ export interface ITerminalOptions {
     workspaceFolder?: vscode.WorkspaceFolder;
 }
 
+export interface ITerminalRunResult {
+    terminal: vscode.Terminal;
+    /** Resolves to true after shell integration reports that the program ended. */
+    completion: Promise<boolean>;
+}
+
 class Terminal implements vscode.Disposable {
     private readonly terminals: { [id: string]: vscode.Terminal } = {};
 
-    public async runInTerminal(command: string, options: ITerminalOptions): Promise<vscode.Terminal> {
+    public async runInTerminal(command: string, options: ITerminalOptions): Promise<ITerminalRunResult> {
         const defaultOptions: ITerminalOptions = { addNewLine: true, name: "C/C++ Compile Run" };
         const { addNewLine, name, cwd, workspaceFolder } = Object.assign(defaultOptions, options);
         const shell : ShellType = currentShell();
@@ -34,11 +40,58 @@ class Terminal implements vscode.Disposable {
             }
         }
         this.terminals[name].show();
+        let commandLine = getCommand(command, shell);
         if (cwd) {
-            this.terminals[name].sendText(await getCDCommand(cwd, shell), true);
+            const separator = shell === ShellType.powerShell ? "; " : " && ";
+            commandLine = `${await getCDCommand(cwd, shell)}${separator}${commandLine}`;
         }
-        this.terminals[name].sendText(getCommand(command, shell), addNewLine);
-        return this.terminals[name];
+        const activeTerminal = this.terminals[name];
+        const completion = this.executeTracked(activeTerminal, commandLine, addNewLine);
+        return { terminal: activeTerminal, completion };
+    }
+
+    private async executeTracked(term: vscode.Terminal, commandLine: string, addNewLine: boolean): Promise<boolean> {
+        let shellIntegration = term.shellIntegration;
+        if (!shellIntegration) {
+            shellIntegration = await new Promise<vscode.TerminalShellIntegration | undefined>(resolve => {
+                const listener = vscode.window.onDidChangeTerminalShellIntegration(event => {
+                    if (event.terminal === term) {
+                        clearTimeout(timeout);
+                        listener.dispose();
+                        resolve(event.shellIntegration);
+                    }
+                });
+                const timeout = setTimeout(() => {
+                    listener.dispose();
+                    resolve(undefined);
+                }, 3000);
+            });
+        }
+
+        if (!shellIntegration) {
+            term.sendText(commandLine, addNewLine);
+            return false;
+        }
+
+        const execution = shellIntegration.executeCommand(commandLine);
+        return new Promise<boolean>(resolve => {
+            const endListener = vscode.window.onDidEndTerminalShellExecution(event => {
+                if (event.execution === execution) {
+                    cleanup();
+                    resolve(true);
+                }
+            });
+            const closeListener = vscode.window.onDidCloseTerminal(closedTerminal => {
+                if (closedTerminal === term) {
+                    cleanup();
+                    resolve(true);
+                }
+            });
+            const cleanup = () => {
+                endListener.dispose();
+                closeListener.dispose();
+            };
+        });
     }
 
     public dispose(terminalName?: string): void {

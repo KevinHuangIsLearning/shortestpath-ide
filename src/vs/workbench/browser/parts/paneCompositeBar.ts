@@ -87,6 +87,14 @@ export interface IPaneCompositeBarOptions {
 
 export class PaneCompositeBar extends Disposable {
 
+	private static readonly shortestPathActivityBarMigrationKey = 'workbench.activity.shortestpathMinimalDefaultsApplied';
+
+	private static readonly shortestPathDefaultActivityContainers = new Set([
+		'workbench.view.explorer',
+		'workbench.view.search',
+		'cph-judge-view-container'
+	]);
+
 	private readonly viewContainerDisposables = this._register(new DisposableMap<string, IDisposable>());
 
 	private readonly compositeBar: CompositeBar;
@@ -266,6 +274,7 @@ export class PaneCompositeBar extends Disposable {
 
 	private onDidRegisterExtensions(): void {
 		this.hasExtensionsRegistered = true;
+		this.applyShortestPathActivityBarDefaults();
 
 		// show/hide/remove composites
 		for (const { id } of this.cachedViewContainers) {
@@ -282,6 +291,18 @@ export class PaneCompositeBar extends Disposable {
 		}
 
 		this.saveCachedViewContainers();
+	}
+
+	private applyShortestPathActivityBarDefaults(): void {
+		if (this.part !== Parts.ACTIVITYBAR_PART || this.storageService.getBoolean(PaneCompositeBar.shortestPathActivityBarMigrationKey, StorageScope.PROFILE, false)) {
+			return;
+		}
+		for (const { id } of this.cachedViewContainers) {
+			if (!PaneCompositeBar.shortestPathDefaultActivityContainers.has(id)) {
+				this.compositeBar.unpin(id);
+			}
+		}
+		this.storageService.store(PaneCompositeBar.shortestPathActivityBarMigrationKey, true, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private onDidViewContainerVisible(id: string): void {
@@ -339,10 +360,16 @@ export class PaneCompositeBar extends Disposable {
 		for (const viewContainer of viewContainers) {
 			this.addComposite(viewContainer);
 
-			// Pin it by default if it is new
+			// Keep ShortestPath IDE's activity bar focused on files, search, and CPH.
+			// Other containers stay available through the activity-bar context menu.
 			const cachedViewContainer = this.cachedViewContainers.filter(({ id }) => id === viewContainer.id)[0];
+			const pinByDefault = this.part !== Parts.ACTIVITYBAR_PART || PaneCompositeBar.shortestPathDefaultActivityContainers.has(viewContainer.id);
 			if (!cachedViewContainer) {
-				this.compositeBar.pin(viewContainer.id);
+				if (pinByDefault) {
+					this.compositeBar.pin(viewContainer.id);
+				} else {
+					this.compositeBar.unpin(viewContainer.id);
+				}
 			}
 
 			// Active
