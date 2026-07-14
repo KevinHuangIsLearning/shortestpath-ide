@@ -98,12 +98,12 @@
 			'en': {
 				choiceTitle: 'Ready for competitive programming.', choiceLead: 'We will detect compilers, provide system-specific installation steps, and save your preferences before opening the IDE.',
 				recommended: 'Configure the C++ toolchain, editor experience, CPH, and common online-judge mappings.',
-				permission: 'Installation may require confirmation or administrator permission.', skip: 'Configure later', continue: 'Continue', downloadTitle: 'Preparing your toolchain.', configurationTitle: 'Your toolchain is ready.', configurationLead: 'Confirm the ShortestPath IDE preferences to save before opening the workbench.', workspaceTitle: 'Choose your workspace folder.', workspaceLead: 'We will create .clangd in this folder and open it when setup is complete.', workspaceLabel: 'Workspace folder', chooseFolder: 'Choose folder', selectWorkspace: 'Select a workspace folder.', preparing: 'Preparing installation…', completed: 'Download complete. Select Next to continue configuration.', failed: 'Download failed: {message}'
+				permission: 'Installation may require confirmation or administrator permission.', skip: 'Configure later', continue: 'Continue', downloadTitle: 'Preparing your toolchain.', configurationTitle: 'Your toolchain is ready.', configurationLead: 'Confirm the ShortestPath IDE preferences to save before opening the workbench.', workspaceTitle: 'Choose your workspace folder.', workspaceLead: 'We will create .clangd in this folder and open it when setup is complete.', workspaceLabel: 'Workspace folder', chooseFolder: 'Choose folder', selectWorkspace: 'Select a workspace folder.', preparing: 'Preparing installation…', completed: 'Download complete. Select Next to continue configuration.', alreadyInstalled: 'Toolchain is already installed. Download skipped.', failed: 'Download failed: {message}'
 			},
 			'zh-CN': {
 				choiceTitle: '准备好开始竞赛编程。', choiceLead: '我们会探测编译器、按你的系统提供安装步骤，并把设置写入你的个人配置。完成后才会打开 IDE。',
 				recommended: '配置 C++ 竞赛环境、编辑体验、CPH 与常用 OJ 映射。缺少 g++ 或 clangd 时提供对应系统的安装步骤。',
-				permission: '安装需要确认，可能要求管理员权限。', skip: '稍后配置', continue: '继续', downloadTitle: '正在准备编译环境。', configurationTitle: '工具链已准备就绪。', configurationLead: '确认要写入的 ShortestPath IDE 配置，然后进入工作台。', workspaceTitle: '选择工作目录。', workspaceLead: '我们会在此目录创建 .clangd，并在完成后直接打开它。', workspaceLabel: '工作目录', chooseFolder: '选择目录', selectWorkspace: '请选择工作目录。', preparing: '正在准备安装…', completed: '下载完成。点击“下一步”继续配置。', failed: '下载失败：{message}'
+				permission: '安装需要确认，可能要求管理员权限。', skip: '稍后配置', continue: '继续', downloadTitle: '正在准备编译环境。', configurationTitle: '工具链已准备就绪。', configurationLead: '确认要写入的 ShortestPath IDE 配置，然后进入工作台。', workspaceTitle: '选择工作目录。', workspaceLead: '我们会在此目录创建 .clangd，并在完成后直接打开它。', workspaceLabel: '工作目录', chooseFolder: '选择目录', selectWorkspace: '请选择工作目录。', preparing: '正在准备安装…', completed: '下载完成。点击“下一步”继续配置。', alreadyInstalled: '工具链已安装，已跳过下载。', failed: '下载失败：{message}'
 			}
 		};
 		const t = translations[language];
@@ -210,8 +210,9 @@
 			if (result.success) {
 				toolchainReady = true;
 				progress.classList.add('complete');
-				status.textContent = t.completed;
-				setProgressDescription(t.completed);
+				const completionMessage = result.message === 'Toolchain is already installed.' ? t.alreadyInstalled : t.completed;
+				status.textContent = completionMessage;
+				setProgressDescription(completionMessage);
 				document.getElementById('download-next').hidden = false;
 			} else {
 				progress.classList.add('error');

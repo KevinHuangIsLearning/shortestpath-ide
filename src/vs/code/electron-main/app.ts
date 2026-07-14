@@ -168,6 +168,11 @@ interface IShortestPathSetupRequest {
 	readonly workspaceFolder: string;
 }
 
+interface IShortestPathOnboardingResult {
+	readonly workspaceFolder: string | undefined;
+	dispose(): void;
+}
+
 interface IShortestPathToolchainPreset {
 	readonly pages: readonly { readonly commands?: string; readonly [key: string]: unknown }[];
 	readonly downloadSources?: readonly IShortestPathDownloadSource[];
@@ -770,10 +775,15 @@ export class CodeApplication extends Disposable {
 
 		// The competitive-programming setup is intentionally shown before the
 		// workbench is created, so a first launch never flashes a VS Code window.
-		const onboardingWorkspaceFolder = await this.showShortestPathFirstRun();
+		const onboarding = await this.showShortestPathFirstRun();
 
-		// Open Windows
-		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls, onboardingWorkspaceFolder));
+		// Open Windows. Keep the hidden onboarding window alive until the workbench
+		// has been created: Windows quits the application when its last window closes.
+		try {
+			await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls, onboarding?.workspaceFolder));
+		} finally {
+			onboarding?.dispose();
+		}
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
@@ -795,7 +805,7 @@ export class CodeApplication extends Disposable {
 		eventuallyPhaseScheduler.schedule();
 	}
 
-	private async showShortestPathFirstRun(): Promise<string | undefined> {
+	private async showShortestPathFirstRun(): Promise<IShortestPathOnboardingResult | undefined> {
 		if (this.configurationService.getValue<boolean>('shortestpath.setup.completed')) {
 			return undefined;
 		}
@@ -820,25 +830,38 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		return new Promise<string | undefined>(resolve => {
+		return new Promise<IShortestPathOnboardingResult | undefined>(resolve => {
 			const channel = 'shortestpath:onboarding-complete';
 			const installChannel = 'shortestpath:onboarding-install-toolchain';
 			const scriptChannel = 'shortestpath:onboarding-script';
 			const localeChannel = 'shortestpath:onboarding-locale';
 			const workspaceChannel = 'shortestpath:onboarding-pick-workspace';
-			const finish = async (request: IShortestPathSetupRequest | undefined) => {
+			let finished = false;
+			const cleanup = () => {
 				ipcMain.removeListener(channel, listener);
 				ipcMain.removeHandler(installChannel);
 				ipcMain.removeHandler(scriptChannel);
 				ipcMain.removeHandler(localeChannel);
 				ipcMain.removeHandler(workspaceChannel);
-				if (request) {
-					await this.configurationService.updateValue('shortestpath.setup.pending', request, ConfigurationTarget.USER);
-				}
-				resolve(request?.workspaceFolder);
+			};
+			const dispose = () => {
+				cleanup();
 				if (!onboardingWindow.isDestroyed()) {
 					onboardingWindow.destroy();
 				}
+			};
+			const finish = async (request: IShortestPathSetupRequest | undefined) => {
+				if (finished) {
+					return;
+				}
+				finished = true;
+				cleanup();
+				if (request) {
+					await this.configurationService.updateValue('shortestpath.setup.pending', request, ConfigurationTarget.USER);
+				}
+				// Do not close the last native window before the workbench opens.
+				onboardingWindow.hide();
+				resolve({ workspaceFolder: request?.workspaceFolder, dispose });
 			};
 			const listener = (event: Electron.IpcMainEvent, candidate: unknown) => {
 				if (event.sender !== onboardingWindow.webContents) {
@@ -876,12 +899,11 @@ export class CodeApplication extends Disposable {
 				return result.canceled ? undefined : result.filePaths[0];
 			});
 			onboardingWindow.once('closed', () => {
-				ipcMain.removeListener(channel, listener);
-				ipcMain.removeHandler(installChannel);
-				ipcMain.removeHandler(scriptChannel);
-				ipcMain.removeHandler(localeChannel);
-				ipcMain.removeHandler(workspaceChannel);
-				resolve(undefined);
+				cleanup();
+				if (!finished) {
+					finished = true;
+					resolve(undefined);
+				}
 			});
 			onboardingWindow.once('ready-to-show', () => onboardingWindow.show());
 			const onboardingHtml = fs.readFileSync(onboardingPath, 'utf8');
@@ -964,7 +986,7 @@ export class CodeApplication extends Disposable {
 				const archivePath = join(toolchainRoot, asset.archiveName);
 				const targetPath = join(toolchainRoot, asset.targetDirectory);
 				reportProgress(`Downloading ${asset.id}… 0%`);
-				await this.downloadShortestPathAsset(asset.urls, archivePath, reportProgress);
+				await this.downloadShortestPathAsset(asset.urls, archivePath, asset.id, reportProgress);
 				reportProgress(`Extracting ${asset.id}…`);
 				await this.extractShortestPathAsset(asset, archivePath, targetPath, reportProgress);
 				await fs.promises.unlink(archivePath);
@@ -985,9 +1007,13 @@ export class CodeApplication extends Disposable {
 		const databaseArchivePath = join(metadataRoot, 'mingw64.db.tar.zst');
 		const installRoot = join(toolchainRoot, 'msys2');
 		try {
+			if (fs.existsSync(join(installRoot, 'mingw64', 'bin', 'g++.exe')) && fs.existsSync(join(installRoot, 'mingw64', 'bin', 'clangd.exe'))) {
+				reportProgress('MSYS2 MinGW toolchain is already installed; skipping download.');
+				return { success: true, message: 'Toolchain is already installed.' };
+			}
 			await fs.promises.mkdir(metadataRoot, { recursive: true });
 			reportProgress('Downloading the MSYS2 package index… 0%');
-			await this.downloadShortestPathAsset(msys2MingwRepositoryUrls.map(base => `${base}mingw64.db.tar.zst`), databaseArchivePath, reportProgress);
+			await this.downloadShortestPathAsset(msys2MingwRepositoryUrls.map(base => `${base}mingw64.db.tar.zst`), databaseArchivePath, 'MSYS2 package index', reportProgress);
 			await fs.promises.rm(join(metadataRoot, 'database'), { recursive: true, force: true });
 			await this.extractShortestPathArchive(databaseArchivePath, join(metadataRoot, 'database'), 'tar.zst');
 			await fs.promises.unlink(databaseArchivePath);
@@ -997,8 +1023,9 @@ export class CodeApplication extends Disposable {
 			await fs.promises.mkdir(packageCacheRoot, { recursive: true });
 			for (const [index, pkg] of selectedPackages.entries()) {
 				const packagePath = join(packageCacheRoot, pkg.fileName);
-				reportProgress(`Downloading ${pkg.name} (${index + 1}/${selectedPackages.length})…`);
-				await this.downloadShortestPathAsset(msys2MingwRepositoryUrls.map(base => `${base}${pkg.fileName}`), packagePath, reportProgress);
+				const packageLabel = `${pkg.name} (${index + 1}/${selectedPackages.length})`;
+				reportProgress(`Downloading ${packageLabel}… 0%`);
+				await this.downloadShortestPathAsset(msys2MingwRepositoryUrls.map(base => `${base}${pkg.fileName}`), packagePath, packageLabel, reportProgress);
 				await this.verifyShortestPathAssetChecksum(packagePath, pkg.sha256);
 				reportProgress(`Extracting ${pkg.name} (${index + 1}/${selectedPackages.length})…`);
 				await this.extractShortestPathArchive(packagePath, installRoot, 'tar.zst');
@@ -1127,14 +1154,14 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private async downloadShortestPathAsset(urls: readonly string[], targetPath: string, reportProgress: (message: string) => void): Promise<void> {
+	private async downloadShortestPathAsset(urls: readonly string[], targetPath: string, label: string, reportProgress: (message: string) => void): Promise<void> {
 		let lastError: unknown;
 		for (const [index, url] of urls.entries()) {
 			try {
 				if (index > 0) {
-					reportProgress('Mirror unavailable; retrying with the official source…');
+					reportProgress(`Mirror unavailable for ${label}; retrying with the official source…`);
 				}
-				await this.downloadShortestPathAssetFromUrl(url, targetPath, reportProgress);
+				await this.downloadShortestPathAssetFromUrl(url, targetPath, label, reportProgress);
 				return;
 			} catch (error) {
 				lastError = error;
@@ -1144,7 +1171,7 @@ export class CodeApplication extends Disposable {
 		throw lastError ?? new Error('No download source is configured.');
 	}
 
-	private async downloadShortestPathAssetFromUrl(url: string, targetPath: string, reportProgress: (message: string) => void): Promise<void> {
+	private async downloadShortestPathAssetFromUrl(url: string, targetPath: string, label: string, reportProgress: (message: string) => void): Promise<void> {
 		const controller = new AbortController();
 		let timeoutMessage = 'Download connection timed out.';
 		let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -1154,7 +1181,7 @@ export class CodeApplication extends Disposable {
 			timeout = setTimeout(() => controller.abort(), delay);
 		};
 		try {
-			reportProgress('Connecting to download source…');
+			reportProgress(`Connecting to download source for ${label}…`);
 			resetTimeout('Download connection timed out.', 45_000);
 			const response = await net.fetch(url, { signal: controller.signal });
 			if (!response.ok || !response.body) {
@@ -1173,11 +1200,11 @@ export class CodeApplication extends Disposable {
 					const percent = Math.floor(receivedBytes * 100 / totalBytes);
 					if (percent !== lastReportedPercent && (percent === 100 || percent - lastReportedPercent >= 5)) {
 						lastReportedPercent = percent;
-						reportProgress(`Downloading… ${percent}%`);
+						reportProgress(`Downloading ${label}… ${percent}%`);
 					}
 				} else if (Date.now() - lastProgressReport >= 1_000) {
 					lastProgressReport = Date.now();
-					reportProgress(`Downloading… ${(receivedBytes / 1024 / 1024).toFixed(1)} MB`);
+					reportProgress(`Downloading ${label}… ${(receivedBytes / 1024 / 1024).toFixed(1)} MB`);
 				}
 			});
 			try {
