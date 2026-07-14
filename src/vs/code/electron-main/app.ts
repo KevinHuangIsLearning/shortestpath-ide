@@ -180,7 +180,7 @@ interface IShortestPathToolchainPreset {
 
 interface IShortestPathDownloadSource {
 	readonly id: string;
-	readonly condaForgeChannel: string;
+	readonly condaForgeChannel?: string;
 	readonly msys2Channel?: string;
 	readonly unavailable?: boolean;
 	readonly label?: unknown;
@@ -188,7 +188,7 @@ interface IShortestPathDownloadSource {
 
 interface IShortestPathPlatformInstaller {
 	createProcess?(input: { readonly toolchainRoot: string; readonly source?: IShortestPathDownloadSource; readonly stage?: string; readonly locale?: string }): { readonly executable: string; readonly args: readonly string[]; readonly displayName: string };
-	getPortableAssets?(): readonly IShortestPathPortableAsset[];
+	getPortableAssets?(input: { readonly toolchainRoot: string; readonly source?: IShortestPathDownloadSource; readonly stage?: string }): readonly IShortestPathPortableAsset[];
 	getMsys2PackageRoots?(): readonly string[];
 }
 
@@ -935,7 +935,7 @@ export class CodeApplication extends Disposable {
 			: undefined;
 		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
 		const installer = this.getShortestPathPlatformInstaller();
-		const assets = stage === 'toolchain' || !stage ? installer.getPortableAssets?.() : undefined;
+		const assets = stage === 'toolchain' || !stage ? installer.getPortableAssets?.({ toolchainRoot, source, stage }) : undefined;
 		const msys2PackageRoots = installer.getMsys2PackageRoots?.();
 		if (assets?.length || msys2PackageRoots?.length) {
 			if (assets?.length) {

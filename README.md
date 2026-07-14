@@ -43,7 +43,7 @@ workbench. To run it again, use the command palette command:
 
 | Platform | C++ compiler | Language server |
 | --- | --- | --- |
-| Windows | Isolated MSYS2 MinGW GCC, downloaded from the TUNA mirror | Bundled [clangd 22.1.6](https://github.com/clangd/clangd/releases/tag/22.1.6) Portable |
+| Windows | [WinLibs GCC 16.1.0](https://github.com/brechtsanders/winlibs_mingw/releases/download/16.1.0posix-14.0.0-ucrt-r3/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip), downloaded from the user-selected GitHub Release or GH mirror | Bundled [clangd 22.1.6](https://github.com/clangd/clangd/releases/tag/22.1.6) Portable |
 | macOS (Apple Silicon) | GCC installed through Homebrew | LLVM clangd installed through Homebrew |
 | Linux | Isolated Portable GCC and clangd environment | Downloaded during first-run setup |
 
