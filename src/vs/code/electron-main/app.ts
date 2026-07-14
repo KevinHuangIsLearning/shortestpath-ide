@@ -888,7 +888,7 @@ export class CodeApplication extends Disposable {
 				if (event.sender !== onboardingWindow.webContents) {
 					throw new Error('Unexpected sender for ShortestPath onboarding locale.');
 				}
-				return this.environmentMainService.args.locale ?? app.getLocale();
+				return this.environmentMainService.args.locale ?? 'zh-cn';
 			});
 			ipcMain.handle(workspaceChannel, async event => {
 				if (event.sender !== onboardingWindow.webContents) {
@@ -961,7 +961,7 @@ export class CodeApplication extends Disposable {
 				toolchainRoot,
 				source,
 				stage,
-				locale: this.environmentMainService.args.locale ?? app.getLocale()
+				locale: this.environmentMainService.args.locale ?? 'zh-cn'
 			});
 		} catch (error) {
 			return Promise.resolve({ success: false, message: `Unable to load ${presetName} installer: ${toErrorMessage(error)}` });
