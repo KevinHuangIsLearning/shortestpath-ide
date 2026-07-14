@@ -27,6 +27,7 @@ To build a macOS Apple Silicon package:
 
 ```bash
 cd vscode
+npm run compile-oi-extensions
 npm run gulp vscode-darwin-arm64-min
 ```
 

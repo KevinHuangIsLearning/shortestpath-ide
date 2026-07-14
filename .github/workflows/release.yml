@@ -69,6 +69,8 @@ jobs:
           }
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      - name: Build bundled OI extensions
+        run: npm run compile-oi-extensions
       - name: Build Windows package
         shell: pwsh
         run: npm run gulp vscode-win32-x64-min
@@ -93,8 +95,7 @@ jobs:
             'resources\app\extensions\divyanshuagrawal.competitive-programming-helper\dist\extension.js',
             'resources\app\extensions\shortestpath.setup\out\extension.js',
             'resources\app\extensions\danielpinto8zz6.c-cpp-compile-run\dist\extension.js',
-            'resources\app\extensions\llvm-vs-code-extensions.vscode-clangd\out\bundle.js',
-            'resources\app\extensions\tomoki1207.vscode-pdfviewer\out\src\extension.js'
+            'resources\app\extensions\llvm-vs-code-extensions.vscode-clangd\out\bundle.js'
           )
           foreach ($entry in $requiredExtensionEntries) {
             $entryPath = Join-Path $destination $entry
@@ -143,6 +144,8 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      - name: Build bundled OI extensions
+        run: npm run compile-oi-extensions
       - name: Build macOS package
         run: npm run gulp vscode-darwin-arm64-min
         env:
@@ -154,8 +157,7 @@ jobs:
             "divyanshuagrawal.competitive-programming-helper/dist/extension.js" \
             "shortestpath.setup/out/extension.js" \
             "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
-            "llvm-vs-code-extensions.vscode-clangd/out/bundle.js" \
-            "tomoki1207.vscode-pdfviewer/out/src/extension.js"; do
+            "llvm-vs-code-extensions.vscode-clangd/out/bundle.js"; do
             test -f "$app/Contents/Resources/app/extensions/$entry" || {
               echo "Required extension entry file was not packaged: $entry" >&2
               exit 1

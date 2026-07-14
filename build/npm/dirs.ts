@@ -52,7 +52,6 @@ export const dirs = [
 	'extensions/simple-browser',
 	'extensions/tunnel-forwarding',
 	'extensions/terminal-suggest',
-	'extensions/tomoki1207.vscode-pdfviewer',
 	'extensions/typescript-language-features',
 	'extensions/vscode-api-tests',
 	'extensions/vscode-colorize-tests',
