@@ -63,6 +63,15 @@ jobs:
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = 'Stop'
           exec { npm ci }
+          $nativeBindings = @(
+            'node_modules\@vscode\policy-watcher\build\Release\vscode-policy-watcher.node',
+            'node_modules\@vscode\spdlog\build\Release\spdlog.node',
+            'node_modules\@vscode\sqlite3\build\Release\vscode-sqlite3.node',
+            'node_modules\native-keymap\build\Release\keymapping.node'
+          )
+          if ($nativeBindings.Where({ -not (Test-Path -LiteralPath $_ -PathType Leaf) }).Count -gt 0) {
+            exec { npm rebuild '@vscode/policy-watcher' '@vscode/spdlog' '@vscode/sqlite3' 'native-keymap' --foreground-scripts }
+          }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

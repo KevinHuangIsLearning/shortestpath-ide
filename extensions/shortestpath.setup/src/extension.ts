@@ -12,13 +12,14 @@ type PlatformPreset = {
 	downloadSources?: DownloadSource[];
 };
 
-type DownloadSource = { id: string; condaForgeChannel?: string; msys2Channel?: string; unavailable?: boolean };
+type DownloadSource = { id: string; unavailable?: boolean };
 
 type PlatformInstaller = {
 	createCommand?(input: { toolchainRoot: string; source?: DownloadSource; stage?: string; locale?: string }): string;
+	getPortableAssets?(input: { toolchainRoot: string; source?: DownloadSource; stage?: string; locale?: string }): readonly unknown[];
 };
 
-type SetupSelection = 'recommended' | 'custom';
+type SetupSelection = 'recommended';
 
 type FirstRunSelection = {
 	mode: SetupSelection;
@@ -100,7 +101,7 @@ const editorSettings: Record<string, unknown> = {
 	'editor.fontSize': 14,
 	'files.autoSave': 'onFocusChange',
 	'editor.formatOnSave': false,
-	'editor.formatOnPaste': true,
+	'editor.formatOnPaste': false,
 	'editor.mouseWheelZoom': true
 };
 
@@ -152,7 +153,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.rerunFirstRunSetup', () => rerunFirstRunSetup()));
 	const pending = vscode.workspace.getConfiguration('shortestpath.setup').get<unknown>('pending');
 	if (isFirstRunSelection(pending)) {
-		await configure(context, pending.mode, pending);
+		await configure(context, pending);
 	}
 }
 
@@ -170,16 +171,10 @@ async function rerunFirstRunSetup(): Promise<void> {
 }
 
 async function runSetup(context: vscode.ExtensionContext): Promise<void> {
-	const choice = await vscode.window.showQuickPick([
-		{ label: 'Recommended', description: 'Apply the full ShortestPath IDE competitive programming preset.' },
-		{ label: 'Custom', description: 'Choose which settings and toolchain options to apply.' }
-	], { placeHolder: 'Choose a ShortestPath IDE setup mode' });
-	if (choice) {
-		await configure(context, choice.label === 'Recommended' ? 'recommended' : 'custom');
-	}
+	await configure(context);
 }
 
-async function configure(context: vscode.ExtensionContext, selection: SetupSelection, firstRunSelection?: FirstRunSelection): Promise<void> {
+async function configure(context: vscode.ExtensionContext, firstRunSelection?: FirstRunSelection): Promise<void> {
 	const preset = loadPreset(context);
 	let compiler = await findFirstExecutable(preset.compilerCandidates);
 	let clangd = await findFirstExecutable(preset.clangdCandidates);
@@ -193,23 +188,6 @@ async function configure(context: vscode.ExtensionContext, selection: SetupSelec
 			await offerInstaller(context, preset);
 			installerStarted = true;
 		}
-	} else if (selection === 'custom') {
-		const toolchainChoice = await vscode.window.showQuickPick([
-			{ label: 'Use detected compilers', description: compiler ? `g++: ${compiler}` : 'No g++ found; settings will be applied after installation.' },
-			{ label: 'Download g++ and clangd', description: preset.installDescription },
-			{ label: 'Enter compiler path manually', description: 'Use a compiler executable or command already available to you.' }
-		], { placeHolder: 'Choose a toolchain option' });
-		if (!toolchainChoice) {
-			return;
-		}
-		if (toolchainChoice.label === 'Download g++ and clangd') {
-			await offerInstaller(context, preset);
-			installerStarted = true;
-		} else if (toolchainChoice.label === 'Enter compiler path manually') {
-			compiler = await vscode.window.showInputBox({ prompt: 'Path or command for g++', value: compiler ?? '' });
-			clangd = await vscode.window.showInputBox({ prompt: 'Path or command for clangd (optional)', value: clangd ?? '' });
-		}
-		includeEditor = await askYesNo('Apply editor font, smooth scrolling, autosave, format-on-save, and zoom defaults?', true);
 	} else if (!compiler || !clangd) {
 		await offerInstaller(context, preset);
 		installerStarted = true;
@@ -275,7 +253,7 @@ function isFirstRunSelection(candidate: unknown): candidate is FirstRunSelection
 		return false;
 	}
 	const value = candidate as Partial<FirstRunSelection>;
-	return (value.mode === 'recommended' || value.mode === 'custom')
+	return value.mode === 'recommended'
 		&& typeof value.editor === 'boolean'
 		&& typeof value.cph === 'boolean'
 		&& typeof value.installToolchain === 'boolean'
@@ -319,7 +297,7 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 		const source = preset.downloadSources?.find(candidate => candidate.id === 'tuna' && !candidate.unavailable)
 			?? preset.downloadSources?.find(candidate => !candidate.unavailable);
 		const installer = loadPlatformInstaller(context);
-		if (!installer.createCommand) {
+		if (installer.getPortableAssets || !installer.createCommand) {
 			const restart = await vscode.window.showInformationMessage(
 				'Portable toolchains are downloaded by the first-run setup window. Restart setup to download them.',
 				'Restart setup now'
@@ -336,14 +314,6 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 		terminal.show();
 		terminal.sendText(installCommand, true);
 	}
-}
-
-async function askYesNo(message: string, defaultValue: boolean): Promise<boolean> {
-	const choice = await vscode.window.showQuickPick([
-		{ label: defaultValue ? 'Yes (recommended)' : 'Yes' },
-		{ label: defaultValue ? 'No' : 'No (recommended)' }
-	], { placeHolder: message });
-	return choice?.label.startsWith('Yes') ?? defaultValue;
 }
 
 async function updateGlobalSettings(settings: Record<string, unknown>): Promise<void> {

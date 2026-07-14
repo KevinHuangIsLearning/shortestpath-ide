@@ -85,6 +85,7 @@ export interface IAgentSdkProductConfig {
 
 export interface IProductConfiguration {
 	readonly version: string;
+	readonly extensionApiVersion?: string;
 	readonly date?: string;
 	readonly quality?: string;
 	readonly commit?: string;

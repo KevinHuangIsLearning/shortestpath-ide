@@ -10,6 +10,10 @@
 	"categories": ["Other"],
 	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment"],
 	"main": "./out/extension.js",
+	"scripts": {
+		"compile": "tsc -p ./",
+		"vscode:prepublish": "npm run compile"
+	},
 	"contributes": {
 		"configuration": {
 			"title": "%configuration.title%",

@@ -9,6 +9,8 @@ EventEmitter.defaultMaxListeners = 100;
 
 import es from 'event-stream';
 import fancyLog from 'fancy-log';
+import { spawn } from 'child_process';
+import { build as esbuild } from 'esbuild';
 import * as fs from 'fs';
 import glob from 'glob';
 import { gulp, filter, plumber, sourcemaps } from './lib/gulp/facade.ts';
@@ -25,6 +27,41 @@ import watcher from './lib/watch/index.ts';
 
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+
+const oiDistributionExtensionBuilds = [
+	{ extension: 'danielpinto8zz6.c-cpp-compile-run', args: ['run', 'vscode:prepublish'] },
+	{ extension: 'divyanshuagrawal.competitive-programming-helper', args: ['run', 'vscode:prepublish'] },
+	{ extension: 'llvm-vs-code-extensions.vscode-clangd', args: ['run', 'vscode:prepublish'] },
+	{ extension: 'shortestpath.setup', args: ['run', 'vscode:prepublish'] },
+];
+
+async function buildOIDistributionExtensions(): Promise<void> {
+	for (const { extension, args } of oiDistributionExtensionBuilds) {
+		await new Promise<void>((resolve, reject) => {
+			const command = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+			const child = spawn(command, args, {
+				cwd: path.join(root, 'extensions', extension),
+				stdio: 'inherit',
+			});
+			child.once('error', reject);
+			child.once('exit', code => code === 0
+				? resolve()
+				: reject(new Error(`Failed to build extension ${extension}: npm exited with code ${code ?? 'unknown'}.`)));
+		});
+	}
+
+	const pdfExtension = 'tomoki1207.vscode-pdfviewer';
+	await esbuild({
+		absWorkingDir: path.join(root, 'extensions', pdfExtension),
+		entryPoints: ['src/extension.ts'],
+		bundle: true,
+		platform: 'node',
+		format: 'cjs',
+		external: ['vscode'],
+		outfile: 'out/src/extension.js',
+		logLevel: 'info',
+	});
+}
 
 // Tracks active extension compilations to emit aggregate
 // "Starting compilation" / "Finished compilation" messages
@@ -270,11 +307,15 @@ export const cleanExtensionsBuildTask = task.define('clean-extensions-build', ut
  */
 const bundleMarketplaceExtensionsBuildTask = task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build')));
 
+const compileOIDistributionExtensionsBuildTask = task.define('compile-oi-distribution-extensions-build', buildOIDistributionExtensions);
+task.task(compileOIDistributionExtensionsBuildTask);
+
 /**
  * Compiles the non-native extensions for the build
  * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
  */
 export const compileNonNativeExtensionsBuildTask = task.define('compile-non-native-extensions-build', task.series(
+	compileOIDistributionExtensionsBuildTask,
 	bundleMarketplaceExtensionsBuildTask,
 	task.define('bundle-non-native-extensions-build', () => ext.packageNonNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')))
 ));
@@ -300,6 +341,7 @@ task.task(compileCopilotExtensionBuildTask);
  */
 export const compileAllExtensionsBuildTask = task.define('compile-extensions-build', task.series(
 	cleanExtensionsBuildTask,
+	compileOIDistributionExtensionsBuildTask,
 	bundleMarketplaceExtensionsBuildTask,
 	task.define('bundle-extensions-build', () => ext.packageAllLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
 ));

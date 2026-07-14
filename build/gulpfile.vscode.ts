@@ -245,6 +245,16 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 	const task = () => {
 		const out = sourceFolderName;
 		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
+		const requiredNativeBindings = [
+			'@vscode/policy-watcher/build/Release/vscode-policy-watcher.node',
+			'@vscode/spdlog/build/Release/spdlog.node',
+			'@vscode/sqlite3/build/Release/vscode-sqlite3.node',
+			'native-keymap/build/Release/keymapping.node',
+		];
+		const missingNativeBindings = requiredNativeBindings.filter(binding => !fs.existsSync(path.join(process.cwd(), 'node_modules', binding)));
+		if (missingNativeBindings.length > 0) {
+			throw new Error(`Missing native bindings: ${missingNativeBindings.join(', ')}. Run \`npm rebuild @vscode/policy-watcher @vscode/spdlog @vscode/sqlite3 native-keymap --foreground-scripts\` before packaging.`);
+		}
 
 		const checksums = computeChecksums(out, [
 			'vs/base/parts/sandbox/electron-browser/preload.js',
@@ -360,8 +370,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
 				'**/@vscode/ripgrep-universal/bin/**',
-				'**/7zip-bin-full/win/x64/7z.exe',
-				'**/7zip-bin-full/win/x64/7z.dll',
 				// Only the platform-specific Copilot CLI packages (`@github/copilot-<os>-<arch>`)
 				// need to be unpacked: the CLI is spawned as a subprocess and is a
 				// self-locating bundle that memory-maps files and resolves its native
