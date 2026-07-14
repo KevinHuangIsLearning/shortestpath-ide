@@ -87,7 +87,7 @@ export interface IPaneCompositeBarOptions {
 
 export class PaneCompositeBar extends Disposable {
 
-	private static readonly shortestPathActivityBarMigrationKey = 'workbench.activity.shortestpathMinimalDefaultsApplied';
+	private static readonly shortestPathActivityBarMigrationKey = 'workbench.activity.shortestpathMinimalDefaultsApplied.v2';
 
 	private static readonly shortestPathDefaultActivityContainers = new Set([
 		'workbench.view.explorer',
@@ -298,7 +298,9 @@ export class PaneCompositeBar extends Disposable {
 			return;
 		}
 		for (const { id } of this.cachedViewContainers) {
-			if (!PaneCompositeBar.shortestPathDefaultActivityContainers.has(id)) {
+			if (PaneCompositeBar.shortestPathDefaultActivityContainers.has(id)) {
+				this.compositeBar.pin(id);
+			} else {
 				this.compositeBar.unpin(id);
 			}
 		}
@@ -460,6 +462,12 @@ export class PaneCompositeBar extends Disposable {
 	private shouldBeHidden(viewContainerOrId: string | ViewContainer, cachedViewContainer?: ICachedViewContainer): boolean {
 		const viewContainer = isString(viewContainerOrId) ? this.getViewContainer(viewContainerOrId) : viewContainerOrId;
 		const viewContainerId = isString(viewContainerOrId) ? viewContainerOrId : viewContainerOrId.id;
+		// CPH is a core ShortestPath IDE entry point. Its webview provider is
+		// registered lazily, so the generic hide-if-empty rule would otherwise
+		// hide its activity-bar icon on a brand-new profile.
+		if (this.part === Parts.ACTIVITYBAR_PART && PaneCompositeBar.shortestPathDefaultActivityContainers.has(viewContainerId)) {
+			return false;
+		}
 
 		if (viewContainer) {
 			if (viewContainer.hideIfEmpty) {

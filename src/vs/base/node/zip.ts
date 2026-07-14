@@ -19,6 +19,9 @@ const CORRUPT_ZIP_PATTERN = new RegExp(CorruptZipMessage);
 export interface IExtractOptions {
 	overwrite?: boolean;
 
+	/** Invoked after each archive entry has been extracted or skipped. */
+	onProgress?: (extractedEntries: number, totalEntries: number) => void;
+
 	/**
 	 * Source path within the ZIP archive. Only the files contained in this
 	 * path will be extracted.
@@ -28,6 +31,7 @@ export interface IExtractOptions {
 
 interface IOptions {
 	sourcePathRegex: RegExp;
+	onProgress?: (extractedEntries: number, totalEntries: number) => void;
 }
 
 export type ExtractErrorType = 'CorruptZip' | 'Incomplete';
@@ -120,6 +124,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 			}
 
 			extractedEntriesCount++;
+			options.onProgress?.(extractedEntriesCount, zipfile.entryCount);
 			zipfile.readEntry();
 		};
 
@@ -224,7 +229,7 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 		promise = promise.then(zipfile => Promises.rm(targetPath).then(() => zipfile));
 	}
 
-	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, token));
+	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex, onProgress: options.onProgress }, token));
 }
 
 function read(zipPath: string, filePath: string): Promise<Readable> {

@@ -1172,8 +1172,15 @@ Standard: Latest
 					reportProgress(`Downloading ${asset.id}… 0%`);
 					await this.downloadShortestPathAsset(asset.urls, archivePath, asset.id, reportProgress);
 				}
-				reportProgress(`Extracting ${asset.id}…`);
-				await this.extractShortestPathAsset(archivePath, targetPath);
+				let lastReportedPercent = -1;
+				reportProgress(`Extracting ${asset.id}… 0%`);
+				await this.extractShortestPathAsset(archivePath, targetPath, (extractedEntries, totalEntries) => {
+					const percent = totalEntries > 0 ? Math.floor(extractedEntries * 100 / totalEntries) : 0;
+					if (percent === 100 || percent - lastReportedPercent >= 2) {
+						lastReportedPercent = percent;
+						reportProgress(`Extracting ${asset.id}… ${percent}% (${extractedEntries}/${totalEntries} files)`);
+					}
+				});
 				if (!useBundledArchive) {
 					await fs.promises.unlink(archivePath);
 				}
@@ -1188,8 +1195,8 @@ Standard: Latest
 		}
 	}
 
-	private async extractShortestPathAsset(archivePath: string, targetPath: string): Promise<void> {
-		return extractZip(archivePath, targetPath, { overwrite: true }, CancellationToken.None);
+	private async extractShortestPathAsset(archivePath: string, targetPath: string, onProgress: (extractedEntries: number, totalEntries: number) => void): Promise<void> {
+		return extractZip(archivePath, targetPath, { overwrite: true, onProgress }, CancellationToken.None);
 	}
 
 	private async downloadShortestPathAsset(urls: readonly string[], targetPath: string, label: string, reportProgress: (message: string) => void): Promise<void> {
