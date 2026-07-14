@@ -8,4 +8,5 @@ ThirdPartyNotices.txt eol=crlf
 *.ps1 eol=lf
 *.sh eol=lf
 *.rtf -text
+resources/oi-defaults/toolchains/*.zip binary
 **/*.json linguist-language=jsonc
