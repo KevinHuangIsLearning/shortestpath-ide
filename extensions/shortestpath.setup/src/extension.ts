@@ -147,12 +147,12 @@ const cphSettings: Record<string, unknown> = {
 	}
 };
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.setupEnvironment', () => runSetup(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.rerunFirstRunSetup', () => rerunFirstRunSetup()));
 	const pending = vscode.workspace.getConfiguration('shortestpath.setup').get<unknown>('pending');
 	if (isFirstRunSelection(pending)) {
-		void configure(context, pending.mode, pending);
+		await configure(context, pending.mode, pending);
 	}
 }
 

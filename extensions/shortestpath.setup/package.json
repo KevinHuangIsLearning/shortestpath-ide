@@ -8,7 +8,7 @@
 		"vscode": "^1.129.0"
 	},
 	"categories": ["Other"],
-	"activationEvents": ["onStartupFinished", "onCommand:shortestpath.setupEnvironment"],
+	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment"],
 	"main": "./out/extension.js",
 	"contributes": {
 		"configuration": {
