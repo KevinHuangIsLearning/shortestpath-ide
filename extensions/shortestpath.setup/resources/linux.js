@@ -1,9 +1,19 @@
 'use strict';
 
-exports.createCommand = ({ toolchainRoot, source }) => {
-	const condaForge = source?.condaForgeChannel ?? 'conda-forge';
-	const command = `set -eu; root='${toolchainRoot}'; mkdir -p "$root"; arch=$(uname -m); case "$arch" in x86_64) platform=linux-64 ;; aarch64|arm64) platform=linux-aarch64 ;; *) echo "Unsupported Linux architecture: $arch"; exit 1 ;; esac; curl -Ls "https://micro.mamba.pm/api/micromamba/$platform/latest" | tar -xvj -C "$root" bin/micromamba; "$root/bin/micromamba" create -y -p "$root/env" -c '${condaForge}' gxx_linux-64 clang-tools`;
-	return command;
-};
+const clangdArchiveName = 'clangd-linux-22.1.6.zip';
+const clangdOfficialUrl = `https://github.com/clangd/clangd/releases/download/22.1.6/${clangdArchiveName}`;
+const clangdGhfastUrl = `https://ghfast.top/${clangdOfficialUrl}`;
 
-exports.createProcess = input => ({ executable: 'bash', args: ['-lc', exports.createCommand(input)], displayName: 'Portable toolchain' });
+exports.getPortableAssets = ({ source }) => [{
+	id: 'clangd 22.1.6',
+	urls: [source?.id === 'ghfast' ? clangdGhfastUrl : clangdOfficialUrl],
+	archiveName: clangdArchiveName,
+	targetDirectory: 'clangd',
+	requiredFile: 'clangd_22.1.6/bin/clangd'
+}];
+
+exports.createProcess = () => ({
+	executable: 'sh',
+	args: ['-lc', 'if command -v g++ >/dev/null 2>&1; then echo "Using system g++: $(command -v g++)"; else echo "g++ was not found. Install GCC with your Linux distribution package manager, then retry."; exit 1; fi'],
+	displayName: 'system g++ check'
+});

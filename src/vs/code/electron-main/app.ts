@@ -12,8 +12,7 @@ import { spawn } from 'child_process';
 import { createRequire } from 'module';
 import { Readable } from 'stream';
 import { finished } from 'stream/promises';
-import { createHash } from 'crypto';
-import { basename, isAbsolute } from 'path';
+import { isAbsolute } from 'path';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
@@ -157,7 +156,7 @@ import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platf
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 interface IShortestPathSetupRequest {
-	readonly mode: 'recommended' | 'custom';
+	readonly mode: 'recommended';
 	readonly editor: boolean;
 	readonly cph: boolean;
 	readonly installToolchain: boolean;
@@ -180,8 +179,6 @@ interface IShortestPathToolchainPreset {
 
 interface IShortestPathDownloadSource {
 	readonly id: string;
-	readonly condaForgeChannel?: string;
-	readonly msys2Channel?: string;
 	readonly unavailable?: boolean;
 	readonly label?: unknown;
 }
@@ -189,7 +186,6 @@ interface IShortestPathDownloadSource {
 interface IShortestPathPlatformInstaller {
 	createProcess?(input: { readonly toolchainRoot: string; readonly source?: IShortestPathDownloadSource; readonly stage?: string; readonly locale?: string }): { readonly executable: string; readonly args: readonly string[]; readonly displayName: string };
 	getPortableAssets?(input: { readonly toolchainRoot: string; readonly source?: IShortestPathDownloadSource; readonly stage?: string }): readonly IShortestPathPortableAsset[];
-	getMsys2PackageRoots?(): readonly string[];
 }
 
 interface IShortestPathPortableAsset {
@@ -197,23 +193,9 @@ interface IShortestPathPortableAsset {
 	readonly urls: readonly string[];
 	readonly archiveName: string;
 	readonly bundledArchivePath?: string;
-	readonly archiveFormat?: 'zip' | 'tar.xz' | 'tar.zst';
 	readonly targetDirectory: string;
 	readonly requiredFile: string;
 }
-
-interface IMsys2Package {
-	readonly name: string;
-	readonly fileName: string;
-	readonly sha256: string;
-	readonly dependencies: readonly string[];
-	readonly provides: readonly string[];
-}
-
-const msys2MingwRepositoryUrls = [
-	'https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/mingw64/',
-	'https://mirror.msys2.org/mingw/mingw64/'
-];
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -222,7 +204,7 @@ function isShortestPathSetupRequest(candidate: unknown): candidate is IShortestP
 		return false;
 	}
 	const value = candidate as Partial<IShortestPathSetupRequest>;
-	return (value.mode === 'recommended' || value.mode === 'custom')
+	return value.mode === 'recommended'
 		&& typeof value.editor === 'boolean'
 		&& typeof value.cph === 'boolean'
 		&& typeof value.installToolchain === 'boolean'
@@ -931,7 +913,7 @@ export class CodeApplication extends Disposable {
 			'editor.fontSize': request.fontSize,
 			'files.autoSave': 'onFocusChange',
 			'editor.formatOnSave': false,
-			'editor.formatOnPaste': true,
+			'editor.formatOnPaste': false,
 			'editor.mouseWheelZoom': true,
 			'cph.general.defaultLanguage': 'cpp',
 			'cph.general.collectProblemsInRoot': true,
@@ -950,13 +932,14 @@ export class CodeApplication extends Disposable {
 		for (const [key, value] of Object.entries(settings)) {
 			await this.configurationService.updateValue(key, value, ConfigurationTarget.USER);
 		}
-		await this.createShortestPathWindowsClangdConfig(request.workspaceFolder, compiler, request.cppStandard);
+		const localAppData = process.env['LOCALAPPDATA'] ?? join(dirname(dirname(this.environmentMainService.userDataPath)), 'Local');
+		await this.createShortestPathClangdConfig(join(localAppData, 'clangd', 'config.yaml'), compiler, request.cppStandard);
+		await this.createShortestPathClangdConfig(join(request.workspaceFolder, '.clangd'), compiler, request.cppStandard);
 		await this.configurationService.updateValue('shortestpath.setup.pending', undefined, ConfigurationTarget.USER);
 		await this.configurationService.updateValue('shortestpath.setup.completed', true, ConfigurationTarget.USER);
 	}
 
-	private async createShortestPathWindowsClangdConfig(workspaceFolder: string, compiler: string, cppStandard: IShortestPathSetupRequest['cppStandard']): Promise<void> {
-		const configPath = join(workspaceFolder, '.clangd');
+	private async createShortestPathClangdConfig(configPath: string, compiler: string, cppStandard: IShortestPathSetupRequest['cppStandard']): Promise<void> {
 		if (fs.existsSync(configPath)) {
 			return;
 		}
@@ -995,16 +978,10 @@ export class CodeApplication extends Disposable {
 		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
 		const installer = this.getShortestPathPlatformInstaller();
 		const assets = stage === 'toolchain' || !stage ? installer.getPortableAssets?.({ toolchainRoot, source, stage }) : undefined;
-		const msys2PackageRoots = installer.getMsys2PackageRoots?.();
-		if (assets?.length || msys2PackageRoots?.length) {
-			if (assets?.length) {
-				const result = await this.installShortestPathPortableAssets(toolchainRoot, assets, reportProgress);
-				if (!result.success) {
-					return result;
-				}
-			}
-			if (msys2PackageRoots?.length) {
-				return this.installShortestPathMsys2Packages(toolchainRoot, msys2PackageRoots, reportProgress);
+		if (assets?.length) {
+			const result = await this.installShortestPathPortableAssets(toolchainRoot, assets, reportProgress);
+			if (!result.success) {
+				return result;
 			}
 			if (!installer.createProcess) {
 				return { success: true, message: 'Toolchain download completed.' };
@@ -1069,7 +1046,7 @@ export class CodeApplication extends Disposable {
 					await this.downloadShortestPathAsset(asset.urls, archivePath, asset.id, reportProgress);
 				}
 				reportProgress(`Extracting ${asset.id}…`);
-				await this.extractShortestPathAsset(asset, archivePath, targetPath, reportProgress);
+				await this.extractShortestPathAsset(archivePath, targetPath);
 				if (!asset.bundledArchivePath) {
 					await fs.promises.unlink(archivePath);
 				}
@@ -1084,158 +1061,8 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private async installShortestPathMsys2Packages(toolchainRoot: string, roots: readonly string[], reportProgress: (message: string) => void): Promise<{ readonly success: boolean; readonly message: string }> {
-		const metadataRoot = join(toolchainRoot, '.msys2-repository');
-		const packageCacheRoot = join(metadataRoot, 'packages');
-		const databaseArchivePath = join(metadataRoot, 'mingw64.db.tar.zst');
-		const installRoot = join(toolchainRoot, 'msys2');
-		const clangdPath = join(toolchainRoot, 'clangd', 'clangd_22.1.6', 'bin', 'clangd.exe');
-		try {
-			if (fs.existsSync(join(installRoot, 'mingw64', 'bin', 'g++.exe')) && fs.existsSync(clangdPath)) {
-				reportProgress('MSYS2 MinGW toolchain is already installed; skipping download.');
-				return { success: true, message: 'Toolchain is already installed.' };
-			}
-			await fs.promises.mkdir(metadataRoot, { recursive: true });
-			reportProgress('Downloading the MSYS2 package index… 0%');
-			await this.downloadShortestPathAsset(msys2MingwRepositoryUrls.map(base => `${base}mingw64.db.tar.zst`), databaseArchivePath, 'MSYS2 package index', reportProgress);
-			await fs.promises.rm(join(metadataRoot, 'database'), { recursive: true, force: true });
-			await this.extractShortestPathArchive(databaseArchivePath, join(metadataRoot, 'database'), 'tar.zst');
-			await fs.promises.unlink(databaseArchivePath);
-
-			const packages = await this.readMsys2PackageDatabase(join(metadataRoot, 'database'));
-			const selectedPackages = this.resolveMsys2Packages(packages, roots);
-			await fs.promises.mkdir(packageCacheRoot, { recursive: true });
-			for (const [index, pkg] of selectedPackages.entries()) {
-				const packagePath = join(packageCacheRoot, pkg.fileName);
-				const packageLabel = `${pkg.name} (${index + 1}/${selectedPackages.length})`;
-				reportProgress(`Downloading ${packageLabel}… 0%`);
-				await this.downloadShortestPathAsset(msys2MingwRepositoryUrls.map(base => `${base}${pkg.fileName}`), packagePath, packageLabel, reportProgress);
-				await this.verifyShortestPathAssetChecksum(packagePath, pkg.sha256);
-				reportProgress(`Extracting ${pkg.name} (${index + 1}/${selectedPackages.length})…`);
-				await this.extractShortestPathArchive(packagePath, installRoot, 'tar.zst');
-				await fs.promises.unlink(packagePath);
-			}
-
-			if (!fs.existsSync(join(installRoot, 'mingw64', 'bin', 'g++.exe')) || !fs.existsSync(clangdPath)) {
-				throw new Error('The GCC package or bundled clangd archive did not contain its expected executable.');
-			}
-			reportProgress('MSYS2 MinGW toolchain installation complete.');
-			return { success: true, message: 'Toolchain download completed.' };
-		} catch (error) {
-			return { success: false, message: toErrorMessage(error) };
-		}
-	}
-
-	private async readMsys2PackageDatabase(databaseRoot: string): Promise<Map<string, IMsys2Package>> {
-		const packages = new Map<string, IMsys2Package>();
-		for (const entry of await fs.promises.readdir(databaseRoot, { withFileTypes: true })) {
-			if (!entry.isDirectory()) {
-				continue;
-			}
-			const descPath = join(databaseRoot, entry.name, 'desc');
-			if (!fs.existsSync(descPath)) {
-				continue;
-			}
-			const fields = this.parseMsys2PackageMetadata(await fs.promises.readFile(descPath, 'utf8'));
-			const name = fields.get('NAME')?.[0];
-			const fileName = fields.get('FILENAME')?.[0];
-			const sha256 = fields.get('SHA256SUM')?.[0];
-			if (name && fileName && sha256) {
-				packages.set(name, { name, fileName, sha256, dependencies: fields.get('DEPENDS') ?? [], provides: fields.get('PROVIDES') ?? [] });
-			}
-		}
-		return packages;
-	}
-
-	private parseMsys2PackageMetadata(contents: string): Map<string, string[]> {
-		const fields = new Map<string, string[]>();
-		const blocks = contents.replaceAll('\r\n', '\n').trim().split('\n\n');
-		for (const block of blocks) {
-			const [header, ...values] = block.split('\n');
-			const match = /^%(.+)%$/.exec(header);
-			if (match) {
-				fields.set(match[1], values.filter(Boolean));
-			}
-		}
-		return fields;
-	}
-
-	private resolveMsys2Packages(packages: Map<string, IMsys2Package>, roots: readonly string[]): IMsys2Package[] {
-		const resolved = new Map<string, IMsys2Package>();
-		const providers = new Map<string, string>();
-		for (const pkg of packages.values()) {
-			for (const provided of pkg.provides) {
-				providers.set(provided.replace(/[<>=].*$/, ''), pkg.name);
-			}
-		}
-		const visit = (name: string) => {
-			if (resolved.has(name)) {
-				return;
-			}
-			const pkg = packages.get(name) ?? packages.get(providers.get(name) ?? '');
-			if (!pkg) {
-				throw new Error(`MSYS2 package ${name} was not found in the repository index.`);
-			}
-			resolved.set(name, pkg);
-			for (const dependency of pkg.dependencies) {
-				visit(dependency.replace(/[<>=].*$/, ''));
-			}
-		};
-		for (const root of roots) {
-			visit(root);
-		}
-		return [...resolved.values()];
-	}
-
-	private async verifyShortestPathAssetChecksum(filePath: string, expectedChecksum: string): Promise<void> {
-		const checksum = createHash('sha256');
-		await new Promise<void>((resolve, reject) => {
-			const input = fs.createReadStream(filePath);
-			input.on('data', chunk => checksum.update(chunk));
-			input.on('error', reject);
-			input.on('end', resolve);
-		});
-		if (checksum.digest('hex') !== expectedChecksum) {
-			throw new Error(`Checksum verification failed for ${basename(filePath)}.`);
-		}
-	}
-
-	private async extractShortestPathAsset(asset: IShortestPathPortableAsset, archivePath: string, targetPath: string, reportProgress: (message: string) => void): Promise<void> {
-		if (!asset.archiveFormat || asset.archiveFormat === 'zip') {
-			return extractZip(archivePath, targetPath, { overwrite: true }, CancellationToken.None);
-		}
-		await this.extractShortestPathArchive(archivePath, targetPath, asset.archiveFormat);
-		reportProgress(`Extracted ${asset.id}.`);
-	}
-
-	private async extractShortestPathArchive(archivePath: string, targetPath: string, archiveFormat: 'tar.xz' | 'tar.zst'): Promise<void> {
-		// MSYS2 packages and LLVM archives are compressed tarballs. Use the full
-		// 7-Zip binary bundled with the application, because the standalone 7za
-		// build does not support MSYS2's Zstandard-compressed archives.
-		// This keeps setup independent of
-		// PowerShell, a system installation of 7-Zip, or administrator privileges.
-		const extractorPath = nodeRequire.resolve('7zip-bin-full/win/x64/7z.exe').replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
-		await fs.promises.mkdir(targetPath, { recursive: true });
-		const tarPath = join(targetPath, basename(archivePath).slice(0, -archiveFormat.slice('tar'.length).length));
-		await this.runBundled7Zip(extractorPath, ['x', '-y', `-o${targetPath}`, archivePath]);
-		await this.runBundled7Zip(extractorPath, ['x', '-y', `-o${targetPath}`, tarPath]);
-		await fs.promises.rm(tarPath, { force: true });
-	}
-
-	private async runBundled7Zip(extractorPath: string, args: readonly string[]): Promise<void> {
-		await new Promise<void>((resolve, reject) => {
-			const process = spawn(extractorPath, args, { windowsHide: true });
-			let errorOutput = '';
-			process.stderr.on('data', (data: Buffer) => errorOutput += data.toString());
-			process.on('error', reject);
-			process.on('close', code => {
-				if (code === 0) {
-					resolve();
-				} else {
-					reject(new Error(`Bundled extractor exited with code ${code ?? 'unknown'}${errorOutput ? `: ${errorOutput.trim()}` : ''}.`));
-				}
-			});
-		});
+	private async extractShortestPathAsset(archivePath: string, targetPath: string): Promise<void> {
+		return extractZip(archivePath, targetPath, { overwrite: true }, CancellationToken.None);
 	}
 
 	private async downloadShortestPathAsset(urls: readonly string[], targetPath: string, label: string, reportProgress: (message: string) => void): Promise<void> {

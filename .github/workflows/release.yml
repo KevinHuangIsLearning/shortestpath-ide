@@ -58,6 +58,15 @@ jobs:
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = 'Stop'
           exec { npm ci }
+          $nativeBindings = @(
+            'node_modules\@vscode\policy-watcher\build\Release\vscode-policy-watcher.node',
+            'node_modules\@vscode\spdlog\build\Release\spdlog.node',
+            'node_modules\@vscode\sqlite3\build\Release\vscode-sqlite3.node',
+            'node_modules\native-keymap\build\Release\keymapping.node'
+          )
+          if ($nativeBindings.Where({ -not (Test-Path -LiteralPath $_ -PathType Leaf) }).Count -gt 0) {
+            exec { npm rebuild '@vscode/policy-watcher' '@vscode/spdlog' '@vscode/sqlite3' 'native-keymap' --foreground-scripts }
+          }
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Build Windows package
@@ -79,6 +88,19 @@ jobs:
           Move-Item -LiteralPath $source -Destination $destination
           if (-not (Test-Path -LiteralPath (Join-Path $destination 'ShortestPath.exe') -PathType Leaf)) {
             throw "ShortestPath.exe was not found in the staged package at $destination."
+          }
+          $requiredExtensionEntries = @(
+            'resources\app\extensions\divyanshuagrawal.competitive-programming-helper\dist\extension.js',
+            'resources\app\extensions\shortestpath.setup\out\extension.js',
+            'resources\app\extensions\danielpinto8zz6.c-cpp-compile-run\dist\extension.js',
+            'resources\app\extensions\llvm-vs-code-extensions.vscode-clangd\out\bundle.js',
+            'resources\app\extensions\tomoki1207.vscode-pdfviewer\out\src\extension.js'
+          )
+          foreach ($entry in $requiredExtensionEntries) {
+            $entryPath = Join-Path $destination $entry
+            if (-not (Test-Path -LiteralPath $entryPath -PathType Leaf)) {
+              throw "Required extension entry file was not packaged: $entry"
+            }
           }
           Compress-Archive -Path "$destination\*" -DestinationPath ShortestPath-IDE-windows-x64.zip
       - uses: actions/upload-artifact@v7
@@ -106,7 +128,19 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          missing=0
+          for binding in \
+            node_modules/@vscode/policy-watcher/build/Release/vscode-policy-watcher.node \
+            node_modules/@vscode/spdlog/build/Release/spdlog.node \
+            node_modules/@vscode/sqlite3/build/Release/vscode-sqlite3.node \
+            node_modules/native-keymap/build/Release/keymapping.node; do
+            test -f "$binding" || missing=1
+          done
+          if [ "$missing" -eq 1 ]; then
+            npm rebuild @vscode/policy-watcher @vscode/spdlog @vscode/sqlite3 native-keymap --foreground-scripts
+          fi
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Build macOS package
@@ -115,8 +149,20 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Archive macOS application
         run: |
+          app="../VSCode-darwin-arm64/ShortestPath IDE.app"
+          for entry in \
+            "divyanshuagrawal.competitive-programming-helper/dist/extension.js" \
+            "shortestpath.setup/out/extension.js" \
+            "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
+            "llvm-vs-code-extensions.vscode-clangd/out/bundle.js" \
+            "tomoki1207.vscode-pdfviewer/out/src/extension.js"; do
+            test -f "$app/Contents/Resources/app/extensions/$entry" || {
+              echo "Required extension entry file was not packaged: $entry" >&2
+              exit 1
+            }
+          done
           mkdir artifacts
-          ditto -c -k --sequesterRsrc --keepParent "../VSCode-darwin-arm64/ShortestPath IDE.app" artifacts/ShortestPath-IDE-macos-arm64.zip
+          ditto -c -k --sequesterRsrc --keepParent "$app" artifacts/ShortestPath-IDE-macos-arm64.zip
       - uses: actions/upload-artifact@v7
         with:
           name: macos-arm64

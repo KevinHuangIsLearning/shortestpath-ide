@@ -27,7 +27,7 @@ import { validateExtensionManifest } from '../../extensions/common/extensionVali
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { IProductService } from '../../product/common/productService.js';
+import { getExtensionApiVersion, IProductService } from '../../product/common/productService.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IExtensionsProfileScannerService, IProfileExtensionsScanOptions, IScannedProfileExtension } from './extensionsProfileScannerService.js';
@@ -521,7 +521,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 
 	private getProductVersion(): IProductVersion {
 		return {
-			version: this.productService.version,
+			version: getExtensionApiVersion(this.productService),
 			date: this.productService.date,
 		};
 	}

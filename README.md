@@ -7,9 +7,9 @@ and Linux.
 
 ## Highlights
 
-- First-run setup with Recommended and Custom modes
-- Platform-specific compiler setup with bundled clangd on macOS and Windows
-- Configurable package download sources, including TUNA
+- Guided Recommended first-run setup with a dedicated workspace step
+- Platform-specific compiler setup with bundled clangd on Windows
+- Selectable GitHub Release and GH mirror downloads on Windows and Linux
 - C++ compiler, clangd, CPH, VJudge, editor font, ligature, and save defaults
 - Built-in Simplified Chinese localization for the bundled OI extensions
 
@@ -18,10 +18,8 @@ and Linux.
 ```bash
 git clone https://github.com/KevinHuangIsLearning/shortestpath-ide.git
 cd shortestpath-ide
-npm install
-cd vscode
-npm install
-npm run compile-client
+npm ci
+npm run compile
 ./scripts/code.sh --locale zh-cn
 ```
 
@@ -45,12 +43,13 @@ workbench. To run it again, use the command palette command:
 | --- | --- | --- |
 | Windows | [WinLibs GCC 16.1.0](https://github.com/brechtsanders/winlibs_mingw/releases/download/16.1.0posix-14.0.0-ucrt-r3/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip), downloaded from the user-selected GitHub Release or GH mirror | Bundled [clangd 22.1.6](https://github.com/clangd/clangd/releases/tag/22.1.6) Portable |
 | macOS (Apple Silicon) | GCC installed through Homebrew | LLVM clangd installed through Homebrew |
-| Linux | Isolated Portable GCC and clangd environment | Downloaded during first-run setup |
+| Linux | System g++ (install it with the distribution package manager if missing) | [clangd 22.1.6](https://github.com/clangd/clangd/releases/tag/22.1.6) Portable, downloaded from the user-selected GitHub Release or GH mirror |
 
-The bundled clangd archives are unmodified upstream Portable releases. They are
-extracted into ShortestPath IDE's user-data directory on first run, so Windows
-users do not need external network access to obtain clangd. macOS installs LLVM
-through Homebrew.
+The bundled Windows clangd archive is an unmodified upstream Portable release.
+It is extracted into ShortestPath IDE's user-data directory on first run, so
+Windows users do not need external network access to obtain clangd. Linux stores
+its downloaded Portable clangd in the same per-user toolchain directory. macOS
+installs GCC and LLVM through Homebrew.
 
 ## License
 

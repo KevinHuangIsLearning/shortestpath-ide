@@ -1,6 +1,7 @@
 {
 	"nameShort": "ShortestPath",
 	"nameLong": "ShortestPath IDE",
+	"extensionApiVersion": "1.129.0",
 	"applicationName": "shortestpath",
 	"dataFolderName": ".shortestpath-ide",
 	"sharedDataFolderName": ".shortestpath-ide-shared",
