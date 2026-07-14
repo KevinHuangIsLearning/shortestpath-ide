@@ -935,7 +935,7 @@ export class CodeApplication extends Disposable {
 			: undefined;
 		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
 		const installer = this.getShortestPathPlatformInstaller();
-		const assets = installer.getPortableAssets?.();
+		const assets = stage === 'toolchain' || !stage ? installer.getPortableAssets?.() : undefined;
 		const msys2PackageRoots = installer.getMsys2PackageRoots?.();
 		if (assets?.length || msys2PackageRoots?.length) {
 			if (assets?.length) {
@@ -947,7 +947,9 @@ export class CodeApplication extends Disposable {
 			if (msys2PackageRoots?.length) {
 				return this.installShortestPathMsys2Packages(toolchainRoot, msys2PackageRoots, reportProgress);
 			}
-			return { success: true, message: 'Toolchain download completed.' };
+			if (!installer.createProcess) {
+				return { success: true, message: 'Toolchain download completed.' };
+			}
 		}
 
 		let processDefinition: NonNullable<ReturnType<NonNullable<IShortestPathPlatformInstaller['createProcess']>>>;

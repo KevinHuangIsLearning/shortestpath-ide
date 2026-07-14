@@ -1,5 +1,16 @@
 'use strict';
 
+exports.getPortableAssets = () => [
+	{
+		id: 'clangd 22.1.6',
+		urls: [],
+		archiveName: 'clangd-mac-22.1.6.zip',
+		bundledArchivePath: 'resources/oi-defaults/toolchains/clangd-mac-22.1.6.zip',
+		targetDirectory: 'clangd',
+		requiredFile: 'clangd_22.1.6/bin/clangd'
+	}
+];
+
 exports.createCommand = ({ stage, locale }) => stage === 'homebrew'
 	? `export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 if ! command -v brew >/dev/null 2>&1; then
@@ -12,10 +23,10 @@ if ! command -v brew >/dev/null 2>&1; then
 fi`
 	: stage === 'xcode'
 		? 'if ! xcode-select -p >/dev/null 2>&1; then xcode-select --install || true; echo "Waiting for Xcode Command Line Tools installation…"; until xcode-select -p >/dev/null 2>&1; do sleep 5; done; fi'
-	: 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; brew install gcc llvm';
+	: 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; brew install gcc';
 
 exports.createProcess = input => ({
 	executable: 'zsh',
 	args: ['-lc', exports.createCommand(input)],
-	displayName: input.stage === 'xcode' ? 'Xcode Command Line Tools' : input.stage === 'homebrew' ? 'Homebrew' : 'GCC and LLVM toolchain'
+	displayName: input.stage === 'xcode' ? 'Xcode Command Line Tools' : input.stage === 'homebrew' ? 'Homebrew' : 'GCC toolchain'
 });

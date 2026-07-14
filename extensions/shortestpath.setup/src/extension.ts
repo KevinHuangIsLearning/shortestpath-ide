@@ -215,9 +215,13 @@ async function configure(context: vscode.ExtensionContext, selection: SetupSelec
 		installerStarted = true;
 	}
 
-	if (installerStarted && preset.portableToolchain) {
-		compiler ??= preset.compilerCandidates[0];
-		clangd ??= preset.clangdCandidates[0];
+	if (installerStarted) {
+		compiler = await findFirstExecutable(preset.compilerCandidates);
+		clangd = await findFirstExecutable(preset.clangdCandidates);
+		if (preset.portableToolchain) {
+			compiler ??= preset.compilerCandidates[0];
+			clangd ??= preset.clangdCandidates[0];
+		}
 	}
 
 	const settings: Record<string, unknown> = {};

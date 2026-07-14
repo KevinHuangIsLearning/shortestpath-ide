@@ -5,7 +5,7 @@
 			"title": { "en": "ShortestPath IDE", "zh-CN": "ShortestPath IDE" },
 			"text": { "en": "Select your configuration method.", "zh-CN": "选择你的配置方式。" },
 			"selections": {
-				"Recommended": { "label": { "en": "Recommended", "zh-CN": "推荐配置" }, "jumpto": 2, "description": { "en": "Install GCC and LLVM with Homebrew, then apply the contest preset.", "zh-CN": "使用 Homebrew 安装 GCC 与 LLVM，并应用竞赛预设。" } },
+				"Recommended": { "label": { "en": "Recommended", "zh-CN": "推荐配置" }, "jumpto": 2, "description": { "en": "Install GCC with Homebrew and use bundled clangd, then apply the contest preset.", "zh-CN": "使用 Homebrew 安装 GCC、使用内置 clangd，并应用竞赛预设。" } },
 				"Custom": { "label": { "en": "Custom", "zh-CN": "自定义配置" }, "jumpto": 3, "description": { "en": "Choose the settings to apply.", "zh-CN": "自行选择要应用的设置。" } }
 			}
 		},
@@ -24,7 +24,7 @@
 		{
 			"id": "toolchain",
 			"title": { "en": "Installing Toolchain", "zh-CN": "正在安装编译环境" },
-			"text": { "en": "Installing GCC and LLVM with Homebrew…", "zh-CN": "正在通过 Homebrew 安装 GCC 与 LLVM…" },
+			"text": { "en": "Installing GCC with Homebrew and bundled clangd…", "zh-CN": "正在通过 Homebrew 安装 GCC 并解压内置 clangd…" },
 			"onSuccess": "configuration"
 		},
 		{
@@ -44,6 +44,6 @@
 	],
 	"portableToolchain": false,
 	"compilerCandidates": ["g++-16", "g++-15", "g++"],
-	"clangdCandidates": ["/opt/homebrew/opt/llvm/bin/clangd", "/usr/local/opt/llvm/bin/clangd", "clangd"],
-	"installDescription": "Install GCC and LLVM (clangd) with Homebrew"
+	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}/clangd/clangd_22.1.6/bin/clangd", "/opt/homebrew/opt/llvm/bin/clangd", "/usr/local/opt/llvm/bin/clangd", "clangd"],
+	"installDescription": "Extract bundled clangd and install GCC with Homebrew"
 }
