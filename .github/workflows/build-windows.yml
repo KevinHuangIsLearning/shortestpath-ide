@@ -75,6 +75,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build bundled OI extensions
+        shell: pwsh
+        run: npm run compile-oi-extensions
+
       - name: Package ShortestPath IDE
         shell: pwsh
         run: npm run gulp vscode-win32-x64-min
