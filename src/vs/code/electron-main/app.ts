@@ -162,6 +162,7 @@ interface IShortestPathSetupRequest {
 	readonly installToolchain: boolean;
 	readonly fontLigatures: boolean;
 	readonly fontSize: number;
+	readonly autoFormat: boolean;
 	readonly vjudgeOpenInBrowser: boolean;
 	readonly cppStandard: 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 	readonly workspaceFolder: string;
@@ -173,8 +174,20 @@ interface IShortestPathOnboardingResult {
 }
 
 interface IShortestPathToolchainPreset {
-	readonly pages: readonly { readonly commands?: string; readonly [key: string]: unknown }[];
+	readonly pages: readonly IShortestPathOnboardingPage[];
 	readonly downloadSources?: readonly IShortestPathDownloadSource[];
+}
+
+interface IShortestPathOnboardingPage {
+	readonly commands?: string;
+	readonly controls?: readonly IShortestPathOnboardingControl[];
+	readonly [key: string]: unknown;
+}
+
+interface IShortestPathOnboardingControl {
+	readonly key?: string;
+	readonly default?: unknown;
+	readonly [key: string]: unknown;
 }
 
 interface IShortestPathDownloadSource {
@@ -210,6 +223,7 @@ function isShortestPathSetupRequest(candidate: unknown): candidate is IShortestP
 		&& typeof value.installToolchain === 'boolean'
 		&& typeof value.fontLigatures === 'boolean'
 		&& typeof value.fontSize === 'number'
+		&& typeof value.autoFormat === 'boolean'
 		&& typeof value.vjudgeOpenInBrowser === 'boolean'
 		&& (value.cppStandard === 'c++11' || value.cppStandard === 'c++14' || value.cppStandard === 'c++17' || value.cppStandard === 'c++20' || value.cppStandard === 'c++23')
 		&& typeof value.workspaceFolder === 'string'
@@ -902,8 +916,8 @@ export class CodeApplication extends Disposable {
 		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
 		const compiler = join(toolchainRoot, 'winlibs', 'mingw64', 'bin', 'g++.exe');
 		const clangd = join(toolchainRoot, 'clangd', 'clangd_22.1.6', 'bin', 'clangd.exe');
+		const existingFileExcludes = this.configurationService.getValue<Record<string, boolean>>('files.exclude') ?? {};
 		const settings: Record<string, unknown> = {
-			'editor.fontFamily': "Fira Code, Menlo, Monaco, 'Courier New', monospace",
 			'editor.fontLigatures': request.fontLigatures,
 			'editor.cursorSmoothCaretAnimation': 'on',
 			'editor.smoothScrolling': true,
@@ -912,19 +926,61 @@ export class CodeApplication extends Disposable {
 			'editor.cursorBlinking': 'smooth',
 			'editor.fontSize': request.fontSize,
 			'files.autoSave': 'onFocusChange',
-			'editor.formatOnSave': false,
-			'editor.formatOnPaste': false,
+			'editor.formatOnSave': request.autoFormat,
+			'editor.formatOnPaste': request.autoFormat,
 			'editor.mouseWheelZoom': true,
+			'files.exclude': {
+				...existingFileExcludes,
+				'**/.cph': true,
+				'**/.clang-format': true,
+				'**/.clangd': true,
+				'**/*.exe': true,
+				'**/.*': true
+			},
 			'cph.general.defaultLanguage': 'cpp',
 			'cph.general.collectProblemsInRoot': true,
 			'cph.general.vjudgeOpenInBrowser': request.vjudgeOpenInBrowser,
 			'cph.general.vjudgeBrowserSplitRatio': 65,
 			'cph.general.vjudgeUrlSuffix': '#author=translator:1281309:zh',
+			'cph.general.vjudgeOjNames': {
+				CodeForces: { urlTemplate: 'https://codeforces.com/problemset/problem/{contestId}/{problemId}', problemIdRegex: '^(\\d+)([A-Z]\\d*)$' },
+				CF: { urlTemplate: 'https://codeforces.com/problemset/problem/{contestId}/{problemId}', problemIdRegex: '^(\\d+)([A-Z]\\d*)$' },
+				AtCoder: { urlTemplate: 'https://atcoder.jp/contests/{contestId}/tasks/{contestId}_{problemId}', problemIdRegex: '^([a-z]+\\d+)_([a-z]\\d*)$' },
+				Luogu: { urlTemplate: 'https://www.luogu.com.cn/problem/{problemId}' },
+				'洛谷': { urlTemplate: 'https://www.luogu.com.cn/problem/{problemId}' },
+				SPOJ: { urlTemplate: 'https://www.spoj.com/problems/{problemId}' },
+				UVA: { urlTemplate: 'https://onlinejudge.org/index.php?option=com_onlinejudge&Itemid=8&page=show_problem&problem={problemId}' },
+				HDU: { urlTemplate: 'https://acm.hdu.edu.cn/showproblem.php?pid={problemId}' },
+				POJ: { urlTemplate: 'http://poj.org/problem?id={problemId}' },
+				Bailian: { urlTemplate: 'http://bailian.openjudge.cn/practice/{problemId}' },
+				CSES: { urlTemplate: 'https://cses.fi/problemset/task/{problemId}' },
+				NowCoder: { urlTemplate: 'https://ac.nowcoder.com/acm/problem/{problemId}', problemIdRegex: '^(\\d+)$' },
+				'牛客': { urlTemplate: 'https://ac.nowcoder.com/acm/problem/{problemId}' }
+			},
+			'cph.general.ojMapping': {
+				'codeforces.com': { oj: 'CF', ojName: 'Codeforces', contestIdRegex: '(?:contest|gym|problemset\\/problem)\\/(\\d+)', problemIdRegex: '(?:contest|gym|problemset\\/problem)\\/\\d+\\/(\\w+)' },
+				'atcoder.jp': { oj: 'AT', ojName: 'AtCoder', contestIdRegex: 'contests\\/(\\w+)\\/tasks\\/\\w+_\\w+', problemIdRegex: 'contests\\/\\w+\\/tasks\\/\\w+_(\\w+)' },
+				'luogu.com.cn': { oj: 'LG', ojName: 'Luogu', problemIdRegex: 'problem\\/(\\w+)' },
+				'open.kattis.com': { oj: 'Kattis', ojName: 'Kattis' },
+				'codechef.com': { oj: 'CC', ojName: 'CodeChef' },
+				'spoj.com': { oj: 'SPOJ', ojName: 'SPOJ' },
+				'hackerrank.com': { oj: 'HR', ojName: 'HackerRank' },
+				'hackerearth.com': { oj: 'HE', ojName: 'HackerEarth' },
+				'leetcode.com': { oj: 'LC', ojName: 'LeetCode' },
+				'acm.timus.ru': { oj: 'Timus', ojName: 'Timus' },
+				'dmoj.ca': { oj: 'DMOJ', ojName: 'DMOJ' },
+				'cses.fi': { oj: 'CSES', ojName: 'CSES', problemIdRegex: 'task\\/(\\d+)' },
+				'usaco.org': { oj: 'USACO', ojName: 'USACO' },
+				'lightoj.com': { oj: 'LOJ', ojName: 'LightOJ' },
+				'eolymp.com': { oj: 'EOlymp', ojName: 'EOlymp' },
+				'acm.hdu.edu.cn': { oj: 'HDU', ojName: 'HDU', problemIdRegex: '[?&]pid=(\\d+)' },
+				'ac.nowcoder.com': { oj: '牛客', ojName: '牛客', problemIdRegex: 'problem\\/(\\d+)' }
+			},
 			'cph.language.cpp.Command': compiler,
-			'cph.language.cpp.Args': `-std=${request.cppStandard} -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG`,
+			'cph.language.cpp.Args': `-std=${request.cppStandard} -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG -static`,
 			'c-cpp-compile-run.output-location': '.',
 			'c-cpp-compile-run.cpp-compiler': compiler,
-			'c-cpp-compile-run.cpp-flags': `-std=${request.cppStandard} -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG`,
+			'c-cpp-compile-run.cpp-flags': `-std=${request.cppStandard} -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG -static`,
 			'clangd.path': clangd,
 			'clangd.arguments': ['--background-index', `--query-driver=${compiler}`]
 		};
@@ -935,6 +991,9 @@ export class CodeApplication extends Disposable {
 		const localAppData = process.env['LOCALAPPDATA'] ?? join(dirname(dirname(this.environmentMainService.userDataPath)), 'Local');
 		await this.createShortestPathClangdConfig(join(localAppData, 'clangd', 'config.yaml'), compiler, request.cppStandard);
 		await this.createShortestPathClangdConfig(join(request.workspaceFolder, '.clangd'), compiler, request.cppStandard);
+		if (request.autoFormat) {
+			await this.createShortestPathClangFormatConfig(join(request.workspaceFolder, '.clang-format'));
+		}
 		await this.configurationService.updateValue('shortestpath.setup.pending', undefined, ConfigurationTarget.USER);
 		await this.configurationService.updateValue('shortestpath.setup.completed', true, ConfigurationTarget.USER);
 	}
@@ -954,10 +1013,79 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
+	private async createShortestPathClangFormatConfig(configPath: string): Promise<void> {
+		if (fs.existsSync(configPath)) {
+			return;
+		}
+		const config = `BasedOnStyle: Google
+
+# --- 行为：尽量允许一行写完 ---
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+
+# --- 行长（核心关键，不然上面全白给） ---
+ColumnLimit: 0
+
+# --- 缩进 ---
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# --- 访问修饰符 ---
+AccessModifierOffset: -2
+
+# --- 大括号风格 ---
+BreakBeforeBraces: Attach
+AlwaysBreakTemplateDeclarations: No
+
+# --- 指针与注释 ---
+PointerAlignment: Left
+SpacesBeforeTrailingComments: 4
+
+# --- 代码块间距 ---
+SeparateDefinitionBlocks: Always
+
+# --- 语言标准 ---
+Standard: Latest
+`;
+		await fs.promises.mkdir(dirname(configPath), { recursive: true });
+		try {
+			await fs.promises.writeFile(configPath, config, { encoding: 'utf8', flag: 'wx' });
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+				throw error;
+			}
+		}
+	}
+
 	private getShortestPathOnboardingScript(): IShortestPathToolchainPreset {
 		const presetName = this.getShortestPathPlatformName() + '.json';
 		const presetPath = join(this.environmentMainService.appRoot, 'extensions', 'shortestpath.setup', 'resources', presetName);
-		return JSON.parse(fs.readFileSync(presetPath, 'utf8')) as IShortestPathToolchainPreset;
+		const preset = JSON.parse(fs.readFileSync(presetPath, 'utf8')) as IShortestPathToolchainPreset;
+		// Product defaults are normalized here so every platform presents the
+		// same choices even when an older preset still contains legacy defaults.
+		return {
+			...preset,
+			pages: preset.pages.map(page => {
+				const controls = page.controls?.map(control => {
+					if (control.key === 'fontLigatures' || control.key === 'vjudgeOpenInBrowser') {
+						return { ...control, default: false };
+					}
+					return control;
+				});
+				if (controls && !controls.some(control => control.key === 'autoFormat')) {
+					controls.push({
+						key: 'autoFormat',
+						type: 'boolean',
+						default: false,
+						label: { en: 'Enable automatic formatting', 'zh-CN': '启用自动格式化' }
+					});
+				}
+				return { ...page, controls };
+			})
+		};
 	}
 
 	private getShortestPathPlatformName(): 'windows' | 'mac' | 'linux' {
@@ -1029,25 +1157,24 @@ export class CodeApplication extends Disposable {
 			await fs.promises.mkdir(toolchainRoot, { recursive: true });
 			for (const asset of assets) {
 				const targetPath = join(toolchainRoot, asset.targetDirectory);
-				const archivePath = asset.bundledArchivePath
+				const bundledArchivePath = asset.bundledArchivePath
 					? join(this.environmentMainService.appRoot, asset.bundledArchivePath)
-					: join(toolchainRoot, asset.archiveName);
+					: undefined;
+				const useBundledArchive = !!bundledArchivePath && fs.existsSync(bundledArchivePath);
+				const archivePath = useBundledArchive ? bundledArchivePath : join(toolchainRoot, asset.archiveName);
 				if (fs.existsSync(join(targetPath, asset.requiredFile))) {
 					reportProgress(`${asset.id} is already installed; skipping extraction.`);
 					continue;
 				}
-				if (asset.bundledArchivePath && !fs.existsSync(archivePath)) {
-					throw new Error(`Bundled ${asset.id} archive was not found.`);
-				}
-				reportProgress(`Downloading ${asset.id}… 0%`);
-				if (asset.bundledArchivePath) {
+				if (useBundledArchive) {
 					reportProgress(`Installing bundled ${asset.id}…`);
 				} else {
+					reportProgress(`Downloading ${asset.id}… 0%`);
 					await this.downloadShortestPathAsset(asset.urls, archivePath, asset.id, reportProgress);
 				}
 				reportProgress(`Extracting ${asset.id}…`);
 				await this.extractShortestPathAsset(archivePath, targetPath);
-				if (!asset.bundledArchivePath) {
+				if (!useBundledArchive) {
 					await fs.promises.unlink(archivePath);
 				}
 				if (!fs.existsSync(join(targetPath, asset.requiredFile))) {

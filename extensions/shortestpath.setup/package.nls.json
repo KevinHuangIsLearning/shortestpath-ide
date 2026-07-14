@@ -2,8 +2,14 @@
 	"configuration.title": "ShortestPath IDE Setup",
 	"configuration.completed": "Whether the first-run setup has been completed.",
 	"configuration.pending": "The configuration selected by the first-run setup before it is applied.",
+	"configuration.executableCleanupDelaySeconds": "Seconds to keep generated executables after they finish running. Set to 0 to delete immediately.",
+	"configuration.executableCleanupEnabled": "Automatically delete generated executables after they finish running.",
 	"displayName": "ShortestPath IDE Setup",
 	"description": "First-run competitive programming environment setup for ShortestPath IDE.",
 	"command.configure": "ShortestPath IDE: Configure Competitive Programming Environment",
-	"command.rerunFirstRun": "ShortestPath IDE: Re-run First-Run Setup"
+	"command.rerunFirstRun": "ShortestPath IDE: Re-run First-Run Setup",
+	"command.openSettings": "ShortestPath IDE: Settings",
+	"command.configureCppSnippets": "ShortestPath IDE: Configure C++ Code Snippets",
+	"command.showAllFiles": "ShortestPath IDE: Show All Files",
+	"command.hideSetupFiles": "ShortestPath IDE: Hide Setup Files"
 }

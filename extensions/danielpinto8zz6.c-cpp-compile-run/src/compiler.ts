@@ -38,18 +38,10 @@ function buildCompileTaskExecution(
     if (isWindows()) {
         const shell = currentShell();
         if (shell === ShellType.powerShell) {
-            // Single-quote each argument; escape embedded single quotes by doubling them
-            const psQuote = (arg: string): string => {
-                if (arg.includes(" ")
-                    || arg.includes("\"")
-                    || arg.includes("'")
-                    || arg.includes("&")
-                    || arg.includes("|")
-                ) {
-                    return `'${arg.replace(/'/g, "''")}'`;
-                }
-                return arg;
-            };
+            // Quote every argument so PowerShell cannot interpret commas or other
+            // metacharacters in compiler flags (for example
+            // -fsanitize=address,undefined) as PowerShell syntax.
+            const psQuote = (arg: string): string => `'${arg.replace(/'/g, "''")}'`;
             const quotedCmd = [compiler, ...args].map(psQuote).join(" ");
             // Append `; exit $LASTEXITCODE` so the spawned powershell.exe process
             // exits with the compiler's exit code, which onDidEndTaskProcess receives.

@@ -167,9 +167,10 @@
 			editor: true,
 			cph: true,
 			installToolchain: true,
-			fontLigatures: document.getElementById('fontLigatures')?.checked ?? true,
+			fontLigatures: document.getElementById('fontLigatures')?.checked ?? false,
 			fontSize: Math.min(32, Math.max(10, Number(document.getElementById('fontSize')?.value ?? 14) || 14)),
-			vjudgeOpenInBrowser: document.getElementById('vjudgeOpenInBrowser')?.checked ?? true,
+			autoFormat: document.getElementById('autoFormat')?.checked ?? false,
+			vjudgeOpenInBrowser: document.getElementById('vjudgeOpenInBrowser')?.checked ?? false,
 			cppStandard: document.getElementById('cppStandard')?.value ?? 'c++23',
 			workspaceFolder: document.getElementById('workspaceFolder')?.value ?? ''
 		});

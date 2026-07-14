@@ -3,6 +3,7 @@ import * as path from 'path';
 import { homedir } from 'os';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
+import { registerSimpleSettings } from './simpleSettings';
 
 type PlatformPreset = {
 	portableToolchain: boolean;
@@ -28,12 +29,23 @@ type FirstRunSelection = {
 	installToolchain: boolean;
 	fontLigatures: boolean;
 	fontSize: number;
+	autoFormat: boolean;
 	vjudgeOpenInBrowser: boolean;
 	cppStandard: 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 	workspaceFolder: string;
 };
 
 const SETUP_COMPLETE = 'shortestpath.setupComplete';
+
+const shortestPathHiddenFiles: Record<string, boolean> = {
+	'**/.cph': true,
+	'**/.clang-format': true,
+	'**/.clangd': true,
+	'**/*.exe': true,
+	'**/.*': true
+};
+
+const FILE_EXCLUDES_MIGRATION = 'shortestpath.fileExcludes.v2';
 
 function defaultClangdProjectConfig(compiler: string, cppStandard: FirstRunSelection['cppStandard']): string {
 	const includePath = process.platform === 'darwin' ? '\n    - -I/opt/homebrew/include' : '';
@@ -90,9 +102,56 @@ function createDefaultClangdProjectConfig(workspaceFolder: string, compiler: str
 	createDefaultClangdConfig(path.join(workspaceFolder, '.clangd'), compiler, cppStandard);
 }
 
+const defaultClangFormatConfig = `BasedOnStyle: Google
+
+# --- 行为：尽量允许一行写完 ---
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+
+# --- 行长（核心关键，不然上面全白给） ---
+ColumnLimit: 0
+
+# --- 缩进 ---
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# --- 访问修饰符 ---
+AccessModifierOffset: -2
+
+# --- 大括号风格 ---
+BreakBeforeBraces: Attach
+AlwaysBreakTemplateDeclarations: No
+
+# --- 指针与注释 ---
+PointerAlignment: Left
+SpacesBeforeTrailingComments: 4
+
+# --- 代码块间距 ---
+SeparateDefinitionBlocks: Always
+
+# --- 语言标准 ---
+Standard: Latest
+`;
+
+function createDefaultClangFormatConfig(workspaceFolder: string): void {
+	const configPath = path.join(workspaceFolder, '.clang-format');
+	if (fs.existsSync(configPath)) {
+		return;
+	}
+	try {
+		fs.writeFileSync(configPath, defaultClangFormatConfig, { encoding: 'utf8', flag: 'wx' });
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+			throw error;
+		}
+	}
+}
+
 const editorSettings: Record<string, unknown> = {
-	'editor.fontFamily': "Fira Code, Menlo, Monaco, 'Courier New', monospace",
-	'editor.fontLigatures': true,
+	'editor.fontLigatures': false,
 	'editor.cursorSmoothCaretAnimation': 'on',
 	'editor.smoothScrolling': true,
 	'workbench.list.smoothScrolling': true,
@@ -109,7 +168,7 @@ const cphSettings: Record<string, unknown> = {
 	'cph.general.defaultLanguage': 'cpp',
 	'cph.general.collectProblemsInRoot': true,
 	'c-cpp-compile-run.output-location': '.',
-	'cph.general.vjudgeOpenInBrowser': true,
+	'cph.general.vjudgeOpenInBrowser': false,
 	'cph.general.vjudgeBrowserSplitRatio': 65,
 	'cph.general.vjudgeUrlSuffix': '#author=translator:1281309:zh',
 	'cph.general.vjudgeOjNames': {
@@ -149,8 +208,24 @@ const cphSettings: Record<string, unknown> = {
 };
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	registerSimpleSettings(context);
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.setupEnvironment', () => runSetup(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.rerunFirstRunSetup', () => rerunFirstRunSetup()));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.showAllFiles', toggleHiddenFiles));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.hideSetupFiles', toggleHiddenFiles));
+	if (!context.globalState.get<boolean>(FILE_EXCLUDES_MIGRATION)) {
+		await ensureShortestPathFileExcludes();
+		await context.globalState.update(FILE_EXCLUDES_MIGRATION, true);
+	}
+	const updateHiddenFilesContext = () => {
+		void vscode.commands.executeCommand('setContext', 'shortestpath.showAllFiles', !hasShortestPathHiddenFiles());
+	};
+	updateHiddenFilesContext();
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+		if (event.affectsConfiguration('files.exclude')) {
+			updateHiddenFilesContext();
+		}
+	}));
 	const pending = vscode.workspace.getConfiguration('shortestpath.setup').get<unknown>('pending');
 	if (isFirstRunSelection(pending)) {
 		await configure(context, pending);
@@ -208,6 +283,8 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		if (firstRunSelection) {
 			settings['editor.fontLigatures'] = firstRunSelection.fontLigatures;
 			settings['editor.fontSize'] = firstRunSelection.fontSize;
+			settings['editor.formatOnSave'] = firstRunSelection.autoFormat;
+			settings['editor.formatOnPaste'] = firstRunSelection.autoFormat;
 		}
 	}
 	if (includeCph) {
@@ -216,12 +293,25 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 			settings['cph.general.vjudgeOpenInBrowser'] = firstRunSelection.vjudgeOpenInBrowser;
 		}
 	}
+	settings['files.exclude'] = {
+		...getGlobalFileExcludes(),
+		...shortestPathHiddenFiles
+	};
 	const cppStandard = firstRunSelection?.cppStandard ?? 'c++23';
 	if (compiler) {
+		const compilerFlags = [
+			`-std=${cppStandard}`,
+			'-O2',
+			'-g',
+			'-Wall',
+			'-Wextra',
+			'-D_GLIBCXX_DEBUG',
+			...(process.platform === 'win32' ? ['-static'] : []),
+		].join(' ');
 		settings['cph.language.cpp.Command'] = compiler;
-		settings['cph.language.cpp.Args'] = `-std=${cppStandard} -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG`;
+		settings['cph.language.cpp.Args'] = compilerFlags;
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
-		settings['c-cpp-compile-run.cpp-flags'] = `-std=${cppStandard} -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG`;
+		settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
 		createDefaultClangdUserConfig(compiler, cppStandard);
 		if (firstRunSelection) {
 			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard);
@@ -230,6 +320,9 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	}
 	if (clangd) {
 		settings['clangd.path'] = clangd;
+	}
+	if (firstRunSelection?.autoFormat) {
+		createDefaultClangFormatConfig(firstRunSelection.workspaceFolder);
 	}
 	await updateGlobalSettings(settings);
 	if (firstRunSelection) {
@@ -259,6 +352,7 @@ function isFirstRunSelection(candidate: unknown): candidate is FirstRunSelection
 		&& typeof value.installToolchain === 'boolean'
 		&& typeof value.fontLigatures === 'boolean'
 		&& typeof value.fontSize === 'number'
+		&& typeof value.autoFormat === 'boolean'
 		&& typeof value.vjudgeOpenInBrowser === 'boolean'
 		&& (value.cppStandard === 'c++11' || value.cppStandard === 'c++14' || value.cppStandard === 'c++17' || value.cppStandard === 'c++20' || value.cppStandard === 'c++23')
 		&& typeof value.workspaceFolder === 'string'
@@ -320,6 +414,38 @@ async function updateGlobalSettings(settings: Record<string, unknown>): Promise<
 	for (const [key, value] of Object.entries(settings)) {
 		await vscode.workspace.getConfiguration().update(key, value, vscode.ConfigurationTarget.Global);
 	}
+}
+
+function getGlobalFileExcludes(): Record<string, boolean> {
+	return vscode.workspace.getConfiguration('files').inspect<Record<string, boolean>>('exclude')?.globalValue ?? {};
+}
+
+function hasShortestPathHiddenFiles(): boolean {
+	const excludes = vscode.workspace.getConfiguration('files').get<Record<string, boolean>>('exclude') ?? {};
+	return Object.keys(shortestPathHiddenFiles).some(pattern => excludes[pattern] === true);
+}
+
+async function ensureShortestPathFileExcludes(): Promise<void> {
+	const excludes = getGlobalFileExcludes();
+	if (Object.keys(shortestPathHiddenFiles).every(pattern => excludes[pattern] === true)) {
+		return;
+	}
+	await vscode.workspace.getConfiguration('files').update('exclude', {
+		...excludes,
+		...shortestPathHiddenFiles
+	}, vscode.ConfigurationTarget.Global);
+}
+
+async function toggleHiddenFiles(): Promise<void> {
+	const excludes = { ...getGlobalFileExcludes() };
+	if (hasShortestPathHiddenFiles()) {
+		for (const pattern of Object.keys(shortestPathHiddenFiles)) {
+			delete excludes[pattern];
+		}
+	} else {
+		Object.assign(excludes, shortestPathHiddenFiles);
+	}
+	await vscode.workspace.getConfiguration('files').update('exclude', excludes, vscode.ConfigurationTarget.Global);
 }
 
 async function findFirstExecutable(candidates: readonly string[]): Promise<string | undefined> {

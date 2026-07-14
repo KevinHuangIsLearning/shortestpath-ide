@@ -38,7 +38,7 @@ export function getCommand(cmd: string, shell: ShellType): string {
 
 export async function getCDCommand(cwd: string, shellType: ShellType): Promise<string> {
     const parsedPath = await getPath(cwd, shellType);
-    return `cd ${parsedPath}`;
+    return shellType === ShellType.cmd ? `cd /d ${parsedPath}` : `cd ${parsedPath}`;
 }
 
 export async function getPath(cwd: string, shellType: ShellType): Promise<string> {

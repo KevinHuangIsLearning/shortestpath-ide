@@ -20,6 +20,9 @@ exports.getPortableAssets = ({ source }) => [
 		id: 'WinLibs GCC 16.1.0',
 		urls: [source?.id === 'ghfast' ? winlibsGhfastUrl : winlibsOfficialUrl],
 		archiveName: winlibsArchiveName,
+		// This archive is present only in the "Include Compiler" Windows package.
+		// The Electron main process falls back to urls when it is absent.
+		bundledArchivePath: `resources/oi-defaults/toolchains/${winlibsArchiveName}`,
 		targetDirectory: 'winlibs',
 		requiredFile: 'mingw64/bin/g++.exe'
 	}

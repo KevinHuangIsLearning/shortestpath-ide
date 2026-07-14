@@ -2,6 +2,15 @@ name: Build ShortestPath IDE (Windows)
 
 on:
   workflow_dispatch:
+    inputs:
+      compiler:
+        description: Compiler payload included in the package
+        required: true
+        default: Exclude Compiler
+        type: choice
+        options:
+          - Exclude Compiler
+          - Include Compiler
 
 permissions:
   contents: read
@@ -79,6 +88,18 @@ jobs:
         shell: pwsh
         run: npm run compile-oi-extensions
 
+      - name: Add bundled WinLibs compiler
+        if: inputs.compiler == 'Include Compiler'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/brechtsanders/winlibs_mingw/releases/download/16.1.0posix-14.0.0-ucrt-r3/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip'
+          $destination = 'resources\oi-defaults\toolchains\winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip'
+          curl.exe -fL --retry 3 --connect-timeout 30 $url --output $destination
+          if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 100MB) {
+            throw "The bundled WinLibs archive was not downloaded correctly."
+          }
+
       - name: Package ShortestPath IDE
         shell: pwsh
         run: npm run gulp vscode-win32-x64-min
@@ -105,7 +126,7 @@ jobs:
       - name: Upload Windows package
         uses: actions/upload-artifact@v7
         with:
-          name: ShortestPath-IDE-windows-x64
+          name: ShortestPath-IDE-windows-x64-${{ inputs.compiler == 'Include Compiler' && 'Include-Compiler' || 'Exclude-Compiler' }}
           path: .build/artifacts/VSCode-win32-x64
           if-no-files-found: error
           retention-days: 14

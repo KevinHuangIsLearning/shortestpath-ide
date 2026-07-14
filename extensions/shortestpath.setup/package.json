@@ -8,7 +8,7 @@
 		"vscode": "^1.129.0"
 	},
 	"categories": ["Other"],
-	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment"],
+	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment", "onCommand:shortestpath.openSettings", "onCommand:shortestpath.configureCppSnippets"],
 	"main": "./out/extension.js",
 	"scripts": {
 		"compile": "node ../../node_modules/typescript/bin/tsc -p ./",
@@ -29,6 +29,20 @@
 					"default": {},
 					"scope": "window",
 					"description": "%configuration.pending%"
+				},
+				"shortestpath.executableCleanupDelaySeconds": {
+					"type": "number",
+					"default": 60,
+					"minimum": 0,
+					"maximum": 86400,
+					"scope": "window",
+					"description": "%configuration.executableCleanupDelaySeconds%"
+				},
+				"shortestpath.executableCleanupEnabled": {
+					"type": "boolean",
+					"default": true,
+					"scope": "window",
+					"description": "%configuration.executableCleanupEnabled%"
 				}
 			}
 		},
@@ -40,7 +54,40 @@
 			{
 				"command": "shortestpath.rerunFirstRunSetup",
 				"title": "%command.rerunFirstRun%"
+			},
+			{
+				"command": "shortestpath.openSettings",
+				"title": "%command.openSettings%",
+				"icon": "$(settings-gear)"
+			},
+			{
+				"command": "shortestpath.configureCppSnippets",
+				"title": "%command.configureCppSnippets%"
+			},
+			{
+				"command": "shortestpath.showAllFiles",
+				"title": "%command.showAllFiles%",
+				"icon": "$(eye)"
+			},
+			{
+				"command": "shortestpath.hideSetupFiles",
+				"title": "%command.hideSetupFiles%",
+				"icon": "$(eye-closed)"
 			}
-		]
+		],
+		"menus": {
+			"view/title": [
+				{
+					"command": "shortestpath.showAllFiles",
+					"when": "view == workbench.explorer.fileView && !shortestpath.showAllFiles",
+					"group": "navigation@10"
+				},
+				{
+					"command": "shortestpath.hideSetupFiles",
+					"when": "view == workbench.explorer.fileView && shortestpath.showAllFiles",
+					"group": "navigation@10"
+				}
+			]
+		}
 	}
 }

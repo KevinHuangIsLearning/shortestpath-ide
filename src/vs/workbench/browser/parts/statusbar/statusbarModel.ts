@@ -52,6 +52,10 @@ export class StatusbarViewModel extends Disposable {
 			} catch (error) {
 				// ignore parsing errors
 			}
+		} else {
+			// SSH/remote connections are uncommon in the target workflow. Users can
+			// re-enable this entry from the status bar's context menu at any time.
+			this.hidden.add('status.host');
 		}
 	}
 
