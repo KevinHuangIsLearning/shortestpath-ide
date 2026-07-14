@@ -127,7 +127,7 @@ let nlsConfigurationPromise: Promise<INLSConfiguration> | undefined = undefined;
 // the 'C' locale is the user's only configured locale.
 // No matter the OS, if the array is empty, default back to 'en'.
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
-const userLocale = getUserDefinedLocale(argvConfig);
+const userLocale = getUserDefinedLocale();
 const nlsMetadataPath = process.env['VSCODE_DEV'] && fs.existsSync(path.join(import.meta.dirname, '..', 'out-build', 'nls.keys.json'))
 	? path.join(import.meta.dirname, '..', 'out-build')
 	: import.meta.dirname;
@@ -729,13 +729,15 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
  * the language bundles have lower case language tags and we always lower case
  * the locale we receive from the user or OS.
  */
-function getUserDefinedLocale(argvConfig: IArgvConfig): string | undefined {
+function getUserDefinedLocale(): string {
 	const locale = args['locale'];
 	if (locale) {
 		return locale.toLowerCase(); // a directly provided --locale always wins
 	}
 
-	return typeof argvConfig?.locale === 'string' ? argvConfig.locale.toLowerCase() : 'zh-cn';
+	// ShortestPath IDE is Chinese-first. Do not let a locale persisted by an
+	// earlier VS Code installation change the default language unexpectedly.
+	return 'zh-cn';
 }
 
 //#endregion

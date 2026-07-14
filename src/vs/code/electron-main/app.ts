@@ -23,7 +23,7 @@ import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
-import { join, posix } from '../../base/common/path.js';
+import { dirname, join, posix } from '../../base/common/path.js';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
 import { assertType } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
@@ -858,7 +858,11 @@ export class CodeApplication extends Disposable {
 				finished = true;
 				cleanup();
 				if (request) {
-					await this.configurationService.updateValue('shortestpath.setup.pending', request, ConfigurationTarget.USER);
+					if (isWindows) {
+						await this.applyShortestPathWindowsSetup(request);
+					} else {
+						await this.configurationService.updateValue('shortestpath.setup.pending', request, ConfigurationTarget.USER);
+					}
 				}
 				// Do not close the last native window before the workbench opens.
 				onboardingWindow.hide();
@@ -910,6 +914,61 @@ export class CodeApplication extends Disposable {
 			const onboardingHtml = fs.readFileSync(onboardingPath, 'utf8');
 			void onboardingWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(onboardingHtml)}`);
 		});
+	}
+
+	private async applyShortestPathWindowsSetup(request: IShortestPathSetupRequest): Promise<void> {
+		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
+		const compiler = join(toolchainRoot, 'winlibs', 'mingw64', 'bin', 'g++.exe');
+		const clangd = join(toolchainRoot, 'clangd', 'clangd_22.1.6', 'bin', 'clangd.exe');
+		const settings: Record<string, unknown> = {
+			'editor.fontFamily': "Fira Code, Menlo, Monaco, 'Courier New', monospace",
+			'editor.fontLigatures': request.fontLigatures,
+			'editor.cursorSmoothCaretAnimation': 'on',
+			'editor.smoothScrolling': true,
+			'workbench.list.smoothScrolling': true,
+			'terminal.integrated.smoothScrolling': true,
+			'editor.cursorBlinking': 'smooth',
+			'editor.fontSize': request.fontSize,
+			'files.autoSave': 'onFocusChange',
+			'editor.formatOnSave': false,
+			'editor.formatOnPaste': true,
+			'editor.mouseWheelZoom': true,
+			'cph.general.defaultLanguage': 'cpp',
+			'cph.general.collectProblemsInRoot': true,
+			'cph.general.vjudgeOpenInBrowser': request.vjudgeOpenInBrowser,
+			'cph.general.vjudgeBrowserSplitRatio': 65,
+			'cph.general.vjudgeUrlSuffix': '#author=translator:1281309:zh',
+			'cph.language.cpp.Command': compiler,
+			'cph.language.cpp.Args': `-std=${request.cppStandard} -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG`,
+			'c-cpp-compile-run.output-location': '.',
+			'c-cpp-compile-run.cpp-compiler': compiler,
+			'c-cpp-compile-run.cpp-flags': `-std=${request.cppStandard} -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG`,
+			'clangd.path': clangd,
+			'clangd.arguments': ['--background-index', `--query-driver=${compiler}`]
+		};
+
+		for (const [key, value] of Object.entries(settings)) {
+			await this.configurationService.updateValue(key, value, ConfigurationTarget.USER);
+		}
+		await this.createShortestPathWindowsClangdConfig(request.workspaceFolder, compiler, request.cppStandard);
+		await this.configurationService.updateValue('shortestpath.setup.pending', undefined, ConfigurationTarget.USER);
+		await this.configurationService.updateValue('shortestpath.setup.completed', true, ConfigurationTarget.USER);
+	}
+
+	private async createShortestPathWindowsClangdConfig(workspaceFolder: string, compiler: string, cppStandard: IShortestPathSetupRequest['cppStandard']): Promise<void> {
+		const configPath = join(workspaceFolder, '.clangd');
+		if (fs.existsSync(configPath)) {
+			return;
+		}
+		const config = `CompileFlags:\n  Add:\n    - -std=${cppStandard}\n    - -Wall\n    - -Wextra\n    - "-Drsize_t=size_t"\n    - "-D__STDC_WANT_LIB_EXT1__=1"\n    - "-D__float128=long double"\n    - -U__SIZEOF_FLOAT128__\n  BuiltinHeaders: QueryDriver\n  Compiler: ${JSON.stringify(compiler.replaceAll('\\', '/'))}\n\nCompletion:\n  HeaderInsertion: Never\n\nIndex:\n  Background: Build\n`;
+		await fs.promises.mkdir(dirname(configPath), { recursive: true });
+		try {
+			await fs.promises.writeFile(configPath, config, { encoding: 'utf8', flag: 'wx' });
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+				throw error;
+			}
+		}
 	}
 
 	private getShortestPathOnboardingScript(): IShortestPathToolchainPreset {
