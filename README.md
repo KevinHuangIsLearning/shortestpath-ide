@@ -42,7 +42,7 @@ workbench. To run it again, use the command palette command:
 
 ## License
 
-ShortestPath IDE is licensed under [GPL-3.0-or-later](COPYING). The original
-Code - OSS [MIT license text](LICENSE.txt) and Microsoft copyright notice are
-preserved as required for the upstream code. Bundled extensions and dependencies
-remain available under their respective licenses.
+ShortestPath IDE is licensed under [GPL-3.0-or-later](LICENSE). The original
+Code - OSS [MIT license text](licenses/MIT-VSCode.txt) and Microsoft copyright
+notice are preserved as required for the upstream code. Bundled extensions and
+dependencies remain available under their respective licenses.
