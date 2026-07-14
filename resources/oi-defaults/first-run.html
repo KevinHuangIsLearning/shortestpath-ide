@@ -88,8 +88,10 @@
 	</main>
 	<script>
 	(async () => {
-		const ideLocale = await window.shortestPathSetup.getLocale();
-		const language = String(ideLocale ?? navigator.language).toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
+		// ShortestPath IDE is Chinese-first. Do not derive this page's language
+		// from Electron's OS locale, which can be English even when the IDE itself
+		// defaults to zh-cn.
+		const language = 'zh-CN';
 		const script = await window.shortestPathSetup.getScript();
 		const localize = value => typeof value === 'string' ? value : value[language] ?? value.en ?? value['zh-CN'];
 		const pages = script.pages;
