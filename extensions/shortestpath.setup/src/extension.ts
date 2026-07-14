@@ -12,7 +12,7 @@ type PlatformPreset = {
 	downloadSources?: DownloadSource[];
 };
 
-type DownloadSource = { id: string; condaForgeChannel: string; msys2Channel?: string; unavailable?: boolean };
+type DownloadSource = { id: string; condaForgeChannel?: string; msys2Channel?: string; unavailable?: boolean };
 
 type PlatformInstaller = {
 	createCommand?(input: { toolchainRoot: string; source?: DownloadSource; stage?: string; locale?: string }): string;
