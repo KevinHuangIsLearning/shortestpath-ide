@@ -196,6 +196,7 @@ interface IShortestPathPortableAsset {
 	readonly id: string;
 	readonly urls: readonly string[];
 	readonly archiveName: string;
+	readonly bundledArchivePath?: string;
 	readonly archiveFormat?: 'zip' | 'tar.xz' | 'tar.zst';
 	readonly targetDirectory: string;
 	readonly requiredFile: string;
@@ -926,7 +927,7 @@ export class CodeApplication extends Disposable {
 		return nodeRequire(installerPath) as IShortestPathPlatformInstaller;
 	}
 
-	private installShortestPathToolchain(sourceId: unknown, stage: string | undefined, reportProgress: (message: string) => void): Promise<{ readonly success: boolean; readonly message: string }> {
+	private async installShortestPathToolchain(sourceId: unknown, stage: string | undefined, reportProgress: (message: string) => void): Promise<{ readonly success: boolean; readonly message: string }> {
 		const presetName = this.getShortestPathPlatformName() + '.json';
 		const preset = this.getShortestPathOnboardingScript();
 		const source = typeof sourceId === 'string'
@@ -935,12 +936,18 @@ export class CodeApplication extends Disposable {
 		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
 		const installer = this.getShortestPathPlatformInstaller();
 		const assets = installer.getPortableAssets?.();
-		if (assets?.length) {
-			return this.installShortestPathPortableAssets(toolchainRoot, assets, reportProgress);
-		}
 		const msys2PackageRoots = installer.getMsys2PackageRoots?.();
-		if (msys2PackageRoots?.length) {
-			return this.installShortestPathMsys2Packages(toolchainRoot, msys2PackageRoots, reportProgress);
+		if (assets?.length || msys2PackageRoots?.length) {
+			if (assets?.length) {
+				const result = await this.installShortestPathPortableAssets(toolchainRoot, assets, reportProgress);
+				if (!result.success) {
+					return result;
+				}
+			}
+			if (msys2PackageRoots?.length) {
+				return this.installShortestPathMsys2Packages(toolchainRoot, msys2PackageRoots, reportProgress);
+			}
+			return { success: true, message: 'Toolchain download completed.' };
 		}
 
 		let processDefinition: NonNullable<ReturnType<NonNullable<IShortestPathPlatformInstaller['createProcess']>>>;
@@ -983,13 +990,28 @@ export class CodeApplication extends Disposable {
 		try {
 			await fs.promises.mkdir(toolchainRoot, { recursive: true });
 			for (const asset of assets) {
-				const archivePath = join(toolchainRoot, asset.archiveName);
 				const targetPath = join(toolchainRoot, asset.targetDirectory);
+				const archivePath = asset.bundledArchivePath
+					? join(this.environmentMainService.appRoot, asset.bundledArchivePath)
+					: join(toolchainRoot, asset.archiveName);
+				if (fs.existsSync(join(targetPath, asset.requiredFile))) {
+					reportProgress(`${asset.id} is already installed; skipping extraction.`);
+					continue;
+				}
+				if (asset.bundledArchivePath && !fs.existsSync(archivePath)) {
+					throw new Error(`Bundled ${asset.id} archive was not found.`);
+				}
 				reportProgress(`Downloading ${asset.id}… 0%`);
-				await this.downloadShortestPathAsset(asset.urls, archivePath, asset.id, reportProgress);
+				if (asset.bundledArchivePath) {
+					reportProgress(`Installing bundled ${asset.id}…`);
+				} else {
+					await this.downloadShortestPathAsset(asset.urls, archivePath, asset.id, reportProgress);
+				}
 				reportProgress(`Extracting ${asset.id}…`);
 				await this.extractShortestPathAsset(asset, archivePath, targetPath, reportProgress);
-				await fs.promises.unlink(archivePath);
+				if (!asset.bundledArchivePath) {
+					await fs.promises.unlink(archivePath);
+				}
 				if (!fs.existsSync(join(targetPath, asset.requiredFile))) {
 					throw new Error(`${asset.id} archive did not contain ${asset.requiredFile}.`);
 				}

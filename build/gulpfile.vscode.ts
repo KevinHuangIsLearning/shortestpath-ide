@@ -272,7 +272,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		}).map(ext => `!.build/extensions/${ext.name}/**`);
 
 		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
-		const shortestPathOnboarding = gulp.src('resources/oi-defaults/**', { base: '.' });
+		const shortestPathOnboarding = gulp.src([
+			'resources/oi-defaults/**',
+			...(platform === 'win32' ? [] : ['!resources/oi-defaults/toolchains/clangd-windows-22.1.6.zip'])
+		], { base: '.' });
 
 		const sourceFilterPattern = stripSourceMapsInPackagingTasks
 			? ['**', '!**/*.{js,css}.map']

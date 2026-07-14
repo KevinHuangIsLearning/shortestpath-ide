@@ -21,6 +21,6 @@
 	],
 	"portableToolchain": true,
 	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\msys2\\mingw64\\bin\\g++.exe"],
-	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\msys2\\mingw64\\bin\\clangd.exe"],
-	"installDescription": "Download isolated MSYS2 MinGW GCC and clangd packages into ShortestPath IDE data"
+	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\clangd\\clangd_22.1.6\\bin\\clangd.exe"],
+	"installDescription": "Extract bundled clangd and download isolated MSYS2 MinGW GCC into ShortestPath IDE data"
 }
