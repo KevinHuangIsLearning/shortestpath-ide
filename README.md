@@ -44,12 +44,13 @@ workbench. To run it again, use the command palette command:
 | Platform | C++ compiler | Language server |
 | --- | --- | --- |
 | Windows | Isolated MSYS2 MinGW GCC, downloaded from the TUNA mirror | Bundled [clangd 22.1.6](https://github.com/clangd/clangd/releases/tag/22.1.6) Portable |
-| macOS (Apple Silicon) | GCC installed through Homebrew | Bundled [clangd 22.1.6](https://github.com/clangd/clangd/releases/tag/22.1.6) Portable |
+| macOS (Apple Silicon) | GCC installed through Homebrew | LLVM clangd installed through Homebrew |
 | Linux | Isolated Portable GCC and clangd environment | Downloaded during first-run setup |
 
 The bundled clangd archives are unmodified upstream Portable releases. They are
-extracted into ShortestPath IDE's user-data directory on first run, so macOS and
-Windows users do not need external network access to obtain clangd.
+extracted into ShortestPath IDE's user-data directory on first run, so Windows
+users do not need external network access to obtain clangd. macOS installs LLVM
+through Homebrew.
 
 ## License
 
