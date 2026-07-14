@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from '../../../../base/common/platform.js';
-import { ExtensionType, IExtensionDescription, IExtension } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription, IExtension } from '../../../../platform/extensions/common/extensions.js';
 import { dedupExtensions } from '../common/extensionsUtil.js';
 import { IExtensionsScannerService, IScannedExtension, toExtensionDescription as toExtensionDescriptionFromScannedExtension } from '../../../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IHostService } from '../../host/browser/host.js';
 import { timeout } from '../../../../base/common/async.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
@@ -43,7 +42,6 @@ export class CachedExtensionScanner {
 
 	constructor(
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IHostService private readonly _hostService: IHostService,
 		@IExtensionsScannerService private readonly _extensionsScannerService: IExtensionsScannerService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IWorkbenchExtensionManagementService private readonly _extensionManagementService: IWorkbenchExtensionManagementService,
@@ -131,23 +129,12 @@ export class CachedExtensionScanner {
 			const r = dedupExtensions(system, user, workspace, development, this._logService);
 
 			if (!hasErrors) {
-				const disposable = this._extensionsScannerService.onDidChangeCache((extensionType) => {
+				const disposable = this._extensionsScannerService.onDidChangeCache(() => {
 					disposable.dispose();
-					// Changes to the user extension cache can be caused by initial profile
-					// setup. The cache is already invalidated by the scanner, so showing a
-					// reload prompt here is both unnecessary and misleading.
-					if (extensionType === ExtensionType.User) {
-						this._logService.info('User extension scan cache changed during startup; cache was invalidated automatically.');
-						return;
-					}
-					this._notificationService.prompt(
-						Severity.Error,
-						localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window."),
-						[{
-							label: localize('reloadWindow', "Reload Window"),
-							run: () => this._hostService.reload()
-						}]
-					);
+					// The scanner already invalidates changed caches. During first-run setup,
+					// both system and user caches can be populated shortly after startup, so a
+					// reload prompt here is misleading and interrupts onboarding.
+					this._logService.info('Extension scan cache changed during startup; cache was invalidated automatically.');
 				});
 				timeout(5000).then(() => disposable.dispose());
 			}
