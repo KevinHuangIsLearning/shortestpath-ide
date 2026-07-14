@@ -11,7 +11,7 @@
 	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment"],
 	"main": "./out/extension.js",
 	"scripts": {
-		"compile": "tsc -p ./",
+		"compile": "node ../../node_modules/typescript/bin/tsc -p ./",
 		"vscode:prepublish": "npm run compile"
 	},
 	"contributes": {
