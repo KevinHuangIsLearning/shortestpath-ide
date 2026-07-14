@@ -1030,8 +1030,9 @@ export class CodeApplication extends Disposable {
 		const packageCacheRoot = join(metadataRoot, 'packages');
 		const databaseArchivePath = join(metadataRoot, 'mingw64.db.tar.zst');
 		const installRoot = join(toolchainRoot, 'msys2');
+		const clangdPath = join(toolchainRoot, 'clangd', 'clangd_22.1.6', 'bin', 'clangd.exe');
 		try {
-			if (fs.existsSync(join(installRoot, 'mingw64', 'bin', 'g++.exe')) && fs.existsSync(join(installRoot, 'mingw64', 'bin', 'clangd.exe'))) {
+			if (fs.existsSync(join(installRoot, 'mingw64', 'bin', 'g++.exe')) && fs.existsSync(clangdPath)) {
 				reportProgress('MSYS2 MinGW toolchain is already installed; skipping download.');
 				return { success: true, message: 'Toolchain is already installed.' };
 			}
@@ -1056,8 +1057,8 @@ export class CodeApplication extends Disposable {
 				await fs.promises.unlink(packagePath);
 			}
 
-			if (!fs.existsSync(join(installRoot, 'mingw64', 'bin', 'g++.exe')) || !fs.existsSync(join(installRoot, 'mingw64', 'bin', 'clangd.exe'))) {
-				throw new Error('The installed MSYS2 packages did not contain g++.exe and clangd.exe.');
+			if (!fs.existsSync(join(installRoot, 'mingw64', 'bin', 'g++.exe')) || !fs.existsSync(clangdPath)) {
+				throw new Error('The GCC package or bundled clangd archive did not contain its expected executable.');
 			}
 			reportProgress('MSYS2 MinGW toolchain installation complete.');
 			return { success: true, message: 'Toolchain download completed.' };
