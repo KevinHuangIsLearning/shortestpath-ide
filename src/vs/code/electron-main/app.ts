@@ -907,6 +907,7 @@ export class CodeApplication extends Disposable {
 			'editor.formatOnSave': request.autoFormat,
 			'editor.formatOnPaste': request.autoFormat,
 			'editor.mouseWheelZoom': true,
+			'window.systemColorTheme': 'auto',
 			'files.exclude': {
 				...existingFileExcludes,
 				'**/.cph': true,
