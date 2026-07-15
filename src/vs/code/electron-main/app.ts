@@ -848,63 +848,41 @@ export class CodeApplication extends Disposable {
 				}
 			};
 			const finish = async (request: IShortestPathSetupRequest | undefined) => {
-				if (finished) {
-					return;
-				}
+				if (finished) { return; }
 				finished = true;
 				cleanup();
 				if (request) {
-					if (isWindows) {
-						await this.applyShortestPathWindowsSetup(request);
-					} else {
-						await this.configurationService.updateValue('shortestpath.setup.pending', request, ConfigurationTarget.USER);
-					}
+					if (isWindows) { await this.applyShortestPathWindowsSetup(request); }
+					else { await this.configurationService.updateValue('shortestpath.setup.pending', request, ConfigurationTarget.USER); }
 				}
-				// Do not close the last native window before the workbench opens.
 				onboardingWindow.hide();
 				resolve({ workspaceFolder: request?.workspaceFolder, dispose });
 			};
 			const listener = (event: Electron.IpcMainEvent, candidate: unknown) => {
-				if (event.sender !== onboardingWindow.webContents) {
-					return;
-				}
-				const request = isShortestPathSetupRequest(candidate) ? candidate : undefined;
-				void finish(request);
+				if (event.sender !== onboardingWindow.webContents) { return; }
+				void finish(isShortestPathSetupRequest(candidate) ? candidate : undefined);
 			};
 			ipcMain.on(channel, listener);
 			ipcMain.handle(installChannel, async (event, sourceId: unknown, stage: unknown) => {
-				if (event.sender !== onboardingWindow.webContents) {
-					throw new Error('Unexpected sender for ShortestPath toolchain installation.');
-				}
+				if (event.sender !== onboardingWindow.webContents) { throw new Error('Unexpected sender for ShortestPath toolchain installation.'); }
 				return this.installShortestPathToolchain(sourceId, typeof stage === 'string' ? stage : undefined, message => onboardingWindow.webContents.send('shortestpath:onboarding-progress', message));
 			});
 			ipcMain.handle(scriptChannel, async event => {
-				if (event.sender !== onboardingWindow.webContents) {
-					throw new Error('Unexpected sender for ShortestPath onboarding script.');
-				}
+				if (event.sender !== onboardingWindow.webContents) { throw new Error('Unexpected sender for ShortestPath onboarding script.'); }
 				return this.getShortestPathOnboardingScript();
 			});
 			ipcMain.handle(localeChannel, async event => {
-				if (event.sender !== onboardingWindow.webContents) {
-					throw new Error('Unexpected sender for ShortestPath onboarding locale.');
-				}
+				if (event.sender !== onboardingWindow.webContents) { throw new Error('Unexpected sender for ShortestPath onboarding locale.'); }
 				return this.environmentMainService.args.locale ?? 'zh-cn';
 			});
 			ipcMain.handle(workspaceChannel, async event => {
-				if (event.sender !== onboardingWindow.webContents) {
-					throw new Error('Unexpected sender for ShortestPath workspace selection.');
-				}
-				const result = await dialog.showOpenDialog(onboardingWindow, {
-					properties: ['openDirectory', 'createDirectory']
-				});
+				if (event.sender !== onboardingWindow.webContents) { throw new Error('Unexpected sender for ShortestPath workspace selection.'); }
+				const result = await dialog.showOpenDialog(onboardingWindow, { properties: ['openDirectory', 'createDirectory'] });
 				return result.canceled ? undefined : result.filePaths[0];
 			});
 			onboardingWindow.once('closed', () => {
 				cleanup();
-				if (!finished) {
-					finished = true;
-					resolve(undefined);
-				}
+				if (!finished) { finished = true; resolve(undefined); }
 			});
 			onboardingWindow.once('ready-to-show', () => onboardingWindow.show());
 			const onboardingHtml = fs.readFileSync(onboardingPath, 'utf8');
@@ -1079,7 +1057,7 @@ Standard: Latest
 					controls.push({
 						key: 'autoFormat',
 						type: 'boolean',
-						default: false,
+						default: true,
 						label: { en: 'Enable automatic formatting', 'zh-CN': '启用自动格式化' }
 					});
 				}

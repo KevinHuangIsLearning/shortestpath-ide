@@ -8,7 +8,12 @@
 		"vscode": "^1.129.0"
 	},
 	"categories": ["Other"],
-	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment", "onCommand:shortestpath.openSettings", "onCommand:shortestpath.configureCppSnippets"],
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment", "onCommand:shortestpath.openSettings", "onCommand:shortestpath.configureCppSnippets", "onCommand:shortestpath.configureAutoFormat"],
 	"main": "./out/extension.js",
 	"scripts": {
 		"compile": "node ../../node_modules/typescript/bin/tsc -p ./",
@@ -63,6 +68,10 @@
 			{
 				"command": "shortestpath.configureCppSnippets",
 				"title": "%command.configureCppSnippets%"
+			},
+			{
+				"command": "shortestpath.configureAutoFormat",
+				"title": "%command.configureAutoFormat%"
 			},
 			{
 				"command": "shortestpath.showAllFiles",

@@ -87,12 +87,12 @@ export interface IPaneCompositeBarOptions {
 
 export class PaneCompositeBar extends Disposable {
 
-	private static readonly shortestPathActivityBarMigrationKey = 'workbench.activity.shortestpathMinimalDefaultsApplied.v2';
+	private static readonly shortestPathActivityBarMigrationKey = 'workbench.activity.shortestpathMinimalDefaultsApplied.v3';
 
 	private static readonly shortestPathDefaultActivityContainers = new Set([
 		'workbench.view.explorer',
 		'workbench.view.search',
-		'cph-judge-view-container'
+		'workbench.view.extension.cph-judge-view-container'
 	]);
 
 	private readonly viewContainerDisposables = this._register(new DisposableMap<string, IDisposable>());

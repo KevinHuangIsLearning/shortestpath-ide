@@ -159,8 +159,8 @@ const editorSettings: Record<string, unknown> = {
 	'editor.cursorBlinking': 'smooth',
 	'editor.fontSize': 14,
 	'files.autoSave': 'onFocusChange',
-	'editor.formatOnSave': false,
-	'editor.formatOnPaste': false,
+	'editor.formatOnSave': true,
+	'editor.formatOnPaste': true,
 	'editor.mouseWheelZoom': true
 };
 
@@ -226,10 +226,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			updateHiddenFilesContext();
 		}
 	}));
-	const pending = vscode.workspace.getConfiguration('shortestpath.setup').get<unknown>('pending');
-	if (isFirstRunSelection(pending)) {
-		await configure(context, pending);
-	}
+	let applyingPending = false;
+	const applyPending = async () => {
+		if (applyingPending) { return; }
+		const pending = vscode.workspace.getConfiguration('shortestpath.setup').get<unknown>('pending');
+		if (!isFirstRunSelection(pending)) { return; }
+		applyingPending = true;
+		try { await configure(context, pending); } finally { applyingPending = false; }
+	};
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+		if (event.affectsConfiguration('shortestpath.setup.pending')) { void applyPending(); }
+	}));
+	await applyPending();
 }
 
 async function rerunFirstRunSetup(): Promise<void> {
