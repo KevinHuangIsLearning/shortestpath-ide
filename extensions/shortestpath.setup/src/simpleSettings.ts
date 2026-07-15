@@ -13,6 +13,7 @@ type SimpleSettingsState = {
 	fontFamily: string;
 	fontLigatures: boolean;
 	fontSize: number;
+	autoFormat: boolean;
 	cppStandard: CppStandard;
 	compilerFlags: string;
 	executableCleanupEnabled: boolean;
@@ -26,6 +27,7 @@ type SimpleSettingsState = {
 export function registerSimpleSettings(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openSettings', () => openSimpleSettings(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.configureCppSnippets', () => openCppSnippets(context)));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.configureAutoFormat', () => openAutoFormatSettings()));
 }
 
 const defaultCppSnippets = `{
@@ -167,6 +169,183 @@ async function openCppSnippets(context: vscode.ExtensionContext): Promise<void> 
 	}, undefined, context.subscriptions);
 }
 
+type AutoFormatState = {
+	enabled: boolean;
+	basedOnStyle: string;
+	allowShortIfStatementsOnASingleLine: string;
+	allowShortLoopsOnASingleLine: boolean;
+	allowShortBlocksOnASingleLine: boolean;
+	allowShortFunctionsOnASingleLine: string;
+	columnLimit: number;
+	indentWidth: number;
+	tabWidth: number;
+	useTab: string;
+	accessModifierOffset: number;
+	breakBeforeBraces: string;
+	alwaysBreakTemplateDeclarations: string;
+	pointerAlignment: string;
+	spacesBeforeTrailingComments: number;
+	separateDefinitionBlocks: string;
+	standard: string;
+};
+
+const defaultAutoFormatState: AutoFormatState = {
+	enabled: false,
+	basedOnStyle: 'Google',
+	allowShortIfStatementsOnASingleLine: 'AllIfsAndElse',
+	allowShortLoopsOnASingleLine: true,
+	allowShortBlocksOnASingleLine: true,
+	allowShortFunctionsOnASingleLine: 'Inline',
+	columnLimit: 0,
+	indentWidth: 4,
+	tabWidth: 4,
+	useTab: 'Never',
+	accessModifierOffset: -2,
+	breakBeforeBraces: 'Attach',
+	alwaysBreakTemplateDeclarations: 'No',
+	pointerAlignment: 'Left',
+	spacesBeforeTrailingComments: 4,
+	separateDefinitionBlocks: 'Always',
+	standard: 'Latest'
+};
+
+function getAutoFormatWorkspaceFolder(): vscode.Uri | undefined {
+	return vscode.workspace.workspaceFolders?.[0]?.uri;
+}
+
+function readAutoFormatValue(content: string, key: string): string | undefined {
+	const match = new RegExp(`^${key}:\\s*(.+?)\\s*(?:#.*)?$`, 'm').exec(content);
+	return match?.[1]?.trim();
+}
+
+async function readAutoFormatState(workspaceFolder: vscode.Uri): Promise<AutoFormatState> {
+	const state = { ...defaultAutoFormatState };
+	state.enabled = vscode.workspace.getConfiguration('editor').get<boolean>('formatOnSave') === true
+		&& vscode.workspace.getConfiguration('editor').get<boolean>('formatOnPaste') === true;
+	try {
+		const content = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(workspaceFolder, '.clang-format'))).toString('utf8');
+		const stringKeys = [
+			'basedOnStyle', 'allowShortIfStatementsOnASingleLine', 'allowShortFunctionsOnASingleLine', 'useTab',
+			'breakBeforeBraces', 'alwaysBreakTemplateDeclarations', 'pointerAlignment', 'separateDefinitionBlocks', 'standard'
+		] as const;
+		const yamlKeys: Record<typeof stringKeys[number], string> = {
+			basedOnStyle: 'BasedOnStyle', allowShortIfStatementsOnASingleLine: 'AllowShortIfStatementsOnASingleLine',
+			allowShortFunctionsOnASingleLine: 'AllowShortFunctionsOnASingleLine', useTab: 'UseTab',
+			breakBeforeBraces: 'BreakBeforeBraces', alwaysBreakTemplateDeclarations: 'AlwaysBreakTemplateDeclarations',
+			pointerAlignment: 'PointerAlignment', separateDefinitionBlocks: 'SeparateDefinitionBlocks', standard: 'Standard'
+		};
+		for (const key of stringKeys) { state[key] = readAutoFormatValue(content, yamlKeys[key]) ?? state[key]; }
+		const numberKeys = ['columnLimit', 'indentWidth', 'tabWidth', 'accessModifierOffset', 'spacesBeforeTrailingComments'] as const;
+		const numberYamlKeys: Record<typeof numberKeys[number], string> = {
+			columnLimit: 'ColumnLimit', indentWidth: 'IndentWidth', tabWidth: 'TabWidth',
+			accessModifierOffset: 'AccessModifierOffset', spacesBeforeTrailingComments: 'SpacesBeforeTrailingComments'
+		};
+		for (const key of numberKeys) {
+			const value = Number(readAutoFormatValue(content, numberYamlKeys[key]));
+			if (Number.isFinite(value)) { state[key] = value; }
+		}
+		const booleanKeys = ['allowShortLoopsOnASingleLine', 'allowShortBlocksOnASingleLine'] as const;
+		const booleanYamlKeys: Record<typeof booleanKeys[number], string> = {
+			allowShortLoopsOnASingleLine: 'AllowShortLoopsOnASingleLine', allowShortBlocksOnASingleLine: 'AllowShortBlocksOnASingleLine'
+		};
+		for (const key of booleanKeys) {
+			const value = readAutoFormatValue(content, booleanYamlKeys[key]);
+			if (value === 'true' || value === 'false') { state[key] = value === 'true'; }
+		}
+	} catch {
+		// A missing .clang-format simply uses ShortestPath IDE's defaults.
+	}
+	return state;
+}
+
+function autoFormatString(value: unknown, allowed: readonly string[], fallback: string): string {
+	return typeof value === 'string' && allowed.includes(value) ? value : fallback;
+}
+
+function autoFormatNumber(value: unknown, fallback: number, minimum: number, maximum: number): number {
+	return typeof value === 'number' && Number.isFinite(value) ? Math.max(minimum, Math.min(maximum, Math.floor(value))) : fallback;
+}
+
+function normalizeAutoFormatState(value: Partial<AutoFormatState>): AutoFormatState {
+	return {
+		enabled: value.enabled === true,
+		basedOnStyle: autoFormatString(value.basedOnStyle, ['Google', 'LLVM', 'Chromium', 'Mozilla', 'WebKit'], 'Google'),
+		allowShortIfStatementsOnASingleLine: autoFormatString(value.allowShortIfStatementsOnASingleLine, ['Never', 'WithoutElse', 'OnlyFirstIf', 'AllIfsAndElse'], 'AllIfsAndElse'),
+		allowShortLoopsOnASingleLine: value.allowShortLoopsOnASingleLine !== false,
+		allowShortBlocksOnASingleLine: value.allowShortBlocksOnASingleLine !== false,
+		allowShortFunctionsOnASingleLine: autoFormatString(value.allowShortFunctionsOnASingleLine, ['None', 'InlineOnly', 'Empty', 'Inline', 'All'], 'Inline'),
+		columnLimit: autoFormatNumber(value.columnLimit, 0, 0, 10000),
+		indentWidth: autoFormatNumber(value.indentWidth, 4, 1, 32),
+		tabWidth: autoFormatNumber(value.tabWidth, 4, 1, 32),
+		useTab: autoFormatString(value.useTab, ['Never', 'ForIndentation', 'ForContinuationAndIndentation', 'Always'], 'Never'),
+		accessModifierOffset: autoFormatNumber(value.accessModifierOffset, -2, -32, 32),
+		breakBeforeBraces: autoFormatString(value.breakBeforeBraces, ['Attach', 'Linux', 'Mozilla', 'Stroustrup', 'Allman', 'Whitesmiths', 'GNU', 'WebKit', 'Custom'], 'Attach'),
+		alwaysBreakTemplateDeclarations: autoFormatString(value.alwaysBreakTemplateDeclarations, ['No', 'Yes', 'MultiLine'], 'No'),
+		pointerAlignment: autoFormatString(value.pointerAlignment, ['Left', 'Right', 'Middle'], 'Left'),
+		spacesBeforeTrailingComments: autoFormatNumber(value.spacesBeforeTrailingComments, 4, 0, 100),
+		separateDefinitionBlocks: autoFormatString(value.separateDefinitionBlocks, ['Leave', 'Never', 'Always'], 'Always'),
+		standard: autoFormatString(value.standard, ['Auto', 'c++03', 'c++11', 'c++14', 'c++17', 'c++20', 'Latest'], 'Latest')
+	};
+}
+
+function serializeAutoFormat(state: AutoFormatState): string {
+	return `BasedOnStyle: ${state.basedOnStyle}
+
+# --- 行为：尽量允许一行写完 ---
+AllowShortIfStatementsOnASingleLine: ${state.allowShortIfStatementsOnASingleLine}
+AllowShortLoopsOnASingleLine: ${state.allowShortLoopsOnASingleLine}
+AllowShortBlocksOnASingleLine: ${state.allowShortBlocksOnASingleLine}
+AllowShortFunctionsOnASingleLine: ${state.allowShortFunctionsOnASingleLine}
+
+# --- 行长（核心关键，不然上面全白给） ---
+ColumnLimit: ${state.columnLimit}
+
+# --- 缩进 ---
+IndentWidth: ${state.indentWidth}
+TabWidth: ${state.tabWidth}
+UseTab: ${state.useTab}
+
+# --- 访问修饰符 ---
+AccessModifierOffset: ${state.accessModifierOffset}
+
+# --- 大括号风格 ---
+BreakBeforeBraces: ${state.breakBeforeBraces}
+AlwaysBreakTemplateDeclarations: ${state.alwaysBreakTemplateDeclarations}
+
+# --- 指针与注释 ---
+PointerAlignment: ${state.pointerAlignment}
+SpacesBeforeTrailingComments: ${state.spacesBeforeTrailingComments}
+
+# --- 代码块间距 ---
+SeparateDefinitionBlocks: ${state.separateDefinitionBlocks}
+
+# --- 语言标准 ---
+Standard: ${state.standard}
+`;
+}
+
+async function openAutoFormatSettings(): Promise<void> {
+	const workspaceFolder = getAutoFormatWorkspaceFolder();
+	if (!workspaceFolder) {
+		void vscode.window.showWarningMessage('请先打开一个工作目录，再配置自动格式化。');
+		return;
+	}
+	const panel = vscode.window.createWebviewPanel('shortestpath.autoFormat', '自动格式化', vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	panel.webview.html = getAutoFormatHtml(await readAutoFormatState(workspaceFolder), workspaceFolder.fsPath);
+	panel.webview.onDidReceiveMessage(async message => {
+		if (message?.type === 'save') {
+			const state = normalizeAutoFormatState(message.value ?? {});
+			await Promise.all([
+				vscode.workspace.getConfiguration('editor').update('formatOnSave', state.enabled, vscode.ConfigurationTarget.Global),
+				vscode.workspace.getConfiguration('editor').update('formatOnPaste', state.enabled, vscode.ConfigurationTarget.Global),
+				vscode.workspace.fs.writeFile(vscode.Uri.joinPath(workspaceFolder, '.clang-format'), Buffer.from(serializeAutoFormat(state), 'utf8'))
+			]);
+		} else if (message?.type === 'openFile') {
+			await vscode.window.showTextDocument(vscode.Uri.joinPath(workspaceFolder, '.clang-format'), { preview: false });
+		}
+	});
+}
+
 function openSimpleSettings(context: vscode.ExtensionContext): void {
 	let isSaving = false;
 	const panel = vscode.window.createWebviewPanel(
@@ -188,12 +367,16 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.commands.executeCommand('workbench.action.openSettings2');
 		} else if (message?.type === 'snippets') {
 			await vscode.commands.executeCommand('shortestpath.configureCppSnippets');
+		} else if (message?.type === 'autoFormat') {
+			await vscode.commands.executeCommand('shortestpath.configureAutoFormat');
 		}
 	}, undefined, context.subscriptions);
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
 		if (!isSaving && (event.affectsConfiguration('editor.fontFamily')
 			|| event.affectsConfiguration('editor.fontLigatures')
 			|| event.affectsConfiguration('editor.fontSize')
+			|| event.affectsConfiguration('editor.formatOnSave')
+			|| event.affectsConfiguration('editor.formatOnPaste')
 			|| event.affectsConfiguration('cph.language.cpp.Args')
 			|| event.affectsConfiguration('c-cpp-compile-run.cpp-flags')
 			|| event.affectsConfiguration('shortestpath.executableCleanupEnabled')
@@ -222,6 +405,7 @@ function getState(): SimpleSettingsState {
 		fontFamily: editor.get<string>('fontFamily') ?? '',
 		fontLigatures: editor.get<boolean | string>('fontLigatures') === true || editor.get<boolean | string>('fontLigatures') === 'true',
 		fontSize: editor.get<number>('fontSize') ?? 14,
+		autoFormat: editor.get<boolean>('formatOnSave') === true && editor.get<boolean>('formatOnPaste') === true,
 		cppStandard: findCppStandard(compilerFlags),
 		compilerFlags,
 		executableCleanupEnabled,
@@ -270,6 +454,8 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('editor.fontFamily', typeof value.fontFamily === 'string' ? value.fontFamily : '', vscode.ConfigurationTarget.Global),
 		settings.update('editor.fontLigatures', value.fontLigatures === true, vscode.ConfigurationTarget.Global),
 		settings.update('editor.fontSize', typeof value.fontSize === 'number' && value.fontSize > 0 ? value.fontSize : 14, vscode.ConfigurationTarget.Global),
+		settings.update('editor.formatOnSave', value.autoFormat === true, vscode.ConfigurationTarget.Global),
+		settings.update('editor.formatOnPaste', value.autoFormat === true, vscode.ConfigurationTarget.Global),
 		settings.update('cph.language.cpp.Args', compilerFlags, vscode.ConfigurationTarget.Global),
 		settings.update('c-cpp-compile-run.cpp-flags', compilerFlags, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.executableCleanupEnabled', value.executableCleanupEnabled !== false, vscode.ConfigurationTarget.Global),
@@ -318,6 +504,10 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <div class="row"><div><label for="fontSize">字体大小</label></div><input id="fontSize" type="number" min="1" step="1"></div>
 </section>
 <section class="card">
+<div class="row"><div><label for="autoFormat">启用自动格式化</label><div class="hint">同时控制保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="autoFormat" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label>自动格式化规则</label><div class="hint">配置当前工作目录的 .clang-format。</div></div><button id="autoFormatSettings" class="secondary">配置格式化规则</button></div>
+</section>
+<section class="card">
 <div class="row"><div><label for="cppStandard">C++ 版本</label></div><select id="cppStandard"><option>c++11</option><option>c++14</option><option>c++17</option><option>c++20</option><option>c++23</option></select></div>
 <div class="row"><div><label for="compilerFlags">编译选项</label><div class="hint">同时应用到 CPH 和 C/C++ Compile Run。</div></div><input id="compilerFlags" type="text"></div>
 <div class="row"><div><label for="executableCleanupEnabled">自动清理生成文件</label><div class="hint">同时作用于 CPH 和 C/C++ Compile Run。</div></div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox"><span>启用</span></label></div>
@@ -353,6 +543,7 @@ function apply(state) {
   if (!selectedFonts.length) selectedFonts = ['Consolas', 'monospace'];
   byId('fontLigatures').checked = !!state.fontLigatures;
   byId('fontSize').value = state.fontSize;
+	byId('autoFormat').checked = !!state.autoFormat;
   byId('cppStandard').value = state.cppStandard;
   byId('compilerFlags').value = state.compilerFlags;
   byId('executableCleanupEnabled').checked = !!state.executableCleanupEnabled;
@@ -364,7 +555,7 @@ function apply(state) {
   byId('autoSave').value = state.autoSave;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), cppStandard: byId('cppStandard').value, compilerFlags: byId('compilerFlags').value, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value }; }
+function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, compilerFlags: byId('compilerFlags').value, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input, select').forEach(control => {
@@ -377,7 +568,61 @@ byId('addFallback').addEventListener('click', () => { selectedFonts.push(fallbac
 byId('cppStandard').addEventListener('change', () => { const flags = byId('compilerFlags'); const standard = byId('cppStandard').value; const withoutStandard = flags.value.replace(/(^|\\s)-std=(?:gnu\\+\\+|c\\+\\+)\\d+\\b/g, ' ').replace(/\\s+/g, ' ').trim(); flags.value = '-std=' + standard + (withoutStandard ? ' ' + withoutStandard : ''); save(0); });
 byId('advanced').addEventListener('click', () => vscode.postMessage({ type: 'advanced' }));
 byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));
+byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
 window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); });
+apply(${serializedState});
+</script></body></html>`;
+}
+
+function getAutoFormatHtml(state: AutoFormatState, workspacePath: string): string {
+	const serializedState = JSON.stringify(state).replace(/</g, '\\u003c');
+	const serializedWorkspacePath = JSON.stringify(workspacePath).replace(/</g, '\\u003c');
+	return `<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+<title>自动格式化</title><style>
+body { margin: 0; color: var(--vscode-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); }
+main { max-width: 800px; margin: 0 auto; padding: 40px 28px 64px; } h1 { font-size: 28px; margin: 0 0 8px; } p { color: var(--vscode-descriptionForeground); margin: 0 0 26px; line-height: 1.5; }
+.card { border: 1px solid var(--vscode-editorWidget-border); border-radius: 8px; padding: 4px 20px; margin: 14px 0; } h2 { font-size: 15px; margin: 18px 0 2px; color: var(--vscode-descriptionForeground); }
+.row { display: grid; grid-template-columns: 290px 1fr; gap: 18px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--vscode-editorWidget-border); } .row:last-child { border: 0; } label { font-weight: 600; } .hint { color: var(--vscode-descriptionForeground); font-size: 12px; margin-top: 4px; }
+input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 3px; padding: 7px 9px; font: inherit; } input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { display: flex; align-items: center; gap: 10px; }
+button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } #saved { color: var(--vscode-testing-iconPassed); } code { font-family: var(--vscode-editor-font-family); }
+</style></head><body><main>
+<h1>自动格式化</h1><p>配置会实时保存到当前工作目录的 <code>.clang-format</code>，并可选择同时启用保存和粘贴时格式化。</p>
+<section class="card"><div class="row"><div><label for="enabled">启用自动格式化</label><div class="hint">同时开启保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="enabled" type="checkbox"><span>启用</span></label></div></section>
+<h2>基础风格</h2><section class="card"><div class="row"><div><label for="basedOnStyle">基础风格（BasedOnStyle）</label><div class="hint">作为其他规则未覆盖部分的基准；下面的选项会覆盖它。</div></div><select id="basedOnStyle"><option value="Google">Google（Google C++ 风格）</option><option value="LLVM">LLVM（LLVM 默认风格）</option><option value="Chromium">Chromium（Chromium 项目风格）</option><option value="Mozilla">Mozilla（Mozilla 项目风格）</option><option value="WebKit">WebKit（WebKit 项目风格）</option></select></div></section>
+<h2>行为</h2><section class="card">
+<div class="row"><div><label for="allowShortIfStatementsOnASingleLine">单行 if 语句</label><div class="hint">控制短小 if / else 是否可以保持在同一行。</div></div><select id="allowShortIfStatementsOnASingleLine"><option value="Never">Never（始终换行）</option><option value="WithoutElse">WithoutElse（仅无 else 时允许）</option><option value="OnlyFirstIf">OnlyFirstIf（仅 if-else 链的第一个 if）</option><option value="AllIfsAndElse">AllIfsAndElse（if 与 else 都允许）</option></select></div>
+<div class="row"><div><label for="allowShortLoopsOnASingleLine">允许单行循环</label><div class="hint">如 <code>for (...) x++;</code> 不强制拆成多行。</div></div><label class="toggle"><input id="allowShortLoopsOnASingleLine" type="checkbox"><span>允许</span></label></div>
+<div class="row"><div><label for="allowShortBlocksOnASingleLine">允许单行代码块</label><div class="hint">如 <code>{ return 0; }</code> 不强制拆成多行。</div></div><label class="toggle"><input id="allowShortBlocksOnASingleLine" type="checkbox"><span>允许</span></label></div>
+<div class="row"><div><label for="allowShortFunctionsOnASingleLine">单行函数</label><div class="hint">控制短小函数是否保持为一行。</div></div><select id="allowShortFunctionsOnASingleLine"><option value="None">None（所有函数拆行）</option><option value="InlineOnly">InlineOnly（仅 inline 函数）</option><option value="Empty">Empty（仅空函数）</option><option value="Inline">Inline（允许 inline 函数）</option><option value="All">All（所有短函数都允许）</option></select></div>
+</section>
+<h2>行长与缩进</h2><section class="card">
+<div class="row"><div><label for="columnLimit">最大行长（ColumnLimit）</label><div class="hint">超过该长度时 clang-format 会尝试换行；0 表示不限行长。</div></div><input id="columnLimit" type="number" min="0" max="10000" step="1"></div>
+<div class="row"><div><label for="indentWidth">缩进宽度（IndentWidth）</label><div class="hint">每一级缩进使用的空格数。</div></div><input id="indentWidth" type="number" min="1" max="32" step="1"></div>
+<div class="row"><div><label for="tabWidth">制表符宽度（TabWidth）</label><div class="hint">Tab 显示或等效为多少个空格。</div></div><input id="tabWidth" type="number" min="1" max="32" step="1"></div>
+<div class="row"><div><label for="useTab">Tab 使用方式（UseTab）</label><div class="hint">控制缩进时是否实际写入 Tab 字符。</div></div><select id="useTab"><option value="Never">Never（始终使用空格）</option><option value="ForIndentation">ForIndentation（仅基础缩进使用 Tab）</option><option value="ForContinuationAndIndentation">ForContinuationAndIndentation（缩进和续行都使用 Tab）</option><option value="Always">Always（尽可能使用 Tab）</option></select></div>
+<div class="row"><div><label for="accessModifierOffset">访问修饰符缩进（AccessModifierOffset）</label><div class="hint">public / private / protected 相对类成员的缩进偏移；负数表示向左。</div></div><input id="accessModifierOffset" type="number" min="-32" max="32" step="1"></div>
+</section>
+<h2>大括号、指针与代码块</h2><section class="card">
+<div class="row"><div><label for="breakBeforeBraces">大括号位置（BreakBeforeBraces）</label><div class="hint">控制函数、类、if 等代码块的左大括号是否另起一行。</div></div><select id="breakBeforeBraces"><option value="Attach">Attach（左大括号不换行）</option><option value="Linux">Linux（函数、命名空间和类定义换行）</option><option value="Mozilla">Mozilla（枚举、函数和类/结构体定义换行）</option><option value="Stroustrup">Stroustrup（函数、else 和 catch 换行）</option><option value="Allman">Allman（所有左大括号换行）</option><option value="Whitesmiths">Whitesmiths（大括号换行并额外缩进）</option><option value="GNU">GNU（GNU 风格）</option><option value="WebKit">WebKit（函数定义左大括号换行）</option><option value="Custom">Custom（使用 BraceWrapping 的细分规则）</option></select></div>
+<div class="row"><div><label for="alwaysBreakTemplateDeclarations">模板声明换行（AlwaysBreakTemplateDeclarations）</label><div class="hint">控制 <code>template &lt;...&gt;</code> 与后续声明是否分为两行。</div></div><select id="alwaysBreakTemplateDeclarations"><option value="No">No（尽量不换行）</option><option value="Yes">Yes（始终换行）</option><option value="MultiLine">MultiLine（仅后续声明本身多行时换行）</option></select></div>
+<div class="row"><div><label for="pointerAlignment">指针星号位置（PointerAlignment）</label><div class="hint">控制 <code>*</code> 靠近类型、变量名，还是两者之间。</div></div><select id="pointerAlignment"><option value="Left">Left（<code>int* p</code>）</option><option value="Right">Right（<code>int *p</code>）</option><option value="Middle">Middle（<code>int * p</code>）</option></select></div>
+<div class="row"><div><label for="spacesBeforeTrailingComments">行尾注释前空格（SpacesBeforeTrailingComments）</label><div class="hint">如 <code>int x;    // 注释</code> 中注释前的空格数。</div></div><input id="spacesBeforeTrailingComments" type="number" min="0" max="100" step="1"></div>
+<div class="row"><div><label for="separateDefinitionBlocks">定义块间空行（SeparateDefinitionBlocks）</label><div class="hint">控制相邻函数、类等定义之间是否插入空行。</div></div><select id="separateDefinitionBlocks"><option value="Leave">Leave（保留原有空行）</option><option value="Never">Never（不额外插入空行）</option><option value="Always">Always（相邻定义之间始终插入空行）</option></select></div>
+<div class="row"><div><label for="standard">C++ 语言标准（Standard）</label><div class="hint">用于判断可使用的语法和格式化规则。</div></div><select id="standard"><option value="Auto">Auto（自动判断）</option><option value="c++03">c++03</option><option value="c++11">c++11</option><option value="c++14">c++14</option><option value="c++17">c++17</option><option value="c++20">c++20</option><option value="Latest">Latest（使用最新支持标准）</option></select></div>
+</section>
+<div class="actions"><button id="openFile">打开 .clang-format</button><span id="saved" aria-live="polite"></span></div>
+</main><script>
+const vscode = acquireVsCodeApi();
+const byId = id => document.getElementById(id);
+const workspacePath = ${serializedWorkspacePath};
+let saveTimer;
+function apply(state) { Object.entries(state).forEach(([key, value]) => { const control = byId(key); if (!control) return; if (control.type === 'checkbox') control.checked = !!value; else control.value = value; }); }
+function value() { return { enabled: byId('enabled').checked, basedOnStyle: byId('basedOnStyle').value, allowShortIfStatementsOnASingleLine: byId('allowShortIfStatementsOnASingleLine').value, allowShortLoopsOnASingleLine: byId('allowShortLoopsOnASingleLine').checked, allowShortBlocksOnASingleLine: byId('allowShortBlocksOnASingleLine').checked, allowShortFunctionsOnASingleLine: byId('allowShortFunctionsOnASingleLine').value, columnLimit: Number(byId('columnLimit').value), indentWidth: Number(byId('indentWidth').value), tabWidth: Number(byId('tabWidth').value), useTab: byId('useTab').value, accessModifierOffset: Number(byId('accessModifierOffset').value), breakBeforeBraces: byId('breakBeforeBraces').value, alwaysBreakTemplateDeclarations: byId('alwaysBreakTemplateDeclarations').value, pointerAlignment: byId('pointerAlignment').value, spacesBeforeTrailingComments: Number(byId('spacesBeforeTrailingComments').value), separateDefinitionBlocks: byId('separateDefinitionBlocks').value, standard: byId('standard').value }; }
+function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
+document.querySelectorAll('input, select').forEach(control => { const immediate = control.type === 'checkbox' || control.tagName === 'SELECT'; control.addEventListener('input', () => save(immediate ? 0 : 250)); control.addEventListener('change', () => save(0)); });
+byId('openFile').addEventListener('click', () => vscode.postMessage({ type: 'openFile', workspacePath }));
 apply(${serializedState});
 </script></body></html>`;
 }

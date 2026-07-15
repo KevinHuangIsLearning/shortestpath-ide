@@ -10,6 +10,7 @@
 	"command.rerunFirstRun": "ShortestPath IDE: Re-run First-Run Setup",
 	"command.openSettings": "ShortestPath IDE: Settings",
 	"command.configureCppSnippets": "ShortestPath IDE: Configure C++ Code Snippets",
+	"command.configureAutoFormat": "ShortestPath IDE: Configure Automatic Formatting",
 	"command.showAllFiles": "ShortestPath IDE: Show All Files",
 	"command.hideSetupFiles": "ShortestPath IDE: Hide Setup Files"
 }
