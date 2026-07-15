@@ -9,8 +9,12 @@
 	"command.configure": "ShortestPath IDE：配置竞赛编程环境",
 	"command.rerunFirstRun": "ShortestPath IDE：重新运行首次配置",
 	"command.openSettings": "ShortestPath IDE：设置",
+	"command.configureCph": "ShortestPath IDE：配置 CPH",
 	"command.configureCppSnippets": "ShortestPath IDE：配置 C++ 代码模板",
 	"command.configureAutoFormat": "ShortestPath IDE：配置自动格式化",
+	"command.openToolchainDiagnostics": "ShortestPath IDE：工具链诊断",
+	"command.redetectToolchain": "ShortestPath IDE：重新探测工具链",
+	"command.repairToolchain": "ShortestPath IDE：修复工具链",
 	"command.showAllFiles": "ShortestPath IDE：显示所有文件",
 	"command.hideSetupFiles": "ShortestPath IDE：隐藏配置和可执行文件"
 }

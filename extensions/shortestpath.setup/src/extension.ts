@@ -4,6 +4,8 @@ import { homedir } from 'os';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
 import { registerSimpleSettings } from './simpleSettings';
+import { registerCphSettings } from './cphSettings';
+import { registerToolchainDiagnostics } from './toolchainDiagnostics';
 
 type PlatformPreset = {
 	portableToolchain: boolean;
@@ -161,7 +163,8 @@ const editorSettings: Record<string, unknown> = {
 	'files.autoSave': 'onFocusChange',
 	'editor.formatOnSave': true,
 	'editor.formatOnPaste': true,
-	'editor.mouseWheelZoom': true
+	'editor.mouseWheelZoom': true,
+	'window.systemColorTheme': 'auto',
 };
 
 const cphSettings: Record<string, unknown> = {
@@ -209,7 +212,11 @@ const cphSettings: Record<string, unknown> = {
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	registerSimpleSettings(context);
+	registerCphSettings(context);
+	registerToolchainDiagnostics(context);
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.setupEnvironment', () => runSetup(context)));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.redetectToolchain', () => runSetup(context)));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.repairToolchain', () => repairToolchain(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.rerunFirstRunSetup', () => rerunFirstRunSetup()));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.showAllFiles', toggleHiddenFiles));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.hideSetupFiles', toggleHiddenFiles));
@@ -253,13 +260,50 @@ async function rerunFirstRunSetup(): Promise<void> {
 	}
 }
 
+async function repairToolchain(context: vscode.ExtensionContext): Promise<void> {
+	const preset = loadPreset(context);
+	if (preset.portableToolchain) {
+		const configuration = vscode.workspace.getConfiguration('shortestpath.setup');
+		await configuration.update('pending', undefined, vscode.ConfigurationTarget.Global);
+		await configuration.update('completed', false, vscode.ConfigurationTarget.Global);
+		await vscode.window.showInformationMessage('正在进入工具链修复。请在开箱页继续，ShortestPath IDE 会重新下载缺失的组件。');
+		await vscode.commands.executeCommand('workbench.action.reloadWindow');
+		return;
+	}
+	const compiler = await findPreferredCompiler(preset.compilerCandidates);
+	const clangd = await findFirstExecutable(preset.clangdCandidates);
+	if (compiler && clangd && !await isAppleClang(compiler)) {
+		// Repair only toolchain-related settings; do not overwrite the user's editor
+		// and CPH preferences with the first-run preset.
+		const configuration = vscode.workspace.getConfiguration();
+		const flags = configuration.get<string>('cph.language.cpp.Args')
+			?? configuration.get<string>('c-cpp-compile-run.cpp-flags')
+			?? '';
+		const settings: Record<string, unknown> = {
+			'cph.language.cpp.Command': compiler,
+			'c-cpp-compile-run.cpp-compiler': compiler,
+			'clangd.path': clangd,
+			'clangd.arguments': ['--background-index', `--query-driver=${compiler}`]
+		};
+		if (flags) {
+			settings['cph.language.cpp.Args'] = flags;
+			settings['c-cpp-compile-run.cpp-flags'] = flags;
+		}
+		await updateGlobalSettings(settings);
+		return;
+	}
+	// A configured Apple Clang fallback is usable, but "repair" means install
+	// Homebrew GCC rather than treating that fallback as already complete.
+	await offerInstaller(context, preset, !compiler || await isAppleClang(compiler), !clangd);
+}
+
 async function runSetup(context: vscode.ExtensionContext): Promise<void> {
 	await configure(context);
 }
 
 async function configure(context: vscode.ExtensionContext, firstRunSelection?: FirstRunSelection): Promise<void> {
 	const preset = loadPreset(context);
-	let compiler = await findFirstExecutable(preset.compilerCandidates);
+	let compiler = await findPreferredCompiler(preset.compilerCandidates);
 	let clangd = await findFirstExecutable(preset.clangdCandidates);
 	let installerStarted = false;
 	let includeEditor = true;
@@ -268,21 +312,29 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	if (firstRunSelection) {
 		includeEditor = firstRunSelection.editor;
 		if (firstRunSelection.installToolchain && (!compiler || !clangd)) {
-			await offerInstaller(context, preset);
+			await offerInstaller(context, preset, !compiler, !clangd);
 			installerStarted = true;
 		}
 	} else if (!compiler || !clangd) {
-		await offerInstaller(context, preset);
+		await offerInstaller(context, preset, !compiler, !clangd);
 		installerStarted = true;
 	}
 
 	if (installerStarted) {
-		compiler = await findFirstExecutable(preset.compilerCandidates);
+		compiler = await findPreferredCompiler(preset.compilerCandidates);
 		clangd = await findFirstExecutable(preset.clangdCandidates);
 		if (preset.portableToolchain) {
 			compiler ??= preset.compilerCandidates[0];
 			clangd ??= preset.clangdCandidates[0];
 		}
+	}
+	if (compiler && await isAppleClang(compiler)) {
+		await vscode.window.showWarningMessage(
+			'未检测到 Homebrew GCC，当前将使用 Apple Clang（g++ 兼容包装器）。它可以编译代码，但为保持竞赛环境一致，建议执行“修复工具链”安装 Homebrew GCC。',
+			{ modal: true },
+			'修复工具链',
+			'继续使用 Apple Clang'
+		).then(action => action === '修复工具链' ? repairToolchain(context) : undefined);
 	}
 
 	const settings: Record<string, unknown> = {};
@@ -388,13 +440,18 @@ function loadPlatformInstaller(context: vscode.ExtensionContext): PlatformInstal
 	return require(path.join(context.extensionPath, 'resources', `${getPlatformName()}.js`)) as PlatformInstaller;
 }
 
-async function offerInstaller(context: vscode.ExtensionContext, preset: PlatformPreset): Promise<void> {
+async function offerInstaller(context: vscode.ExtensionContext, preset: PlatformPreset, compilerMissing: boolean, clangdMissing: boolean): Promise<void> {
+	const missingTools = [
+		compilerMissing ? (process.platform === 'darwin' ? 'Homebrew GCC' : 'g++') : undefined,
+		clangdMissing ? 'clangd' : undefined
+	].filter((tool): tool is string => !!tool);
 	const choice = await vscode.window.showWarningMessage(
-		`g++ or clangd was not found. ${preset.installDescription}. The command will open in an integrated terminal and may ask for administrator credentials.`,
-		'Open installer terminal',
-		'Skip'
+		`未检测到 ${missingTools.join(' 和 ')}。${preset.installDescription}。安装命令会在集成终端中运行，可能需要管理员权限。`,
+		{ modal: true },
+		'安装并修复',
+		'暂不处理'
 	);
-	if (choice === 'Open installer terminal') {
+	if (choice === '安装并修复') {
 		const toolchainRoot = path.join(context.globalStorageUri.fsPath, 'toolchains');
 		const source = preset.downloadSources?.find(candidate => candidate.id === 'tuna' && !candidate.unavailable)
 			?? preset.downloadSources?.find(candidate => !candidate.unavailable);
@@ -467,6 +524,50 @@ async function findFirstExecutable(candidates: readonly string[]): Promise<strin
 		}
 	}
 	return undefined;
+}
+
+async function findPreferredCompiler(candidates: readonly string[]): Promise<string | undefined> {
+	if (process.platform !== 'darwin') {
+		return findFirstExecutable(candidates);
+	}
+
+	const brew = await locateOnPath('brew');
+	const directories = ['/opt/homebrew/bin', '/usr/local/bin'];
+	if (brew) {
+		const prefix = await getHomebrewGccPrefix(brew);
+		if (prefix) {
+			directories.unshift(path.join(prefix, 'bin'));
+		}
+	}
+
+	const matches = directories.flatMap(directory => {
+		try {
+			return fs.readdirSync(directory)
+				.filter(name => /^g\+\+-\d+$/.test(name))
+				.map(name => path.join(directory, name))
+				.filter(candidate => fs.existsSync(candidate));
+		} catch {
+			return [];
+		}
+	});
+	const homebrewGcc = matches.sort((left, right) => getGccVersion(right) - getGccVersion(left))[0];
+	// macOS ships /usr/bin/g++ as an Apple Clang compatibility wrapper. It is a
+	// usable fallback, but diagnostics and the setup warning make that explicit.
+	return homebrewGcc ?? await findFirstExecutable(['/usr/bin/g++', '/usr/bin/clang++', 'g++', 'clang++']);
+}
+
+function getHomebrewGccPrefix(brew: string): Promise<string | undefined> {
+	return new Promise(resolve => execFile(brew, ['--prefix', 'gcc'], { windowsHide: true }, (error, stdout) => resolve(error ? undefined : stdout.trim() || undefined)));
+}
+
+function getGccVersion(candidate: string): number {
+	return Number(/g\+\+-(\d+)$/.exec(candidate)?.[1] ?? 0);
+}
+
+function isAppleClang(compiler: string): Promise<boolean> {
+	return new Promise(resolve => execFile(compiler, ['--version'], { windowsHide: true }, (error, stdout, stderr) => {
+		resolve(!error && /apple clang/i.test(`${stdout}\n${stderr}`));
+	}));
 }
 
 function locateOnPath(command: string): Promise<string | undefined> {

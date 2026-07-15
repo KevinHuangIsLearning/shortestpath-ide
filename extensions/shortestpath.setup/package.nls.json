@@ -9,8 +9,12 @@
 	"command.configure": "ShortestPath IDE: Configure Competitive Programming Environment",
 	"command.rerunFirstRun": "ShortestPath IDE: Re-run First-Run Setup",
 	"command.openSettings": "ShortestPath IDE: Settings",
+	"command.configureCph": "ShortestPath IDE: Configure CPH",
 	"command.configureCppSnippets": "ShortestPath IDE: Configure C++ Code Snippets",
 	"command.configureAutoFormat": "ShortestPath IDE: Configure Automatic Formatting",
+	"command.openToolchainDiagnostics": "ShortestPath IDE: Toolchain Diagnostics",
+	"command.redetectToolchain": "ShortestPath IDE: Re-detect Toolchain",
+	"command.repairToolchain": "ShortestPath IDE: Repair Toolchain",
 	"command.showAllFiles": "ShortestPath IDE: Show All Files",
 	"command.hideSetupFiles": "ShortestPath IDE: Hide Setup Files"
 }

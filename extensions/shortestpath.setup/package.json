@@ -13,7 +13,7 @@
 			"supported": true
 		}
 	},
-	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment", "onCommand:shortestpath.openSettings", "onCommand:shortestpath.configureCppSnippets", "onCommand:shortestpath.configureAutoFormat"],
+	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment", "onCommand:shortestpath.redetectToolchain", "onCommand:shortestpath.repairToolchain", "onCommand:shortestpath.openSettings", "onCommand:shortestpath.configureCph", "onCommand:shortestpath.configureCppSnippets", "onCommand:shortestpath.configureAutoFormat", "onCommand:shortestpath.openToolchainDiagnostics"],
 	"main": "./out/extension.js",
 	"scripts": {
 		"compile": "node ../../node_modules/typescript/bin/tsc -p ./",
@@ -66,12 +66,31 @@
 				"icon": "$(settings-gear)"
 			},
 			{
+				"command": "shortestpath.configureCph",
+				"title": "%command.configureCph%"
+			},
+			{
 				"command": "shortestpath.configureCppSnippets",
 				"title": "%command.configureCppSnippets%"
 			},
 			{
 				"command": "shortestpath.configureAutoFormat",
 				"title": "%command.configureAutoFormat%"
+			},
+			{
+				"command": "shortestpath.openToolchainDiagnostics",
+				"title": "%command.openToolchainDiagnostics%",
+				"icon": "$(pulse)"
+			},
+			{
+				"command": "shortestpath.redetectToolchain",
+				"title": "%command.redetectToolchain%",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "shortestpath.repairToolchain",
+				"title": "%command.repairToolchain%",
+				"icon": "$(tools)"
 			},
 			{
 				"command": "shortestpath.showAllFiles",

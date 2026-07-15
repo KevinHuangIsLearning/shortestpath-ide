@@ -369,6 +369,10 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.commands.executeCommand('shortestpath.configureCppSnippets');
 		} else if (message?.type === 'autoFormat') {
 			await vscode.commands.executeCommand('shortestpath.configureAutoFormat');
+		} else if (message?.type === 'toolchainDiagnostics') {
+			await vscode.commands.executeCommand('shortestpath.openToolchainDiagnostics');
+		} else if (message?.type === 'cphSettings') {
+			await vscode.commands.executeCommand('shortestpath.configureCph');
 		}
 	}, undefined, context.subscriptions);
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
@@ -462,6 +466,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('shortestpath.executableCleanupDelaySeconds', executableCleanupDelaySeconds, vscode.ConfigurationTarget.Global),
 		settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' ? value.colorTheme : 'Default Dark Modern', vscode.ConfigurationTarget.Global),
 		settings.update('window.autoDetectColorScheme', value.autoDetectColorScheme === true, vscode.ConfigurationTarget.Global),
+		settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global),
 		settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global)
 	]);
 }
@@ -519,6 +524,8 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <div class="row"><div><label for="autoSave">自动保存</label></div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
 </section>
 <section class="card"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
+<section class="card"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div></section>
+<section class="card"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
 <div class="actions"><button id="advanced" class="secondary">高级设置</button><span id="saved" aria-live="polite"></span></div>
 </main>
 <script>
@@ -569,6 +576,8 @@ byId('cppStandard').addEventListener('change', () => { const flags = byId('compi
 byId('advanced').addEventListener('click', () => vscode.postMessage({ type: 'advanced' }));
 byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
+byId('cphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
+byId('toolchainDiagnostics').addEventListener('click', () => vscode.postMessage({ type: 'toolchainDiagnostics' }));
 window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); });
 apply(${serializedState});
 </script></body></html>`;

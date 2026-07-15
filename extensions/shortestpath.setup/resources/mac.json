@@ -42,7 +42,7 @@
 		}
 	],
 	"portableToolchain": false,
-	"compilerCandidates": ["g++-16", "g++-15", "g++"],
+	"compilerCandidates": [],
 	"clangdCandidates": ["/opt/homebrew/opt/llvm/bin/clangd", "/usr/local/opt/llvm/bin/clangd", "clangd"],
 	"installDescription": "Install GCC and LLVM (clangd) with Homebrew"
 }
