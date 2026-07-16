@@ -71,7 +71,8 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		let contents: { [key: string]: string } | undefined;
 		const bundleUri = await this.getBundleLocation(extension);
 		if (!bundleUri) {
-			this.logService.error(`No bundle location found for extension ${extension.identifier.value}`);
+			// A language pack need not carry a bundle for every built-in extension.
+			// In that case the extension's packaged default messages remain available.
 			return;
 		}
 

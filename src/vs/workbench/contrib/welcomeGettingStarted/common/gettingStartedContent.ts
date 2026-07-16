@@ -123,6 +123,16 @@ export const startEntries: GettingStartedStartEntryContent = [
 		}
 	},
 	{
+		id: 'shortestpath.openIntegratedBrowser',
+		title: localize('gettingStarted.integratedBrowser.title', "Open Integrated Browser"),
+		description: localize('gettingStarted.integratedBrowser.description', "Open a browser tab inside ShortestPath IDE."),
+		icon: Codicon.globe,
+		content: {
+			type: 'startEntry',
+			command: 'workbench.action.browser.open',
+		}
+	},
+	{
 		id: 'topLevelOpenMac',
 		title: localize('gettingStarted.openMac.title', "Open..."),
 		description: localize('gettingStarted.openMac.description', "Open a file or folder to start working"),

@@ -274,7 +274,10 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		super.layout(width, height);
 
 		if (useWindowControlsOverlay(this.configurationService)) {
-			const newHeight = Math.round(height * getZoomFactor(getWindow(this.element)));
+			// When the custom titlebar is hidden, the window controls move into the
+			// workbench's first row. Keep the native overlay aligned to that row instead
+			// of resetting macOS traffic lights to their default position.
+			const newHeight = Math.round((height || DEFAULT_CUSTOM_TITLEBAR_HEIGHT) * getZoomFactor(getWindow(this.element)));
 			if (newHeight !== this.cachedWindowControlHeight) {
 				this.cachedWindowControlHeight = newHeight;
 				this.nativeHostService.updateWindowControls({

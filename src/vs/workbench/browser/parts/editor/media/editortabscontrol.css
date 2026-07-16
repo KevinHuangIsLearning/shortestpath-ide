@@ -9,6 +9,21 @@
 	cursor: pointer;
 }
 
+/* With the custom titlebar hidden, the unused space in the editor title row
+ * becomes the window drag region. Interactive tab controls opt out below. */
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor > .content .editor-group-container > .title {
+	-webkit-app-region: drag;
+}
+
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor > .content .editor-group-container > .title .tab,
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor > .content .editor-group-container > .title .tabs-bar-new-tab,
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor > .content .editor-group-container > .title .tabs-bar-add-tab,
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor > .content .editor-group-container > .title .title-label,
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor > .content .editor-group-container > .title .title-actions,
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor > .content .editor-group-container > .title .action-label {
+	-webkit-app-region: no-drag;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
 	white-space: nowrap !important;

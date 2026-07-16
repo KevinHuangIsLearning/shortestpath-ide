@@ -103,6 +103,7 @@ enum LayoutClasses {
 	WINDOW_BORDER = 'border',
 	NO_SHADOWS = 'no-shadows',
 	FLOATING_PANELS = 'floating-panels',
+	CUSTOM_TITLEBAR_HIDDEN = 'custom-titlebar-hidden',
 	// Presentation class for the Modern UI Update experiment, owned/toggled at
 	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
 	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
@@ -1904,6 +1905,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	getLayoutClasses(): string[] {
 		return coalesce([
+			!hasNativeTitlebar(this.configurationService) && !this.isVisible(Parts.TITLEBAR_PART) ? LayoutClasses.CUSTOM_TITLEBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.SIDEBAR_PART) ? LayoutClasses.SIDEBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.EDITOR_PART, mainWindow) ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
@@ -2337,6 +2339,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	updateMenubarVisibility(skipLayout: boolean): void {
 		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
+		this.mainContainer.classList.toggle(LayoutClasses.CUSTOM_TITLEBAR_HIDDEN, !hasNativeTitlebar(this.configurationService) && !shouldShowTitleBar);
 		if (!skipLayout && this.workbenchGrid && shouldShowTitleBar !== this.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
@@ -2344,6 +2347,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	updateCustomTitleBarVisibility(): void {
 		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
+		this.mainContainer.classList.toggle(LayoutClasses.CUSTOM_TITLEBAR_HIDDEN, !hasNativeTitlebar(this.configurationService) && !shouldShowTitleBar);
 		const titlebarVisible = this.isVisible(Parts.TITLEBAR_PART);
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);

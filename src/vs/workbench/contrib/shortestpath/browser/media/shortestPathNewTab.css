@@ -1,0 +1,67 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.shortestpath-new-tab {
+	box-sizing: border-box;
+	height: 100%;
+	overflow: auto;
+	padding: 12vh max(8vw, 48px);
+	color: var(--vscode-editor-foreground);
+}
+
+.shortestpath-new-tab-content {
+	max-width: 620px;
+}
+
+.shortestpath-new-tab h1 {
+	margin: 0;
+	font-size: 44px;
+	font-weight: 500;
+	line-height: 1.2;
+}
+
+.shortestpath-new-tab .subtitle {
+	margin: 8px 0 52px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 24px;
+}
+
+.shortestpath-new-tab h2 {
+	margin: 0 0 16px;
+	font-size: 28px;
+	font-weight: 500;
+}
+
+.shortestpath-new-tab-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+}
+
+.shortestpath-new-tab-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 9px;
+	border: 0;
+	padding: 7px 9px;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	font: inherit;
+	font-size: 14px;
+	cursor: pointer;
+}
+
+.shortestpath-new-tab-action .codicon {
+	font-size: 17px;
+}
+
+.shortestpath-new-tab-action:hover,
+.shortestpath-new-tab-action:focus-visible {
+	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-textLink-activeForeground);
+	outline: none;
+}

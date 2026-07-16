@@ -2132,8 +2132,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.activeEditorPane;
-		if (activeEditorPane instanceof EditorPane) {
-			const editorScopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.scopedContextKeyService;
+		if (activeEditorPane instanceof EditorPane || menuId === MenuId.LayoutControlMenu) {
+			// Layout controls are workbench-wide. In an empty group, use the editor
+			// part context instead of this group's scoped context: the latter is
+			// disposed while menu updates can still be delivered during group teardown.
+			const editorScopedContextKeyService = activeEditorPane instanceof EditorPane ? activeEditorPane.scopedContextKeyService ?? this.scopedContextKeyService : this.contextKeyService;
 			const editorTitleMenu = disposables.add(this.menuService.createMenu(menuId, editorScopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
 			onDidChange = editorTitleMenu.onDidChange;
 

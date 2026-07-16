@@ -163,6 +163,7 @@ interface IShortestPathSetupRequest {
 	readonly fontLigatures: boolean;
 	readonly fontSize: number;
 	readonly autoFormat: boolean;
+	readonly clangdVariableTypeHints: boolean;
 	readonly vjudgeOpenInBrowser: boolean;
 	readonly cppStandard: 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 	readonly workspaceFolder: string;
@@ -224,6 +225,7 @@ function isShortestPathSetupRequest(candidate: unknown): candidate is IShortestP
 		&& typeof value.fontLigatures === 'boolean'
 		&& typeof value.fontSize === 'number'
 		&& typeof value.autoFormat === 'boolean'
+		&& typeof value.clangdVariableTypeHints === 'boolean'
 		&& typeof value.vjudgeOpenInBrowser === 'boolean'
 		&& (value.cppStandard === 'c++11' || value.cppStandard === 'c++14' || value.cppStandard === 'c++17' || value.cppStandard === 'c++20' || value.cppStandard === 'c++23')
 		&& typeof value.workspaceFolder === 'string'
@@ -906,8 +908,16 @@ export class CodeApplication extends Disposable {
 			'files.autoSave': 'onFocusChange',
 			'editor.formatOnSave': request.autoFormat,
 			'editor.formatOnPaste': request.autoFormat,
+			'editor.inlayHints.enabled': request.clangdVariableTypeHints ? 'on' : 'off',
 			'editor.mouseWheelZoom': true,
 			'window.systemColorTheme': 'auto',
+			'window.titleBarStyle': 'custom',
+			'window.commandCenter': false,
+			'workbench.startupEditor': 'welcomePage',
+			'workbench.navigationControl.enabled': false,
+			'workbench.layoutControl.enabled': true,
+			'workbench.layoutControl.type': 'both',
+			'workbench.statusBar.visible': false,
 			'files.exclude': {
 				...existingFileExcludes,
 				'**/.cph': true,
@@ -921,6 +931,15 @@ export class CodeApplication extends Disposable {
 			'cph.general.vjudgeOpenInBrowser': request.vjudgeOpenInBrowser,
 			'cph.general.vjudgeBrowserSplitRatio': 65,
 			'cph.general.vjudgeUrlSuffix': '#author=translator:1281309:zh',
+			'cph.general.fileNameTemplate': '{ojName}/{contestId}/{problemId}.{ext}',
+			'cph.general.fileNameTemplateOverrides': {
+				CSES: '{ojName}/{problemId}_{slug}.{ext}',
+				AT: '{ojName}/{contestId}/{problemId}.{ext}',
+				CF: '{ojName}/{contestId}/{problemId}.{ext}',
+				LG: '{ojName}/{problemId}.{ext}',
+				VJ: '{ojName}/{problemId}{slug}.{ext}',
+				'牛客': 'NowCoder/{problemId}.{ext}'
+			},
 			'cph.general.vjudgeOjNames': {
 				CodeForces: { urlTemplate: 'https://codeforces.com/problemset/problem/{contestId}/{problemId}', problemIdRegex: '^(\\d+)([A-Z]\\d*)$' },
 				CF: { urlTemplate: 'https://codeforces.com/problemset/problem/{contestId}/{problemId}', problemIdRegex: '^(\\d+)([A-Z]\\d*)$' },
@@ -1060,6 +1079,14 @@ Standard: Latest
 						type: 'boolean',
 						default: true,
 						label: { en: 'Enable automatic formatting', 'zh-CN': '启用自动格式化' }
+					});
+				}
+				if (controls && !controls.some(control => control.key === 'clangdVariableTypeHints')) {
+					controls.push({
+						key: 'clangdVariableTypeHints',
+						type: 'boolean',
+						default: true,
+						label: { en: 'Show clangd variable type hints', 'zh-CN': '显示 clangd 变量类型提示' }
 					});
 				}
 				return { ...page, controls };

@@ -11,7 +11,7 @@ import { IDimension } from '../../../../base/browser/dom.js';
 import { Direction, IViewSize } from '../../../../base/browser/ui/grid/grid.js';
 import { isMacintosh, isNative, isWeb } from '../../../../base/common/platform.js';
 import { isAuxiliaryWindow, mainWindow } from '../../../../base/browser/window.js';
-import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeMenu, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { getMenuBarVisibility, hasCustomTitlebar, hasNativeMenu, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
 import { isFullscreen, isWCOEnabled } from '../../../../base/browser/browser.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -538,15 +538,15 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 		return false;
 	}
 
+	// ShortestPath uses the editor tab row as its desktop title surface. Do not
+	// let a user/profile value for `window.customTitleBarVisibility` restore the
+	// removed workbench titlebar.
+	if (!isWeb && !hasNativeTitlebar(configurationService)) {
+		return false;
+	}
+
 	const inFullscreen = isFullscreen(window);
 	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
-
-	if (!isWeb) {
-		const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
-			return false;
-		}
-	}
 
 	if (!isTitleBarEmpty(configurationService)) {
 		return true;

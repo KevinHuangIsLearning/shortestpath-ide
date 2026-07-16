@@ -46,8 +46,48 @@
 	position: relative; /* position tabs border bottom or editor actions (when tabs wrap) relative to this container */
 }
 
+/* With no custom titlebar, the native controls share the editor tab row. Reserve
+ * their space so tabs and actions never sit underneath them. */
+.monaco-workbench.custom-titlebar-hidden.mac.nosidebar .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
+	box-sizing: border-box;
+	padding-left: 35px;
+}
+
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
+	box-sizing: border-box;
+	padding-right: 138px;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty {
 	display: none;
+}
+
+.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty {
+	display: flex;
+	flex: 1;
+	height: var(--editor-group-tab-height);
+	align-items: center;
+}
+
+/* An empty replacement tab row has no editor to act on. Do not leave the
+ * editor-actions toolbar and its overflow button stranded on the left. */
+.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty .editor-actions,
+.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty .editor-actions-separator {
+	display: none !important;
+}
+
+/* In an empty editor group the otherwise transparent title row must remain a
+ * native drag surface. Its layout controls still explicitly opt out below. */
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty,
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty > .title {
+	-webkit-app-region: drag;
+}
+
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .editor-layout-actions,
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .tabs-bar-new-tab,
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .tab,
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .action-item {
+	-webkit-app-region: no-drag;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom::after {
@@ -99,6 +139,21 @@
 	margin: 0 4px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-bar-new-tab {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--editor-group-tab-height);
+	height: var(--editor-group-tab-height);
+	cursor: pointer;
+	color: var(--vscode-tab-inactiveForeground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-bar-new-tab:hover {
+	color: var(--vscode-tab-hoverForeground);
+	background-color: var(--vscode-tab-hoverBackground);
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container {
 
 	/* Enable wrapping via flex layout and dynamic height */
@@ -121,6 +176,22 @@
 	box-sizing: border-box;
 	padding-left: 10px;
 	outline-offset: -2px;
+}
+
+/* A persistent empty-state tab makes the replacement title surface useful:
+ * clicking it opens a new untitled text file in this editor group. */
+.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title .tabs-container > .tab.empty-tabbar-new-file {
+	min-width: 116px;
+	padding: 0 16px;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-tab-inactiveForeground);
+	border-right: 1px solid var(--vscode-tab-border);
+}
+
+.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title .tabs-container > .tab.empty-tabbar-new-file:hover {
+	background-color: var(--vscode-tab-hoverBackground);
+	color: var(--vscode-tab-hoverForeground);
 }
 
 /* Tab Background Color in/active group/tab */
@@ -548,6 +619,12 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions {
 	display: none;
+}
+
+.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title .editor-layout-actions {
+	display: flex;
+	margin: 0 18px 0 8px;
+	-webkit-app-region: no-drag;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions {

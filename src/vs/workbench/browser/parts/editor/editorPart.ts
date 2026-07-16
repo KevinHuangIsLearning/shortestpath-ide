@@ -160,7 +160,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
 	protected readonly container = $('.content');
-
 	readonly scopedInstantiationService: IInstantiationService;
 	protected readonly scopedContextKeyService: IContextKeyService;
 

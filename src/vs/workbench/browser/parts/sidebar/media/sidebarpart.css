@@ -8,6 +8,85 @@
 	visibility: hidden !important;
 }
 
+/* The first row belongs to the editor tabs when the custom titlebar is hidden.
+ * Move the complete left-side surfaces below the macOS traffic lights. */
+.monaco-workbench.custom-titlebar-hidden.mac .part.activitybar,
+.monaco-workbench.custom-titlebar-hidden.mac .part.sidebar,
+.monaco-workbench.custom-titlebar-hidden.windows .part.activitybar,
+.monaco-workbench.custom-titlebar-hidden.windows .part.sidebar {
+	position: relative;
+	top: 35px;
+	height: calc(100% - 35px);
+	overflow: visible;
+}
+
+/* The workbench grid is exposed above the shifted side bars. Make that strip
+ * visually continuous with the editor tabs and use it as the window drag area. */
+.monaco-workbench.custom-titlebar-hidden.mac > .monaco-grid-view {
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	-webkit-app-region: drag;
+}
+
+/* Once the last tab closes there is no tabbar to visually join. Match the
+ * empty editor instead, while keeping the top strip draggable. */
+.monaco-workbench.custom-titlebar-hidden.mac:has(.part.editor > .content .editor-group-container.empty) > .monaco-grid-view {
+	background-color: var(--vscode-editor-background);
+}
+
+.monaco-workbench.custom-titlebar-hidden.mac > .monaco-grid-view .part {
+	-webkit-app-region: no-drag;
+}
+
+/* The sidebar leaves this top strip for the macOS traffic lights. Reuse its
+ * remaining width as a compact Quick Open entry without reintroducing a titlebar. */
+.monaco-workbench.custom-titlebar-hidden.mac .part.sidebar > .shortestpath-sidebar-command-center,
+.monaco-workbench.custom-titlebar-hidden.windows .part.sidebar > .shortestpath-sidebar-command-center {
+	position: absolute;
+	top: -35px;
+	/* Sidebar starts underneath the traffic-light cluster. Leave its right-side
+	 * clearance before beginning the full-width search target. */
+	left: 0;
+	right: 0;
+	height: 35px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	box-sizing: border-box;
+	padding: 0 18px;
+	color: var(--vscode-commandCenter-foreground);
+	background-color: transparent;
+	border: 0;
+	border-radius: 0;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+	z-index: 2;
+}
+
+.monaco-workbench.custom-titlebar-hidden.mac .part.sidebar > .shortestpath-sidebar-command-center {
+	left: 36px;
+}
+
+.monaco-workbench.custom-titlebar-hidden.mac .part.sidebar > .shortestpath-sidebar-command-center:hover,
+.monaco-workbench.custom-titlebar-hidden.windows .part.sidebar > .shortestpath-sidebar-command-center:hover {
+	color: var(--vscode-commandCenter-activeForeground);
+	background-color: color-mix(in srgb, var(--vscode-commandCenter-activeBackground) 65%, transparent);
+}
+
+.monaco-workbench.custom-titlebar-hidden.mac .part.sidebar > .shortestpath-sidebar-command-center .label,
+.monaco-workbench.custom-titlebar-hidden.windows .part.sidebar > .shortestpath-sidebar-command-center .label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench:not(.custom-titlebar-hidden) .part.sidebar > .shortestpath-sidebar-command-center,
+.monaco-workbench:not(.mac):not(.windows) .part.sidebar > .shortestpath-sidebar-command-center {
+	display: none;
+}
+
 .monaco-workbench .part.sidebar .title-actions .actions-container {
 	justify-content: flex-end;
 }

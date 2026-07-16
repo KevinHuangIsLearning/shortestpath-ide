@@ -205,6 +205,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		parent.appendChild(this.editorLayoutActionsToolbarContainer);
 
 		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
+		this.updateEditorLayoutActionsToolbar();
 	}
 
 	private handleEditorActionToolBarVisibility(container: HTMLElement): void {
@@ -298,7 +299,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPartTrailing',
-			resetMenu: MenuId.EditorTitleLayout,
+			resetMenu: MenuId.LayoutControlMenu,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			highlightToggledItems: true
 		}));
@@ -350,14 +351,14 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.updateEditorLayoutActionsToolbar();
 	}
 
-	private updateEditorLayoutActionsToolbar(): void {
+	protected updateEditorLayoutActionsToolbar(): void {
 		if (!this.editorActionsEnabled || !this.editorLayoutActionsToolbar) {
 			return;
 		}
 
 		this.editorLayoutActionsDisposables.clear();
 
-		const editorActions = this.groupView.createEditorActions(this.editorLayoutActionsDisposables, MenuId.EditorTitleLayout);
+		const editorActions = this.groupView.createEditorActions(this.editorLayoutActionsDisposables, MenuId.LayoutControlMenu);
 		this.editorLayoutActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorLayoutActionsToolbar()));
 
 		const { primary, secondary } = this.prepareEditorLayoutActions(editorActions.actions);

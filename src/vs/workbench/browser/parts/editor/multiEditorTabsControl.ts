@@ -34,7 +34,7 @@ import { activeContrastBorder, contrastBorder, editorBackground } from '../../..
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, isWindowDraggedOver } from '../../dnd.js';
 import { Color } from '../../../../base/common/color.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, $ } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
@@ -63,6 +63,7 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ShortestPathNewTabInput } from '../../../contrib/shortestpath/browser/shortestPathNewTabInput.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -133,6 +134,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	};
 
 	private readonly layoutScheduler = this._register(new MutableDisposable<IScheduledMultiEditorTabsControlLayout>());
+	private readonly emptyTabDisposable = this._register(new MutableDisposable<IDisposable>());
 	private blockRevealActiveTab: boolean | undefined;
 
 	private path: IPath = isWindows ? win32 : posix;
@@ -206,6 +208,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.createAddTabControl(this.menuIds.tabsBarAddTab);
 		}
 
+		this.createNewTabControl();
+
 		// Create Editor Toolbar
 		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
 
@@ -213,6 +217,22 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.updateTabsControlVisibility();
 
 		return this.tabsAndActionsContainer;
+	}
+
+	private createNewTabControl(): void {
+		const newTabButton = $('.tabs-bar-new-tab.codicon.codicon-add', { role: 'button', tabindex: 0 });
+		newTabButton.ariaLabel = localize('newTabButtonAriaLabel', "New Tab");
+		newTabButton.title = localize('newTabButtonTitle', "New Tab");
+		assertReturnsDefined(this.tabsAndActionsContainer).appendChild(newTabButton);
+		this._register(addDisposableListener(newTabButton, EventType.CLICK, e => {
+			EventHelper.stop(e);
+			this.openNewTabPage();
+		}));
+	}
+
+	private openNewTabPage(): void {
+		this.groupsView.activateGroup(this.groupView.id);
+		void this.editorService.openEditor(this.instantiationService.createInstance(ShortestPathNewTabInput), this.groupView.id);
 	}
 
 	private createAddTabControl(menuId: MenuId): void {
@@ -578,6 +598,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private handleOpenedEditors(): boolean {
+		this.emptyTabDisposable.clear();
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
@@ -691,6 +712,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		else {
 			if (this.tabsContainer) {
 				clearNode(this.tabsContainer);
+				this.emptyTabDisposable.clear();
 				if (this.addTabContainer) {
 					this.tabsContainer.appendChild(this.addTabContainer);
 				}
@@ -703,7 +725,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.tabActionBars = [];
 
 			this.clearEditorActionsToolbar();
+			this.updateEditorLayoutActionsToolbar();
 			this.updateTabsControlVisibility();
+			this.openNewTabPage();
 		}
 	}
 
@@ -1843,7 +1867,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
-		return editorActions;
+		const groups = this.groupsView.getGroups(GroupsOrder.GRID_APPEARANCE);
+		return groups[groups.length - 1] === this.groupView ? editorActions : { primary: [], secondary: [] };
 	}
 
 	getHeight(): number {
