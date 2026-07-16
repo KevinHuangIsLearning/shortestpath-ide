@@ -170,6 +170,7 @@
 			fontLigatures: document.getElementById('fontLigatures')?.checked ?? false,
 			fontSize: Math.min(32, Math.max(10, Number(document.getElementById('fontSize')?.value ?? 14) || 14)),
 			autoFormat: document.getElementById('autoFormat')?.checked ?? false,
+			clangdVariableTypeHints: document.getElementById('clangdVariableTypeHints')?.checked ?? true,
 			vjudgeOpenInBrowser: document.getElementById('vjudgeOpenInBrowser')?.checked ?? false,
 			cppStandard: document.getElementById('cppStandard')?.value ?? 'c++23',
 			workspaceFolder: document.getElementById('workspaceFolder')?.value ?? ''

@@ -17,7 +17,7 @@ import { Disposable, } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId } from './gettingStartedInput.js';
+import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -35,6 +35,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { IOnboardingService } from '../../welcomeOnboarding/common/onboardingService.js';
 import { ONBOARDING_STORAGE_KEY } from '../../welcomeOnboarding/common/onboardingTypes.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { ShortestPathNewTabInput } from '../../shortestpath/browser/shortestPathNewTabInput.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -83,6 +84,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 
 	static readonly ID = 'workbench.contrib.startupPageRunner';
 	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
@@ -136,7 +138,11 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		}
 
 		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService);
-		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
+		// ShortestPath always keeps an editor surface available: when session
+		// restore leaves no editor tabs, open the New Tab (Welcome) page even on
+		// a reloaded window or when a previous user setting chose no startup editor.
+		const shouldOpenNewTabPage = !this.editorService.activeEditor;
+		if ((enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) || shouldOpenNewTabPage) {
 
 			// Open the welcome even if we opened a set of default editors
 			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
@@ -148,6 +154,8 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 					await this.openGettingStarted(true);
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
+				} else if (shouldOpenNewTabPage) {
+					await this.openGettingStarted(true);
 				}
 			}
 		}
@@ -203,7 +211,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	}
 
 	private async openGettingStarted(showTelemetryNotice?: boolean) {
-		const startupEditorTypeID = gettingStartedInputTypeId;
+		const startupEditorTypeID = ShortestPathNewTabInput.ID;
 		const editor = this.editorService.activeEditor;
 
 		// Ensure that the welcome editor won't get opened more than once
@@ -211,17 +219,11 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		if (startupEditorTypeID === gettingStartedInputTypeId) {
-			this.editorService.openEditor({
-				resource: GettingStartedInput.RESOURCE,
-				options: {
-					index: editor ? 0 : undefined,
-					pinned: false,
-					preserveFocus: this.shouldPreserveFocus(),
-					...{ showTelemetryNotice }
-				},
-			});
-		}
+		await this.editorService.openEditor(this.instantiationService.createInstance(ShortestPathNewTabInput), {
+			index: editor ? 0 : undefined,
+			pinned: false,
+			preserveFocus: this.shouldPreserveFocus(),
+		});
 	}
 
 	private shouldPreserveFocus(): boolean {

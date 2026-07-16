@@ -48,6 +48,12 @@
 					"default": true,
 					"scope": "window",
 					"description": "%configuration.executableCleanupEnabled%"
+				},
+				"shortestpath.newFile.defaultLanguage": {
+					"type": "string",
+					"default": "cpp",
+					"scope": "window",
+					"description": "%configuration.newFileDefaultLanguage%"
 				}
 			}
 		},

@@ -46,7 +46,7 @@ async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promi
 }
 
 async function collectDiagnostics(): Promise<DiagnosticItem[]> {
-	const configuration = vscode.workspace.getConfiguration();
+	const configuration = vscode.workspace.getConfiguration(undefined, null);
 	const compiler = configuration.get<string>('cph.language.cpp.Command') ?? '';
 	const compileRunCompiler = configuration.get<string>('c-cpp-compile-run.cpp-compiler') ?? '';
 	const clangd = configuration.get<string>('clangd.path') ?? '';

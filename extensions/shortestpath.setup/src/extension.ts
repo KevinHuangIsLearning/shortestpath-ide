@@ -32,6 +32,7 @@ type FirstRunSelection = {
 	fontLigatures: boolean;
 	fontSize: number;
 	autoFormat: boolean;
+	clangdVariableTypeHints: boolean;
 	vjudgeOpenInBrowser: boolean;
 	cppStandard: 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 	workspaceFolder: string;
@@ -178,8 +179,16 @@ const editorSettings: Record<string, unknown> = {
 	'files.autoSave': 'onFocusChange',
 	'editor.formatOnSave': true,
 	'editor.formatOnPaste': true,
+	'editor.inlayHints.enabled': 'on',
 	'editor.mouseWheelZoom': true,
 	'window.systemColorTheme': 'auto',
+	'window.titleBarStyle': 'custom',
+	'window.commandCenter': false,
+	'workbench.startupEditor': 'welcomePage',
+	'workbench.navigationControl.enabled': false,
+	'workbench.layoutControl.enabled': true,
+	'workbench.layoutControl.type': 'both',
+	'workbench.statusBar.visible': false,
 };
 
 const cphSettings: Record<string, unknown> = {
@@ -189,6 +198,15 @@ const cphSettings: Record<string, unknown> = {
 	'cph.general.vjudgeOpenInBrowser': false,
 	'cph.general.vjudgeBrowserSplitRatio': 65,
 	'cph.general.vjudgeUrlSuffix': '#author=translator:1281309:zh',
+	'cph.general.fileNameTemplate': '{ojName}/{contestId}/{problemId}.{ext}',
+	'cph.general.fileNameTemplateOverrides': {
+		CSES: '{ojName}/{problemId}_{slug}.{ext}',
+		AT: '{ojName}/{contestId}/{problemId}.{ext}',
+		CF: '{ojName}/{contestId}/{problemId}.{ext}',
+		LG: '{ojName}/{problemId}.{ext}',
+		VJ: '{ojName}/{problemId}{slug}.{ext}',
+		'牛客': 'NowCoder/{problemId}.{ext}'
+	},
 	'cph.general.vjudgeOjNames': {
 		CodeForces: { urlTemplate: 'https://codeforces.com/problemset/problem/{contestId}/{problemId}', problemIdRegex: '^(\\d+)([A-Z]\\d*)$' },
 		CF: { urlTemplate: 'https://codeforces.com/problemset/problem/{contestId}/{problemId}', problemIdRegex: '^(\\d+)([A-Z]\\d*)$' },
@@ -290,7 +308,7 @@ async function repairToolchain(context: vscode.ExtensionContext): Promise<void> 
 	if (compiler && clangd && !await isAppleClang(compiler)) {
 		// Repair only toolchain-related settings; do not overwrite the user's editor
 		// and CPH preferences with the first-run preset.
-		const configuration = vscode.workspace.getConfiguration();
+		const configuration = vscode.workspace.getConfiguration(undefined, null);
 		const flags = configuration.get<string>('cph.language.cpp.Args')
 			?? configuration.get<string>('c-cpp-compile-run.cpp-flags')
 			?? '';
@@ -360,6 +378,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 			settings['editor.fontSize'] = firstRunSelection.fontSize;
 			settings['editor.formatOnSave'] = firstRunSelection.autoFormat;
 			settings['editor.formatOnPaste'] = firstRunSelection.autoFormat;
+			settings['editor.inlayHints.enabled'] = firstRunSelection.clangdVariableTypeHints ? 'on' : 'off';
 		}
 	}
 	if (includeCph) {
@@ -428,6 +447,7 @@ function isFirstRunSelection(candidate: unknown): candidate is FirstRunSelection
 		&& typeof value.fontLigatures === 'boolean'
 		&& typeof value.fontSize === 'number'
 		&& typeof value.autoFormat === 'boolean'
+		&& typeof value.clangdVariableTypeHints === 'boolean'
 		&& typeof value.vjudgeOpenInBrowser === 'boolean'
 		&& (value.cppStandard === 'c++11' || value.cppStandard === 'c++14' || value.cppStandard === 'c++17' || value.cppStandard === 'c++20' || value.cppStandard === 'c++23')
 		&& typeof value.workspaceFolder === 'string'
@@ -492,16 +512,16 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 
 async function updateGlobalSettings(settings: Record<string, unknown>): Promise<void> {
 	for (const [key, value] of Object.entries(settings)) {
-		await vscode.workspace.getConfiguration().update(key, value, vscode.ConfigurationTarget.Global);
+		await vscode.workspace.getConfiguration(undefined, null).update(key, value, vscode.ConfigurationTarget.Global);
 	}
 }
 
 function getGlobalFileExcludes(): Record<string, boolean> {
-	return vscode.workspace.getConfiguration('files').inspect<Record<string, boolean>>('exclude')?.globalValue ?? {};
+	return vscode.workspace.getConfiguration('files', null).inspect<Record<string, boolean>>('exclude')?.globalValue ?? {};
 }
 
 function hasShortestPathHiddenFiles(): boolean {
-	const excludes = vscode.workspace.getConfiguration('files').get<Record<string, boolean>>('exclude') ?? {};
+	const excludes = vscode.workspace.getConfiguration('files', null).get<Record<string, boolean>>('exclude') ?? {};
 	return Object.keys(shortestPathHiddenFiles).some(pattern => excludes[pattern] === true);
 }
 
@@ -510,7 +530,7 @@ async function ensureShortestPathFileExcludes(): Promise<void> {
 	if (Object.keys(shortestPathHiddenFiles).every(pattern => excludes[pattern] === true)) {
 		return;
 	}
-	await vscode.workspace.getConfiguration('files').update('exclude', {
+	await vscode.workspace.getConfiguration('files', null).update('exclude', {
 		...excludes,
 		...shortestPathHiddenFiles
 	}, vscode.ConfigurationTarget.Global);
@@ -525,7 +545,7 @@ async function toggleHiddenFiles(): Promise<void> {
 	} else {
 		Object.assign(excludes, shortestPathHiddenFiles);
 	}
-	await vscode.workspace.getConfiguration('files').update('exclude', excludes, vscode.ConfigurationTarget.Global);
+	await vscode.workspace.getConfiguration('files', null).update('exclude', excludes, vscode.ConfigurationTarget.Global);
 }
 
 async function findFirstExecutable(candidates: readonly string[]): Promise<string | undefined> {

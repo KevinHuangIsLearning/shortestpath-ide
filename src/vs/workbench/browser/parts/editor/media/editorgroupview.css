@@ -218,6 +218,16 @@
 	display: none;
 }
 
+/* The editor tab row replaces the hidden custom titlebar. Keep it present when
+ * the last editor closes so the window still has a full-width drag region. */
+.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container.empty > .title {
+	display: flex;
+	height: 35px;
+	min-height: 35px;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder);
+}
+
 /* Optional full-width header rendered in flow between the tab bar and the editor
  * pane (used by the Agents window single-pane layout). Height is set inline. */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header {

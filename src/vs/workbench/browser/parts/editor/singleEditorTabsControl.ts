@@ -19,6 +19,7 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorTitleControlDimensions } from './editorTitleControl.js';
 import { BreadcrumbsControlFactory } from './breadcrumbsControl.js';
+import { GroupsOrder } from '../../../services/editor/common/editorGroupsService.js';
 
 interface IRenderedEditorLabel {
 	readonly editor?: EditorInput;
@@ -360,11 +361,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	}
 
 	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
-		// Surface the editor layout actions (`MenuId.EditorTitleLayout`) even when tabs are
-		// shown as a single tab. This menu is only populated by the Agents window (e.g. the
-		// Maximize/Restore Editor Area actions), so showing it here has no effect on the
-		// regular workbench where the menu is empty.
-		return editorActions;
+		const groups = this.groupsView.getGroups(GroupsOrder.GRID_APPEARANCE);
+		return groups[groups.length - 1] === this.groupView ? editorActions : { primary: [], secondary: [] };
 	}
 
 	getHeight(): number {

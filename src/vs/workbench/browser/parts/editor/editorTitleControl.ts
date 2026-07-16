@@ -18,6 +18,8 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MultiRowEditorControl } from './multiRowEditorTabsControl.js';
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { NoEditorTabsControl } from './noEditorTabsControl.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
 
 export interface IEditorTitleControlDimensions {
 
@@ -50,7 +52,8 @@ export class EditorTitleControl extends Themable {
 		private readonly model: IReadonlyEditorGroupModel,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(themeService);
 
@@ -214,7 +217,7 @@ export class EditorTitleControl extends Themable {
 
 		return new Dimension(
 			dimensions.container.width,
-			tabsControlDimension.height + (breadcrumbsControlDimension ? breadcrumbsControlDimension.height : 0)
+			Math.max(tabsControlDimension.height + (breadcrumbsControlDimension ? breadcrumbsControlDimension.height : 0), this.emptyTitlebarHeight)
 		);
 	}
 
@@ -223,8 +226,15 @@ export class EditorTitleControl extends Themable {
 		const breadcrumbsControlHeight = this.breadcrumbsControl?.isHidden() === false ? BreadcrumbsControl.HEIGHT : 0;
 
 		return {
-			total: tabsControlHeight + breadcrumbsControlHeight,
-			offset: tabsControlHeight
+			total: Math.max(tabsControlHeight + breadcrumbsControlHeight, this.emptyTitlebarHeight),
+			offset: Math.max(tabsControlHeight, this.emptyTitlebarHeight)
 		};
+	}
+
+	private get emptyTitlebarHeight(): number {
+		return this.groupView.isEmpty &&
+			!hasNativeTitlebar(this.configurationService)
+			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT
+			: 0;
 	}
 }

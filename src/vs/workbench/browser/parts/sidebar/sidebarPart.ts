@@ -34,6 +34,11 @@ import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -83,6 +88,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -127,6 +133,27 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		this.registerActions();
+	}
+
+	override create(parent: HTMLElement): void {
+		super.create(parent);
+
+		const commandCenter = parent.ownerDocument.createElement('button');
+		commandCenter.className = 'shortestpath-sidebar-command-center';
+		commandCenter.type = 'button';
+		commandCenter.setAttribute('aria-label', localize2('sidebarCommandCenter', 'Search Files and Commands').value);
+		commandCenter.title = localize2('sidebarCommandCenterTooltip', 'Search Files and Commands').value;
+
+		const icon = parent.ownerDocument.createElement('span');
+		icon.className = 'codicon codicon-search';
+		icon.ariaHidden = 'true';
+		const label = parent.ownerDocument.createElement('span');
+		label.className = 'label';
+		label.textContent = localize2('sidebarCommandCenterLabel', 'Search').value;
+		commandCenter.append(icon, label);
+		parent.appendChild(commandCenter);
+
+		this._register(addDisposableListener(commandCenter, EventType.CLICK, () => this.commandService.executeCommand('workbench.action.quickOpenWithModes')));
 	}
 
 	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {
@@ -180,6 +207,11 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			return;
+		}
+
+		if ((isMacintosh || isWindows) && !hasNativeTitlebar(this.configurationService) && !this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
+			super.layout(width, Math.max(0, height - DEFAULT_CUSTOM_TITLEBAR_HEIGHT), top + DEFAULT_CUSTOM_TITLEBAR_HEIGHT, left);
 			return;
 		}
 
