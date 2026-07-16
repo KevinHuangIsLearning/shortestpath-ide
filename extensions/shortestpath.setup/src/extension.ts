@@ -49,6 +49,21 @@ const shortestPathHiddenFiles: Record<string, boolean> = {
 
 const FILE_EXCLUDES_MIGRATION = 'shortestpath.fileExcludes.v2';
 
+function clangdArgumentsForCompiler(compiler: string): string[] {
+	// Homebrew exposes GCC through multiple symlinked paths, for example both
+	// /opt/homebrew/bin/g++-16 and /opt/homebrew/opt/gcc/bin/g++-16. clangd
+	// matches --query-driver against the path in its CompileFlags config before
+	// resolving that symlink, so allowing only the selected path can leave GCC's
+	// libstdc++ headers (including bits/stdc++.h) undiscovered.
+	if (process.platform === 'darwin') {
+		return [
+			'--background-index',
+			'--query-driver=/opt/homebrew/**/g++-*,/usr/local/**/g++-*'
+		];
+	}
+	return ['--background-index', `--query-driver=${compiler}`];
+}
+
 function defaultClangdProjectConfig(compiler: string, cppStandard: FirstRunSelection['cppStandard']): string {
 	const includePath = process.platform === 'darwin' ? '\n    - -I/opt/homebrew/include' : '';
 	const compilerPath = compiler.replaceAll('\\', '/');
@@ -283,7 +298,7 @@ async function repairToolchain(context: vscode.ExtensionContext): Promise<void> 
 			'cph.language.cpp.Command': compiler,
 			'c-cpp-compile-run.cpp-compiler': compiler,
 			'clangd.path': clangd,
-			'clangd.arguments': ['--background-index', `--query-driver=${compiler}`]
+			'clangd.arguments': clangdArgumentsForCompiler(compiler)
 		};
 		if (flags) {
 			settings['cph.language.cpp.Args'] = flags;
@@ -376,7 +391,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		if (firstRunSelection) {
 			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard);
 		}
-		settings['clangd.arguments'] = ['--background-index', `--query-driver=${compiler}`];
+		settings['clangd.arguments'] = clangdArgumentsForCompiler(compiler);
 	}
 	if (clangd) {
 		settings['clangd.path'] = clangd;
@@ -536,7 +551,10 @@ async function findPreferredCompiler(candidates: readonly string[]): Promise<str
 	if (brew) {
 		const prefix = await getHomebrewGccPrefix(brew);
 		if (prefix) {
-			directories.unshift(path.join(prefix, 'bin'));
+			// Prefer the executable that Homebrew exposes on PATH (`which g++-16`).
+			// clangd's query-driver matching is path-sensitive, while the formula
+			// prefix is an additional symlink that can differ from user config.
+			directories.push(path.join(prefix, 'bin'));
 		}
 	}
 

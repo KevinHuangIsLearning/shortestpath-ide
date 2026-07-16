@@ -163,6 +163,15 @@ async function openCppSnippets(context: vscode.ExtensionContext): Promise<void> 
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'save' && Array.isArray(message.entries)) {
 			await writeCppSnippets(context, message.entries as SnippetEntry[]);
+		} else if (message?.type === 'confirmDelete' && typeof message.name === 'string') {
+			const action = await vscode.window.showWarningMessage(
+				`确定删除模板“${message.name || '未命名模板'}”吗？删除后会立即保存到 cpp.json。`,
+				{ modal: true },
+				'删除模板'
+			);
+			if (action === '删除模板') {
+				await panel.webview.postMessage({ type: 'deleteConfirmed' });
+			}
 		} else if (message?.type === 'openJson') {
 			await vscode.window.showTextDocument(await ensureCppSnippetsFile(context), { preview: false });
 		}
@@ -659,8 +668,10 @@ function field(label, key, multiline) { const wrapper = document.createElement('
 function renderForm() { const form = byId('form'); form.replaceChildren(); if (selected < 0) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = '还没有模板。点击左侧 ＋ 新建一个。'; form.append(empty); return; } form.append(field('模板名称', 'name'), field('触发前缀', 'prefix'), field('模板内容', 'body', true), field('说明（可选）', 'description')); const patterns = document.createElement('div'); patterns.className = 'two'; patterns.append(field('Include（逗号分隔，可选）', 'include'), field('Exclude（逗号分隔，可选）', 'exclude')); form.append(patterns); }
 function render() { renderList(); renderForm(); byId('delete').disabled = selected < 0; }
 byId('add').onclick = () => { entries.push({ name: '新模板', prefix: '', body: '', description: '', include: '', exclude: '' }); selected = entries.length - 1; render(); save(); };
-byId('delete').onclick = () => { if (selected < 0) return; entries.splice(selected, 1); selected = Math.min(selected, entries.length - 1); render(); save(); };
+function deleteSelected() { if (selected < 0) return; entries.splice(selected, 1); selected = Math.min(selected, entries.length - 1); render(); save(); }
+byId('delete').onclick = () => { if (selected < 0) return; vscode.postMessage({ type: 'confirmDelete', name: entries[selected].name || '未命名模板' }); };
 byId('openJson').onclick = () => vscode.postMessage({ type: 'openJson' });
+window.addEventListener('message', event => { if (event.data?.type === 'deleteConfirmed') deleteSelected(); });
 render();
 </script></body></html>`;
 }

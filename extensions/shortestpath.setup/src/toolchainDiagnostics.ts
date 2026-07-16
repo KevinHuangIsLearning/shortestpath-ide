@@ -30,6 +30,17 @@ async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promi
 			await vscode.env.openExternal(vscode.Uri.file(target));
 		}
 	}, undefined, context.subscriptions);
+	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
+		if (panel.visible && (event.affectsConfiguration('clangd.arguments') || event.affectsConfiguration('clangd.path') || event.affectsConfiguration('cph.language.cpp.Command') || event.affectsConfiguration('c-cpp-compile-run.cpp-compiler'))) {
+			void refresh();
+		}
+	});
+	panel.onDidChangeViewState(event => {
+		if (event.webviewPanel.visible) {
+			void refresh();
+		}
+	});
+	panel.onDidDispose(() => configurationListener.dispose());
 	panel.webview.html = getHtml();
 	await refresh();
 }
@@ -56,11 +67,16 @@ async function collectDiagnostics(): Promise<DiagnosticItem[]> {
 		status: cphFlags === compileRunFlags && !!cphFlags ? 'ok' : 'warning',
 		detail: cphFlags === compileRunFlags && !!cphFlags ? `CPH 与 Compile Run 一致：${cphFlags}` : `CPH：${cphFlags || '未配置'}；Compile Run：${compileRunFlags || '未配置'}`
 	});
-	const queryDriver = Array.isArray(clangdArguments) && clangdArguments.some(argument => typeof argument === 'string' && argument === `--query-driver=${compiler}`);
+	const queryDriver = Array.isArray(clangdArguments) && clangdArguments.some(argument =>
+		typeof argument === 'string' && (
+			argument === `--query-driver=${compiler}` ||
+			(process.platform === 'darwin' && argument === '--query-driver=/opt/homebrew/**/g++-*,/usr/local/**/g++-*')
+		)
+	);
 	items.push({
 		label: 'clangd Query Driver',
 		status: compiler && queryDriver ? 'ok' : 'warning',
-		detail: compiler && queryDriver ? `已指向 ${compiler}` : 'clangd 未配置与当前 C++ 编译器匹配的 --query-driver。'
+		detail: compiler && queryDriver ? (process.platform === 'darwin' ? '已允许 Homebrew GCC 的所有稳定链接路径。' : `已指向 ${compiler}`) : 'clangd 未配置与当前 C++ 编译器匹配的 --query-driver。'
 	});
 	for (const extension of [
 		{ id: 'divyanshuagrawal.competitive-programming-helper', label: 'Competitive Programming Helper（CPH）' },
