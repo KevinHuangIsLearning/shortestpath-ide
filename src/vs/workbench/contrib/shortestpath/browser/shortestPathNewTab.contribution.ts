@@ -17,7 +17,7 @@ import { ShortestPathNewTabEditor } from './shortestPathNewTabEditor.js';
 import { localizeNewTab, ShortestPathNewTabInput } from './shortestPathNewTabInput.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(ShortestPathNewTabEditor, ShortestPathNewTabEditor.ID, localizeNewTab('shortestPathNewTab.editor', 'New Tab', '新建标签页')),
+	EditorPaneDescriptor.create(ShortestPathNewTabEditor, ShortestPathNewTabEditor.ID, localizeNewTab('New Tab', '新建标签页')),
 	[new SyncDescriptor(ShortestPathNewTabInput)]
 );
 
@@ -46,7 +46,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'shortestpath.action.openNewTab',
 			title: {
-				value: localizeNewTab('shortestPathNewTab.open', 'New Tab', '新建标签页'),
+				value: localizeNewTab('New Tab', '新建标签页'),
 				original: 'New Tab',
 			},
 			f1: true,
