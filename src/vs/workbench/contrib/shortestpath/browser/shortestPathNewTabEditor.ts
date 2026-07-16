@@ -16,7 +16,9 @@ import { localizeNewTab } from './shortestPathNewTabInput.js';
 
 export class ShortestPathNewTabEditor extends EditorPane {
 
-	static readonly ID = ShortestPathNewTabEditor.name;
+	// Do not derive this identifier from the class name. Production workbench
+	// bundles are minified, where class names are not a stable editor ID.
+	static readonly ID = 'workbench.editor.shortestPathNewTab';
 
 	constructor(
 		group: IEditorGroup,
@@ -33,15 +35,23 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		const container = append(parent, $('.shortestpath-new-tab'));
 		const content = append(container, $('.shortestpath-new-tab-content'));
 		append(content, $('h1', undefined, localizeNewTab('ShortestPath IDE', 'ShortestPath IDE')));
+		// allow-any-unicode-next-line
 		append(content, $('.subtitle', undefined, localizeNewTab('Competitive programming, focused.', '专注于竞赛编程。')));
+		// allow-any-unicode-next-line
 		append(content, $('h2', undefined, localizeNewTab('Start', '开始')));
 
 		const actions = append(content, $('.shortestpath-new-tab-actions'));
+		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('New File...', '新建文件...'), 'codicon-new-file', () => this.commandService.executeCommand('workbench.action.files.newUntitledFile', { languageId: this.configurationService.getValue<string>('shortestpath.newFile.defaultLanguage') || 'cpp' }));
+		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open...', '打开...'), 'codicon-folder-opened', () => this.commandService.executeCommand('workbench.action.files.openFile'));
+		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open Folder...', '打开文件夹...'), 'codicon-folder', () => this.commandService.executeCommand('workbench.action.files.openFolder'));
+		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open File Quickly...', '快速打开文件...'), 'codicon-go-to-file', () => this.commandService.executeCommand('workbench.action.quickOpen'));
+		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open Integrated Browser', '打开内置浏览器'), 'codicon-globe', () => this.commandService.executeCommand('workbench.action.browser.open'));
+		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open Settings', '打开设置'), 'codicon-settings-gear', () => this.commandService.executeCommand('shortestpath.openSettings'));
 	}
 
