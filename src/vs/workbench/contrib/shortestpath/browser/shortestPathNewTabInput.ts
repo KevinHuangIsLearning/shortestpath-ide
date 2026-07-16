@@ -6,10 +6,10 @@
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
 import { URI } from '../../../../base/common/uri.js';
-import { getNLSLanguage, localize } from '../../../../nls.js';
+import { getNLSLanguage } from '../../../../nls.js';
 
-export function localizeNewTab(key: string, english: string, chinese: string): string {
-	return getNLSLanguage()?.toLowerCase().startsWith('zh') ? chinese : localize(key, english);
+export function localizeNewTab(english: string, chinese: string): string {
+	return getNLSLanguage()?.toLowerCase().startsWith('zh') ? chinese : english;
 }
 
 export class ShortestPathNewTabInput extends EditorInput {
@@ -23,7 +23,7 @@ export class ShortestPathNewTabInput extends EditorInput {
 	override get resource(): URI { return ShortestPathNewTabInput.RESOURCE; }
 
 	override getName(): string {
-		return localizeNewTab('shortestPathNewTab.name', 'New Tab', '新建标签页');
+		return localizeNewTab('New Tab', '新建标签页');
 	}
 
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {
