@@ -12,7 +12,6 @@
  * Keep all side surfaces below that row using this one CSS geometry source. */
 .monaco-workbench.custom-titlebar-hidden.mac .part.activitybar.left,
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar.left,
-.monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar.left,
 .monaco-workbench.custom-titlebar-hidden.windows .part.activitybar,
 .monaco-workbench.custom-titlebar-hidden.windows .part.sidebar,
 .monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar {
@@ -69,7 +68,8 @@
 }
 
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar.left > .shortestpath-sidebar-command-center-container {
-	left: 36px;
+	/* Clear the full traffic-light cluster before the toggle and Search begin. */
+	left: 100px;
 }
 
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-command-center,
@@ -134,6 +134,41 @@
 .monaco-workbench:not(.mac):not(.windows) .part.sidebar > .shortestpath-sidebar-command-center-container,
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar.right > .shortestpath-sidebar-command-center-container {
 	display: none;
+}
+
+/* The local toggle is intentionally removed with the Sidebar. Keep one compact
+ * recovery control in the workbench strip so a hidden Sidebar can be restored. */
+.monaco-workbench .shortestpath-global-sidebar-toggle {
+	display: none;
+}
+
+.monaco-workbench.custom-titlebar-hidden.nosidebar.mac .shortestpath-global-sidebar-toggle,
+.monaco-workbench.custom-titlebar-hidden.nosidebar.windows .shortestpath-global-sidebar-toggle {
+	position: absolute;
+	top: 2px;
+	left: calc(env(titlebar-area-x, 0px) + 10px);
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	box-sizing: border-box;
+	padding: 0;
+	color: var(--vscode-commandCenter-foreground);
+	background-color: var(--vscode-commandCenter-background);
+	border: 1px solid var(--vscode-commandCenter-border);
+	border-radius: 6px;
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+	z-index: 3;
+}
+
+.monaco-workbench.custom-titlebar-hidden.nosidebar.mac .shortestpath-global-sidebar-toggle {
+	left: 100px;
+}
+
+.monaco-workbench.custom-titlebar-hidden.nosidebar .shortestpath-global-sidebar-toggle:hover {
+	color: var(--vscode-commandCenter-activeForeground);
+	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
 .monaco-workbench .part.sidebar .title-actions .actions-container {

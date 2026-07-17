@@ -141,8 +141,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		const toggleSidebar = parent.ownerDocument.createElement('button');
 		toggleSidebar.className = 'shortestpath-sidebar-toggle';
 		toggleSidebar.type = 'button';
-		toggleSidebar.setAttribute('aria-label', localize2('sidebarToggle', 'Toggle Primary Side Bar').value);
-		toggleSidebar.title = localize2('sidebarToggleTooltip', 'Toggle Primary Side Bar').value;
+		// allow-any-unicode-next-line
+		toggleSidebar.setAttribute('aria-label', localize2('sidebarToggle', '切换主侧栏').value);
+		// allow-any-unicode-next-line
+		toggleSidebar.title = localize2('sidebarToggleTooltip', '切换主侧栏').value;
 		const toggleIcon = parent.ownerDocument.createElement('span');
 		toggleIcon.className = 'codicon codicon-layout-sidebar-left';
 		toggleIcon.ariaHidden = 'true';
