@@ -34,9 +34,6 @@ import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
-import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
@@ -203,19 +200,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
 		container.style.borderLeftColor = !isPositionLeft ? borderColor || '' : '';
 		container.style.outlineColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
-	}
-
-	override layout(width: number, height: number, top: number, left: number): void {
-		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			return;
-		}
-
-		if ((isMacintosh || isWindows) && !hasNativeTitlebar(this.configurationService) && !this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
-			super.layout(width, Math.max(0, height - DEFAULT_CUSTOM_TITLEBAR_HEIGHT), top + DEFAULT_CUSTOM_TITLEBAR_HEIGHT, left);
-			return;
-		}
-
-		super.layout(width, height, top, left);
 	}
 
 	protected override getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {

@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { EditorCommandsContextActionRunner, EditorTabsControl } from './editorTabsControl.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -34,7 +35,7 @@ import { activeContrastBorder, contrastBorder, editorBackground } from '../../..
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, isWindowDraggedOver } from '../../dnd.js';
 import { Color } from '../../../../base/common/color.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { GroupsOrder, MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
+import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, $ } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
@@ -63,7 +64,7 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ShortestPathNewTabInput } from '../../../contrib/shortestpath/browser/shortestPathNewTabInput.js';
+import { IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -162,6 +163,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IHostService hostService: IHostService,
 		@IMenuService menuService: IMenuService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, menuIds, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService);
 
@@ -232,7 +234,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private openNewTabPage(): void {
 		this.groupsView.activateGroup(this.groupView.id);
-		void this.editorService.openEditor(this.instantiationService.createInstance(ShortestPathNewTabInput), this.groupView.id);
+		void this.commandService.executeCommand('shortestpath.action.openNewTab');
 	}
 
 	private createAddTabControl(menuId: MenuId): void {
@@ -1867,8 +1869,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
-		const groups = this.groupsView.getGroups(GroupsOrder.GRID_APPEARANCE);
-		return groups[groups.length - 1] === this.groupView ? editorActions : { primary: [], secondary: [] };
+		return this.contextKeyService.getContextKeyValue<boolean>(IsTopRightEditorGroupContext.key) ? editorActions : { primary: [], secondary: [] };
 	}
 
 	getHeight(): number {

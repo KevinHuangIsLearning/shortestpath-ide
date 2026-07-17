@@ -19,7 +19,7 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorTitleControlDimensions } from './editorTitleControl.js';
 import { BreadcrumbsControlFactory } from './breadcrumbsControl.js';
-import { GroupsOrder } from '../../../services/editor/common/editorGroupsService.js';
+import { IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 
 interface IRenderedEditorLabel {
 	readonly editor?: EditorInput;
@@ -361,8 +361,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	}
 
 	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
-		const groups = this.groupsView.getGroups(GroupsOrder.GRID_APPEARANCE);
-		return groups[groups.length - 1] === this.groupView ? editorActions : { primary: [], secondary: [] };
+		return this.contextKeyService.getContextKeyValue<boolean>(IsTopRightEditorGroupContext.key) ? editorActions : { primary: [], secondary: [] };
 	}
 
 	getHeight(): number {
