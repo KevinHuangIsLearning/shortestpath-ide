@@ -9,7 +9,7 @@
 }
 
 /* The first row belongs to the editor tabs when the custom titlebar is hidden.
- * Move the complete left-side surfaces below the macOS traffic lights. */
+ * Keep all side surfaces below that row using this one CSS geometry source. */
 .monaco-workbench.custom-titlebar-hidden.mac .part.activitybar,
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar,
 .monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar,
@@ -29,13 +29,19 @@
 	-webkit-app-region: drag;
 }
 
+.monaco-workbench.custom-titlebar-hidden.windows > .monaco-grid-view {
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	-webkit-app-region: drag;
+}
+
 /* Once the last tab closes there is no tabbar to visually join. Match the
  * empty editor instead, while keeping the top strip draggable. */
 .monaco-workbench.custom-titlebar-hidden.mac:has(.part.editor > .content .editor-group-container.empty) > .monaco-grid-view {
 	background-color: var(--vscode-editor-background);
 }
 
-.monaco-workbench.custom-titlebar-hidden.mac > .monaco-grid-view .part {
+.monaco-workbench.custom-titlebar-hidden.mac > .monaco-grid-view .part,
+.monaco-workbench.custom-titlebar-hidden.windows > .monaco-grid-view .part {
 	-webkit-app-region: no-drag;
 }
 

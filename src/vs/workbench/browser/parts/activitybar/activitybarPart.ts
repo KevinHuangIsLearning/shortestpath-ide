@@ -19,7 +19,7 @@ import { addDisposableListener, append, EventType, isAncestor, $, clearNode } fr
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMenuBarVisibility, hasNativeTitlebar, MenuSettings } from '../../../../platform/window/common/window.js';
+import { getMenuBarVisibility, MenuSettings } from '../../../../platform/window/common/window.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -39,8 +39,6 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
-import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 
 export class ActivitybarPart extends Part {
 
@@ -275,11 +273,8 @@ export class ActivitybarPart extends Part {
 		// by the same amount (see minimum/maximumWidth) and the matching margins are
 		// applied in CSS (`.floating-panels .part.activitybar`).
 		const gutter = this.floatingGutter;
-		const hiddenTitlebarInset = (isMacintosh || isWindows) && !hasNativeTitlebar(this.configurationService) && !this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow)
-			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT
-			: 0;
 		const contentWidth = Math.max(0, width - gutter);
-		const contentHeight = Math.max(0, height - gutter - hiddenTitlebarInset);
+		const contentHeight = Math.max(0, height - gutter);
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;

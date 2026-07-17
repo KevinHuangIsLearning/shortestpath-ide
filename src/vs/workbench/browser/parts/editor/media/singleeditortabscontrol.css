@@ -19,11 +19,6 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container > .title:has(.editor-layout-actions .action-item) > .label-container {
-	padding-right: 138px;
-	box-sizing: border-box;
-}
-
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label {
 	line-height: var(--editor-group-tab-height);
 	overflow: hidden;

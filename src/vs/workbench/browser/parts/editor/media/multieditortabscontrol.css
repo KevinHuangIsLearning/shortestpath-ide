@@ -46,16 +46,10 @@
 	position: relative; /* position tabs border bottom or editor actions (when tabs wrap) relative to this container */
 }
 
-/* With no custom titlebar, the native controls share the editor tab row. Reserve
- * their space so tabs and actions never sit underneath them. */
+/* With no custom titlebar, the macOS traffic lights share the editor tab row. */
 .monaco-workbench.custom-titlebar-hidden.mac.nosidebar .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
 	box-sizing: border-box;
 	padding-left: 35px;
-}
-
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container:has(.editor-layout-actions .action-item) {
-	box-sizing: border-box;
-	padding-right: 138px;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty {
@@ -636,9 +630,11 @@
 	-webkit-app-region: no-drag;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions,
+.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions-separator,
+.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-layout-actions {
 
-	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
+	/* When multiple tab bars are visible, only show actions and layout controls on the last tab bar. */
 	display: none;
 }
 
