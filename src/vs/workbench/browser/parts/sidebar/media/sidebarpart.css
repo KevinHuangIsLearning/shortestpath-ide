@@ -10,15 +10,17 @@
 
 /* The first row belongs to the editor tabs when the custom titlebar is hidden.
  * Keep all side surfaces below that row using this one CSS geometry source. */
-.monaco-workbench.custom-titlebar-hidden.mac .part.activitybar,
-.monaco-workbench.custom-titlebar-hidden.mac .part.sidebar,
-.monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar,
+.monaco-workbench.custom-titlebar-hidden.mac .part.activitybar.left,
+.monaco-workbench.custom-titlebar-hidden.mac .part.sidebar.left,
+.monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar.left,
 .monaco-workbench.custom-titlebar-hidden.windows .part.activitybar,
 .monaco-workbench.custom-titlebar-hidden.windows .part.sidebar,
 .monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar {
 	position: relative;
 	top: 35px;
-	height: calc(100% - 35px);
+	/* Grid layout writes an inline height on parts. Override it so the bottom
+	 * global actions (including Manage/Settings) stay inside the viewport. */
+	height: calc(100% - 35px) !important;
 	overflow: visible;
 }
 
