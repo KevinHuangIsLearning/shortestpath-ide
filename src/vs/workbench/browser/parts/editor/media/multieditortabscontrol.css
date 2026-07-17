@@ -53,7 +53,7 @@
 	padding-left: 35px;
 }
 
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container:has(.editor-layout-actions .action-item) {
 	box-sizing: border-box;
 	padding-right: 138px;
 }
@@ -79,14 +79,23 @@
 /* In an empty editor group the otherwise transparent title row must remain a
  * native drag surface. Its layout controls still explicitly opt out below. */
 .monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty,
-.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty > .title {
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty,
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty > .title,
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty > .title {
 	-webkit-app-region: drag;
 }
 
 .monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .editor-layout-actions,
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .editor-layout-actions,
 .monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .tabs-bar-new-tab,
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .tabs-bar-new-tab,
 .monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .tab,
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .tab,
 .monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .action-item {
+	-webkit-app-region: no-drag;
+}
+
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .action-item {
 	-webkit-app-region: no-drag;
 }
 
