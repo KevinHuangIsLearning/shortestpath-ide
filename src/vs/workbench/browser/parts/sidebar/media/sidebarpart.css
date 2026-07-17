@@ -12,8 +12,10 @@
  * Move the complete left-side surfaces below the macOS traffic lights. */
 .monaco-workbench.custom-titlebar-hidden.mac .part.activitybar,
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar,
+.monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar,
 .monaco-workbench.custom-titlebar-hidden.windows .part.activitybar,
-.monaco-workbench.custom-titlebar-hidden.windows .part.sidebar {
+.monaco-workbench.custom-titlebar-hidden.windows .part.sidebar,
+.monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar {
 	position: relative;
 	top: 35px;
 	height: calc(100% - 35px);
