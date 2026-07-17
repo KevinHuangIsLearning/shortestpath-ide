@@ -135,6 +135,19 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	override create(parent: HTMLElement): void {
 		super.create(parent);
 
+		const commandCenterContainer = parent.ownerDocument.createElement('div');
+		commandCenterContainer.className = 'shortestpath-sidebar-command-center-container';
+
+		const toggleSidebar = parent.ownerDocument.createElement('button');
+		toggleSidebar.className = 'shortestpath-sidebar-toggle';
+		toggleSidebar.type = 'button';
+		toggleSidebar.setAttribute('aria-label', localize2('sidebarToggle', 'Toggle Primary Side Bar').value);
+		toggleSidebar.title = localize2('sidebarToggleTooltip', 'Toggle Primary Side Bar').value;
+		const toggleIcon = parent.ownerDocument.createElement('span');
+		toggleIcon.className = 'codicon codicon-layout-sidebar-left';
+		toggleIcon.ariaHidden = 'true';
+		toggleSidebar.appendChild(toggleIcon);
+
 		const commandCenter = parent.ownerDocument.createElement('button');
 		commandCenter.className = 'shortestpath-sidebar-command-center';
 		commandCenter.type = 'button';
@@ -148,8 +161,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		label.className = 'label';
 		label.textContent = localize2('sidebarCommandCenterLabel', 'Search').value;
 		commandCenter.append(icon, label);
-		parent.appendChild(commandCenter);
+		commandCenterContainer.append(toggleSidebar, commandCenter);
+		parent.appendChild(commandCenterContainer);
 
+		this._register(addDisposableListener(toggleSidebar, EventType.CLICK, () => this.commandService.executeCommand('workbench.action.toggleSidebarVisibility')));
 		this._register(addDisposableListener(commandCenter, EventType.CLICK, () => this.commandService.executeCommand('workbench.action.quickOpenWithModes')));
 	}
 
