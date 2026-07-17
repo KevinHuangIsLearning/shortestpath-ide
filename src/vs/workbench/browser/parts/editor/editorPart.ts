@@ -1165,6 +1165,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 				if (group instanceof EditorGroupView) {
 					group.element.classList.toggle('window-controls-overlay-left-host', group === topLeftGroup && !hasLeftSideSurface);
 					group.element.classList.toggle('window-controls-overlay-right-host', group === topRightGroup && !hasRightSideSurface);
+					group.element.classList.toggle('sidebar-recovery-host', group === topLeftGroup && !this.layoutService.isVisible(Parts.SIDEBAR_PART));
 				}
 			}
 		};
@@ -1193,6 +1194,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			this.applyContentRightInset();
 		}));
 		this._register(this.onDidLayout(() => updateTopRightGroupContextKey()));
+		this._register(this.layoutService.onDidChangePartVisibility(() => updateTopRightGroupContextKey()));
 	}
 
 	private setupDragAndDropSupport(parent: HTMLElement, container: HTMLElement): void {

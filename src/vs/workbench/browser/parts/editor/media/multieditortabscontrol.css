@@ -47,9 +47,15 @@
 }
 
 /* With no custom titlebar, the macOS traffic lights share the editor tab row. */
-.monaco-workbench.custom-titlebar-hidden.mac.nosidebar .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
+.monaco-workbench.custom-titlebar-hidden.mac.nosidebar .part.editor > .content .editor-group-container.sidebar-recovery-host > .title > .tabs-and-actions-container {
 	box-sizing: border-box;
-	padding-left: 35px;
+	/* Keep the first tab clear of the persistent Sidebar recovery button. */
+	padding-left: 128px;
+}
+
+.monaco-workbench.custom-titlebar-hidden.windows.nosidebar .part.editor > .content .editor-group-container.sidebar-recovery-host > .title > .tabs-and-actions-container {
+	box-sizing: border-box;
+	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
 }
 
 /* Electron exposes the native Window Controls Overlay geometry through the
@@ -62,6 +68,12 @@
 
 .monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-left-host > .title > .tabs-and-actions-container {
 	padding-left: env(titlebar-area-x, 0px);
+}
+
+/* When the Sidebar is hidden, the recovery control occupies the first 48px
+ * after the native left safe area. This must win over the regular WCO rule. */
+.monaco-workbench.custom-titlebar-hidden.windows.nosidebar .part.editor > .content .editor-group-container.window-controls-overlay-left-host.sidebar-recovery-host > .title > .tabs-and-actions-container {
+	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
 }
 
 .monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-right-host > .title > .tabs-and-actions-container {
