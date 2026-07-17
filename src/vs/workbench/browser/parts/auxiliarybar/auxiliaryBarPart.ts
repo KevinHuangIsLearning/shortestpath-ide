@@ -34,6 +34,9 @@ import { getContextMenuActions } from '../../../../platform/actions/browser/menu
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
+import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { Dimension } from '../../../../base/browser/dom.js';
 
 interface IAuxiliaryBarPartConfiguration {
 	position: ActivityBarPosition;
@@ -80,6 +83,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	private configuration: IAuxiliaryBarPartConfiguration;
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
+	private titlebarLayoutDimension: Dimension | undefined;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -146,6 +150,23 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 				this.onDidChangeActivityBarLocation();
 			}
 		}));
+	}
+
+	override layout(width: number, height: number, top: number, left: number): void {
+		// Windows shifts the secondary Sidebar below the Tabbar as well. Keep the
+		// embedded view's layout height in sync with that visual inset.
+		this.titlebarLayoutDimension = new Dimension(width, height);
+		super.layout(width, Math.max(0, height - this.getHiddenTitlebarInset()), top, left);
+	}
+
+	protected override getRelayoutDimension(): Dimension | undefined {
+		return this.titlebarLayoutDimension ?? super.getRelayoutDimension();
+	}
+
+	private getHiddenTitlebarInset(): number {
+		return isWindows && this.element?.closest('.monaco-workbench')?.classList.contains('custom-titlebar-hidden')
+			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT
+			: 0;
 	}
 
 	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {

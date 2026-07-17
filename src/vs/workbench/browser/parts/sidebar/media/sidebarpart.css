@@ -21,6 +21,9 @@
 	 * global actions (including Manage/Settings) stay inside the viewport. */
 	height: calc(100% - 35px) !important;
 	overflow: visible;
+	/* The command center intentionally extends into the reserved top strip, but
+	 * pane content must never leak beyond the shortened bottom edge. */
+	clip-path: inset(-35px 0 0 0);
 }
 
 /* The workbench grid is exposed above the shifted side bars. Make that strip

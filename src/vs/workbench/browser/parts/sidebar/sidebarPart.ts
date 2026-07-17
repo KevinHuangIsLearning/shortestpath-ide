@@ -34,8 +34,10 @@ import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
-import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { addDisposableListener, Dimension, EventType } from '../../../../base/browser/dom.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -68,6 +70,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this.location, this));
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
+	private titlebarLayoutDimension: Dimension | undefined;
 
 	//#endregion
 
@@ -168,6 +171,25 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		this._register(addDisposableListener(toggleSidebar, EventType.CLICK, () => this.commandService.executeCommand('workbench.action.toggleSidebarVisibility')));
 		this._register(addDisposableListener(commandCenter, EventType.CLICK, () => this.commandService.executeCommand('workbench.action.quickOpenWithModes')));
+	}
+
+	override layout(width: number, height: number, top: number, left: number): void {
+		// CSS moves this side surface below the Tabbar. Give its pane composite the
+		// same reduced height so views do not render into the area below the window.
+		this.titlebarLayoutDimension = new Dimension(width, height);
+		super.layout(width, Math.max(0, height - this.getHiddenTitlebarInset()), top, left);
+	}
+
+	protected override getRelayoutDimension(): Dimension | undefined {
+		return this.titlebarLayoutDimension ?? super.getRelayoutDimension();
+	}
+
+	private getHiddenTitlebarInset(): number {
+		if (this.element?.closest('.monaco-workbench')?.classList.contains('custom-titlebar-hidden') !== true) {
+			return 0;
+		}
+
+		return isWindows || (isMacintosh && this.element.classList.contains('left')) ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 0;
 	}
 
 	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {
