@@ -188,6 +188,7 @@ const editorSettings: Record<string, unknown> = {
 	'workbench.navigationControl.enabled': false,
 	'workbench.layoutControl.enabled': true,
 	'workbench.layoutControl.type': 'both',
+	'workbench.activityBar.location': 'top',
 	'workbench.statusBar.visible': false,
 };
 
