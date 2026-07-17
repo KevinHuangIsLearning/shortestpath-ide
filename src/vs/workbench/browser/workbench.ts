@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './style.js';
-import { runWhenWindowIdle } from '../../base/browser/dom.js';
+import { addDisposableListener, EventType, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { RunOnceScheduler, timeout } from '../../base/common/async.js';
 import { isFirefox, isSafari, isChrome } from '../../base/browser/browser.js';
@@ -50,6 +50,8 @@ import { AccessibleViewRegistry } from '../../platform/accessibility/browser/acc
 import { NotificationAccessibleView } from './parts/notifications/notificationAccessibleView.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
+import { ICommandService } from '../../platform/commands/common/commands.js';
+import { localize } from '../../nls.js';
 
 export interface IWorkbenchOptions {
 
@@ -359,6 +361,20 @@ export class Workbench extends Layout {
 			this.getPart(id).create(partContainer, options);
 			mark(`code/didCreatePart/${id}`);
 		}
+
+		const sidebarToggle = this.mainContainer.ownerDocument.createElement('button');
+		sidebarToggle.className = 'shortestpath-global-sidebar-toggle';
+		sidebarToggle.type = 'button';
+		// allow-any-unicode-next-line
+		const sidebarToggleLabel = localize('shortestpathGlobalSidebarToggle', '切换主侧栏');
+		sidebarToggle.setAttribute('aria-label', sidebarToggleLabel);
+		sidebarToggle.title = sidebarToggleLabel;
+		const sidebarToggleIcon = this.mainContainer.ownerDocument.createElement('span');
+		sidebarToggleIcon.className = 'codicon codicon-layout-sidebar-left';
+		sidebarToggleIcon.ariaHidden = 'true';
+		sidebarToggle.appendChild(sidebarToggleIcon);
+		this.mainContainer.appendChild(sidebarToggle);
+		this._register(addDisposableListener(sidebarToggle, EventType.CLICK, () => instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.toggleSidebarVisibility'))));
 
 		// Notification Handlers
 		this.createNotificationsHandlers(instantiationService, notificationService);
