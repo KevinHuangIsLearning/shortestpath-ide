@@ -947,6 +947,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		const zoomFactor = getZoomFactor(getWindow(this.element));
 
 		this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
+		this.element.closest<HTMLElement>('.monaco-workbench')?.style.setProperty('--zoom-factor', zoomFactor.toString());
 		this.rootContainer.classList.toggle('counter-zoom', this.preventZoom);
 
 		if (this.customMenubar.value) {

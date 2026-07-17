@@ -215,6 +215,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/shortestpath",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/snippets",
 			"project": "vscode-workbench"
 		},
