@@ -19,6 +19,20 @@
 	box-sizing: border-box;
 }
 
+/* Keep the single-tab title clear of Electron's native Windows controls. */
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-left-host > .title > .label-container,
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-right-host > .title > .label-container {
+	box-sizing: border-box;
+}
+
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-left-host > .title > .label-container {
+	padding-left: env(titlebar-area-x, 0px);
+}
+
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-right-host > .title > .label-container {
+	padding-right: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label {
 	line-height: var(--editor-group-tab-height);
 	overflow: hidden;

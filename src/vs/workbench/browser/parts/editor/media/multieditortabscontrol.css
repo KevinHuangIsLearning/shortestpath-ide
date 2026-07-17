@@ -52,6 +52,22 @@
 	padding-left: 35px;
 }
 
+/* Electron exposes the native Window Controls Overlay geometry through the
+ * titlebar-area environment variables. Reserve precisely the covered region
+ * for the editor group that reaches each physical window edge. */
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-left-host > .title > .tabs-and-actions-container,
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-right-host > .title > .tabs-and-actions-container {
+	box-sizing: border-box;
+}
+
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-left-host > .title > .tabs-and-actions-container {
+	padding-left: env(titlebar-area-x, 0px);
+}
+
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-right-host > .title > .tabs-and-actions-container {
+	padding-right: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty {
 	display: none;
 }

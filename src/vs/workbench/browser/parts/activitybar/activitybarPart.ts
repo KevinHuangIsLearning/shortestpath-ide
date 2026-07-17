@@ -19,7 +19,8 @@ import { addDisposableListener, append, EventType, isAncestor, $, clearNode } fr
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { getMenuBarVisibility, MenuSettings } from '../../../../platform/window/common/window.js';
+import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMenuBarVisibility, MenuSettings } from '../../../../platform/window/common/window.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -261,6 +262,11 @@ export class ActivitybarPart extends Part {
 	}
 
 	override layout(width: number, height: number): void {
+		// The hidden titlebar lets the editor own the first row. The activity bar
+		// is rendered below it, so its internal composite layout must receive the
+		// same reduced height as its visual container. Otherwise the bottom
+		// Manage/Settings action would be laid out beyond the window edge.
+		const titlebarInset = this.isShiftedBelowHiddenTitlebar() ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 0;
 		super.layout(width, height, 0, 0);
 
 		if (!this.compositeBar.value) {
@@ -274,13 +280,21 @@ export class ActivitybarPart extends Part {
 		// applied in CSS (`.floating-panels .part.activitybar`).
 		const gutter = this.floatingGutter;
 		const contentWidth = Math.max(0, width - gutter);
-		const contentHeight = Math.max(0, height - gutter);
+		const contentHeight = Math.max(0, height - titlebarInset - gutter);
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
 
 		// Layout composite bar
 		this.compositeBar.value.layout(contentWidth, contentAreaSize.height);
+	}
+
+	private isShiftedBelowHiddenTitlebar(): boolean {
+		if (this.element?.closest('.monaco-workbench')?.classList.contains('custom-titlebar-hidden') !== true) {
+			return false;
+		}
+
+		return isWindows || (isMacintosh && this.element.classList.contains('left'));
 	}
 
 	toJSON(): object {
