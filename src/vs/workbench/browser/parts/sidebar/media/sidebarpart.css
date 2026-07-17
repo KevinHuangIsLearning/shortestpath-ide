@@ -69,7 +69,7 @@
 
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar.left > .shortestpath-sidebar-command-center-container {
 	/* Clear the full traffic-light cluster before the toggle and Search begin. */
-	left: 100px;
+	left: 90px;
 }
 
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-command-center,
@@ -163,7 +163,7 @@
 }
 
 .monaco-workbench.custom-titlebar-hidden.nosidebar.mac .shortestpath-global-sidebar-toggle {
-	left: 100px;
+	left: 90px;
 }
 
 .monaco-workbench.custom-titlebar-hidden.nosidebar .shortestpath-global-sidebar-toggle:hover {

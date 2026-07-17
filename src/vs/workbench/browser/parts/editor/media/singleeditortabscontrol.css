@@ -14,8 +14,14 @@
 	flex: auto;
 }
 
-.monaco-workbench.custom-titlebar-hidden.mac.nosidebar .part.editor > .content .editor-group-container > .title > .label-container {
-	padding-left: 35px;
+.monaco-workbench.custom-titlebar-hidden.mac.nosidebar .part.editor > .content .editor-group-container.sidebar-recovery-host > .title > .label-container {
+	/* Keep the single-tab label clear of the persistent Sidebar recovery button. */
+	padding-left: 128px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench.custom-titlebar-hidden.windows.nosidebar .part.editor > .content .editor-group-container.sidebar-recovery-host > .title > .label-container {
+	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
 	box-sizing: border-box;
 }
 
@@ -27,6 +33,11 @@
 
 .monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-left-host > .title > .label-container {
 	padding-left: env(titlebar-area-x, 0px);
+}
+
+/* Preserve the recovery control's gap in the group that owns the left WCO. */
+.monaco-workbench.custom-titlebar-hidden.windows.nosidebar .part.editor > .content .editor-group-container.window-controls-overlay-left-host.sidebar-recovery-host > .title > .label-container {
+	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
 }
 
 .monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-right-host > .title > .label-container {
