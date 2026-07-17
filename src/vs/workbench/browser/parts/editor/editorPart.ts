@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -1127,13 +1127,14 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			}
 
 			const sideBarPosition = this.layoutService.getSideBarPosition();
+			const activityBarOnSide = this.configurationService.getValue<ActivityBarPosition>('workbench.activityBar.location') === ActivityBarPosition.DEFAULT;
 			const hasRightSideSurface =
-				(this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) && sideBarPosition === Position.RIGHT) ||
+				(activityBarOnSide && this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) && sideBarPosition === Position.RIGHT) ||
 				(this.layoutService.isVisible(Parts.SIDEBAR_PART) && sideBarPosition === Position.RIGHT) ||
 				(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && sideBarPosition === Position.LEFT) ||
 				(this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.getPanelPosition() === Position.RIGHT);
 			const hasLeftSideSurface =
-				(this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) && sideBarPosition === Position.LEFT) ||
+				(activityBarOnSide && this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) && sideBarPosition === Position.LEFT) ||
 				(this.layoutService.isVisible(Parts.SIDEBAR_PART) && sideBarPosition === Position.LEFT) ||
 				(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && sideBarPosition === Position.RIGHT) ||
 				(this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.getPanelPosition() === Position.LEFT);

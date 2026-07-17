@@ -13,17 +13,13 @@
 .monaco-workbench.custom-titlebar-hidden.mac .part.activitybar.left,
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar.left,
 .monaco-workbench.custom-titlebar-hidden.windows .part.activitybar,
-.monaco-workbench.custom-titlebar-hidden.windows .part.sidebar,
-.monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar {
+.monaco-workbench.custom-titlebar-hidden.windows .part.sidebar {
 	position: relative;
 	top: 35px;
 	/* Grid layout writes an inline height on parts. Override it so the bottom
 	 * global actions (including Manage/Settings) stay inside the viewport. */
 	height: calc(100% - 35px) !important;
 	overflow: visible;
-	/* The command center intentionally extends into the reserved top strip, but
-	 * pane content must never leak beyond the shortened bottom edge. */
-	clip-path: inset(-35px 0 0 0);
 }
 
 /* The workbench grid is exposed above the shifted side bars. Make that strip
@@ -180,6 +176,33 @@
 
 .monaco-workbench .part.sidebar .title-actions .action-item {
 	margin-right: 4px;
+}
+
+/* The secondary Sidebar keeps its view title below the top Activity Bar. Its
+ * window-level controls belong to that top row instead, so they remain easy to
+ * reach without consuming space from the active view title. */
+.monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar > .title,
+.monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar > .title {
+	position: relative;
+	/* The global toolbar is lifted into the Tabbar row. The default title
+	 * overflow would otherwise clip it before it can be painted there. */
+	overflow: visible;
+}
+
+.monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar > .title > .global-actions,
+.monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar > .title > .global-actions {
+	position: absolute;
+	top: -35px;
+	right: 8px;
+	height: 35px;
+	padding-left: 0;
+	z-index: 3;
+}
+
+/* Desktop Windows reserves 138px for minimize/maximize/close (scaled with the
+ * renderer zoom). Keep Secondary Sidebar controls immediately to its left. */
+.monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar > .title > .global-actions {
+	right: calc(8px + 138px / var(--zoom-factor, 1));
 }
 
 .monaco-workbench .part.sidebar > .title {

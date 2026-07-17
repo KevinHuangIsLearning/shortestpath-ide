@@ -117,14 +117,6 @@ class MoveSidebarPositionAction extends Action2 {
 	}
 }
 
-class MoveSidebarRightAction extends MoveSidebarPositionAction {
-	static readonly ID = 'workbench.action.moveSideBarRight';
-
-	constructor() {
-		super(MoveSidebarRightAction.ID, localize2('moveSidebarRight', "Move Primary Side Bar Right"), Position.RIGHT);
-	}
-}
-
 class MoveSidebarLeftAction extends MoveSidebarPositionAction {
 	static readonly ID = 'workbench.action.moveSideBarLeft';
 
@@ -133,42 +125,7 @@ class MoveSidebarLeftAction extends MoveSidebarPositionAction {
 	}
 }
 
-registerAction2(MoveSidebarRightAction);
 registerAction2(MoveSidebarLeftAction);
-
-// --- Toggle Sidebar Position
-
-export class ToggleSidebarPositionAction extends Action2 {
-
-	static readonly ID = 'workbench.action.toggleSidebarPosition';
-	static readonly LABEL = localize('toggleSidebarPosition', "Toggle Primary Side Bar Position");
-
-	static getLabel(layoutService: IWorkbenchLayoutService): string {
-		return layoutService.getSideBarPosition() === Position.LEFT ? localize('moveSidebarRight', "Move Primary Side Bar Right") : localize('moveSidebarLeft', "Move Primary Side Bar Left");
-	}
-
-	constructor() {
-		super({
-			id: ToggleSidebarPositionAction.ID,
-			title: localize2('toggleSidebarPosition', "Toggle Primary Side Bar Position"),
-			category: Categories.View,
-			f1: true,
-			precondition: IsSessionsWindowContext.negate()
-		});
-	}
-
-	run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const configurationService = accessor.get(IConfigurationService);
-
-		const position = layoutService.getSideBarPosition();
-		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
-
-		return configurationService.updateValue(sidebarPositionConfigurationKey, newPositionValue);
-	}
-}
-
-registerAction2(ToggleSidebarPositionAction);
 
 const configureLayoutIcon = registerIcon('configure-layout-icon', Codicon.layout, localize('cofigureLayoutIcon', 'Icon represents workbench layout configuration.'));
 MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
@@ -182,72 +139,6 @@ MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
 	)
 });
 
-
-MenuRegistry.appendMenuItems([{
-	id: MenuId.ViewContainerTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move side bar right', "Move Primary Side Bar Right")
-		},
-		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
-	}
-}, {
-	id: MenuId.ViewContainerTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar left', "Move Primary Side Bar Left")
-		},
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
-	}
-}, {
-	id: MenuId.ViewContainerTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move second sidebar left', "Move Secondary Side Bar Left")
-		},
-		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
-		order: 1
-	}
-}, {
-	id: MenuId.ViewContainerTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move second sidebar right', "Move Secondary Side Bar Right")
-		},
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
-		order: 1
-	}
-}]);
-
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '3_workbench_layout_move',
-	command: {
-		id: ToggleSidebarPositionAction.ID,
-		title: localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Primary Side Bar Right")
-	},
-	when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), IsSessionsWindowContext.negate()),
-	order: 2
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '3_workbench_layout_move',
-	command: {
-		id: ToggleSidebarPositionAction.ID,
-		title: localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Primary Side Bar Left")
-	},
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), IsSessionsWindowContext.negate()),
-	order: 2
-});
 
 // --- Toggle Editor Visibility
 
@@ -1370,10 +1261,7 @@ ToggleVisibilityActions.push(...[
 	CreateToggleLayoutItem(ToggleStatusbarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.statusBar.visible', true), localize('statusBar', "Status Bar"), statusBarIcon),
 ]);
 
-const MoveSideBarActions: CustomizeLayoutItem[] = [
-	CreateOptionLayoutItem(MoveSidebarLeftAction.ID, ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), localize('leftSideBar', "Left"), panelLeftIcon),
-	CreateOptionLayoutItem(MoveSidebarRightAction.ID, ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), localize('rightSideBar', "Right"), panelRightIcon),
-];
+const MoveSideBarActions: CustomizeLayoutItem[] = [];
 
 const AlignPanelActions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.alignPanelLeft', PanelAlignmentContext.isEqualTo('left'), localize('leftPanel', "Left"), panelAlignmentLeftIcon),

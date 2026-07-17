@@ -19,10 +19,13 @@ export class ShortestPathNewTabInput extends EditorInput {
 
 	override get typeId(): string { return ShortestPathNewTabInput.ID; }
 	override get editorId(): string { return ShortestPathNewTabInput.ID; }
-	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton; }
+	// A New Tab is intentionally duplicable: splitting it must populate the new
+	// editor group with another New Tab instead of leaving that group blank.
+	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly; }
 	override get resource(): URI { return ShortestPathNewTabInput.RESOURCE; }
 
 	override getName(): string {
+		// allow-any-unicode-next-line
 		return localizeNewTab('New Tab', '新建标签页');
 	}
 
