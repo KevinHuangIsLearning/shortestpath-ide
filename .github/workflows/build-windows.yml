@@ -106,6 +106,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build Inno Setup installers
+        shell: pwsh
+        run: npm run gulp -- vscode-win32-x64-system-setup vscode-win32-x64-user-setup
+
+      - name: Stage Inno Setup installers
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $artifactRoot = Join-Path $env:GITHUB_WORKSPACE '.build\artifacts\inno-setup'
+          $installers = @(
+            @{ Source = '.build\win32-x64\system-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-x64-Setup.exe' },
+            @{ Source = '.build\win32-x64\user-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-x64-User-Setup.exe' }
+          )
+          New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+          foreach ($installer in $installers) {
+            if (-not (Test-Path -LiteralPath $installer.Source -PathType Leaf)) {
+              throw "Inno Setup installer was not produced: $($installer.Source)"
+            }
+            Copy-Item -LiteralPath $installer.Source -Destination (Join-Path $artifactRoot $installer.Destination)
+          }
+          Get-ChildItem -LiteralPath $artifactRoot -Filter '*.exe' | ForEach-Object {
+            if ($_.Length -lt 10MB) {
+              throw "Inno Setup installer is unexpectedly small: $($_.FullName)"
+            }
+          }
+
       - name: Stage Windows package
         shell: pwsh
         run: |
@@ -128,5 +154,13 @@ jobs:
         with:
           name: ShortestPath-IDE-windows-x64-${{ inputs.compiler == 'Include Compiler' && 'Include-Compiler' || 'Exclude-Compiler' }}
           path: .build/artifacts/VSCode-win32-x64
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Inno Setup installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: ShortestPath-IDE-windows-x64-inno-${{ inputs.compiler == 'Include Compiler' && 'Include-Compiler' || 'Exclude-Compiler' }}
+          path: .build/artifacts/inno-setup
           if-no-files-found: error
           retention-days: 14

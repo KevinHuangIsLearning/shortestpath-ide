@@ -39,6 +39,7 @@ type FirstRunSelection = {
 };
 
 const SETUP_COMPLETE = 'shortestpath.setupComplete';
+const OI_WORKSPACE_INITIALIZATION_DISMISSED = 'shortestpath.oiWorkspaceInitializationDismissed';
 
 const shortestPathHiddenFiles: Record<string, boolean> = {
 	'**/.cph': true,
@@ -168,6 +169,52 @@ function createDefaultClangFormatConfig(workspaceFolder: string): void {
 	}
 }
 
+function getSingleLocalWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
+	const workspaceFolders = vscode.workspace.workspaceFolders;
+	if (workspaceFolders?.length !== 1 || workspaceFolders[0].uri.scheme !== 'file') {
+		return undefined;
+	}
+	return workspaceFolders[0];
+}
+
+function hasOiWorkspaceConfig(workspaceFolder: vscode.WorkspaceFolder): boolean {
+	return fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clangd'))
+		|| fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clang-format'));
+}
+
+async function initializeOiWorkspace(context: vscode.ExtensionContext): Promise<void> {
+	const workspaceFolder = getSingleLocalWorkspaceFolder();
+	if (!workspaceFolder) {
+		void vscode.window.showInformationMessage('请先打开一个本地文件夹，再初始化 OI 项目配置。');
+		return;
+	}
+
+	const configuredCompiler = vscode.workspace.getConfiguration('cph.language.cpp').get<string>('Command');
+	const compiler = configuredCompiler || await findPreferredCompiler(loadPreset(context).compilerCandidates) || 'g++';
+	createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, 'c++23');
+	createDefaultClangFormatConfig(workspaceFolder.uri.fsPath);
+	await context.workspaceState.update(OI_WORKSPACE_INITIALIZATION_DISMISSED, undefined);
+	void vscode.window.showInformationMessage(`已在“${workspaceFolder.name}”中创建 .clangd 和 .clang-format。`);
+}
+
+async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext): Promise<void> {
+	const workspaceFolder = getSingleLocalWorkspaceFolder();
+	if (!workspaceFolder || hasOiWorkspaceConfig(workspaceFolder) || context.workspaceState.get<boolean>(OI_WORKSPACE_INITIALIZATION_DISMISSED)) {
+		return;
+	}
+
+	const action = await vscode.window.showInformationMessage(
+		`“${workspaceFolder.name}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？`,
+		'初始化 OI 配置',
+		'暂不初始化'
+	);
+	if (action === '初始化 OI 配置') {
+		await initializeOiWorkspace(context);
+	} else {
+		await context.workspaceState.update(OI_WORKSPACE_INITIALIZATION_DISMISSED, true);
+	}
+}
+
 const editorSettings: Record<string, unknown> = {
 	'editor.fontLigatures': false,
 	'editor.cursorSmoothCaretAnimation': 'on',
@@ -252,6 +299,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.redetectToolchain', () => runSetup(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.repairToolchain', () => repairToolchain(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.rerunFirstRunSetup', () => rerunFirstRunSetup()));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.initializeOiWorkspace', () => initializeOiWorkspace(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.showAllFiles', toggleHiddenFiles));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.hideSetupFiles', toggleHiddenFiles));
 	if (!context.globalState.get<boolean>(FILE_EXCLUDES_MIGRATION)) {
@@ -279,6 +327,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		if (event.affectsConfiguration('shortestpath.setup.pending')) { void applyPending(); }
 	}));
 	await applyPending();
+	void offerOiWorkspaceInitialization(context);
 }
 
 async function rerunFirstRunSetup(): Promise<void> {
