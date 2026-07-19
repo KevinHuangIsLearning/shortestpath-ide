@@ -17,6 +17,13 @@
 	border-top-width: 0; /* no border when main editor area is hiden */
 }
 
+/* A maximized panel occupies the first workbench row. Reserve the native
+ * Windows window controls for the complete title layout so every title item,
+ * including Terminal's close action, stays clickable. */
+.monaco-workbench.custom-titlebar-hidden.windows.nomaineditorarea .part.panel > .title {
+	padding-right: calc(8px + var(--shortestpath-windows-window-controls-width));
+}
+
 .monaco-workbench .part.panel.top {
 	border-bottom-width: 1px;
 	border-bottom-style: solid;

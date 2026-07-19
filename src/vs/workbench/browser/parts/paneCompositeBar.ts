@@ -87,7 +87,8 @@ export interface IPaneCompositeBarOptions {
 
 export class PaneCompositeBar extends Disposable {
 
-	private static readonly shortestPathActivityBarMigrationKey = 'workbench.activity.shortestpathMinimalDefaultsApplied.v3';
+	private static readonly shortestPathActivityBarMigrationKey = 'workbench.activity.shortestpathMinimalDefaultsApplied.v4';
+	private static readonly activityBarPinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 
 	private static readonly shortestPathDefaultActivityContainers = new Set([
 		'workbench.view.explorer',
@@ -96,6 +97,13 @@ export class PaneCompositeBar extends Disposable {
 	]);
 
 	private readonly viewContainerDisposables = this._register(new DisposableMap<string, IDisposable>());
+
+	private get isShortestPathActivityBar(): boolean {
+		// With a top or bottom activity bar, its composite bar is hosted by the
+		// SidebarPart rather than the standalone ActivitybarPart. The shared storage
+		// key identifies both hosts without coupling this generic class to either.
+		return this.options.pinnedViewContainersKey === PaneCompositeBar.activityBarPinnedViewContainersKey;
+	}
 
 	private readonly compositeBar: CompositeBar;
 	readonly dndHandler: ICompositeDragAndDrop;
@@ -135,6 +143,10 @@ export class PaneCompositeBar extends Disposable {
 			}));
 		this.compositeBar = this.createCompositeBar(cachedItems);
 		this.onDidRegisterViewContainers(this.getViewContainers());
+		// Apply product defaults before waiting for extensions to finish registering.
+		// Built-in containers (including Run and Debug and Extensions) are already
+		// available here and would otherwise be persisted as pinned first.
+		this.applyShortestPathActivityBarDefaults();
 		this.registerListeners();
 	}
 
@@ -294,7 +306,7 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private applyShortestPathActivityBarDefaults(): void {
-		if (this.part !== Parts.ACTIVITYBAR_PART || this.storageService.getBoolean(PaneCompositeBar.shortestPathActivityBarMigrationKey, StorageScope.PROFILE, false)) {
+		if (!this.isShortestPathActivityBar || this.storageService.getBoolean(PaneCompositeBar.shortestPathActivityBarMigrationKey, StorageScope.PROFILE, false)) {
 			return;
 		}
 		for (const { id } of this.cachedViewContainers) {
@@ -360,12 +372,16 @@ export class PaneCompositeBar extends Disposable {
 
 	private onDidRegisterViewContainers(viewContainers: readonly ViewContainer[]): void {
 		for (const viewContainer of viewContainers) {
+			// Capture storage state before adding the container. Adding it updates the
+			// cached state immediately, which would otherwise make every first-run
+			// container look user-pinned and skip the product default below.
+			const cachedViewContainer = this.cachedViewContainers.find(({ id }) => id === viewContainer.id);
+
 			this.addComposite(viewContainer);
 
 			// Keep ShortestPath IDE's activity bar focused on files, search, and CPH.
 			// Other containers stay available through the activity-bar context menu.
-			const cachedViewContainer = this.cachedViewContainers.filter(({ id }) => id === viewContainer.id)[0];
-			const pinByDefault = this.part !== Parts.ACTIVITYBAR_PART || PaneCompositeBar.shortestPathDefaultActivityContainers.has(viewContainer.id);
+			const pinByDefault = !this.isShortestPathActivityBar || PaneCompositeBar.shortestPathDefaultActivityContainers.has(viewContainer.id);
 			if (!cachedViewContainer) {
 				if (pinByDefault) {
 					this.compositeBar.pin(viewContainer.id);
@@ -465,7 +481,7 @@ export class PaneCompositeBar extends Disposable {
 		// CPH is a core ShortestPath IDE entry point. Its webview provider is
 		// registered lazily, so the generic hide-if-empty rule would otherwise
 		// hide its activity-bar icon on a brand-new profile.
-		if (this.part === Parts.ACTIVITYBAR_PART && PaneCompositeBar.shortestPathDefaultActivityContainers.has(viewContainerId)) {
+		if (this.isShortestPathActivityBar && PaneCompositeBar.shortestPathDefaultActivityContainers.has(viewContainerId)) {
 			return false;
 		}
 

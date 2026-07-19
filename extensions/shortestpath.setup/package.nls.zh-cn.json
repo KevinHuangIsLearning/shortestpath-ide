@@ -7,6 +7,7 @@
 	"configuration.newFileDefaultLanguage": "从新建标签页创建文件时使用的默认语言。",
 	"displayName": "ShortestPath IDE 功能",
 	"description": "为 ShortestPath IDE 提供竞赛编程功能、设置和首次环境配置。",
+	"command.initializeOiWorkspace": "ShortestPath IDE：初始化 OI 项目配置",
 	"command.configure": "ShortestPath IDE：配置竞赛编程环境",
 	"command.rerunFirstRun": "ShortestPath IDE：重新运行首次配置",
 	"command.openSettings": "ShortestPath IDE：设置",

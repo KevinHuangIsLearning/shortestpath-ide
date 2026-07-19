@@ -3,6 +3,73 @@ NOTICES
 This repository incorporates material as listed below or described in the code.
 
 
+The following extensions are bundled by ShortestPath IDE. Their source code,
+copyright notices, and license texts are retained in the referenced extension
+directories. This section identifies them explicitly in addition to the
+transitive dependency notices below.
+
+---------------------------------------------------------
+
+Code - OSS
+https://github.com/microsoft/vscode
+
+MIT License
+Copyright (c) 2015 - present Microsoft Corporation
+License text: licenses/MIT-VSCode.txt
+
+---------------------------------------------------------
+
+Competitive Programming Helper (cph) 2077.0.0
+https://github.com/agrawal-d/competitive-programming-helper/
+
+GNU General Public License v3.0 or later
+License text: extensions/divyanshuagrawal.competitive-programming-helper/LICENSE
+
+---------------------------------------------------------
+
+C/C++ Compile Run 1.0.92
+https://github.com/danielpinto8zz6/c-cpp-compile-run
+
+GNU General Public License v3.0
+License text: extensions/danielpinto8zz6.c-cpp-compile-run/LICENSE
+
+---------------------------------------------------------
+
+vscode-clangd 0.6.0
+https://github.com/clangd/vscode-clangd
+
+MIT License
+Copyright (c) 2019 The LLVM Developers
+License text: extensions/llvm-vs-code-extensions.vscode-clangd/LICENSE
+
+---------------------------------------------------------
+
+CodeSnap 1.3.4
+https://github.com/kufii/CodeSnap
+
+MIT License, as declared by the bundled extension manifest.
+
+---------------------------------------------------------
+
+Better C++ Syntax 1.27.1
+https://github.com/jeff-hykin/better-cpp-syntax
+
+MIT License
+Copyright (c) 2019 Jeff Hykin
+License text: extensions/jeff-hykin.better-cpp-syntax/LICENSE
+
+---------------------------------------------------------
+
+Visual Studio Code Localization Packs - Chinese (Simplified) 1.128.2026071013
+https://github.com/Microsoft/vscode-loc
+
+MIT License
+Copyright (c) Microsoft Corporation
+License text: extensions/MS-CEINTL.vscode-language-pack-zh-hans/LICENSE.md
+Additional notices: extensions/MS-CEINTL.vscode-language-pack-zh-hans/ThirdPartyNotices.txt
+
+---------------------------------------------------------
+
 
 ---------------------------------------------------------
 
