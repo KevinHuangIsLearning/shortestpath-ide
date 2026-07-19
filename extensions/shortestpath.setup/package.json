@@ -59,6 +59,10 @@
 		},
 		"commands": [
 			{
+				"command": "shortestpath.initializeOiWorkspace",
+				"title": "%command.initializeOiWorkspace%"
+			},
+			{
 				"command": "shortestpath.setupEnvironment",
 				"title": "%command.configure%"
 			},

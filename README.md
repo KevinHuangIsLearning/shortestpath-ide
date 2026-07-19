@@ -1,60 +1,57 @@
 # ShortestPath IDE
 
-ShortestPath IDE is a competitive-programming-focused distribution of Code - OSS.
-It provides a streamlined C++ workflow, Competitive Programming Helper defaults,
-online-judge mappings, and a guided first-run toolchain setup for macOS, Windows,
-and Linux.
+[简体中文](README_cn.md)
 
-## Highlights
+ShortestPath IDE is an open-source integrated development environment for competitive programming (OI / ICPC), built on Code - OSS. It provides C++-oriented defaults, problem-solving workflows, and toolchain configuration suited to contest development.
 
-- Guided Recommended first-run setup with a dedicated workspace step
-- Platform-specific compiler setup with bundled clangd on Windows
-- Selectable GitHub Release and GH mirror downloads on Windows and Linux
-- C++ compiler, clangd, CPH, VJudge, editor font, ligature, and save defaults
-- Built-in Simplified Chinese localization for the bundled OI extensions
+## Features
+
+- Competitive-programming-focused C++ editor, build, and run defaults
+- Bundled Competitive Programming Helper (CPH) and common online-judge mappings
+- clangd, formatting, snippets, and toolchain diagnostics
+- Toolchain setup flows for Windows, macOS, and Linux
+- Bundled Simplified Chinese language pack and contest-oriented extensions
 
 ## Build from source
 
+Run the following from this directory:
+
 ```bash
-git clone https://github.com/KevinHuangIsLearning/shortestpath-ide.git
-cd shortestpath-ide
 npm ci
 npm run compile
-./scripts/code.sh --locale zh-cn
+./scripts/code.sh --locale zh-cn --user-data-dir ./tmp/shortestpath-dev
 ```
 
-To build a macOS Apple Silicon package:
+Build a macOS Apple Silicon package:
 
 ```bash
-cd vscode
 npm run compile-oi-extensions
 npm run gulp vscode-darwin-arm64-min
 ```
 
-## First-run setup
+Build a Windows x64 package:
 
-On first launch, ShortestPath IDE opens a dedicated setup window before the
-workbench. To run it again, use the command palette command:
+```bash
+npm run compile-oi-extensions
+npm run gulp vscode-win32-x64-min
+```
 
-`ShortestPath IDE: Re-run First-Run Setup`.
+## Open-source projects and licenses
 
-## Toolchains used by setup
+ShortestPath IDE is licensed under [GPL-3.0-or-later](LICENSE). Open-source components included, modified, or bundled by this project remain under their respective licenses. The table below identifies principal sources; it is not a complete third-party dependency inventory.
 
-| Platform | C++ compiler | Language server |
+| Project | Purpose | License |
 | --- | --- | --- |
-| Windows | [WinLibs GCC 16.1.0](https://github.com/brechtsanders/winlibs_mingw/releases/download/16.1.0posix-14.0.0-ucrt-r3/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip), downloaded from the user-selected GitHub Release or GH mirror | Bundled [clangd 22.1.6](https://github.com/clangd/clangd/releases/tag/22.1.6) Portable |
-| macOS (Apple Silicon) | GCC installed through Homebrew | LLVM clangd installed through Homebrew |
-| Linux | System g++ (install it with the distribution package manager if missing) | [clangd 22.1.6](https://github.com/clangd/clangd/releases/tag/22.1.6) Portable, downloaded from the user-selected GitHub Release or GH mirror |
+| [Code - OSS](https://github.com/microsoft/vscode) | Upstream editor codebase | [MIT](licenses/MIT-VSCode.txt) |
+| [Competitive Programming Helper](https://github.com/agrawal-d/competitive-programming-helper) | Contest problem and testing workflow | GPL-3.0-or-later |
+| [C/C++ Compile Run](https://github.com/danielpinto8zz6/c-cpp-compile-run) | C/C++ compile-and-run support | GPL-3.0 |
+| [vscode-clangd](https://github.com/clangd/vscode-clangd) | clangd editor integration | MIT |
+| [CodeSnap](https://github.com/kufii/CodeSnap) | Source-code screenshots | MIT |
+| [Better C++ Syntax](https://github.com/jeff-hykin/better-cpp-syntax) | C++ syntax highlighting | MIT |
+| [VS Code Simplified Chinese Language Pack](https://github.com/Microsoft/vscode-loc) | Simplified Chinese UI localization | MIT |
 
-The bundled Windows clangd archive is an unmodified upstream Portable release.
-It is extracted into ShortestPath IDE's user-data directory on first run, so
-Windows users do not need external network access to obtain clangd. Linux stores
-its downloaded Portable clangd in the same per-user toolchain directory. macOS
-installs GCC and LLVM through Homebrew.
+See [ThirdPartyNotices.txt](ThirdPartyNotices.txt) for full third-party copyright and license notices. Preserve the license files included with individual extensions as well. This notice is not legal advice.
 
-## License
+## Feedback and contributions
 
-ShortestPath IDE is licensed under [GPL-3.0-or-later](LICENSE). The original
-Code - OSS [MIT license text](licenses/MIT-VSCode.txt) and Microsoft copyright
-notice are preserved as required for the upstream code. Bundled extensions and
-dependencies remain available under their respective licenses.
+Please use [Issues](https://github.com/KevinHuangIsLearning/shortestpath-ide/issues) to report bugs or suggest improvements. Before submitting changes, run the compilation or tests relevant to your change.

@@ -8,6 +8,13 @@
 	overflow: hidden;
 }
 
+/* Desktop Windows places the native window buttons in the first workbench row
+ * when the custom title bar is hidden. Parts that occupy that row use this
+ * shared reservation instead of each hard-coding the control width. */
+.monaco-workbench.custom-titlebar-hidden.windows {
+	--shortestpath-windows-window-controls-width: calc(138px / var(--zoom-factor, 1));
+}
+
 .monaco-workbench .part > .drop-block-overlay.visible {
 	visibility: visible;
 }
@@ -95,4 +102,3 @@
 	top: 33px; /* at the bottom of the 35px height title container */
 	z-index: 5; /* on top of things */
 }
-

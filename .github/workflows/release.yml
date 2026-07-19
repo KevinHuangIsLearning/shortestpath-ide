@@ -21,11 +21,13 @@ jobs:
           - id: exclude
             label: Exclude Compiler
             artifact: windows-x64-exclude-compiler
-            archive: ShortestPath-IDE-windows-x64-Exclude-Compiler.zip
+            variant: Exclude-Compiler
+            archive: ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip
           - id: include
             label: Include Compiler
             artifact: windows-x64-include-compiler
-            archive: ShortestPath-IDE-windows-x64-Include-Compiler.zip
+            variant: Include-Compiler
+            archive: ShortestPath-IDE-Windows-Include-Compiler-x64.zip
     env:
       VSCODE_ARCH: x64
       npm_config_arch: x64
@@ -99,6 +101,11 @@ jobs:
         run: npm run gulp vscode-win32-x64-min
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Build Inno Setup installers
+        shell: pwsh
+        run: npm run gulp -- vscode-win32-x64-system-setup vscode-win32-x64-user-setup
+
       - name: Archive Windows package
         shell: pwsh
         run: |
@@ -127,10 +134,27 @@ jobs:
             }
           }
           Compress-Archive -Path "$destination\*" -DestinationPath "${{ matrix.archive }}"
+
+          $installerOutputs = @(
+            @{ Source = '.build\win32-x64\system-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-${{ matrix.variant }}-x64-Setup.exe' },
+            @{ Source = '.build\win32-x64\user-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-${{ matrix.variant }}-x64-User-Setup.exe' }
+          )
+          foreach ($installer in $installerOutputs) {
+            if (-not (Test-Path -LiteralPath $installer.Source -PathType Leaf)) {
+              throw "Inno Setup installer was not produced: $($installer.Source)"
+            }
+            Copy-Item -LiteralPath $installer.Source -Destination $installer.Destination
+            if ((Get-Item -LiteralPath $installer.Destination).Length -lt 10MB) {
+              throw "Inno Setup installer is unexpectedly small: $($installer.Destination)"
+            }
+          }
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.archive }}
+          path: |
+            ${{ matrix.archive }}
+            ShortestPath-IDE-Windows-${{ matrix.variant }}-x64-Setup.exe
+            ShortestPath-IDE-Windows-${{ matrix.variant }}-x64-User-Setup.exe
           if-no-files-found: error
 
   build-macos:
@@ -186,6 +210,7 @@ jobs:
               exit 1
             }
           done
+          test ! -e "$app/Contents/Resources/app/resources/oi-defaults/toolchains/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip"
           mkdir artifacts
           ditto -c -k --sequesterRsrc --keepParent "$app" artifacts/ShortestPath-IDE-macos-arm64.zip
       - uses: actions/upload-artifact@v7

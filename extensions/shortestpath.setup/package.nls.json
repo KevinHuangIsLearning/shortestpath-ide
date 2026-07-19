@@ -7,6 +7,7 @@
 	"configuration.newFileDefaultLanguage": "Default language for files created from the New Tab page.",
 	"displayName": "ShortestPath IDE Features",
 	"description": "Competitive programming features, settings, and first-run setup for ShortestPath IDE.",
+	"command.initializeOiWorkspace": "ShortestPath IDE: Initialize OI Workspace Configuration",
 	"command.configure": "ShortestPath IDE: Configure Competitive Programming Environment",
 	"command.rerunFirstRun": "ShortestPath IDE: Re-run First-Run Setup",
 	"command.openSettings": "ShortestPath IDE: Settings",
