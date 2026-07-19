@@ -102,6 +102,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
+      - name: Prepare Inno updater
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run gulp -- vscode-win32-x64-inno-updater
+          $tools = Join-Path (Split-Path $env:GITHUB_WORKSPACE -Parent) 'VSCode-win32-x64\tools'
+          foreach ($file in @('inno_updater.exe', 'vcruntime140.dll')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $tools $file) -PathType Leaf)) {
+              throw "Required Inno updater file was not produced: $file"
+            }
+          }
+
       - name: Build Inno Setup installers
         shell: pwsh
         run: npm run gulp -- vscode-win32-x64-system-setup vscode-win32-x64-user-setup
