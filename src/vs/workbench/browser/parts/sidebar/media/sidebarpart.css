@@ -202,7 +202,7 @@
 /* Desktop Windows reserves 138px for minimize/maximize/close (scaled with the
  * renderer zoom). Keep Secondary Sidebar controls immediately to its left. */
 .monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar > .title > .global-actions {
-	right: calc(8px + 138px / var(--zoom-factor, 1));
+	right: calc(8px + var(--shortestpath-windows-window-controls-width));
 }
 
 .monaco-workbench .part.sidebar > .title {

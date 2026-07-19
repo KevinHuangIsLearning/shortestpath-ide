@@ -12,6 +12,7 @@ import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../..
 import { IAction, ActionRunner } from '../../../../base/common/actions.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -121,6 +122,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private editorLayoutActionsToolbar: WorkbenchToolBar | undefined;
 	private readonly editorLayoutActionsToolbarDisposables = this._register(new DisposableStore());
 	private readonly editorLayoutActionsDisposables = this._register(new DisposableStore());
+	private readonly updateEditorLayoutActionsToolbarScheduler = this._register(new RunOnceScheduler(() => this.updateEditorLayoutActionsToolbar(), 0));
 
 	private readonly contextMenuContextKeyService: IContextKeyService;
 	private resourceContext: ResourceContextKey;
@@ -183,9 +185,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([IsTopRightEditorGroupContext.key]))) {
-				this.updateEditorLayoutActionsToolbar();
+				// A group topology update can change this key while menu events are being
+				// delivered. Coalesce the refresh to avoid rebuilding the menu reentrantly.
+				this.updateEditorLayoutActionsToolbarScheduler.schedule();
 			}
 		}));
+
 	}
 
 	protected create(parent: HTMLElement): HTMLElement {
