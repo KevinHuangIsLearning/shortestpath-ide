@@ -106,6 +106,7 @@ export type Problem = {
     tests: TestCase[];
     srcPath: string;
     local?: boolean;
+    customCheckerPath?: string;
 };
 
 export type Case = {
@@ -122,6 +123,10 @@ export type Run = {
     time: number;
     timeOut: boolean;
 };
+
+export type CustomCheckerRun = {
+    command: string;
+} & Run;
 
 export type DiffLine = {
     lineNumber: number;
@@ -146,6 +151,7 @@ export type RunResult = {
     pass: boolean | null;
     id: number;
     diff?: DiffResult;
+    checkerRun?: CustomCheckerRun;
 } & Run;
 
 export type WebviewMessageCommon = {
@@ -182,6 +188,10 @@ export type SubmitCf = {
     command: 'submitCf';
 } & WebviewMessageCommon;
 
+export type SubmitCSES = {
+    command: 'submitCSES';
+} & WebviewMessageCommon;
+
 export type SubmitKattis = {
     command: 'submitKattis';
 } & WebviewMessageCommon;
@@ -208,6 +218,15 @@ export type SetHideOutputDiff = {
     value: boolean;
 };
 
+export type OpenSettings = {
+    command: 'open-settings';
+};
+
+export type OpenFile = {
+    command: 'open-file';
+    path: string;
+};
+
 export type WebviewToVSEvent =
     | RunAllCommand
     | GetInitialProblem
@@ -217,14 +236,22 @@ export type WebviewToVSEvent =
     | SaveCommand
     | DeleteTcsCommand
     | SubmitCf
+    | SubmitCSES
     | OnlineJudgeEnv
     | SubmitKattis
     | OpenUrl
     | GetExtLogs
-    | SetHideOutputDiff;
+    | SetHideOutputDiff
+    | OpenSettings
+    | OpenFile;
 
 export type RunningCommand = {
     command: 'running';
+    id: number;
+} & WebviewMessageCommon;
+
+export type CheckingCommand = {
+    command: 'checking';
     id: number;
 } & WebviewMessageCommon;
 
@@ -260,6 +287,7 @@ export type SubmitFinishedCommand = {
 export type NewProblemCommand = {
     command: 'new-problem';
     problem: Problem | undefined;
+    onlineJudgeEnv?: boolean;
 };
 
 export type RemoteMessageCommand = {
@@ -272,9 +300,15 @@ export type ExtLogsCommand = {
     logs: string;
 };
 
+export type UpdateOnlineJudgeEnvCommand = {
+    command: 'update-online-judge-env';
+    value: boolean;
+};
+
 export type VSToWebViewMessage =
     | ResultCommand
     | RunningCommand
+    | CheckingCommand
     | RunAllInWebViewCommand
     | CompilingStartCommand
     | CompilingStopCommand
@@ -283,7 +317,8 @@ export type VSToWebViewMessage =
     | NotRunningCommand
     | RemoteMessageCommand
     | NewProblemCommand
-    | ExtLogsCommand;
+    | ExtLogsCommand
+    | UpdateOnlineJudgeEnvCommand;
 
 export type OjMappingEntry = {
     oj: string;
@@ -308,11 +343,15 @@ export type WebViewpersistenceState = {
     dialogCloseDate: number;
     feedbackDialogCloseDate?: number;
     hasSeenFeedbackTooltip?: boolean;
+    catCompanionEnabled?: boolean;
+    totalLoads?: number;
+    hasSeenCompanionTooltip?: boolean;
+    rateDialogCloseDate?: number;
 };
 
 declare global {
     var reporter: TelemetryReporter;
-    var cphContext: vscode.ExtensionContext;
+    var extensionContext: vscode.ExtensionContext;
     var remoteMessage: string | undefined;
     var storedLogs: string;
     var logger: any;

@@ -1,10 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
+import { execFile } from 'child_process';
 
 type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 
 type ThemeOption = {
 	id: string;
 	label: string;
+};
+
+type SystemFontsResult = {
+	fonts: string[];
+	error?: string;
 };
 
 const defaultCompilerFlags = `-std=c++23 -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG${process.platform === 'win32' ? ' -static' : ''}`;
@@ -17,6 +28,7 @@ type SimpleSettingsState = {
 	cppStandard: CppStandard;
 	compilerFlags: string;
 	clangdVariableTypeHints: boolean;
+	errorLensCodeLensEnabled: boolean;
 	executableCleanupEnabled: boolean;
 	executableCleanupDelaySeconds: number;
 	colorTheme: string;
@@ -397,6 +409,7 @@ async function openAutoFormatSettings(): Promise<void> {
 
 function openSimpleSettings(context: vscode.ExtensionContext): void {
 	let isSaving = false;
+	let isDisposed = false;
 	const panel = vscode.window.createWebviewPanel(
 		'shortestpath.settings',
 		'ShortestPath IDE 设置',
@@ -404,6 +417,21 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 		{ enableScripts: true, retainContextWhenHidden: true }
 	);
 	panel.webview.html = getHtml(getState());
+	void getSystemFonts().then(async result => {
+		if (isDisposed) {
+			return;
+		}
+		try {
+			const delivered = await panel.webview.postMessage({ type: 'systemFonts', value: result });
+			if (!delivered && !isDisposed) {
+				console.warn('ShortestPath settings webview did not accept the system font result.');
+			}
+		} catch (error) {
+			if (!isDisposed) {
+				console.warn('Failed to deliver system fonts to the ShortestPath settings webview.', error);
+			}
+		}
+	});
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'save') {
 			isSaving = true;
@@ -433,6 +461,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('cph.language.cpp.Args')
 			|| event.affectsConfiguration('c-cpp-compile-run.cpp-flags')
 			|| event.affectsConfiguration('editor.inlayHints.enabled')
+			|| event.affectsConfiguration('errorLens.codeLensEnabled')
 			|| event.affectsConfiguration('shortestpath.executableCleanupEnabled')
 			|| event.affectsConfiguration('shortestpath.executableCleanupDelaySeconds')
 			|| event.affectsConfiguration('workbench.colorTheme')
@@ -441,7 +470,45 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			void panel.webview.postMessage({ type: 'state', value: getState() });
 		}
 	});
-	panel.onDidDispose(() => configurationListener.dispose(), undefined, context.subscriptions);
+	panel.onDidDispose(() => {
+		isDisposed = true;
+		configurationListener.dispose();
+	}, undefined, context.subscriptions);
+}
+
+async function getSystemFonts(): Promise<SystemFontsResult> {
+	try {
+		let output: string;
+		if (process.platform === 'darwin') {
+			output = await runFontCommand('system_profiler', ['SPFontsDataType', '-json']);
+			return { fonts: uniqueFonts(getMacFontFamilies(output)) };
+		}
+		if (process.platform === 'win32') {
+			output = await runFontCommand('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Add-Type -AssemblyName System.Drawing; (New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object Name']);
+			return { fonts: uniqueFonts(output.split(/\r?\n/)) };
+		}
+		output = await runFontCommand('fc-list', ['--format=%{family}\\n']);
+		return { fonts: uniqueFonts(output.split(/[,\r\n]+/)) };
+	} catch {
+		return { fonts: [], error: '未能读取系统字体。请检查系统字体服务后重新打开此页面。' };
+	}
+}
+
+function runFontCommand(executable: string, args: string[]): Promise<string> {
+	return new Promise((resolve, reject) => execFile(executable, args, { timeout: 15_000, maxBuffer: 10 * 1024 * 1024, windowsHide: true }, (error, stdout) => error ? reject(error) : resolve(stdout)));
+}
+
+function getMacFontFamilies(output: string): string[] {
+	try {
+		const data = JSON.parse(output) as { SPFontsDataType?: { typefaces?: { family?: unknown }[] }[] };
+		return data.SPFontsDataType?.flatMap(font => font.typefaces?.map(typeface => typeof typeface.family === 'string' ? typeface.family : '') ?? []) ?? [];
+	} catch {
+		return [];
+	}
+}
+
+function uniqueFonts(fonts: readonly string[]): string[] {
+	return [...new Set(fonts.map(font => font.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right));
 }
 
 function getState(): SimpleSettingsState {
@@ -453,6 +520,7 @@ function getState(): SimpleSettingsState {
 	const compileRunFlags = vscode.workspace.getConfiguration('c-cpp-compile-run', null).get<string>('cpp-flags');
 	const compilerFlags = cphFlags || compileRunFlags || defaultCompilerFlags;
 	const inlayHintsEnabled = editor.get<boolean | string>('inlayHints.enabled') ?? 'on';
+	const errorLensCodeLensEnabled = vscode.workspace.getConfiguration('errorLens', null).get<boolean>('codeLensEnabled') ?? false;
 	const executableCleanupEnabled = vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('executableCleanupEnabled') ?? true;
 	const executableCleanupDelaySeconds = vscode.workspace.getConfiguration('shortestpath', null).get<number>('executableCleanupDelaySeconds') ?? 60;
 	const colorTheme = workbench.get<string>('colorTheme') ?? 'Default Dark Modern';
@@ -464,6 +532,7 @@ function getState(): SimpleSettingsState {
 		cppStandard: findCppStandard(compilerFlags),
 		compilerFlags,
 		clangdVariableTypeHints: inlayHintsEnabled !== false && inlayHintsEnabled !== 'off',
+		errorLensCodeLensEnabled,
 		executableCleanupEnabled,
 		executableCleanupDelaySeconds,
 		colorTheme,
@@ -516,6 +585,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('cph.language.cpp.Args', compilerFlags, vscode.ConfigurationTarget.Global),
 		settings.update('c-cpp-compile-run.cpp-flags', compilerFlags, vscode.ConfigurationTarget.Global),
 		settings.update('editor.inlayHints.enabled', value.clangdVariableTypeHints !== false ? 'on' : 'off', vscode.ConfigurationTarget.Global),
+		settings.update('errorLens.codeLensEnabled', value.errorLensCodeLensEnabled === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.executableCleanupEnabled', value.executableCleanupEnabled !== false, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.executableCleanupDelaySeconds', executableCleanupDelaySeconds, vscode.ConfigurationTarget.Global),
 		settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' ? value.colorTheme : 'Default Dark Modern', vscode.ConfigurationTarget.Global),
@@ -560,7 +630,7 @@ section.card[hidden], .row[hidden] { display: none; } .no-results { color: var(-
 <div class="settings-content">
 <h1>ShortestPath IDE 设置</h1><p>只保留竞赛编程常用选项。更改会自动保存；其他设置可在高级设置中调整。</p>
 <section class="card" data-category="editor">
-<div class="row"><div><label for="fontFamily">代码字体</label><div class="hint">首选字体仅列出等宽字体。</div></div><select id="fontFamily"></select></div>
+<div class="row"><div><label for="fontFamily">代码字体</label><div class="hint">仅可从检测到的系统等宽字体中选择，不支持手动输入。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" disabled aria-describedby="fontLoadStatus"><option>正在读取系统字体…</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div></div></div>
 <div id="fontPreview" class="font-preview">#include &lt;bits/stdc++.h&gt;
 int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <div class="row"><div><label>回退字体</label><div class="hint">字形缺失时按顺序回退；可选择非等宽中文或 Emoji 字体。</div></div><div><div id="fallbackFonts" class="fallback-list"></div><button id="addFallback" class="secondary add-fallback" type="button">添加回退字体</button></div></div>
@@ -586,6 +656,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 </section>
 <section class="card" data-category="tools"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
 <p id="noResults" class="no-results" hidden>没有匹配的设置。</p>
 <div class="actions"><button id="advanced" class="secondary">高级设置</button><span id="saved" aria-live="polite"></span></div>
@@ -594,8 +665,12 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <script>
 const vscode = acquireVsCodeApi();
 const byId = id => document.getElementById(id);
-const monospaceFonts = ['JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Cascadia Mono', 'Consolas', 'Menlo', 'Monaco', 'SF Mono', 'Source Code Pro', 'Ubuntu Mono', 'Roboto Mono', 'Iosevka', 'Hack', 'Inconsolata', 'DejaVu Sans Mono', 'Courier New', 'monospace'];
-const fallbackFonts = ['PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'sans-serif'];
+let systemFonts = [];
+let monospaceSystemFonts = [];
+let fontLoadError = '';
+let fontLoadComplete = false;
+let fontDetectionInProgress = false;
+let fontDetectionGeneration = 0;
 let selectedFonts = [];
 let selectedCategory = 'all';
 const normalizeFont = font => font.trim().replace(/^['"]|['"]$/g, '');
@@ -619,22 +694,97 @@ function updateSettingsFilter() {
 }
 function setPreview() { byId('fontPreview').style.fontFamily = serializeFontStack(selectedFonts); }
 function addOptions(select, fonts, label) { const group = document.createElement('optgroup'); group.label = label; fonts.forEach(font => { const option = document.createElement('option'); option.value = font; option.textContent = font; option.style.fontFamily = serializeFontStack([font]); group.append(option); }); select.append(group); }
-function fontSelect(font, allowFallback) { const select = document.createElement('select'); addOptions(select, monospaceFonts, '等宽字体'); if (allowFallback) addOptions(select, fallbackFonts, '回退字体（可非等宽）'); if (![...select.options].some(option => option.value === font)) { const custom = document.createElement('option'); custom.value = font; custom.textContent = font + '（当前自定义字体）'; select.prepend(custom); } select.value = font; select.style.fontFamily = serializeFontStack([font]); return select; }
+function isMonospaceFont(font, context) { context.font = '16px ' + serializeFontStack([font]); return Math.abs(context.measureText('iiiiiiiiii').width - context.measureText('WWWWWWWWWW').width) < 0.01; }
+async function getMonospaceFonts(fonts) {
+  const context = document.createElement('canvas').getContext('2d');
+  if (!context) return [];
+  const result = [];
+  const batchSize = 40;
+  for (let index = 0; index < fonts.length; index += batchSize) {
+    fonts.slice(index, index + batchSize).forEach(font => { if (isMonospaceFont(font, context)) result.push(font); });
+    if (index + batchSize < fonts.length) {
+      await new Promise(resolve => {
+        const schedule = globalThis.requestAnimationFrame ?? (callback => setTimeout(callback, 0));
+        schedule(resolve);
+      });
+    }
+  }
+  return result;
+}
+function fontSelect(font, fonts, label, allowCurrentCustomFont) { const select = document.createElement('select'); addOptions(select, fonts, label); const hasFont = fonts.includes(font); if (!hasFont && allowCurrentCustomFont) { const custom = document.createElement('option'); custom.value = font; custom.textContent = font + '（当前字体）'; select.prepend(custom); } else if (!hasFont) { const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = '当前代码字体不是等宽字体，请选择'; placeholder.disabled = true; select.prepend(placeholder); } select.value = hasFont || allowCurrentCustomFont ? font : ''; select.disabled = !fonts.length; select.style.fontFamily = serializeFontStack([font]); return select; }
 function renderFonts() {
-  const primary = byId('fontFamily'); primary.replaceChildren();
-  const primarySelect = fontSelect(selectedFonts[0], false); [...primarySelect.children].forEach(child => primary.append(child)); primary.value = selectedFonts[0]; primary.style.fontFamily = serializeFontStack([selectedFonts[0]]);
+  const primary = byId('fontFamily');
+  primary.replaceChildren();
   const fallback = byId('fallbackFonts'); fallback.replaceChildren();
-  selectedFonts.slice(1).forEach((font, index) => { const row = document.createElement('div'); row.className = 'fallback-row'; const select = fontSelect(font, true); select.onchange = () => { selectedFonts[index + 1] = select.value; renderFonts(); setPreview(); save(0); }; const up = document.createElement('button'); up.type = 'button'; up.className = 'secondary icon'; up.textContent = '↑'; up.disabled = index === 0; up.onclick = () => { [selectedFonts[index], selectedFonts[index + 1]] = [selectedFonts[index + 1], selectedFonts[index]]; renderFonts(); setPreview(); save(0); }; const down = document.createElement('button'); down.type = 'button'; down.className = 'secondary icon'; down.textContent = '↓'; down.disabled = index === selectedFonts.length - 2; down.onclick = () => { [selectedFonts[index + 1], selectedFonts[index + 2]] = [selectedFonts[index + 2], selectedFonts[index + 1]]; renderFonts(); setPreview(); save(0); }; const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'secondary icon'; remove.textContent = '×'; remove.onclick = () => { selectedFonts.splice(index + 1, 1); renderFonts(); setPreview(); save(0); }; row.append(select, up, down, remove); fallback.append(row); });
+  const status = byId('fontLoadStatus');
+  const isLoading = !fontLoadComplete && !fontLoadError;
+  byId('fontControl').setAttribute('aria-busy', String(isLoading));
+  if (!fontLoadComplete) {
+    const loadingOption = document.createElement('option');
+    loadingOption.textContent = fontDetectionInProgress ? '正在检测系统等宽字体…' : '正在读取系统字体…';
+    primary.append(loadingOption);
+    primary.disabled = true;
+    byId('addFallback').disabled = true;
+    status.textContent = fontDetectionInProgress
+      ? '正在检测 ' + systemFonts.length + ' 个系统字体中的等宽字体，请稍候。'
+      : '正在读取系统字体，请稍候。';
+    return;
+  }
+  const primarySelect = fontSelect(selectedFonts[0], monospaceSystemFonts, '系统等宽字体', false);
+  const primaryValue = primarySelect.value;
+  [...primarySelect.children].forEach(child => primary.append(child));
+  primary.value = primaryValue;
+  primary.disabled = !monospaceSystemFonts.length;
+  primary.style.fontFamily = serializeFontStack([selectedFonts[0]]);
+  selectedFonts.slice(1).forEach((font, index) => { const row = document.createElement('div'); row.className = 'fallback-row'; const select = fontSelect(font, systemFonts, '系统字体', true); select.onchange = () => { selectedFonts[index + 1] = select.value; renderFonts(); setPreview(); save(0); }; const up = document.createElement('button'); up.type = 'button'; up.className = 'secondary icon'; up.textContent = '↑'; up.disabled = index === 0; up.onclick = () => { [selectedFonts[index], selectedFonts[index + 1]] = [selectedFonts[index + 1], selectedFonts[index]]; renderFonts(); setPreview(); save(0); }; const down = document.createElement('button'); down.type = 'button'; down.className = 'secondary icon'; down.textContent = '↓'; down.disabled = index === selectedFonts.length - 2; down.onclick = () => { [selectedFonts[index + 1], selectedFonts[index + 2]] = [selectedFonts[index + 2], selectedFonts[index + 1]]; renderFonts(); setPreview(); save(0); }; const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'secondary icon'; remove.textContent = '×'; remove.onclick = () => { selectedFonts.splice(index + 1, 1); renderFonts(); setPreview(); save(0); }; row.append(select, up, down, remove); fallback.append(row); });
+  byId('addFallback').disabled = !systemFonts.length;
+  status.textContent = fontLoadError
+    ? fontLoadError
+    : !systemFonts.length
+      ? '未发现可用的系统字体，无法选择代码字体。'
+      : !monospaceSystemFonts.length
+        ? '未发现可用的系统等宽字体，无法选择代码字体。'
+        : '已检测到 ' + monospaceSystemFonts.length + ' 个系统等宽字体。';
+}
+async function applySystemFonts(result) {
+  const generation = ++fontDetectionGeneration;
+  systemFonts = result.fonts;
+  monospaceSystemFonts = [];
+  fontLoadError = result.error || '';
+  fontLoadComplete = false;
+  fontDetectionInProgress = false;
+  if (fontLoadError || !systemFonts.length) {
+    fontLoadComplete = true;
+    renderFonts();
+    return;
+  }
+  fontDetectionInProgress = true;
+  renderFonts();
+  try {
+    const detectedFonts = await getMonospaceFonts(systemFonts);
+    if (generation !== fontDetectionGeneration) return;
+    monospaceSystemFonts = detectedFonts;
+  } catch {
+    if (generation !== fontDetectionGeneration) return;
+    fontLoadError = '检测系统等宽字体时出现错误。';
+  } finally {
+    if (generation === fontDetectionGeneration) {
+      fontDetectionInProgress = false;
+      fontLoadComplete = true;
+      renderFonts();
+    }
+  }
 }
 function apply(state) {
   selectedFonts = (state.fontFamily || '').split(',').map(normalizeFont).filter(Boolean);
-  if (!selectedFonts.length) selectedFonts = ['Consolas', 'monospace'];
+  if (!selectedFonts.length) selectedFonts = ['monospace'];
   byId('fontLigatures').checked = !!state.fontLigatures;
   byId('fontSize').value = state.fontSize;
 	byId('autoFormat').checked = !!state.autoFormat;
   byId('cppStandard').value = state.cppStandard;
   byId('compilerFlags').value = state.compilerFlags;
   byId('clangdVariableTypeHints').checked = !!state.clangdVariableTypeHints;
+  byId('errorLensCodeLensEnabled').checked = !!state.errorLensCodeLensEnabled;
   byId('executableCleanupEnabled').checked = !!state.executableCleanupEnabled;
   byId('executableCleanupDelaySeconds').value = state.executableCleanupDelaySeconds;
   const theme = byId('colorTheme'); theme.replaceChildren();
@@ -645,7 +795,7 @@ function apply(state) {
 	byId('newFileDefaultLanguage').value = state.newFileDefaultLanguage;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value }; }
+function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#settingsSearch), select').forEach(control => {
@@ -654,7 +804,7 @@ document.querySelectorAll('input:not(#settingsSearch), select').forEach(control 
   control.addEventListener('change', () => save(0));
 });
 byId('fontFamily').addEventListener('change', () => { selectedFonts[0] = byId('fontFamily').value; setPreview(); save(0); });
-byId('addFallback').addEventListener('click', () => { selectedFonts.push(fallbackFonts[0]); renderFonts(); setPreview(); save(0); });
+byId('addFallback').addEventListener('click', () => { if (systemFonts.length) { selectedFonts.push(systemFonts[0]); renderFonts(); setPreview(); save(0); } });
 byId('cppStandard').addEventListener('change', () => { const flags = byId('compilerFlags'); const standard = byId('cppStandard').value; const withoutStandard = flags.value.replace(/(^|\\s)-std=(?:gnu\\+\\+|c\\+\\+)\\d+\\b/g, ' ').replace(/\\s+/g, ' ').trim(); flags.value = '-std=' + standard + (withoutStandard ? ' ' + withoutStandard : ''); save(0); });
 document.querySelectorAll('.category').forEach(button => button.addEventListener('click', () => { selectedCategory = button.dataset.category; document.querySelectorAll('.category').forEach(item => item.classList.toggle('active', item === button)); updateSettingsFilter(); }));
 byId('settingsSearch').addEventListener('input', updateSettingsFilter);
@@ -663,7 +813,7 @@ byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'sni
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
 byId('cphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
 byId('toolchainDiagnostics').addEventListener('click', () => vscode.postMessage({ type: 'toolchainDiagnostics' }));
-window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); });
+window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); if (event.data?.type === 'systemFonts') void applySystemFonts(event.data.value); });
 apply(${serializedState});
 updateSettingsFilter();
 </script></body></html>`;

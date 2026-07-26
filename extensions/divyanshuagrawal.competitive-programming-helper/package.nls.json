@@ -1,9 +1,10 @@
 {
     "cph.runTestCases.title": "Run Testcases",
     "cph.submitToCodeForces.title": "Submit to CodeForces",
+    "cph.compileWithoutRunning.title": "Compile Without Running",
     "cph.judgeView.name": "Results",
     "cph.judgeViewContainer.title": "CPH Judge",
-    "cph.configuration.title": "Competitive Programming Helper",
+    "cph.configuration.title": "Competitive Programming Helper Plus",
     "cph.general.saveLocation.description": "Location where generated .tcs and .bin files will be saved. Leave empty to save the file in the source file directory. Use this to clean up your folders.",
     "cph.general.timeOut.description": "The time in ms for which a testcase is run before it is killed ( timed-out ).",
     "cph.general.hideStderrorWhenCompiledOK.description": "Ignore and don't show stderror when compilation exit code is zero.",
@@ -86,17 +87,19 @@
     "cph.runTestCases.localPrefix": "Local: {0}",
     "cph.executor.launchError": "Could not launch testcase process. Is '{0}' in your PATH?",
     "cph.extension.statusBarText": "$(run-all) Run Testcases",
-    "cph.extension.statusBarTooltip": "Competitive Programming Helper - Run all testcases or create if none exist.",
+    "cph.extension.statusBarTooltip": "Competitive Programming Helper Plus - Run all testcases or create if none exist.",
     "cph.submit.notSupported": "Active editor is not supported for submission",
     "cph.submit.parseFailed": "Failed to parse current code.",
     "cph.submit.notKattis": "Not a kattis problem.",
     "cph.submit.notCodeforces": "Not a codeforces problem.",
     "cph.utils.unsupported": "Unsupported file extension. Only these types are valid: {0}",
+    "cph.utils.noActiveEditor": "No active editor found.",
     "cph.general.collectProblemsInRoot.description": "Save all problem metadata (.cph) in the workspace root directory instead of alongside each source file. Keeps subdirectories clean when using filename templates with paths.",
     "cph.general.ojMapping.description": "Custom OJ hostname to metadata mapping. Keys are hostnames (e.g. 'www.luogu.com.cn'), values are objects with {oj, ojName, contestIdRegex?, problemIdRegex?}. Matched URLs override built-in detection. Example: { \"my.oj.cn\": { \"oj\": \"MYOJ\", \"ojName\": \"My OJ\" } }",
     "cph.general.vjudgeOjNames.description": "VJudge OJ name to original URL mapping. Keys are OJ names as they appear in VJudge URLs (e.g. 'CodeForces', '51Nod'), values are {urlTemplate, problemIdRegex?, compositeFormat?, vjudgeUrlKey?}. Used to reconstruct original OJ URLs for filename templates and submission. compositeFormat controls how to rebuild the composite problem ID (default: '{contestId}{problemId}'). vjudgeUrlKey overrides the OJ name used when constructing VJudge URLs from other sources (e.g. 'CF' → 'CodeForces'). Example: { \"51Nod\": { \"urlTemplate\": \"https://www.51nod.com/Challenge/Problem.html#problemId={problemId}\" } }",
     "cph.general.vjudgeOpenInBrowser.description": "Automatically open the VJudge problem page in the integrated browser when receiving a problem (from VJudge or other OJs).",
     "cph.general.vjudgeUrlSuffix.description": "Optional suffix to append to the URL opened in the browser. Useful for adding URL parameters or hash fragments (e.g. '#author=translator:1281309:zh').",
     "cph.general.vjudgeBrowserSplitRatio.description": "Split ratio (10-90) between code editor and browser when opening VJudge problem page. Default 50 means 50:50.",
-    "cph.preferences.invalidSaveLocation": "Invalid save location, reverting to default. path not exists: {0}"
+    "cph.preferences.invalidSaveLocation": "Invalid save location, reverting to default. path not exists: {0}",
+    "cph.processRunSingle.invalidChecker": "Custom checker script not found at '{0}'"
 }

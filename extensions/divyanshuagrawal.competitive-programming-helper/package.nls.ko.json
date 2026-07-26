@@ -1,9 +1,10 @@
 {
     "cph.runTestCases.title": "테스트케이스 실행",
     "cph.submitToCodeForces.title": "CodeForces에 제출",
+    "cph.compileWithoutRunning.title": "실행하지 않고 컴파일",
     "cph.judgeView.name": "결과",
     "cph.judgeViewContainer.title": "CPH 채점기",
-    "cph.configuration.title": "Competitive Programming Helper (CPH)",
+    "cph.configuration.title": "Competitive Programming Helper Plus",
     "cph.general.saveLocation.description": "생성된 .tcs 및 .bin 파일이 저장될 위치입니다. 비워두면 소스 파일 디렉토리에 저장됩니다. 폴더를 정리하는 데 사용하세요.",
     "cph.general.timeOut.description": "테스트케이스가 강제 종료되기 전까지 실행되는 시간(ms)입니다.",
     "cph.general.hideStderrorWhenCompiledOK.description": "컴파일 종료 코드가 0인 경우 표준 에러를 무시하고 표시하지 않습니다.",
@@ -85,11 +86,12 @@
     "cph.runTestCases.localPrefix": "로컬: {0}",
     "cph.executor.launchError": "테스트케이스 프로세스를 시작할 수 없습니다. '{0}'이(가) PATH에 있나요?",
     "cph.extension.statusBarText": "$(run-all) 테스트케이스 실행",
-    "cph.extension.statusBarTooltip": "Competitive Programming Helper - 모든 테스트케이스를 실행하거나 없으면 생성합니다.",
+    "cph.extension.statusBarTooltip": "Competitive Programming Helper Plus - 모든 테스트케이스를 실행하거나 없으면 생성합니다.",
     "cph.submit.notSupported": "활성 에디터는 제출을 지원하지 않습니다.",
     "cph.submit.parseFailed": "현재 코드를 파싱하지 못했습니다.",
     "cph.submit.notKattis": "Kattis 문제가 아닙니다.",
     "cph.submit.notCodeforces": "Codeforces 문제가 아닙니다.",
     "cph.utils.unsupported": "지원되지 않는 파일 확장자입니다. 다음 유형만 유효합니다: {0}",
-    "cph.preferences.invalidSaveLocation": "잘못된 저장 위치입니다. 기본값으로 복원합니다. 존재하지 않는 경로: {0}"
+    "cph.preferences.invalidSaveLocation": "잘못된 저장 위치입니다. 기본값으로 복원합니다. 존재하지 않는 경로: {0}",
+    "cph.processRunSingle.invalidChecker": "'{0}' 위치에서 커스텀 채점 스크립트를 찾을 수 없습니다"
 }

@@ -23,6 +23,7 @@ export const dirs = [
 	'extensions/debug-auto-launch',
 	'extensions/debug-server-ready',
 	'extensions/divyanshuagrawal.competitive-programming-helper',
+	'extensions/usernamehw.errorlens',
 	'extensions/emmet',
 	'extensions/extension-editing',
 	'extensions/git',

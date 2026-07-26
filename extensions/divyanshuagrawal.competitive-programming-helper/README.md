@@ -1,4 +1,15 @@
-# Competitive Programming Helper (cph)
+# Competitive Programming Helper Plus
+
+[中文说明](README_cn.md)
+
+![Downloads](https://vsmarketplacebadges.dev/downloads-short/DivyanshuAgrawal.competitive-programming-helper.svg)
+
+> [!WARNING]
+>
+> **This fork cannot coexist with the original CPH extension.** It keeps the
+> same extension identifier and `cph.*` settings for compatibility, so
+> installing it replaces the original Competitive Programming Helper. Back up
+> any settings you want to keep before switching.
 
 Quickly compile, run and judge competitive programming problems in VS Code.
 Automatically download testcases , or write & test your own problems. Once you
@@ -9,10 +20,35 @@ TopCoder etc. with the help of competitive companion browser extension
 
 ![Screenshot](screenshots/screenshot-main.png)
 
+## Fork additions
+
+This repository is a modified version of
+[Competitive Programming Helper](https://github.com/agrawal-d/competitive-programming-helper).
+Besides the upstream workflow, it adds configurable problem-file organization
+and VJudge support:
+
+-   Filename templates with OJ-specific overrides and automatic directory
+    creation.
+-   Configurable OJ hostname mappings to extract OJ, contest, and problem IDs.
+-   VJudge URL reconstruction, so imported VJudge problems use their original OJ
+    metadata for naming and submission.
+-   Optional VJudge page in VS Code's integrated browser, opened beside the
+    source.
+-   An option to store all generated `.cph` metadata under the workspace root.
+
+See the [Chinese README](README_cn.md) for configuration examples and the
+complete description of these additions.
+
 ## Quick start
 
-1. [Install cph](https://marketplace.visualstudio.com/items?itemName=DivyanshuAgrawal.competitive-programming-helper)
-   in VS Code and open any folder.
+1. Build and install this fork as a VSIX:
+    ```sh
+    npm ci
+    npm run vscode:prepublish
+    npx @vscode/vsce package
+    ```
+    Then use VS Code's **Extensions: Install from VSIX...** command and open a
+    folder.
 1. [Install competitive companion](https://github.com/jmerle/competitive-companion#readme)
    in your browser.
 1. Use Companion by pressing the green plus (+) circle from the browser toolbar
@@ -39,6 +75,8 @@ enter testcases.
 -   [Codeforces auto-submit](https://github.com/agrawal-d/cph-submit)
     integration.
 -   [Kattis auto-submit](docs/user-guide.md) integration.
+-   **Custom Checker (Special Judge)**: Use Python scripts to evaluate problems
+    with multiple valid outputs or specific precision requirements.
 -   Works locally for your own problems.
 -   Support for several languages.
 
@@ -66,8 +104,8 @@ Interested in adding support for another language? Check out the
 -   Korean
 -   Japanese
 
-Interested in adding a new translation? See the [translation guide](docs/dev-guide.md#adding-a-new-translation).
-
+Interested in adding a new translation? See the
+[translation guide](docs/dev-guide.md#adding-a-new-translation).
 
 ## Contributing
 

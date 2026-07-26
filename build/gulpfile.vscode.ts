@@ -28,7 +28,8 @@ import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
-import { getCopilotExcludeFilter, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter } from './lib/copilot.ts';
+import { getCopilotExcludeFilter, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter } from './lib/copilot.ts';
+import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
@@ -170,7 +171,9 @@ task.task(bundleVSCodeTask);
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 const useCdnSourceMapsForPackagingTasks = isCI;
-const stripSourceMapsInPackagingTasks = isCI;
+// Source maps are build artifacts, not runtime resources. Keeping them in local
+// `*-min` packages added more than 200 MB and made local packages differ from CI.
+const stripSourceMapsInPackagingTasks = true;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	bundleVSCodeTask,
 	util.rimraf('out-vscode-min'),
@@ -238,6 +241,19 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
+// ShortestPath does not expose Chat, Agents, or on-device chat dictation. Keep
+// their development dependencies installed for upstream compilation, but do not
+// ship the large, unreachable runtime payloads in the product.
+const shortestPathUnusedAIRuntimeExcludeFilter = [
+	'**',
+	'!**/@anthropic-ai/**',
+	'!**/@huggingface/**',
+	'!**/@microsoft/mxc-sdk/**',
+	'!**/onnxruntime-common/**',
+	'!**/onnxruntime-node/**',
+	'!**/onnxruntime-web/**',
+];
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
@@ -289,7 +305,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		], { base: '.' });
 
 		const sourceFilterPattern = stripSourceMapsInPackagingTasks
-			? ['**', '!**/*.{js,css}.map']
+			? ['**', '!**/*.map']
 			: ['**'];
 		const sources = es.merge(src, extensions, shortestPathOnboarding)
 			.pipe(filter(sourceFilterPattern, { dot: true }));
@@ -351,34 +367,28 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		const depFilterPattern = ['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock'];
 		if (stripSourceMapsInPackagingTasks) {
-			depFilterPattern.push('!**/*.{js,css}.map');
+			depFilterPattern.push('!**/*.map');
 		}
 
 		const cleanedDeps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
-		const deps = cleanedDeps
-			.pipe(filter(['**', '!**/@github/copilot*/**']))
+		ensureOSProxyResolverPlatformPackage(platform, arch);
+		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
+		const deps = es.merge(cleanedDeps, osProxyResolverPlatformPackage)
+			.pipe(filter(['**', '!**/@github/copilot*/**', '!**/@vscode/copilot-api/**']))
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
-			.pipe(filter(getMxcExcludeFilter(arch)))
+			.pipe(filter(shortestPathUnusedAIRuntimeExcludeFilter))
+			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
 				'**/@vscode/ripgrep-universal/bin/**',
-				// Only the platform-specific Copilot CLI packages (`@github/copilot-<os>-<arch>`)
-				// need to be unpacked: the CLI is spawned as a subprocess and is a
-				// self-locating bundle that memory-maps files and resolves its native
-				// addons / sub-binaries relative to its own on-disk location, so it cannot
-				// run from inside the archive. `@github/copilot-sdk` is intentionally NOT
-				// matched here — it is pure JavaScript that the agent host loads via
-				// `import` (ASAR-aware), so it stays in the archive.
-				'**/@github/copilot-{darwin,linux,linuxmusl,win32}-*/**',
-				'**/@microsoft/mxc-sdk/bin/**',
 				// Newer node-pty ships `spawn-helper` under prebuilds/<plat>-<arch>/
 				// instead of build/Release/. node-pty exec's it via posix_spawn as
 				// argv[0] on macOS (lib/unixTerminal.js: helperPath = native.dir +

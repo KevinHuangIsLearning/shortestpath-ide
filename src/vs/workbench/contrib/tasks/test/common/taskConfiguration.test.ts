@@ -1834,15 +1834,13 @@ suite('Task configuration conversions', () => {
 	});
 	suite('TaskParser.from', () => {
 		suite('CustomTask', () => {
-			suite('incomplete config reports an appropriate error for missing', () => {
-				test('name', () => {
-					const result = TaskParser.from([{} as ICustomTask], globals, parseContext, taskConfigSource);
-					assertTaskParseResult(result, undefined, problemReporter, 'Error: a task must provide a label property');
-				});
-				test('command', () => {
-					const result = TaskParser.from([{ taskName: 'task' } as ICustomTask], globals, parseContext, taskConfigSource);
-					assertTaskParseResult(result, undefined, problemReporter, `Error: the task 'task' doesn't define a command`);
-				});
+			test('incomplete config reports an appropriate error for missing name', () => {
+				const result = TaskParser.from([{} as ICustomTask], globals, parseContext, taskConfigSource);
+				assertTaskParseResult(result, undefined, problemReporter, 'Error: a task must provide a label property');
+			});
+			test('incomplete config without a command is silently ignored', () => {
+				const result = TaskParser.from([{ taskName: 'task' } as ICustomTask], globals, parseContext, taskConfigSource);
+				assertTaskParseResult(result, undefined, problemReporter);
 			});
 			test('returns expected result', () => {
 				const expected = [

@@ -1,4 +1,4 @@
-import { Language, Run } from './types';
+import { Language, Run, CustomCheckerRun } from './types';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { platform } from 'os';
 import config from './config';
@@ -8,9 +8,20 @@ import path from 'path';
 import { onlineJudgeEnv } from './compiler';
 import telmetry from './telmetry';
 import localize from './i18n';
-import { promises as fs } from 'fs';
+import { executeCustomChecker } from './utils/customChecker';
 
-const runningBinaries: ChildProcessWithoutNullStreams[] = [];
+export const runningBinaries: ChildProcessWithoutNullStreams[] = [];
+
+/**
+ * Run a custom checker script for a testcase.
+ */
+export const runCustomChecker = async (
+    checkerPath: string,
+    input: string,
+    output: string,
+): Promise<CustomCheckerRun> => {
+    return executeCustomChecker(checkerPath, input, output, runningBinaries);
+};
 
 /**
  * Run a single testcase, and return the raw results, without judging.
@@ -136,13 +147,15 @@ export const runTestCase = (
     const ret: Promise<Run> = new Promise((resolve) => {
         runningBinaries.push(process);
         process.on('exit', (code, signal) => {
-            const end = Date.now();
             clearTimeout(killer);
+            const end = Date.now();
             result.code = code;
             result.signal = signal;
             result.time = end - begin;
-            runningBinaries.pop();
-            globalThis.logger.log('Run Result:', result);
+            const idx = runningBinaries.indexOf(process);
+            if (idx > -1) {
+                runningBinaries.splice(idx, 1);
+            }
             resolve(result);
         });
 
@@ -150,6 +163,19 @@ export const runTestCase = (
             result.stdout += data;
         });
         process.stderr.on('data', (data) => (result.stderr += data));
+
+        process.on('error', (err) => {
+            clearTimeout(killer);
+            const end = Date.now();
+            result.code = 1;
+            result.signal = err.name;
+            result.time = end - begin;
+            const idx = runningBinaries.indexOf(process);
+            if (idx > -1) {
+                runningBinaries.splice(idx, 1);
+            }
+            resolve(result);
+        });
 
         globalThis.logger.log('Wrote to STDIN');
         try {
@@ -159,99 +185,48 @@ export const runTestCase = (
         }
 
         process.stdin.end();
-        process.on('error', (err) => {
-            const end = Date.now();
-            clearTimeout(killer);
-            result.code = 1;
-            result.signal = err.name;
-            result.time = end - begin;
-            runningBinaries.pop();
-            globalThis.logger.log('Run Error Result:', result);
-            resolve(result);
-        });
     });
 
     return ret;
 };
 
-const DEFAULT_BINARY_CLEANUP_DELAY_SECONDS = 60;
-
-const getBinaryCleanupDelayMs = () => {
-    const seconds = vscode.workspace.getConfiguration('shortestpath').get<number>('executableCleanupDelaySeconds', DEFAULT_BINARY_CLEANUP_DELAY_SECONDS);
-    return Math.max(0, Math.min(86_400, Number.isFinite(seconds) ? Math.floor(seconds) : DEFAULT_BINARY_CLEANUP_DELAY_SECONDS)) * 1_000;
-};
-
-const isBinaryCleanupEnabled = () => vscode.workspace.getConfiguration('shortestpath').get<boolean>('executableCleanupEnabled', true) !== false;
-
-const binaryVersion = async (binPath: string) => {
-    try {
-        const stat = await fs.stat(binPath);
-        return { mtimeMs: stat.mtimeMs, size: stat.size };
-    } catch {
-        return undefined;
-    }
-};
-
-/** Remove generated binaries after execution, using the configured Windows delay. */
 export const deleteBinary = (language: Language, binPath: string) => {
-    if (language.skipCompile || !isBinaryCleanupEnabled()) {
+    if (language.skipCompile) {
         globalThis.logger.log(
             "Skipping deletion of binary as it's not a compiled language.",
         );
         return;
     }
-    const cleanupDelay = getBinaryCleanupDelayMs();
-    globalThis.logger.log(
-        `Scheduled binary deletion in ${cleanupDelay}ms`,
-        binPath,
-    );
-    const expectedVersion = binaryVersion(binPath);
-    const timer = setTimeout(() => {
-        void Promise.all([expectedVersion, binaryVersion(binPath)])
-            .then(async ([expected, current]) => {
-                // A later compilation may have replaced the same output path.
-                // Its cleanup timer owns that newer executable.
-                if (
-                    !expected ||
-                    !current ||
-                    expected.mtimeMs !== current.mtimeMs ||
-                    expected.size !== current.size
-                ) {
-                    return false;
-                }
-                await Promise.all([
-                    fs.rm(binPath, {
-                        recursive: true,
-                        force: true,
-                        maxRetries: 3,
-                        retryDelay: 500,
-                    }),
-                    fs.rm(`${binPath}.dSYM`, {
-                        recursive: true,
-                        force: true,
-                        maxRetries: 3,
-                        retryDelay: 500,
-                    }),
-                ]);
-                return true;
-            })
-            .then(
-                (deleted) => {
-                    if (deleted) {
-                        globalThis.logger.log('Deleted binary', binPath);
-                    }
-                },
-                (err) =>
-                    globalThis.logger.error(
-                        'Error while deleting binary',
-                        err,
-                    ),
-            );
-    }, cleanupDelay);
-    timer.unref();
+    globalThis.logger.log('Deleting binary', binPath);
+    try {
+        const isLinux = platform() == 'linux';
+        const isFile = path.extname(binPath);
+
+        if (isLinux) {
+            if (isFile) {
+                spawn('rm', [binPath]);
+            } else {
+                spawn('rm', ['-r', binPath]);
+            }
+        } else {
+            const nrmBinPath = '"' + binPath + '"';
+            if (isFile) {
+                spawn('cmd.exe', ['/c', 'del', nrmBinPath], {
+                    windowsVerbatimArguments: true,
+                });
+            } else {
+                spawn('cmd.exe', ['/c', 'rd', '/s', '/q', nrmBinPath], {
+                    windowsVerbatimArguments: true,
+                });
+            }
+        }
+    } catch (err) {
+        globalThis.logger.error('Error while deleting binary', err);
+    }
 };
 
-/** Kill all running binaries. Usually, only one should be running at a time. */
+/** Kill all currently running processes. Only one problem's testcases
+ * should be running at a time. */
 export const killRunning = () => {
     globalThis.reporter.sendTelemetryEvent(telmetry.KILL_RUNNING);
     globalThis.logger.log('Killling binaries');

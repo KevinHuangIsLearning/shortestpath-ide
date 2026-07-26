@@ -1,9 +1,6 @@
 import { Case, VSToWebViewMessage, DiffResult, TokenDiff } from '../../types';
 import { useState, createRef, useEffect } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
-import AnsiToHtml from 'ansi-to-html';
-
-const converter = new AnsiToHtml(); // Create a converter instance
 
 import React from 'react';
 
@@ -25,12 +22,17 @@ export default function CaseView(props: {
     notify: (text: string) => void;
     doFocus?: boolean;
     forceRunning: boolean;
+    forceChecking: boolean;
+    customCheckerPath?: string;
+    stop: () => void;
 }) {
     const { id, result } = props.case;
 
     const [input, setInput] = useState<string>(props.case.testcase.input);
     const [output, setOutput] = useState<string>(props.case.testcase.output);
     const [running, setRunning] = useState<boolean>(false);
+    const [checking, setChecking] = useState<boolean>(false);
+    const [deleteArmed, setDeleteArmed] = useState<boolean>(false);
     const [minimized, setMinimized] = useState<boolean>(
         props.case.result?.pass === true,
     );
@@ -49,8 +51,16 @@ export default function CaseView(props: {
     useEffect(() => {
         if (props.forceRunning) {
             setRunning(true);
+            setChecking(false);
         }
     }, [props.forceRunning]);
+
+    useEffect(() => {
+        if (props.forceChecking) {
+            setRunning(false);
+            setChecking(true);
+        }
+    }, [props.forceChecking]);
 
     const handleInputChange = (
         event: React.ChangeEvent<HTMLTextAreaElement>,
@@ -67,6 +77,14 @@ export default function CaseView(props: {
     const rerun = () => {
         setRunning(true);
         props.rerun(id, input, output);
+    };
+
+    const remove = () => {
+        if (!deleteArmed) {
+            setDeleteArmed(true);
+            return;
+        }
+        props.remove(id);
     };
 
     const expand = () => {
@@ -87,15 +105,16 @@ export default function CaseView(props: {
     useEffect(() => {
         if (props.case.result !== null) {
             setRunning(false);
+            setChecking(false);
             props.case.result.pass ? setMinimized(true) : setMinimized(false);
         }
     }, [props.case.result]);
 
     useEffect(() => {
-        if (running) {
+        if (running || checking) {
             setMinimized(true);
         }
-    }, [running]);
+    }, [running, checking]);
 
     useEffect(() => {
         window.addEventListener('message', function (event) {
@@ -115,12 +134,22 @@ export default function CaseView(props: {
     if (result?.signal) {
         resultText = result?.signal;
     } else if (result?.stdout) {
-        resultText = result.stdout || ' ';
+        const rawStdout = result.stdout || ' ';
+        if (rawStdout.endsWith('\r\n')) {
+            resultText = rawStdout.slice(0, -2);
+        } else if (rawStdout.endsWith('\n')) {
+            resultText = rawStdout.slice(0, -1);
+        } else {
+            resultText = rawStdout;
+        }
+        if (resultText === '') {
+            resultText = ' ';
+        }
     }
     if (!result) {
         resultText = t('runToShowOutput');
     }
-    if (running) {
+    if (running || checking) {
         resultText = '...';
     }
     const passFailText = result
@@ -128,7 +157,8 @@ export default function CaseView(props: {
             ? t('passed')
             : t('failed')
         : '';
-    const caseClassName = 'case ' + (running ? 'running' : passFailText);
+    const caseClassName =
+        'case case-enter ' + (running || checking ? 'running' : passFailText);
     const timeText = result?.timeOut ? t('timedOut') : result?.time + 'ms';
 
     return (
@@ -152,53 +182,76 @@ export default function CaseView(props: {
                         )}
                         &nbsp;TC {props.num}
                     </span>
-                    {running && (
-                        <span className="running-text">{t('running')}</span>
+                    {(running || checking) && (
+                        <span className="running-text">
+                            {running ? t('running') : t('checking')}
+                        </span>
                     )}
-                    {result && !running && (
-                        <>
-                            <span className="result-data">
-                                <span
-                                    className={
-                                        result.pass
-                                            ? 'result-pass'
-                                            : 'result-fail'
-                                    }
-                                >
-                                    &nbsp; &nbsp;
-                                    {result.pass ? t('Passed') : t('Failed')}
-                                </span>
-                            </span>
+                    {result && !running && !checking && (
+                        <span
+                            className={`case-result-summary ${
+                                result.pass ? 'result-pass' : 'result-fail'
+                            }`}
+                        >
+                            {result.pass ? (
+                                <i
+                                    className="codicon codicon-check"
+                                    aria-label={t('Passed')}
+                                    title={t('Passed')}
+                                ></i>
+                            ) : (
+                                t('Failed')
+                            )}
                             <span className="exec-time">{timeText}</span>
-                        </>
+                        </span>
                     )}
                 </div>
                 <div className="time">
+                    {running || checking ? (
+                        <button
+                            className="btn btn-orange"
+                            title={t('stop')}
+                            onClick={props.stop}
+                        >
+                            <span className="icon">
+                                <i className="codicon codicon-circle-slash"></i>
+                            </span>{' '}
+                        </button>
+                    ) : (
+                        <button
+                            className="btn btn-green"
+                            title={t('runAgain')}
+                            onClick={rerun}
+                        >
+                            <span className="icon">
+                                <i className="codicon codicon-play"></i>
+                            </span>{' '}
+                        </button>
+                    )}
                     <button
-                        className="btn btn-green"
-                        title={t('runAgain')}
-                        onClick={rerun}
-                        disabled={running}
+                        className={`btn btn-red delete-case-btn ${
+                            deleteArmed ? 'is-confirming' : ''
+                        }`}
+                        title={deleteArmed ? t('confirm') : t('deleteTestcase')}
+                        onClick={remove}
                     >
-                        <span className="icon">
-                            <i className="codicon codicon-play"></i>
-                        </span>{' '}
-                    </button>
-                    <button
-                        className="btn btn-red"
-                        title={t('deleteTestcase')}
-                        onClick={() => {
-                            props.remove(id);
-                        }}
-                    >
-                        <span className="icon">
-                            <i className="codicon codicon-trash"></i>
-                        </span>{' '}
+                        {deleteArmed ? (
+                            t('confirm')
+                        ) : (
+                            <span className="icon">
+                                <i className="codicon codicon-trash"></i>
+                            </span>
+                        )}
                     </button>
                 </div>
             </div>
-            {!minimized && (
-                <>
+            <div
+                className={`case-details ${
+                    minimized ? 'is-collapsed' : 'is-expanded'
+                }`}
+                aria-hidden={minimized}
+            >
+                <div className="case-details-inner">
                     <div className="textarea-container">
                         {t('inputLabel')}
                         <div
@@ -215,10 +268,14 @@ export default function CaseView(props: {
                             onChange={handleInputChange}
                             value={input}
                             ref={inputBox}
-                            autoFocus={props.doFocus}
+                            autoFocus={props.doFocus && !minimized}
                         />
                     </div>
-                    <div className="textarea-container">
+                    <div
+                        className={`textarea-container expected-output-container ${
+                            props.customCheckerPath?.trim() ? 'hidden' : ''
+                        }`}
+                    >
                         {t('expectedOutputLabel')}
                         <div
                             className="clipboard"
@@ -266,6 +323,89 @@ export default function CaseView(props: {
                             </>
                         </div>
                     )}
+                    {props.case.result?.checkerRun && !running && !checking && (
+                        <details style={{ marginTop: '10px' }}>
+                            <summary
+                                style={{
+                                    cursor: 'pointer',
+                                    fontSize: '0.9em',
+                                    opacity: 0.8,
+                                }}
+                            >
+                                {t('checkerLog')}
+                            </summary>
+                            <div style={{ marginTop: '5px' }}>
+                                <small
+                                    style={{
+                                        display: 'block',
+                                        marginTop: '5px',
+                                    }}
+                                >
+                                    {t('checkerExitCode')}{' '}
+                                    <code>
+                                        {props.case.result.checkerRun.code !==
+                                        null
+                                            ? props.case.result.checkerRun.code
+                                            : props.case.result.checkerRun
+                                                  .signal || 'Terminated'}
+                                    </code>
+                                </small>
+                                <small
+                                    style={{
+                                        display: 'block',
+                                        marginTop: '10px',
+                                    }}
+                                >
+                                    {t('checkerOutput')}
+                                </small>
+                                <textarea
+                                    className="selectable"
+                                    readOnly
+                                    value={trunctateStdout(
+                                        `STDOUT:\n${props.case.result.checkerRun.stdout}\n\nSTDERR:\n${props.case.result.checkerRun.stderr}`,
+                                    )}
+                                    style={{
+                                        fontSize: '0.9em',
+                                        height: '100px',
+                                        width: '100%',
+                                        display: 'block',
+                                        marginTop: '5px',
+                                    }}
+                                />
+                                <small
+                                    style={{
+                                        display: 'block',
+                                        marginTop: '10px',
+                                    }}
+                                >
+                                    {t('checkerInvocation')}
+                                </small>
+                                <textarea
+                                    className="selectable"
+                                    readOnly
+                                    value={props.case.result.checkerRun.command}
+                                    style={{
+                                        fontSize: '0.9em',
+                                        height: '40px',
+                                        width: '100%',
+                                        display: 'block',
+                                        marginTop: '5px',
+                                    }}
+                                />
+                                <small
+                                    style={{
+                                        display: 'block',
+                                        marginTop: '10px',
+                                    }}
+                                >
+                                    {t('checkerDuration')}{' '}
+                                    {props.case.result.checkerRun.code === null
+                                        ? 'Terminated'
+                                        : `${props.case.result.checkerRun.time}ms`}
+                                </small>
+                            </div>
+                        </details>
+                    )}
                     {result != null &&
                         !result.pass &&
                         result.diff != null &&
@@ -276,27 +416,17 @@ export default function CaseView(props: {
                             />
                         )}
                     {stderror && stderror.length > 0 && (
-                        <div style={{ userSelect: 'text' }}>
+                        <div className="textarea-container">
                             {t('standardError')}
-                            <div
+                            <TextareaAutosize
                                 className="selectable stderror-textarea"
-                                style={{
-                                    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                                    maxHeight: '250px',
-                                    fontSize: '1.15em',
-                                    padding: '2px',
-                                    userSelect: 'text',
-                                    whiteSpace: 'pre-wrap',
-                                    overflowY: 'auto',
-                                }}
-                                dangerouslySetInnerHTML={{
-                                    __html: trunctateStdoutColored(stderror),
-                                }}
+                                value={trunctateStdout(stderror)}
+                                readOnly
                             />
                         </div>
                     )}
-                </>
-            )}
+                </div>
+            </div>
         </div>
     );
 }
@@ -388,18 +518,9 @@ function TokenChip({ token }: { token: TokenDiff }) {
     );
 }
 
-/** Limit string length to 100,000. */
 const trunctateStdout = (stdout: string): string => {
     if (stdout.length > 100000) {
         stdout = '[Truncated]\n' + stdout.substr(0, 100000);
     }
     return stdout;
-};
-
-/** Limit string length to 100,000 and replaces ANSI colors */
-const trunctateStdoutColored = (stdout: string): string => {
-    if (stdout.length > 100000) {
-        stdout = '[Truncated]\n' + stdout.substr(0, 100000);
-    }
-    return converter.toHtml(stdout);
 };

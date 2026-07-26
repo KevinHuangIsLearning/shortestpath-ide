@@ -130,11 +130,13 @@ jobs:
           }
           New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
           Move-Item -LiteralPath $source -Destination $destination
-          if (-not (Test-Path -LiteralPath (Join-Path $destination 'ShortestPath.exe') -PathType Leaf)) {
-            throw "ShortestPath.exe was not found in the staged package at $destination."
-          }
+          $includeCompiler = '${{ matrix.id }}' -eq 'include'
+          & .\build\azure-pipelines\win32\verify-shortestpath-package.ps1 `
+            -PackagePath $destination `
+            -IncludeCompiler $includeCompiler
           $requiredExtensionEntries = @(
             'resources\app\extensions\divyanshuagrawal.competitive-programming-helper\dist\extension.js',
+            'resources\app\extensions\usernamehw.errorlens\dist\extension.js',
             'resources\app\extensions\shortestpath.setup\out\extension.js',
             'resources\app\extensions\danielpinto8zz6.c-cpp-compile-run\dist\extension.js',
             'resources\app\extensions\llvm-vs-code-extensions.vscode-clangd\out\bundle.js'
@@ -214,6 +216,7 @@ jobs:
           app="../VSCode-darwin-arm64/ShortestPath IDE.app"
           for entry in \
             "divyanshuagrawal.competitive-programming-helper/dist/extension.js" \
+            "usernamehw.errorlens/dist/extension.js" \
             "shortestpath.setup/out/extension.js" \
             "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
             "llvm-vs-code-extensions.vscode-clangd/out/bundle.js"; do
