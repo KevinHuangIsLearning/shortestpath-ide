@@ -6,30 +6,41 @@ import { getJudgeViewProvider } from '../extension';
 import { getProblemForDocument } from '../utils';
 import { getAutoShowJudgePref, getDefaultOnlineJudge } from '../preferences';
 import { setOnlineJudgeEnv } from '../compiler';
+import { getRefreshSourcePath } from './judgeLifecycle';
+
+let lastActiveSourcePath: string | undefined;
 
 /**
- * Show the webview with the problem details if a source code with existing
- * saved problem is opened. If switch is to an invalid document of unsaved
- * problem, closes the active webview, if any.
+ * Refresh the webview only when another supported local source file becomes
+ * active. Moving focus to a terminal, Output, integrated browser, or another
+ * non-source surface must preserve the current problem and its running
+ * results.
  *
  * @param e An editor
- * @param context The activation context
  */
 export const editorChanged = async (e: vscode.TextEditor | undefined) => {
     globalThis.logger.log('Changed editor to', e?.document.fileName);
 
     if (e === undefined) {
-        getJudgeViewProvider().extensionToJudgeViewMessage({
-            command: 'new-problem',
-            problem: undefined,
-        });
-        setOnlineJudgeEnv(getDefaultOnlineJudge()); // reset the non-debug mode set in webview as configured.
+        globalThis.logger.log(
+            'No active text editor; preserving the current Judge view',
+        );
         return;
     }
 
-    if (e.document.uri.scheme !== 'file') {
+    const sourcePath = getRefreshSourcePath(
+        e.document,
+        getJudgeViewProvider().problemPath,
+        lastActiveSourcePath,
+    );
+    if (sourcePath === undefined) {
+        globalThis.logger.log(
+            'Non-source or repeated editor activation; preserving Judge view',
+        );
         return;
     }
+
+    lastActiveSourcePath = sourcePath;
 
     setOnlineJudgeEnv(getDefaultOnlineJudge()); // reset the non-debug mode set in webview as configured.
 
@@ -60,6 +71,9 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
 export const editorClosed = (e: vscode.TextDocument) => {
     globalThis.logger.log('Closed editor:', e.uri.fsPath);
     const srcPath = e.uri.fsPath;
+    if (lastActiveSourcePath === srcPath) {
+        lastActiveSourcePath = undefined;
+    }
     const probPath = getProbSaveLocation(srcPath);
 
     if (!existsSync(probPath)) {

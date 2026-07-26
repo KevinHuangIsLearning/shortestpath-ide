@@ -1,9 +1,10 @@
 {
     "cph.runTestCases.title": "テストケースを実行",
     "cph.submitToCodeForces.title": "CodeForcesに提出",
+    "cph.compileWithoutRunning.title": "実行せずにコンパイル",
     "cph.judgeView.name": "結果",
     "cph.judgeViewContainer.title": "CPH ジャッジ",
-    "cph.configuration.title": "Competitive Programming Helper (CPH)",
+    "cph.configuration.title": "Competitive Programming Helper Plus",
     "cph.general.saveLocation.description": "生成された .tcs および .bin ファイルが保存される場所。空にすると、ソースファイルと同じディレクトリに保存されます。フォルダを整理するために使用してください。",
     "cph.general.timeOut.description": "テストケースが強制終了されるまでの実行時間（ミリ秒）。",
     "cph.general.hideStderrorWhenCompiledOK.description": "コンパイルの終了コードが0の場合、標準エラーを無視して表示しません。",
@@ -85,11 +86,12 @@
     "cph.runTestCases.localPrefix": "ローカル: {0}",
     "cph.executor.launchError": "テストケースプロセスの起動に失敗しました。'{0}' が PATH に通っていますか？",
     "cph.extension.statusBarText": "$(run-all) テストケースを実行",
-    "cph.extension.statusBarTooltip": "Competitive Programming Helper - すべてのテストケースを実行するか、存在しない場合は作成します。",
+    "cph.extension.statusBarTooltip": "Competitive Programming Helper Plus - すべてのテストケースを実行するか、存在しない場合は作成します。",
     "cph.submit.notSupported": "現在のアクティブなエディタは提出をサポートしていません。",
     "cph.submit.parseFailed": "現在のコードの解析に失敗しました。",
     "cph.submit.notKattis": "Kattis の問題ではありません。",
     "cph.submit.notCodeforces": "Codeforces の問題ではありません。",
     "cph.utils.unsupported": "サポートされていないファイル拡張子です。以下の形式のみ有効です: {0}",
-    "cph.preferences.invalidSaveLocation": "保存場所が無効です。デフォルトに復元します。存在しないパス: {0}"
+    "cph.preferences.invalidSaveLocation": "保存場所が無効です。デフォルトに復元します。存在しないパス: {0}",
+    "cph.processRunSingle.invalidChecker": "カスタム判題スクリプトが '{0}' に見つかりません"
 }

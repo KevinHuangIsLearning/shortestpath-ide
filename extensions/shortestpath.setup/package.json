@@ -16,7 +16,7 @@
 	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment", "onCommand:shortestpath.redetectToolchain", "onCommand:shortestpath.repairToolchain", "onCommand:shortestpath.openSettings", "onCommand:shortestpath.configureCph", "onCommand:shortestpath.configureCppSnippets", "onCommand:shortestpath.configureAutoFormat", "onCommand:shortestpath.openToolchainDiagnostics"],
 	"main": "./out/extension.js",
 	"scripts": {
-		"compile": "node ../../node_modules/typescript/bin/tsc -p ./",
+		"compile": "node ../../node_modules/typescript/bin/tsc6 -p ./",
 		"vscode:prepublish": "npm run compile"
 	},
 	"contributes": {

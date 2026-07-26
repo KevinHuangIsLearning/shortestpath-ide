@@ -156,9 +156,10 @@ jobs:
           }
           New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
           Move-Item -LiteralPath $source -Destination $destination
-          if (-not (Test-Path -LiteralPath (Join-Path $destination 'ShortestPath.exe') -PathType Leaf)) {
-            throw "ShortestPath.exe was not found in the staged package at $destination."
-          }
+          $includeCompiler = '${{ inputs.compiler }}' -eq 'Include Compiler'
+          & .\build\azure-pipelines\win32\verify-shortestpath-package.ps1 `
+            -PackagePath $destination `
+            -IncludeCompiler $includeCompiler
           Write-Host "Staged Windows package at $destination"
 
       - name: Upload Windows package

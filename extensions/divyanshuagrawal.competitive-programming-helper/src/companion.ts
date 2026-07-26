@@ -28,7 +28,12 @@ import {
 import { getProblemName } from './submit';
 import { spawn } from 'child_process';
 import { getJudgeViewProvider } from './extension';
-import { words_in_text, toPascalCase, replaceFileNamePlaceholders, sanitizeFileName } from './utilsPure';
+import {
+    words_in_text,
+    toPascalCase,
+    replaceFileNamePlaceholders,
+    sanitizeFileName,
+} from './utilsPure';
 import telmetry from './telmetry';
 import os from 'os';
 import localize from './i18n';
@@ -189,7 +194,8 @@ const detectOj = (urlStr: string): OjInfo => {
 
         for (const [pattern, entry] of Object.entries(mapping)) {
             if (!entry) continue;
-            if (!hostname.includes(pattern) && !pattern.includes(hostname)) continue;
+            if (!hostname.includes(pattern) && !pattern.includes(hostname))
+                continue;
             result.oj = entry.oj || '';
             result.ojName = entry.ojName || '';
             if (entry.contestIdRegex) {
@@ -202,14 +208,17 @@ const detectOj = (urlStr: string): OjInfo => {
             }
             return result;
         }
-    } catch {}
+    } catch (err) {
+        globalThis.logger.error('Failed to detect OJ metadata:', err);
+    }
     return result;
 };
 
 export const getProblemFileName = (problem: Problem, ext: string) => {
     const originalName = problem.name;
     const originalSections = originalName.split(' - ');
-    const problemIndex = originalSections.length > 1 ? originalSections[0].trim() : '';
+    const problemIndex =
+        originalSections.length > 1 ? originalSections[0].trim() : '';
 
     if (!includeProblemIndex()) {
         const sections = problem.name.split(' - ');
@@ -225,7 +234,12 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
     globalThis.logger.log('Detected OJ:', ojInfo);
     if (templateOverrides && ojInfo.oj) {
         fileNameTemplate = templateOverrides[ojInfo.oj] || null;
-        globalThis.logger.log('Override found:', ojInfo.oj, '→', fileNameTemplate);
+        globalThis.logger.log(
+            'Override found:',
+            ojInfo.oj,
+            '→',
+            fileNameTemplate,
+        );
     }
     if (!fileNameTemplate) {
         fileNameTemplate = globalTemplate;
@@ -247,7 +261,9 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
         const { oj, ojName, contestId, problemId } = ojInfo;
 
         let lang = ext;
-        for (const [languageName, languageExt] of Object.entries(config.extensions)) {
+        for (const [languageName, languageExt] of Object.entries(
+            config.extensions,
+        )) {
             if (languageExt === ext) {
                 lang = languageName;
                 break;
@@ -368,19 +384,34 @@ const handleNewProblem = async (problem: Problem) => {
                 if (ojInfo.oj && ojInfo.problemId) {
                     const vjudgeMapping = getVjudgeOjNames();
                     if (vjudgeMapping) {
-                        const [matchKey, matchEntry] = Object.entries(vjudgeMapping).find(
-                            ([k]) => k.toLowerCase() === ojInfo.oj.toLowerCase() || k.toLowerCase() === ojInfo.ojName.toLowerCase(),
-                        ) || [];
+                        const [matchKey, matchEntry] =
+                            Object.entries(vjudgeMapping).find(
+                                ([k]) =>
+                                    k.toLowerCase() ===
+                                        ojInfo.oj.toLowerCase() ||
+                                    k.toLowerCase() ===
+                                        ojInfo.ojName.toLowerCase(),
+                            ) || [];
                         if (matchKey && matchEntry) {
                             const vjKey = matchEntry.vjudgeUrlKey || matchKey;
-                            const fmt = matchEntry.compositeFormat || '{contestId}{problemId}';
-                            const compositeId = replaceFileNamePlaceholders(fmt, { contestId: ojInfo.contestId || '', problemId: ojInfo.problemId });
+                            const fmt =
+                                matchEntry.compositeFormat ||
+                                '{contestId}{problemId}';
+                            const compositeId = replaceFileNamePlaceholders(
+                                fmt,
+                                {
+                                    contestId: ojInfo.contestId || '',
+                                    problemId: ojInfo.problemId,
+                                },
+                            );
                             vjudgeUrlToOpen = `https://vjudge.net/problem/${vjKey}-${compositeId}`;
                         }
                     }
                 }
             }
-        } catch {}
+        } catch (err) {
+            globalThis.logger.error('Failed to create VJudge URL:', err);
+        }
     }
 
     // Reconstruct VJudge URL to original OJ URL before filename generation
@@ -414,11 +445,16 @@ const handleNewProblem = async (problem: Problem) => {
                             problemId = pm[2];
                         }
                     }
-                    problem.url = replaceFileNamePlaceholders(urlTemplate, { contestId, problemId });
+                    problem.url = replaceFileNamePlaceholders(urlTemplate, {
+                        contestId,
+                        problemId,
+                    });
                 }
             }
         }
-    } catch {}
+    } catch (err) {
+        globalThis.logger.error('Failed to restore VJudge source URL:', err);
+    }
 
     if (vjudgeUrlToOpen) {
         const suffix = getVjudgeUrlSuffix();
@@ -430,9 +466,16 @@ const handleNewProblem = async (problem: Problem) => {
             orientation: 0,
             groups: [{ size: left }, { size: right }],
         });
-        await vscode.commands.executeCommand('workbench.action.focusSecondEditorGroup');
-        await vscode.commands.executeCommand('workbench.action.browser.open', targetUrl);
-        await vscode.commands.executeCommand('workbench.action.focusFirstEditorGroup');
+        await vscode.commands.executeCommand(
+            'workbench.action.focusSecondEditorGroup',
+        );
+        await vscode.commands.executeCommand(
+            'workbench.action.browser.open',
+            targetUrl,
+        );
+        await vscode.commands.executeCommand(
+            'workbench.action.focusFirstEditorGroup',
+        );
     }
 
     const problemFileName = getProblemFileName(problem, extn);
@@ -477,7 +520,24 @@ const handleNewProblem = async (problem: Problem) => {
                         );
                     }
                     if (doTemplateFileVariableReplacement()) {
-                        for (const [key, value] of Object.entries(problem)) {
+                        const now = new Date();
+                        const pad2 = (value: number) =>
+                            value.toString().padStart(2, '0');
+                        const date = `${now.getFullYear()}-${pad2(
+                            now.getMonth() + 1,
+                        )}-${pad2(now.getDate())}`;
+                        const time = `${pad2(now.getHours())}:${pad2(
+                            now.getMinutes(),
+                        )}:${pad2(now.getSeconds())}`;
+                        const templateVariables: Record<string, unknown> = {
+                            ...problem,
+                            date,
+                            time,
+                        };
+
+                        for (const [key, value] of Object.entries(
+                            templateVariables,
+                        )) {
                             let replaceWith = JSON.stringify(value);
                             replaceWith = replaceWith.substring(
                                 1,
@@ -498,7 +558,29 @@ const handleNewProblem = async (problem: Problem) => {
     saveProblem(srcPath, problem);
     const doc = await vscode.workspace.openTextDocument(srcPath);
 
-    await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+    const editor = await vscode.window.showTextDocument(
+        doc,
+        vscode.ViewColumn.One,
+    );
+
+    // Move cursor to the first occurrence of $CURSOR_PLACEHOLDER and remove it
+    const cursorPlaceholder = '$CURSOR_PLACEHOLDER';
+    const text = doc.getText();
+    const index = text.indexOf(cursorPlaceholder);
+    if (index !== -1) {
+        const start = doc.positionAt(index);
+        const end = doc.positionAt(index + cursorPlaceholder.length);
+        await editor.edit((editBuilder) => {
+            editBuilder.delete(new vscode.Range(start, end));
+        });
+        // Set selection and reveal AFTER the edit so it isn't reset
+        editor.selection = new vscode.Selection(start, start);
+        editor.revealRange(
+            new vscode.Range(start, start),
+            vscode.TextEditorRevealType.InCenter,
+        );
+    }
+
     getJudgeViewProvider().extensionToJudgeViewMessage({
         command: 'new-problem',
         problem,

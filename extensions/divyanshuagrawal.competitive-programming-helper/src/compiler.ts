@@ -250,7 +250,7 @@ const createDotnetProject = async (
                     `Exit code: ${exitCode} Warnings while creating new .NET project:\n ` +
                         error,
                 );
-                ocShow();
+                ocShow(true);
             }
 
             const destPath = path.join(projDir, 'Program.cs');
@@ -408,7 +408,9 @@ export const compileFile = async (srcPath: string): Promise<boolean> => {
                     `Exit code: ${exitCode} Warnings while compiling:\n ` +
                         error,
                 );
-                ocShow();
+                // A successful compile must not steal focus from the source
+                // editor while Run All is preparing testcase results.
+                ocShow(true);
             }
 
             globalThis.logger.log('Compilation passed');

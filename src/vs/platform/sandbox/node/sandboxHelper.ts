@@ -7,16 +7,31 @@ import { execFile } from 'child_process';
 import { getCaseInsensitive } from '../../../base/common/objects.js';
 import { win32 } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
+import { getOSReleaseInfo } from '../../../base/node/osReleaseInfo.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../common/sandboxHelperService.js';
 
 type FindCommand = (command: string) => Promise<string | undefined>;
 type BubblewrapProbe = (command: string) => Promise<{ usable: boolean; error?: string }>;
+type ResolveLinuxInstallEnvironment = () => Promise<{ distributionIds: readonly string[]; isRoot: boolean }>;
+
+// ShortestPath does not ship Agent/Chat or the MXC runtime. Keep every Windows
+// MXC entry point explicitly unreachable so hidden commands cannot trigger a
+// dynamic import of a package that is intentionally absent from the product.
+const shortestPathWindowsMxcSandboxEnabled = false;
+
+const linuxDependencyInstallCommands: readonly { distributionIds: readonly string[]; commands: readonly [executable: string, command: string][] }[] = [
+	{ distributionIds: ['debian', 'ubuntu', 'linuxmint', 'pop', 'elementary', 'kali', 'raspbian'], commands: [['apt-get', 'apt-get update && apt-get install -y'], ['apt', 'apt update && apt install -y']] },
+	{ distributionIds: ['fedora', 'rhel', 'centos', 'rocky', 'almalinux'], commands: [['dnf', 'dnf install -y'], ['yum', 'yum install -y']] },
+	{ distributionIds: ['arch', 'manjaro', 'endeavouros'], commands: [['pacman', 'pacman -S --needed --noconfirm']] },
+	{ distributionIds: ['suse', 'opensuse', 'opensuse-leap', 'opensuse-tumbleweed'], commands: [['zypper', 'zypper --non-interactive install']] },
+	{ distributionIds: ['alpine'], commands: [['apk', 'apk add']] },
+];
 
 export class SandboxHelperService implements ISandboxHelperService {
 	declare readonly _serviceBrand: undefined;
 
-	static async checkSandboxDependenciesWith(findCommand: FindCommand, linux: boolean = isLinux, probeBubblewrap: BubblewrapProbe = command => SandboxHelperService._probeBubblewrap(command)): Promise<ISandboxDependencyStatus | undefined> {
+	static async checkSandboxDependenciesWith(findCommand: FindCommand, linux: boolean = isLinux, probeBubblewrap: BubblewrapProbe = command => SandboxHelperService._probeBubblewrap(command), resolveInstallEnvironment: ResolveLinuxInstallEnvironment = () => SandboxHelperService._resolveLinuxInstallEnvironment()): Promise<ISandboxDependencyStatus | undefined> {
 		if (!linux) {
 			return undefined;
 		}
@@ -26,12 +41,42 @@ export class SandboxHelperService implements ISandboxHelperService {
 			findCommand('socat'),
 		]);
 		const bubblewrapProbe = bubblewrapPath ? await probeBubblewrap(bubblewrapPath) : { usable: false };
+		const dependencyInstallCommand = !bubblewrapPath || !socatPath
+			? await SandboxHelperService._findDependencyInstallCommand(findCommand, resolveInstallEnvironment)
+			: undefined;
 
 		return {
 			bubblewrapInstalled: !!bubblewrapPath,
 			bubblewrapUsable: bubblewrapProbe.usable,
 			bubblewrapError: bubblewrapProbe.error,
 			socatInstalled: !!socatPath,
+			dependencyInstallCommand,
+		};
+	}
+
+	private static async _findDependencyInstallCommand(findCommand: FindCommand, resolveInstallEnvironment: ResolveLinuxInstallEnvironment): Promise<string | undefined> {
+		const environment = await resolveInstallEnvironment();
+		const installer = linuxDependencyInstallCommands.find(candidate => candidate.distributionIds.some(id => environment.distributionIds.includes(id)));
+		if (!installer) {
+			return undefined;
+		}
+		const elevation = environment.isRoot ? '' : await findCommand('sudo') ? 'sudo ' : undefined;
+		if (elevation === undefined) {
+			return undefined;
+		}
+		for (const [executable, command] of installer.commands) {
+			if (await findCommand(executable)) {
+				return command.split(' && ').map(command => `${elevation}${command}`).join(' && ');
+			}
+		}
+		return undefined;
+	}
+
+	private static async _resolveLinuxInstallEnvironment(): Promise<{ distributionIds: readonly string[]; isRoot: boolean }> {
+		const releaseInfo = await getOSReleaseInfo(() => { });
+		return {
+			distributionIds: [releaseInfo?.id, ...releaseInfo?.id_like?.split(/\s+/) ?? []].filter((id): id is string => !!id),
+			isRoot: process.getuid?.() === 0,
 		};
 	}
 
@@ -54,7 +99,7 @@ export class SandboxHelperService implements ISandboxHelperService {
 	}
 
 	async getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined> {
-		if (!isWindows) {
+		if (!isWindows || !shortestPathWindowsMxcSandboxEnabled) {
 			return undefined;
 		}
 
@@ -70,7 +115,7 @@ export class SandboxHelperService implements ISandboxHelperService {
 	}
 
 	async getWindowsMxcEnvironment(): Promise<string[] | undefined> {
-		if (!isWindows) {
+		if (!isWindows || !shortestPathWindowsMxcSandboxEnabled) {
 			return undefined;
 		}
 
@@ -102,7 +147,7 @@ export class SandboxHelperService implements ISandboxHelperService {
 	}
 
 	async buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment: IWindowsMxcPolicyContainment = 'process'): Promise<IWindowsMxcConfig | undefined> {
-		if (!isWindows) {
+		if (!isWindows || !shortestPathWindowsMxcSandboxEnabled) {
 			return undefined;
 		}
 

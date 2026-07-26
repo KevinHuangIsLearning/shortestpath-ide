@@ -19,11 +19,20 @@ License text: licenses/MIT-VSCode.txt
 
 ---------------------------------------------------------
 
-Competitive Programming Helper (cph) 2077.0.0
-https://github.com/agrawal-d/competitive-programming-helper/
+Competitive Programming Helper Plus (cph) 2077.0.0
+https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus
 
 GNU General Public License v3.0 or later
 License text: extensions/divyanshuagrawal.competitive-programming-helper/LICENSE
+
+---------------------------------------------------------
+
+Error Lens 3.28.0
+https://github.com/usernamehw/vscode-error-lens
+
+MIT License
+Copyright (c) usernamehw
+License text: extensions/usernamehw.errorlens/LICENSE
 
 ---------------------------------------------------------
 

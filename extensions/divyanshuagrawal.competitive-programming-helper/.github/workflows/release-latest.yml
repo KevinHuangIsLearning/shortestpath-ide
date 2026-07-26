@@ -1,0 +1,56 @@
+name: Release Latest VSIX
+
+on:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+
+        # Crucial: Give GITHUB_TOKEN write access to releases
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Package extension
+              run: npx @vscode/vsce package --no-dependencies
+
+            - name: Update GitHub Release
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  commit_sha=$(git rev-parse --short HEAD)
+                  commit_msg=$(git log -1 --pretty=%B | head -n 1)
+                  release_notes="This release is automatically updated on every commit to the \`main\` branch.
+
+                  **Latest Build Info:**
+                  - **Commit**: $commit_sha
+                  - **Message**: $commit_msg
+                  - **Date**: $(date -u)"
+
+                  if gh release view latest-vsix >/dev/null 2>&1; then
+                    gh release upload latest-vsix *.vsix --clobber
+                    gh release edit latest-vsix \
+                      --title "Latest VSIX Build" \
+                      --notes "$release_notes"
+                  else
+                    gh release create latest-vsix *.vsix \
+                      --target "$GITHUB_SHA" \
+                      --title "Latest VSIX Build" \
+                      --notes "$release_notes"
+                  fi

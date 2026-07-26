@@ -33,6 +33,8 @@ class TestReviewService implements IAgentHostReviewService {
 	readonly unmarkCalls: IRecordedCall[] = [];
 	error: Error | undefined;
 
+	async setReviewState(): Promise<void> { }
+
 	async markFileReviewed(session: string, workingDirectory: URI, baseBranch: string | undefined, resource: URI): Promise<void> {
 		this.markCalls.push({ session, workingDirectory: workingDirectory.toString(), baseBranch, resource: resource.toString() });
 		if (this.error) { throw this.error; }
