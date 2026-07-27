@@ -147,6 +147,14 @@ jobs:
               throw "Required extension entry file was not packaged: $entry"
             }
           }
+          $localePath = Join-Path $destination 'locales'
+          $locales = @(Get-ChildItem -LiteralPath $localePath -Filter '*.pak' -File)
+          $unexpectedLocales = @($locales | Where-Object Name -NotIn @('en-US.pak', 'zh-CN.pak'))
+          if (-not (Test-Path -LiteralPath (Join-Path $localePath 'en-US.pak') -PathType Leaf) -or
+              -not (Test-Path -LiteralPath (Join-Path $localePath 'zh-CN.pak') -PathType Leaf) -or
+              $unexpectedLocales.Count -ne 0) {
+            throw "Packaged Electron locales must contain only en-US.pak and zh-CN.pak."
+          }
           Compress-Archive -Path "$destination\*" -DestinationPath "${{ matrix.archive }}"
 
           $installerOutputs = @(
@@ -226,6 +234,10 @@ jobs:
             }
           done
           test ! -e "$app/Contents/Resources/app/resources/oi-defaults/toolchains/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip"
+          locale_dir="$app/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources"
+          test -f "$locale_dir/en.lproj/locale.pak"
+          test -f "$locale_dir/zh_CN.lproj/locale.pak"
+          test -z "$(find "$locale_dir" -maxdepth 1 -type d -name '*.lproj' ! -name 'en.lproj' ! -name 'zh_CN.lproj' -print -quit)"
           mkdir artifacts
           ditto -c -k --sequesterRsrc --keepParent "$app" artifacts/ShortestPath-IDE-macos-arm64.zip
       - uses: actions/upload-artifact@v7

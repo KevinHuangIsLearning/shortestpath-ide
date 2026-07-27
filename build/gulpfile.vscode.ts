@@ -254,6 +254,19 @@ const shortestPathUnusedAIRuntimeExcludeFilter = [
 	'!**/onnxruntime-web/**',
 ];
 
+function isShortestPathElectronLocale(relativePath: string, platform: string): boolean {
+	const normalizedPath = relativePath.replace(/\\/g, '/');
+	if (platform === 'darwin') {
+		const match = /\/Electron Framework\.framework\/Versions\/A\/Resources\/([^/]+)\.lproj(?:\/|$)/.exec(normalizedPath);
+		return !match || match[1] === 'en' || match[1] === 'zh_CN';
+	}
+	if (platform === 'win32') {
+		const match = /\/locales\/([^/]+)\.pak$/.exec(normalizedPath);
+		return !match || match[1] === 'en-US' || match[1] === 'zh-CN';
+	}
+	return true;
+}
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
@@ -492,6 +505,9 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
 			.pipe(electron(electronConfig))
+			// ShortestPath ships English plus a bundled Simplified Chinese language
+			// pack. Electron's other native locale packs are unreachable payload.
+			.pipe(util.filter(data => isShortestPathElectronLocale(data.relative, platform)))
 			.pipe(filter([
 				'**',
 				'!LICENSE',

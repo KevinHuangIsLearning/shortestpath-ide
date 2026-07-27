@@ -39,7 +39,6 @@ const mermaidMarkdownBuildOptions: Partial<esbuild.BuildOptions> = {
 		'.ttf': 'dataurl',
 	},
 	plugins: [cssTextPlugin],
-	minify: false,
 };
 
 await Promise.all([
