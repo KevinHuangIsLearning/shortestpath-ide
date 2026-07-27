@@ -1,4 +1,4 @@
-name: Release Latest VSIX
+name: Release VSIX
 
 on:
     push:
@@ -30,27 +30,32 @@ jobs:
             - name: Package extension
               run: npx @vscode/vsce package --no-dependencies
 
-            - name: Update GitHub Release
+            - name: Create GitHub Release
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   commit_sha=$(git rev-parse --short HEAD)
                   commit_msg=$(git log -1 --pretty=%B | head -n 1)
-                  release_notes="This release is automatically updated on every commit to the \`main\` branch.
+                  version=$(node -p "require('./package.json').version")
+                  release_tag="v${version}-${commit_sha}"
+                  release_notes="This VSIX build was created from a commit to the \`main\` branch.
 
-                  **Latest Build Info:**
+                  **Build Info:**
                   - **Commit**: $commit_sha
                   - **Message**: $commit_msg
                   - **Date**: $(date -u)"
 
-                  if gh release view latest-vsix >/dev/null 2>&1; then
-                    gh release upload latest-vsix *.vsix --clobber
-                    gh release edit latest-vsix \
-                      --title "Latest VSIX Build" \
+                  # One commit gets one release. Re-running this workflow for
+                  # that commit updates its own release instead of creating a
+                  # duplicate, while every new main commit gets a new tag.
+                  if gh release view "$release_tag" >/dev/null 2>&1; then
+                    gh release upload "$release_tag" *.vsix --clobber
+                    gh release edit "$release_tag" \
+                      --title "CPH Plus v${version} (${commit_sha})" \
                       --notes "$release_notes"
                   else
-                    gh release create latest-vsix *.vsix \
+                    gh release create "$release_tag" *.vsix \
                       --target "$GITHUB_SHA" \
-                      --title "Latest VSIX Build" \
+                      --title "CPH Plus v${version} (${commit_sha})" \
                       --notes "$release_notes"
                   fi

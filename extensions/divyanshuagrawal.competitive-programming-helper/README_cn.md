@@ -141,7 +141,8 @@ npx @vscode/vsce package
     [cph-submit](https://github.com/agrawal-d/cph-submit) 浏览器扩展。
 -   Kattis 自动提交需要
     其[提交客户端和配置](https://open.kattis.com/help/submit)。
--   上游通用说明见 [用户指南](docs/user-guide.md) 和
+-   详细使用说明见 [中文用户指南](docs/user-guide_cn.md)；英文原文见
+    [User Guide](docs/user-guide.md)。开发相关说明见
     [开发指南](docs/dev-guide.md)。
 
 ## 许可证与致谢

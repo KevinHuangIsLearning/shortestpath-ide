@@ -47,6 +47,9 @@ export const translations: Record<string, any> = {
         stop: 'Stop',
         delete: 'Delete',
         waitingForExtension: 'Waiting for extension ...',
+        checkBrowser: 'Check your browser.',
+        checkBrowserForSubmit:
+            'Check your browser. If nothing happens, make sure cph-submit is installed.',
         codeforcesInstructions:
             'To submit to codeforces, you need to have the cph-submit browser extension installed, and a browser window open. You can change language ID from VS Code settings.',
         submitHint: 'Hint: You can also press Ctrl+Alt+S to submit.',
@@ -205,6 +208,9 @@ export const translations: Record<string, any> = {
         stop: '停止',
         delete: '删除',
         waitingForExtension: '等待扩展...',
+        checkBrowser: '请查看浏览器。',
+        checkBrowserForSubmit:
+            '请查看浏览器；如果没有响应，请检查是否已安装 cph-submit 插件。',
         codeforcesInstructions:
             '要提交到 Codeforces，您需要安装 cph-submit 浏览器扩展，并打开浏览器窗口。您可以从 VS Code 设置中更改语言 ID。',
         submitHint: '提示：您也可以按 Ctrl+Alt+S 进行提交。',
@@ -353,6 +359,9 @@ export const translations: Record<string, any> = {
         stop: '중지',
         delete: '삭제',
         waitingForExtension: '확장 프로그램 대기 중...',
+        checkBrowser: '브라우저를 확인하세요.',
+        checkBrowserForSubmit:
+            '브라우저를 확인하세요. 반응이 없으면 cph-submit 설치 여부를 확인하세요.',
         codeforcesInstructions:
             'Codeforces에 제출하려면 cph-submit 브라우저 확장 프로그램이 설치되어 있어야 하며 브라우저 창이 열려 있어야 합니다. VS Code 설정에서 언어 ID를 변경할 수 있습니다.',
         submitHint: '힌트: Ctrl+Alt+S를 눌러 제출할 수도 있습니다.',
@@ -506,6 +515,9 @@ export const translations: Record<string, any> = {
         stop: '停止',
         delete: '削除',
         waitingForExtension: '拡張機能を待機中...',
+        checkBrowser: 'ブラウザーを確認してください。',
+        checkBrowserForSubmit:
+            'ブラウザーを確認してください。反応がない場合は、cph-submit がインストールされているか確認してください。',
         codeforcesInstructions:
             'Codeforcesに提出するには、cph-submit ブラウザ拡張機能がインストールされ、ブラウザウィンドウが開いている必要があります。VS Code の設定から言語IDを変更できます。',
         submitHint: 'ヒント: Ctrl+Alt+S を押して提出することもできます。',
