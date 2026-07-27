@@ -1,9 +1,10 @@
 {
     "cph.runTestCases.title": "运行测试用例",
     "cph.submitToCodeForces.title": "提交到 CodeForces",
+    "cph.compileWithoutRunning.title": "编译但不运行",
     "cph.judgeView.name": "结果",
     "cph.judgeViewContainer.title": "CPH 评测器",
-    "cph.configuration.title": "Competitive Programming Helper (CPH)",
+    "cph.configuration.title": "Competitive Programming Helper Plus",
     "cph.general.saveLocation.description": "生成的 .tcs 和 .bin 文件的保存位置。留空则保存在源文件目录中。使用此选项可保持文件夹整洁。",
     "cph.general.timeOut.description": "测试用例运行的最大时间（毫秒），超过此时间将被终止（超时）。",
     "cph.general.hideStderrorWhenCompiledOK.description": "当编译退出代码为零时，忽略并隐藏标准错误。",
@@ -86,17 +87,19 @@
     "cph.runTestCases.localPrefix": "本地: {0}",
     "cph.executor.launchError": "无法启动测试用例进程。'{0}' 是否在您的 PATH 中？",
     "cph.extension.statusBarText": "$(run-all) 运行测试用例",
-    "cph.extension.statusBarTooltip": "Competitive Programming Helper - 运行所有测试用例，如果不存在则创建。",
+    "cph.extension.statusBarTooltip": "Competitive Programming Helper Plus - 运行所有测试用例，如果不存在则创建。",
     "cph.submit.notSupported": "活动编辑器不支持提交",
     "cph.submit.parseFailed": "无法解析当前代码。",
     "cph.submit.notKattis": "不是 Kattis 题目。",
     "cph.submit.notCodeforces": "不是 Codeforces 题目。",
     "cph.utils.unsupported": "不支持的文件扩展名。只有以下类型有效：{0}",
+    "cph.utils.noActiveEditor": "未发现活动中的编辑器。",
     "cph.general.collectProblemsInRoot.description": "将所有题目元数据（.cph）保存到工作区根目录，而非每个源文件旁边。使用带路径的文件名模板时可保持子目录整洁。",
     "cph.general.ojMapping.description": "自定义 OJ 域名到元数据的映射。键为域名（如 'www.luogu.com.cn'），值为 {oj, ojName, contestIdRegex?, problemIdRegex?} 对象。匹配到的 URL 优先于内置检测。示例：{ \"my.oj.cn\": { \"oj\": \"MYOJ\", \"ojName\": \"我的 OJ\" } }",
     "cph.general.vjudgeOjNames.description": "VJudge OJ 名称到原始 URL 的映射。键为 VJudge URL 中的 OJ 名称（如 'CodeForces'、'51Nod'），值为 {urlTemplate, problemIdRegex?, compositeFormat?, vjudgeUrlKey?}。用于还原原始 OJ URL 供文件名模板和提交使用。compositeFormat 控制如何拼接 composite ID（默认 '{contestId}{problemId}'）。vjudgeUrlKey 覆盖构造 VJudge URL 时使用的 OJ 名称（如 'CF' → 'CodeForces'）。示例：{ \"51Nod\": { \"urlTemplate\": \"https://www.51nod.com/Challenge/Problem.html#problemId={problemId}\" } }",
     "cph.general.vjudgeOpenInBrowser.description": "收到题目时自动在集成浏览器中打开 VJudge 题面（支持 VJudge 来源和其他 OJ 来源）。",
     "cph.general.vjudgeUrlSuffix.description": "打开浏览器时追加到 URL 末尾的后缀。可用于添加 URL 参数或 hash 片段（如 '#author=translator:1281309:zh'）。",
     "cph.general.vjudgeBrowserSplitRatio.description": "代码编辑器与浏览器的左右分屏比例（10-90）。默认 50 表示 50:50。",
-    "cph.preferences.invalidSaveLocation": "保存位置无效，正在恢复为默认值。路径不存在：{0}"
+    "cph.preferences.invalidSaveLocation": "保存位置无效，正在恢复为默认值。路径不存在：{0}",
+    "cph.processRunSingle.invalidChecker": "在“{0}”处未找到自定义判题脚本"
 }

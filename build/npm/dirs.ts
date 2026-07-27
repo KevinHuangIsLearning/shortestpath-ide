@@ -4,6 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { existsSync } from 'fs';
+import path from 'path';
+
+const root = path.resolve(import.meta.dirname, '../..');
+
+function isNpmProject(dir: string): boolean {
+	return existsSync(path.join(root, dir, 'package.json'));
+}
 
 /**
  * Complete list of directories where npm should be executed to install node modules
@@ -23,6 +30,7 @@ export const dirs = [
 	'extensions/debug-auto-launch',
 	'extensions/debug-server-ready',
 	'extensions/divyanshuagrawal.competitive-programming-helper',
+	'extensions/usernamehw.errorlens',
 	'extensions/emmet',
 	'extensions/extension-editing',
 	'extensions/git',
@@ -68,10 +76,10 @@ export const dirs = [
 	'.vscode/extensions/vscode-selfhost-test-provider',
 	'.vscode/extensions/vscode-extras',
 	'.vscode/extensions/vscode-pr-pinger',
-].filter(dir => existsSync(dir || '.'));
+].filter(isNpmProject);
 
-if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {
-	dirs.push('.build/distro/npm');
-	dirs.push('.build/distro/npm/remote');
-	dirs.push('.build/distro/npm/remote/web');
-}
+dirs.push(...[
+	'.build/distro/npm',
+	'.build/distro/npm/remote',
+	'.build/distro/npm/remote/web',
+].filter(isNpmProject));

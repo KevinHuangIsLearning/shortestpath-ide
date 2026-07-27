@@ -1,7 +1,7 @@
 {
 	"nameShort": "ShortestPath",
 	"nameLong": "ShortestPath IDE",
-	"extensionApiVersion": "1.129.0",
+	"extensionApiVersion": "1.130.0",
 	"applicationName": "shortestpath",
 	"dataFolderName": ".shortestpath-ide",
 	"sharedDataFolderName": ".shortestpath-ide-shared",
@@ -162,9 +162,7 @@
 			"type": "light"
 		}
 	],
-	"builtInExtensionsEnabledWithAutoUpdates": [
-		"GitHub.copilot-chat"
-	],
+	"builtInExtensionsEnabledWithAutoUpdates": [],
 	"sessionsWindowAllowedExtensions": [],
 	"voiceWsUrl": "wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice"
 }

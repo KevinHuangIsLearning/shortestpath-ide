@@ -43,7 +43,8 @@ ShortestPath IDE is licensed under [GPL-3.0-or-later](LICENSE). Open-source comp
 | Project | Purpose | License |
 | --- | --- | --- |
 | [Code - OSS](https://github.com/microsoft/vscode) | Upstream editor codebase | [MIT](licenses/MIT-VSCode.txt) |
-| [Competitive Programming Helper](https://github.com/agrawal-d/competitive-programming-helper) | Contest problem and testing workflow | GPL-3.0-or-later |
+| [Competitive Programming Helper Plus](https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus) | Contest problem and testing workflow | GPL-3.0-or-later |
+| [Error Lens](https://github.com/usernamehw/vscode-error-lens) | Inline diagnostic highlighting | MIT |
 | [C/C++ Compile Run](https://github.com/danielpinto8zz6/c-cpp-compile-run) | C/C++ compile-and-run support | GPL-3.0 |
 | [vscode-clangd](https://github.com/clangd/vscode-clangd) | clangd editor integration | MIT |
 | [CodeSnap](https://github.com/kufii/CodeSnap) | Source-code screenshots | MIT |

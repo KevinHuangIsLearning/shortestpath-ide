@@ -1,6 +1,6 @@
 {
     "name": "competitive-programming-helper",
-    "displayName": "Competitive Programming Helper (cph)",
+    "displayName": "Competitive Programming Helper Plus",
     "description": "Makes judging, compiling, and downloading problems for competitve programming easy. Also supports auto-submit for a few sites.",
     "license": "GPL-3.0-or-later",
     "icon": "icon.png",
@@ -12,11 +12,6 @@
     "categories": [
         "Other"
     ],
-    "capabilities": {
-        "untrustedWorkspaces": {
-            "supported": true
-        }
-    },
     "activationEvents": [
         "*"
     ],
@@ -53,8 +48,20 @@
                 "command": "cph.submitToCodeForces",
                 "title": "%cph.submitToCodeForces.title%",
                 "icon": "dist/static/play.png"
+            },
+            {
+                "command": "cph.compileWithoutRunning",
+                "title": "%cph.compileWithoutRunning.title%"
             }
         ],
+        "menus": {
+            "webview/context": [
+                {
+                    "command": "cph.compileWithoutRunning",
+                    "when": "webviewId == cph.judgeView && webviewSection == 'compile-button'"
+                }
+            ]
+        },
         "keybindings": [
             {
                 "key": "ctrl+alt+b",
@@ -100,7 +107,7 @@
                 "cph.language.c.Args": {
                     "title": "%cph.language.c.Args.title%",
                     "type": "string",
-                    "default": "-std=c17 -O2 -Wall -Wextra",
+                    "default": "",
                     "description": "%cph.language.c.Args.description%"
                 },
                 "cph.language.c.SubmissionCompiler": {
@@ -128,7 +135,7 @@
                 "cph.language.cpp.Args": {
                     "title": "%cph.language.cpp.Args.title%",
                     "type": "string",
-                    "default": "-std=c++23 -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG",
+                    "default": "",
                     "description": "%cph.language.cpp.Args.description%"
                 },
                 "cph.language.cpp.SubmissionCompiler": {
@@ -232,9 +239,9 @@
                 },
                 "cph.language.rust.SubmissionCompiler": {
                     "type": "string",
-                    "default": "Rust 1.75.0 (2021)",
+                    "default": "Rust 1.89.0 (2024)",
                     "enum": [
-                        "Rust 1.75.0 (2021)"
+                        "Rust 1.89.0 (2024)"
                     ],
                     "description": "%cph.language.rust.SubmissionCompiler.description%"
                 },
@@ -413,13 +420,27 @@
                     "type": "object",
                     "default": {},
                     "properties": {
-                        "CF": { "type": "string", "description": "Codeforces" },
-                        "AT": { "type": "string", "description": "AtCoder" },
-                        "LG": { "type": "string", "description": "Luogu" },
-                        "HDU": { "type": "string", "description": "HDU" }
+                        "CF": {
+                            "type": "string",
+                            "description": "Codeforces"
+                        },
+                        "AT": {
+                            "type": "string",
+                            "description": "AtCoder"
+                        },
+                        "LG": {
+                            "type": "string",
+                            "description": "Luogu"
+                        },
+                        "HDU": {
+                            "type": "string",
+                            "description": "HDU"
+                        }
                     },
                     "patternProperties": {
-                        "^.+$": { "type": "string" }
+                        "^.+$": {
+                            "type": "string"
+                        }
                     },
                     "description": "%cph.general.fileNameTemplateOverrides.description%"
                 },
@@ -440,60 +461,382 @@
                 },
                 "cph.general.hideOutputDifference": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "If true, the UI will hide the inline output difference by default. Users can toggle and this will be remembered."
                 },
                 "cph.general.collectProblemsInRoot": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "%cph.general.collectProblemsInRoot.description%"
                 },
                 "cph.general.ojMapping": {
                     "type": "object",
                     "default": {
-                        "codeforces.com": { "oj": "CF", "ojName": "Codeforces", "contestIdRegex": "(?:contest|gym|problemset\\/problem)\\/(\\d+)", "problemIdRegex": "(?:contest|gym|problemset\\/problem)\\/\\d+\\/(\\w+)" },
-                        "atcoder.jp": { "oj": "AT", "ojName": "AtCoder", "contestIdRegex": "contests\\/(\\w+)\\/tasks\\/\\w+_\\w+", "problemIdRegex": "contests\\/\\w+\\/tasks\\/\\w+_(\\w+)" },
-                        "luogu.com.cn": { "oj": "LG", "ojName": "Luogu", "problemIdRegex": "problem\\/(\\w+)" },
-                        "open.kattis.com": { "oj": "Kattis", "ojName": "Kattis" },
-                        "codechef.com": { "oj": "CC", "ojName": "CodeChef" },
-                        "spoj.com": { "oj": "SPOJ", "ojName": "SPOJ" },
-                        "hackerrank.com": { "oj": "HR", "ojName": "HackerRank" },
-                        "hackerearth.com": { "oj": "HE", "ojName": "HackerEarth" },
-                        "leetcode.com": { "oj": "LC", "ojName": "LeetCode" },
-                        "acm.timus.ru": { "oj": "Timus", "ojName": "Timus" },
-                        "dmoj.ca": { "oj": "DMOJ", "ojName": "DMOJ" },
-                        "cses.fi": { "oj": "CSES", "ojName": "CSES" },
-                        "usaco.org": { "oj": "USACO", "ojName": "USACO" },
-                        "lightoj.com": { "oj": "LOJ", "ojName": "LightOJ" },
-                        "eolymp.com": { "oj": "EOlymp", "ojName": "EOlymp" },
-                        "acm.hdu.edu.cn": { "oj": "HDU", "ojName": "HDU", "problemIdRegex": "[?&]pid=(\\d+)" }
+                        "codeforces.com": {
+                            "oj": "CF",
+                            "ojName": "Codeforces",
+                            "contestIdRegex": "(?:contest|gym|problemset\\/problem)\\/(\\d+)",
+                            "problemIdRegex": "(?:contest|gym|problemset\\/problem)\\/\\d+\\/(\\w+)"
+                        },
+                        "atcoder.jp": {
+                            "oj": "AT",
+                            "ojName": "AtCoder",
+                            "contestIdRegex": "contests\\/(\\w+)\\/tasks\\/\\w+_\\w+",
+                            "problemIdRegex": "contests\\/\\w+\\/tasks\\/\\w+_(\\w+)"
+                        },
+                        "luogu.com.cn": {
+                            "oj": "LG",
+                            "ojName": "Luogu",
+                            "problemIdRegex": "problem\\/(\\w+)"
+                        },
+                        "open.kattis.com": {
+                            "oj": "Kattis",
+                            "ojName": "Kattis"
+                        },
+                        "codechef.com": {
+                            "oj": "CC",
+                            "ojName": "CodeChef"
+                        },
+                        "spoj.com": {
+                            "oj": "SPOJ",
+                            "ojName": "SPOJ"
+                        },
+                        "hackerrank.com": {
+                            "oj": "HR",
+                            "ojName": "HackerRank"
+                        },
+                        "hackerearth.com": {
+                            "oj": "HE",
+                            "ojName": "HackerEarth"
+                        },
+                        "leetcode.com": {
+                            "oj": "LC",
+                            "ojName": "LeetCode"
+                        },
+                        "acm.timus.ru": {
+                            "oj": "Timus",
+                            "ojName": "Timus"
+                        },
+                        "dmoj.ca": {
+                            "oj": "DMOJ",
+                            "ojName": "DMOJ"
+                        },
+                        "cses.fi": {
+                            "oj": "CSES",
+                            "ojName": "CSES"
+                        },
+                        "usaco.org": {
+                            "oj": "USACO",
+                            "ojName": "USACO"
+                        },
+                        "lightoj.com": {
+                            "oj": "LOJ",
+                            "ojName": "LightOJ"
+                        },
+                        "eolymp.com": {
+                            "oj": "EOlymp",
+                            "ojName": "EOlymp"
+                        },
+                        "acm.hdu.edu.cn": {
+                            "oj": "HDU",
+                            "ojName": "HDU",
+                            "problemIdRegex": "[?&]pid=(\\d+)"
+                        }
                     },
                     "properties": {
-                        "codeforces.com": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "atcoder.jp": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "luogu.com.cn": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "open.kattis.com": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "codechef.com": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "spoj.com": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "hackerrank.com": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "hackerearth.com": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "leetcode.com": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "acm.timus.ru": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "dmoj.ca": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "cses.fi": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "usaco.org": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "lightoj.com": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "eolymp.com": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } },
-                        "acm.hdu.edu.cn": { "type": "object", "properties": { "oj": { "type": "string" }, "ojName": { "type": "string" }, "contestIdRegex": { "type": "string" }, "problemIdRegex": { "type": "string" } } }
+                        "codeforces.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "atcoder.jp": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "luogu.com.cn": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "open.kattis.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "codechef.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "spoj.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "hackerrank.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "hackerearth.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "leetcode.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "acm.timus.ru": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "dmoj.ca": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "cses.fi": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "usaco.org": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "lightoj.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "eolymp.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "acm.hdu.edu.cn": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     },
                     "patternProperties": {
                         "^.+$": {
                             "type": "object",
                             "properties": {
-                                "oj": { "type": "string", "description": "OJ abbreviation used for {oj} placeholder" },
-                                "ojName": { "type": "string", "description": "OJ full name used for {ojName} placeholder" },
-                                "contestIdRegex": { "type": "string", "description": "Optional regex to extract contestId from URL. First capture group is used." },
-                                "problemIdRegex": { "type": "string", "description": "Optional regex to extract problemId from URL. First capture group is used." }
+                                "oj": {
+                                    "type": "string",
+                                    "description": "OJ abbreviation used for {oj} placeholder"
+                                },
+                                "ojName": {
+                                    "type": "string",
+                                    "description": "OJ full name used for {ojName} placeholder"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string",
+                                    "description": "Optional regex to extract contestId from URL. First capture group is used."
+                                },
+                                "problemIdRegex": {
+                                    "type": "string",
+                                    "description": "Optional regex to extract problemId from URL. First capture group is used."
+                                }
                             }
                         }
                     },
@@ -502,37 +845,235 @@
                 "cph.general.vjudgeOjNames": {
                     "type": "object",
                     "default": {
-                        "CodeForces": { "urlTemplate": "https://codeforces.com/problemset/problem/{contestId}/{problemId}", "problemIdRegex": "^(\\d+)([A-Z]\\d*)$" },
-                        "CF": { "urlTemplate": "https://codeforces.com/problemset/problem/{contestId}/{problemId}", "problemIdRegex": "^(\\d+)([A-Z]\\d*)$", "vjudgeUrlKey": "CodeForces" },
-                        "AtCoder": { "urlTemplate": "https://atcoder.jp/contests/{contestId}/tasks/{contestId}_{problemId}", "problemIdRegex": "^([a-z]+\\d+)_([a-z]\\d*)$", "compositeFormat": "{contestId}_{problemId}" },
-                        "Luogu": { "urlTemplate": "https://www.luogu.com.cn/problem/{problemId}", "vjudgeUrlKey": "\u6D1B\u8C37" },
-                        "\u6D1B\u8C37": { "urlTemplate": "https://www.luogu.com.cn/problem/{problemId}" },
-                        "SPOJ": { "urlTemplate": "https://www.spoj.com/problems/{problemId}" },
-                        "UVA": { "urlTemplate": "https://onlinejudge.org/index.php?option=com_onlinejudge&Itemid=8&page=show_problem&problem={problemId}" },
-                        "HDU": { "urlTemplate": "https://acm.hdu.edu.cn/showproblem.php?pid={problemId}" },
-                        "POJ": { "urlTemplate": "http://poj.org/problem?id={problemId}" },
-                        "Bailian": { "urlTemplate": "http://bailian.openjudge.cn/practice/{problemId}" }
+                        "CodeForces": {
+                            "urlTemplate": "https://codeforces.com/problemset/problem/{contestId}/{problemId}",
+                            "problemIdRegex": "^(\\d+)([A-Z]\\d*)$"
+                        },
+                        "CF": {
+                            "urlTemplate": "https://codeforces.com/problemset/problem/{contestId}/{problemId}",
+                            "problemIdRegex": "^(\\d+)([A-Z]\\d*)$",
+                            "vjudgeUrlKey": "CodeForces"
+                        },
+                        "AtCoder": {
+                            "urlTemplate": "https://atcoder.jp/contests/{contestId}/tasks/{contestId}_{problemId}",
+                            "problemIdRegex": "^([a-z]+\\d+)_([a-z]\\d*)$",
+                            "compositeFormat": "{contestId}_{problemId}"
+                        },
+                        "Luogu": {
+                            "urlTemplate": "https://www.luogu.com.cn/problem/{problemId}",
+                            "vjudgeUrlKey": "洛谷"
+                        },
+                        "洛谷": {
+                            "urlTemplate": "https://www.luogu.com.cn/problem/{problemId}"
+                        },
+                        "SPOJ": {
+                            "urlTemplate": "https://www.spoj.com/problems/{problemId}"
+                        },
+                        "UVA": {
+                            "urlTemplate": "https://onlinejudge.org/index.php?option=com_onlinejudge&Itemid=8&page=show_problem&problem={problemId}"
+                        },
+                        "HDU": {
+                            "urlTemplate": "https://acm.hdu.edu.cn/showproblem.php?pid={problemId}"
+                        },
+                        "POJ": {
+                            "urlTemplate": "http://poj.org/problem?id={problemId}"
+                        },
+                        "Bailian": {
+                            "urlTemplate": "http://bailian.openjudge.cn/practice/{problemId}"
+                        }
                     },
                     "properties": {
-                        "CodeForces": { "type": "object", "properties": { "urlTemplate": { "type": "string" }, "problemIdRegex": { "type": "string" }, "compositeFormat": { "type": "string" }, "vjudgeUrlKey": { "type": "string" } } },
-                        "CF": { "type": "object", "properties": { "urlTemplate": { "type": "string" }, "problemIdRegex": { "type": "string" }, "compositeFormat": { "type": "string" }, "vjudgeUrlKey": { "type": "string" } } },
-                        "AtCoder": { "type": "object", "properties": { "urlTemplate": { "type": "string" }, "problemIdRegex": { "type": "string" }, "compositeFormat": { "type": "string" }, "vjudgeUrlKey": { "type": "string" } } },
-                        "Luogu": { "type": "object", "properties": { "urlTemplate": { "type": "string" }, "problemIdRegex": { "type": "string" }, "compositeFormat": { "type": "string" }, "vjudgeUrlKey": { "type": "string" } } },
-                        "\u6D1B\u8C37": { "type": "object", "properties": { "urlTemplate": { "type": "string" }, "problemIdRegex": { "type": "string" }, "compositeFormat": { "type": "string" }, "vjudgeUrlKey": { "type": "string" } } },
-                        "SPOJ": { "type": "object", "properties": { "urlTemplate": { "type": "string" }, "problemIdRegex": { "type": "string" }, "compositeFormat": { "type": "string" }, "vjudgeUrlKey": { "type": "string" } } },
-                        "UVA": { "type": "object", "properties": { "urlTemplate": { "type": "string" }, "problemIdRegex": { "type": "string" }, "compositeFormat": { "type": "string" }, "vjudgeUrlKey": { "type": "string" } } },
-                        "HDU": { "type": "object", "properties": { "urlTemplate": { "type": "string" }, "problemIdRegex": { "type": "string" }, "compositeFormat": { "type": "string" }, "vjudgeUrlKey": { "type": "string" } } },
-                        "POJ": { "type": "object", "properties": { "urlTemplate": { "type": "string" }, "problemIdRegex": { "type": "string" }, "compositeFormat": { "type": "string" }, "vjudgeUrlKey": { "type": "string" } } },
-                        "Bailian": { "type": "object", "properties": { "urlTemplate": { "type": "string" }, "problemIdRegex": { "type": "string" }, "compositeFormat": { "type": "string" }, "vjudgeUrlKey": { "type": "string" } } }
+                        "CodeForces": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "CF": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "AtCoder": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "Luogu": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "洛谷": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "SPOJ": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "UVA": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "HDU": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "POJ": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "Bailian": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     },
                     "patternProperties": {
                         "^.+$": {
                             "type": "object",
                             "properties": {
-                                "urlTemplate": { "type": "string", "description": "Template to reconstruct original OJ URL. Use {contestId} and {problemId} placeholders." },
-                                "problemIdRegex": { "type": "string", "description": "Optional: regex to split VJudge's combined problem ID. Capture group 1 → {contestId}, group 2 → {problemId}." },
-                                "compositeFormat": { "type": "string", "description": "Optional: template to reconstruct composite problem ID for VJudge URL. Defaults to '{contestId}{problemId}'. Use when VJudge uses a separator (e.g. '{contestId}_{problemId}' for AtCoder)." },
-                                "vjudgeUrlKey": { "type": "string", "description": "Optional: override the VJudge URL OJ name. When this entry is matched but the VJudge URL uses a different key (e.g. 'CF' maps to 'CodeForces', 'Luogu' maps to '\u6D1B\u8C37'), specify the canonical key here." }
+                                "urlTemplate": {
+                                    "type": "string",
+                                    "description": "Template to reconstruct original OJ URL. Use {contestId} and {problemId} placeholders."
+                                },
+                                "problemIdRegex": {
+                                    "type": "string",
+                                    "description": "Optional: regex to split VJudge's combined problem ID. Capture group 1 → {contestId}, group 2 → {problemId}."
+                                },
+                                "compositeFormat": {
+                                    "type": "string",
+                                    "description": "Optional: template to reconstruct composite problem ID for VJudge URL. Defaults to '{contestId}{problemId}'. Use when VJudge uses a separator (e.g. '{contestId}_{problemId}' for AtCoder)."
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string",
+                                    "description": "Optional: override the VJudge URL OJ name. When this entry is matched but the VJudge URL uses a different key (e.g. 'CF' maps to 'CodeForces', 'Luogu' maps to '洛谷'), specify the canonical key here."
+                                }
                             }
                         }
                     },
@@ -567,7 +1108,7 @@
         "webpack-dev": "webpack --mode development --watch",
         "webpack-frontend-dev": "webpack --mode development --watch --config ./webpack.frontend.config.js",
         "test-compile": "tsc -p ./",
-        "lint": "eslint . --ext .ts,.tsx",
+        "lint": "node scripts/lint.js",
         "pretest": "tsc -p ./",
         "test": "jest out/ --silent=false"
     },
@@ -604,6 +1145,6 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/agrawal-d/competitive-programming-helper/"
+        "url": "https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus"
     }
 }
