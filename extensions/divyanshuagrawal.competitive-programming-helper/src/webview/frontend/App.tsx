@@ -46,6 +46,7 @@ interface CustomWindow extends Window {
     showLiveUserCount: boolean;
     console: Console;
     translations: Record<string, string>;
+    locale: string;
     pythonCommand: string;
 }
 declare const window: CustomWindow;
@@ -62,6 +63,9 @@ window.console.debug = customLogger.bind(window.console, originalConsole.debug);
 
 const projectUrl =
     'https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus';
+const userGuidePath = (window.locale || 'en').toLowerCase().startsWith('zh')
+    ? 'docs/user-guide_cn.md'
+    : 'docs/user-guide.md';
 
 function getLiveUserCount(): Promise<number> {
     console.log('Fetching live user count');
@@ -102,12 +106,21 @@ function Judge(props: {
         casesRef.current = cases;
     }, [cases]);
 
+    const problemUrlRef = React.useRef(problem.url);
+    useEffect(() => {
+        problemUrlRef.current = problem.url;
+    }, [problem.url]);
+
     const [focusLast, setFocusLast] = useState<boolean>(false);
     const [forceRunning, setForceRunning] = useState<number | false>(false);
     const [forceChecking, setForceChecking] = useState<number | false>(false);
     const [compiling, setCompiling] = useState<boolean>(false);
     const [notification, setNotification] = useState<string | null>(null);
     const [waitingForSubmit, setWaitingForSubmit] = useState<boolean>(false);
+    const [showCfBrowserHint, setShowCfBrowserHint] = useState<boolean>(false);
+    const submitBrowserHintTimeout = React.useRef<ReturnType<
+        typeof setTimeout
+    > | null>(null);
     const [infoPageVisible, setInfoPageVisible] = useState<boolean>(false);
     const [generatedJson, setGeneratedJson] = useState<any | null>(null);
     const [liveUserCount, setLiveUserCount] = useState<number>(0);
@@ -137,6 +150,26 @@ function Judge(props: {
     useEffect(() => {
         setDeleteProblemArmed(false);
     }, [problem.srcPath]);
+
+    useEffect(() => {
+        return () => {
+            if (submitBrowserHintTimeout.current) {
+                clearTimeout(submitBrowserHintTimeout.current);
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!showCfBrowserHint) {
+            return;
+        }
+
+        const timeout = window.setTimeout(
+            () => setShowCfBrowserHint(false),
+            10000,
+        );
+        return () => window.clearTimeout(timeout);
+    }, [showCfBrowserHint]);
 
     useEffect(() => {
         const updateLiveUserCount = (): void => {
@@ -259,10 +292,25 @@ function Judge(props: {
                 }
                 case 'submit-finished': {
                     setWaitingForSubmit(false);
+                    if (problemUrlRef.current.includes('codeforces.com')) {
+                        if (submitBrowserHintTimeout.current) {
+                            clearTimeout(submitBrowserHintTimeout.current);
+                        }
+                        setShowCfBrowserHint(true);
+                        submitBrowserHintTimeout.current = setTimeout(() => {
+                            setShowCfBrowserHint(false);
+                            submitBrowserHintTimeout.current = null;
+                        }, 10000);
+                    }
                     break;
                 }
                 case 'waiting-for-submit': {
                     setWaitingForSubmit(true);
+                    if (submitBrowserHintTimeout.current) {
+                        clearTimeout(submitBrowserHintTimeout.current);
+                        submitBrowserHintTimeout.current = null;
+                    }
+                    setShowCfBrowserHint(false);
                     break;
                 }
                 case 'ext-logs': {
@@ -397,6 +445,11 @@ function Judge(props: {
     };
 
     const submitCf = () => {
+        if (submitBrowserHintTimeout.current) {
+            clearTimeout(submitBrowserHintTimeout.current);
+            submitBrowserHintTimeout.current = null;
+        }
+        setShowCfBrowserHint(false);
         sendMessageToVSCode({
             command: 'submitCf',
             problem,
@@ -479,13 +532,13 @@ function Judge(props: {
         });
     };
 
-    const notify = (text: string) => {
+    const notify = (text: string, duration = 1000) => {
         clearTimeout(notificationTimeout!);
         setNotification(text);
         notificationTimeout = setTimeout(() => {
             setNotification(null);
             notificationTimeout = undefined;
-        }, 1000);
+        }, duration);
     };
 
     const toggleChecker = () => {
@@ -547,7 +600,7 @@ function Judge(props: {
         }
     });
 
-    const renderSubmitButton = () => {
+    const renderSubmitButton = (className = '') => {
         if (!problem.url.startsWith('http')) {
             return null;
         }
@@ -569,47 +622,82 @@ function Judge(props: {
 
         if (url.hostname.endsWith('codeforces.com')) {
             return (
-                <button className="btn btn-block" onClick={submitCf}>
-                    <span className="icon">
-                        <i className="codicon codicon-cloud-upload"></i>
-                    </span>{' '}
-                    {t('submit')}
-                </button>
+                <>
+                    <button
+                        className={`btn ${className} ${
+                            waitingForSubmit ? 'is-waiting' : ''
+                        }`}
+                        onClick={submitCf}
+                        disabled={waitingForSubmit}
+                        aria-live="polite"
+                    >
+                        {waitingForSubmit ? (
+                            <span className="submit-waiting-copy">
+                                <span>{t('waitingForExtension')}</span>
+                                <small>{t('checkBrowserForSubmit')}</small>
+                            </span>
+                        ) : (
+                            <>
+                                {showCfBrowserHint ? (
+                                    t('checkBrowser')
+                                ) : (
+                                    <>
+                                        <span className="icon">
+                                            <i className="codicon codicon-cloud-upload"></i>
+                                        </span>{' '}
+                                        {t('submit')}
+                                    </>
+                                )}
+                            </>
+                        )}
+                        {waitingForSubmit && (
+                            <span
+                                className="submit-progress"
+                                aria-hidden="true"
+                            />
+                        )}
+                    </button>
+                </>
             );
         } else if (url.hostname == 'open.kattis.com') {
             return (
-                <div className="pad-10 submit-area">
-                    <button className="btn btn-block" onClick={submitKattis}>
-                        <span className="icon">
-                            <i className="codicon codicon-cloud-upload"></i>
-                        </span>{' '}
-                        {t('submitOnKattis')}
-                    </button>
+                <button
+                    className={`btn ${className} ${
+                        waitingForSubmit ? 'is-waiting' : ''
+                    }`}
+                    onClick={submitKattis}
+                    disabled={waitingForSubmit}
+                    aria-live="polite"
+                >
+                    <span className="icon">
+                        <i className="codicon codicon-cloud-upload"></i>
+                    </span>{' '}
+                    {waitingForSubmit ? t('submitting') : t('submitOnKattis')}
                     {waitingForSubmit && (
-                        <>
-                            <span className="loader"></span> {t('submitting')}
-                            <br />
-                            <small>
-                                {t('kattisInstructions')}
-                                <br />
-                                {t('kattisBrowserNote')}
-                                <br />
-                                <br />
-                            </small>
-                        </>
+                        <span className="submit-progress" aria-hidden="true" />
                     )}
-                </div>
+                </button>
             );
         } else if (
             url.hostname == 'cses.fi' ||
             url.hostname.endsWith('cses.fi')
         ) {
             return (
-                <button className="btn btn-block" onClick={submitCSES}>
+                <button
+                    className={`btn ${className} ${
+                        waitingForSubmit ? 'is-waiting' : ''
+                    }`}
+                    onClick={submitCSES}
+                    disabled={waitingForSubmit}
+                    aria-live="polite"
+                >
                     <span className="icon">
                         <i className="codicon codicon-cloud-upload"></i>
                     </span>{' '}
-                    {t('submit')}
+                    {waitingForSubmit ? t('submitting') : t('submit')}
+                    {waitingForSubmit && (
+                        <span className="submit-progress" aria-hidden="true" />
+                    )}
                 </button>
             );
         }
@@ -678,7 +766,7 @@ function Judge(props: {
                 <h3>{t('getHelp')}</h3>
                 <a
                     className="btn"
-                    href={`${projectUrl}/blob/main/docs/user-guide.md`}
+                    href={`${projectUrl}/blob/main/${userGuidePath}`}
                 >
                     {t('userGuide')}
                 </a>
@@ -844,7 +932,6 @@ function Judge(props: {
                     <div className="margin-10">
                         <div className="action-container">
                             <div className="button-grid">
-                                {renderSubmitButton()}
                                 <button
                                     className={`btn btn-block ${
                                         deleteProblemArmed
@@ -880,19 +967,6 @@ function Judge(props: {
                                     {t('settings')}
                                 </button>
                             </div>
-                            {waitingForSubmit && (
-                                <div className="margin-10">
-                                    <span className="loader"></span>{' '}
-                                    {t('waitingForExtension')}
-                                    <br />
-                                    <small>
-                                        {t('codeforcesInstructions')}
-                                        <br />
-                                        <br />
-                                        {t('submitHint')}
-                                    </small>
-                                </div>
-                            )}
                             <button
                                 className={`btn btn-block ${
                                     problem.customCheckerPath?.trim()
@@ -1174,47 +1248,50 @@ with open(sys.argv[2], "r") as f:
                         numPassed={numPassed}
                     />
                 )}
-                <div className="split-btn">
+                {renderSubmitButton('submit-action')}
+                <div className="actions-main-row">
+                    <div className="split-btn">
+                        <button
+                            className="btn main-btn"
+                            onClick={runAll}
+                            title={t('runAll')}
+                        >
+                            <span className="icon">
+                                <i className="codicon codicon-run-above"></i>
+                            </span>{' '}
+                            <span className="action-text">{t('runAll')}</span>
+                        </button>
+                        <button
+                            className="btn chevron-btn"
+                            title={t('moreActions')}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const event = new MouseEvent('contextmenu', {
+                                    bubbles: true,
+                                    clientX: e.clientX,
+                                    clientY: e.clientY,
+                                });
+                                e.currentTarget.dispatchEvent(event);
+                            }}
+                            data-vscode-context='{"preventDefaultContextMenuItems": true, "webviewSection": "compile-button"}'
+                        >
+                            <span className="icon">
+                                <i className="codicon codicon-chevron-down"></i>
+                            </span>
+                        </button>
+                    </div>
                     <button
-                        className="btn main-btn"
-                        onClick={runAll}
-                        title={t('runAll')}
+                        className="btn btn-new primary-action"
+                        onClick={newCase}
+                        title={t('newTestcase')}
                     >
                         <span className="icon">
-                            <i className="codicon codicon-run-above"></i>
-                        </span>{' '}
-                        <span className="action-text">{t('runAll')}</span>
-                    </button>
-                    <button
-                        className="btn chevron-btn"
-                        title={t('moreActions')}
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const event = new MouseEvent('contextmenu', {
-                                bubbles: true,
-                                clientX: e.clientX,
-                                clientY: e.clientY,
-                            });
-                            e.currentTarget.dispatchEvent(event);
-                        }}
-                        data-vscode-context='{"preventDefaultContextMenuItems": true, "webviewSection": "compile-button"}'
-                    >
-                        <span className="icon">
-                            <i className="codicon codicon-chevron-down"></i>
+                            <i className="codicon codicon-add"></i>
                         </span>
+                        <span className="action-text">{t('new')}</span>
                     </button>
                 </div>
-                <button
-                    className="btn btn-new primary-action"
-                    onClick={newCase}
-                    title={t('newTestcase')}
-                >
-                    <span className="icon">
-                        <i className="codicon codicon-add"></i>
-                    </span>
-                    <span className="action-text">{t('new')}</span>
-                </button>
             </div>
         </div>
     );

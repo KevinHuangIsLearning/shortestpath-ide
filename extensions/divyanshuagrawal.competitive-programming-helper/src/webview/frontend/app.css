@@ -94,9 +94,16 @@ body {
     border-radius: 0px !important;
     box-sizing: border-box;
     display: flex !important;
-    flex-direction: row !important;
+    flex-direction: column !important;
     align-items: stretch !important;
     gap: 8px !important;
+}
+
+.actions-main-row {
+    display: flex;
+    width: 100%;
+    align-items: stretch;
+    gap: 8px;
 }
 
 .actions .split-btn,
@@ -1226,7 +1233,7 @@ body {
 
 .btn:hover:not(:disabled) {
     filter: brightness(1.08);
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
+    box-shadow: none;
 }
 
 .btn:active:not(:disabled) {
@@ -1335,6 +1342,55 @@ body {
 
 .actions .primary-action {
     flex: 0 0 auto;
+}
+
+.actions .submit-action {
+    width: 100%;
+    margin: 0;
+}
+
+.submit-action.is-waiting {
+    position: relative;
+    overflow: hidden;
+}
+
+.submit-action.is-waiting:disabled {
+    background: var(--vscode-button-background, #177bb4) !important;
+    color: var(--vscode-button-foreground, white) !important;
+    opacity: 1 !important;
+    cursor: progress;
+}
+
+.submit-waiting-copy {
+    display: grid;
+    gap: 2px;
+    line-height: 1.2;
+}
+
+.submit-waiting-copy small {
+    font-size: 0.8em;
+    font-weight: 400;
+    opacity: 0.85;
+}
+
+.submit-progress {
+    position: absolute;
+    bottom: 0;
+    left: -35%;
+    width: 35%;
+    height: 2px;
+    background: currentColor;
+    opacity: 0.8;
+    animation: submit-progress 1.1s ease-in-out infinite;
+}
+
+@keyframes submit-progress {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(390%);
+    }
 }
 
 .notification {

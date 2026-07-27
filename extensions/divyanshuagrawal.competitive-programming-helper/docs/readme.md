@@ -7,6 +7,8 @@ the competitive programming helper extension (cph).
 
 [User Guide](user-guide.md)
 
+[中文用户指南](user-guide_cn.md)
+
 [Developer Guide](dev-guide.md)
 
 [Get Support](support.md)

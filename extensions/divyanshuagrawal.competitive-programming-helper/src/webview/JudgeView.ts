@@ -361,6 +361,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                         window.showLiveUserCount = ${showLiveUserCount};
                         window.showOutputDifference = ${!getHideOutputDifferencePref()};
                         window.translations = ${JSON.stringify(translation)};
+                        window.locale = ${JSON.stringify(locale)};
                         window.pythonCommand = '${pythonCommand}';
 
                         document.addEventListener(
