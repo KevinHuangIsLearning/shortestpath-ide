@@ -111,7 +111,10 @@ export const getHideOutputDifferencePref = (): boolean =>
 export const getCollectProblemsInRoot = (): boolean =>
     getPreference('general.collectProblemsInRoot') || false;
 
-export const getOjMapping = (): Record<string, import('./types').OjMappingEntry> | null => {
+export const getOjMapping = (): Record<
+    string,
+    import('./types').OjMappingEntry
+> | null => {
     const pref = getPreference('general.ojMapping');
     if (!pref || typeof pref !== 'object' || Object.keys(pref).length === 0) {
         return null;
@@ -119,7 +122,15 @@ export const getOjMapping = (): Record<string, import('./types').OjMappingEntry>
     return pref;
 };
 
-export const getVjudgeOjNames = (): Record<string, { urlTemplate: string; problemIdRegex?: string; compositeFormat?: string; vjudgeUrlKey?: string }> | null => {
+export const getVjudgeOjNames = (): Record<
+    string,
+    {
+        urlTemplate: string;
+        problemIdRegex?: string;
+        compositeFormat?: string;
+        vjudgeUrlKey?: string;
+    }
+> | null => {
     const pref = getPreference('general.vjudgeOjNames');
     if (!pref || typeof pref !== 'object' || Object.keys(pref).length === 0) {
         return null;
@@ -180,7 +191,10 @@ export const getFileNameTemplate = (): string | null => {
     return pref;
 };
 
-export const getFileNameTemplateOverrides = (): Record<string, string> | null => {
+export const getFileNameTemplateOverrides = (): Record<
+    string,
+    string
+> | null => {
     const pref = getPreference('general.fileNameTemplateOverrides');
     if (!pref || typeof pref !== 'object' || Object.keys(pref).length === 0) {
         return null;

@@ -4,6 +4,7 @@
         "target": "es2017",
         "outDir": "out",
         "lib": ["es2017", "DOM"],
+        "types": ["node", "vscode", "jest"],
         "jsx": "react",
         "sourceMap": false,
         "rootDir": "src",

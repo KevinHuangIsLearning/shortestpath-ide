@@ -1,5 +1,9 @@
 globalThis.logger = { ...console };
-import { words_in_text, toPascalCase, replaceFileNamePlaceholders } from '../utilsPure';
+import {
+    words_in_text,
+    toPascalCase,
+    replaceFileNamePlaceholders,
+} from '../utilsPure';
 
 describe('problem name parser', () => {
     test('mix of latin, non latin and numbers', () => {
@@ -68,12 +72,15 @@ describe('replaceFileNamePlaceholders', () => {
     });
 
     test('replaces multiple placeholders', () => {
-        const result = replaceFileNamePlaceholders('{contestId}{problemId}_{slug}.{ext}', {
-            contestId: '144',
-            problemId: 'C',
-            slug: 'A_Watermelon',
-            ext: 'cpp',
-        });
+        const result = replaceFileNamePlaceholders(
+            '{contestId}{problemId}_{slug}.{ext}',
+            {
+                contestId: '144',
+                problemId: 'C',
+                slug: 'A_Watermelon',
+                ext: 'cpp',
+            },
+        );
         expect(result).toBe('144C_A_Watermelon.cpp');
     });
 
@@ -102,11 +109,14 @@ describe('replaceFileNamePlaceholders', () => {
     });
 
     test('replaces empty string value', () => {
-        const result = replaceFileNamePlaceholders('{contestId}{problemId}.{ext}', {
-            contestId: '',
-            problemId: 'A',
-            ext: 'cpp',
-        });
+        const result = replaceFileNamePlaceholders(
+            '{contestId}{problemId}.{ext}',
+            {
+                contestId: '',
+                problemId: 'A',
+                ext: 'cpp',
+            },
+        );
         expect(result).toBe('A.cpp');
     });
 

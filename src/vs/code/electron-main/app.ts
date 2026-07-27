@@ -7,12 +7,9 @@ import { app, BrowserWindow, desktopCapturer, Details, dialog, globalShortcut, G
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
-import * as fs from 'original-fs';
 import { spawn } from 'child_process';
 import { createRequire } from 'module';
 import { Readable } from 'stream';
-import { finished } from 'stream/promises';
-import { isAbsolute } from 'path';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
@@ -70,6 +67,7 @@ import { ILaunchMainService, LaunchMainService } from '../../platform/launch/ele
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
 import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
+import type { IOSProxyConfig } from '../../platform/native/common/native.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
 import { GlobalKeybindingsMainService, IGlobalKeybindingsMainService } from '../../platform/globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
@@ -212,6 +210,9 @@ interface IShortestPathPortableAsset {
 }
 
 const nodeRequire = createRequire(import.meta.url);
+const fs: typeof import('fs') = nodeRequire('original-fs');
+const { isAbsolute } = nodeRequire('path') as typeof import('path');
+const { finished } = nodeRequire('stream/promises') as typeof import('stream/promises');
 
 function isShortestPathSetupRequest(candidate: unknown): candidate is IShortestPathSetupRequest {
 	if (!candidate || typeof candidate !== 'object') {
@@ -231,6 +232,58 @@ function isShortestPathSetupRequest(candidate: unknown): candidate is IShortestP
 		&& typeof value.workspaceFolder === 'string'
 		&& isAbsolute(value.workspaceFolder);
 }
+
+type OSProxyConfigEvent = {
+	readonly success: boolean;
+	readonly durationMs: number;
+	readonly platformKind?: string;
+	readonly autoDetect?: boolean;
+	readonly httpProxyEnvironmentState?: string;
+	readonly httpsProxyEnvironmentState?: string;
+	readonly allProxyEnvironmentState?: string;
+	readonly noProxyEnvironmentState?: string;
+	readonly wpadDhcpState?: string;
+	readonly wpadDnsState?: string;
+	readonly configuredPacState?: string;
+	readonly hasConfiguredPac?: boolean;
+	readonly hasLoadedPac?: boolean;
+	readonly pacSource?: string;
+	readonly pacScriptCharacterCount?: number;
+	readonly pacScriptLineCount?: number;
+	readonly pacScriptReturnCount?: number;
+	readonly hasHttpProxy?: boolean;
+	readonly hasHttpsProxy?: boolean;
+	readonly hasSocksProxy?: boolean;
+	readonly hasBypassRules?: boolean;
+	readonly excludeSimpleHostnames?: boolean;
+};
+
+type OSProxyConfigClassification = {
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether reading the operating system proxy configuration completed successfully.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the operating system proxy configuration read in milliseconds.' };
+	platformKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operating system proxy configuration source (windows, macos, linux, unknown, or none).' };
+	autoDetect?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic proxy discovery is enabled.' };
+	httpProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective HTTP proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	httpsProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective HTTPS proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	allProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective all-proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	noProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective no-proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	wpadDhcpState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The DHCP WPAD inspection state. Discovered URLs and errors are not collected.' };
+	wpadDnsState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The DNS WPAD inspection state. Discovered URLs and errors are not collected.' };
+	configuredPacState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured PAC inspection state. Configured URLs and errors are not collected.' };
+	hasConfiguredPac?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the operating system has a PAC URL configured. The URL is not collected.' };
+	hasLoadedPac?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a PAC script was discovered and loaded. The URL and script contents are not collected.' };
+	pacSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the loaded PAC script was selected (wpad-dhcp, wpad-dns, configured, unknown, or none).' };
+	pacScriptCharacterCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of characters in the loaded PAC script. The script contents are not collected.' };
+	pacScriptLineCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of lines in the loaded PAC script. The script contents are not collected.' };
+	pacScriptReturnCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of return keyword occurrences in the loaded PAC script. The script contents are not collected.' };
+	hasHttpProxy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether normalized static HTTP proxy settings are present. Proxy addresses are not collected.' };
+	hasHttpsProxy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether normalized static HTTPS proxy settings are present. Proxy addresses are not collected.' };
+	hasSocksProxy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether normalized static SOCKS proxy settings are present. Proxy addresses are not collected.' };
+	hasBypassRules?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether operating system proxy bypass rules are present. Bypass entries are not collected.' };
+	excludeSimpleHostnames?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether macOS excludes simple hostnames from proxying. Undefined on other platforms.' };
+	owner: 'chrmarti';
+	comment: 'Tracks categorized operating system proxy configuration after startup without collecting proxy addresses, URLs, scripts, bypass entries, or error text.';
+};
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -383,6 +436,14 @@ export class CodeApplication extends Disposable {
 		// But allow them if they are made from inside an webview
 		const isSafeFrame = (requestFrame: WebFrameMain | null | undefined): boolean => {
 			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
+				// The render frame backing this WebFrameMain may already be disposed
+				// (e.g. the originating webview/window was closed or navigated away)
+				// by the time this webRequest callback runs. Accessing any property
+				// of a disposed frame throws "Render frame was disposed before
+				// WebFrameMain could be accessed", so guard before reading it.
+				if (frame.isDestroyed()) {
+					return false;
+				}
 				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
 					return true;
 				}
@@ -396,7 +457,7 @@ export class CodeApplication extends Disposable {
 
 		const isAllowedVsCodeFileRequest = (details: Electron.OnBeforeRequestListenerDetails) => {
 			const frame = details.frame;
-			if (!frame || !this.windowsMainService) {
+			if (!frame || frame.isDestroyed() || !this.windowsMainService) {
 				return false;
 			}
 
@@ -417,7 +478,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			const frame = details.frame;
-			if (!frame || !this.windowsMainService) {
+			if (!frame || frame.isDestroyed() || !this.windowsMainService) {
 				return false;
 			}
 
@@ -798,7 +859,7 @@ export class CodeApplication extends Disposable {
 				this.lifecycleMainService.phase = LifecycleMainPhase.Eventually;
 
 				// Eventually Post Open Window Tasks
-				this.eventuallyAfterWindowOpen();
+				this.eventuallyAfterWindowOpen(appInstantiationService);
 			}, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
@@ -938,14 +999,14 @@ export class CodeApplication extends Disposable {
 				CF: '{ojName}/{contestId}/{problemId}.{ext}',
 				LG: '{ojName}/{problemId}.{ext}',
 				VJ: '{ojName}/{problemId}{slug}.{ext}',
-				'牛客': 'NowCoder/{problemId}.{ext}'
+				'\u725b\u5ba2': 'NowCoder/{problemId}.{ext}'
 			},
 			'cph.general.vjudgeOjNames': {
 				CodeForces: { urlTemplate: 'https://codeforces.com/problemset/problem/{contestId}/{problemId}', problemIdRegex: '^(\\d+)([A-Z]\\d*)$' },
 				CF: { urlTemplate: 'https://codeforces.com/problemset/problem/{contestId}/{problemId}', problemIdRegex: '^(\\d+)([A-Z]\\d*)$' },
 				AtCoder: { urlTemplate: 'https://atcoder.jp/contests/{contestId}/tasks/{contestId}_{problemId}', problemIdRegex: '^([a-z]+\\d+)_([a-z]\\d*)$' },
 				Luogu: { urlTemplate: 'https://www.luogu.com.cn/problem/{problemId}' },
-				'洛谷': { urlTemplate: 'https://www.luogu.com.cn/problem/{problemId}' },
+				'\u6d1b\u8c37': { urlTemplate: 'https://www.luogu.com.cn/problem/{problemId}' },
 				SPOJ: { urlTemplate: 'https://www.spoj.com/problems/{problemId}' },
 				UVA: { urlTemplate: 'https://onlinejudge.org/index.php?option=com_onlinejudge&Itemid=8&page=show_problem&problem={problemId}' },
 				HDU: { urlTemplate: 'https://acm.hdu.edu.cn/showproblem.php?pid={problemId}' },
@@ -953,7 +1014,7 @@ export class CodeApplication extends Disposable {
 				Bailian: { urlTemplate: 'http://bailian.openjudge.cn/practice/{problemId}' },
 				CSES: { urlTemplate: 'https://cses.fi/problemset/task/{problemId}' },
 				NowCoder: { urlTemplate: 'https://ac.nowcoder.com/acm/problem/{problemId}', problemIdRegex: '^(\\d+)$' },
-				'牛客': { urlTemplate: 'https://ac.nowcoder.com/acm/problem/{problemId}' }
+				'\u725b\u5ba2': { urlTemplate: 'https://ac.nowcoder.com/acm/problem/{problemId}' }
 			},
 			'cph.general.ojMapping': {
 				'codeforces.com': { oj: 'CF', ojName: 'Codeforces', contestIdRegex: '(?:contest|gym|problemset\\/problem)\\/(\\d+)', problemIdRegex: '(?:contest|gym|problemset\\/problem)\\/\\d+\\/(\\w+)' },
@@ -972,7 +1033,7 @@ export class CodeApplication extends Disposable {
 				'lightoj.com': { oj: 'LOJ', ojName: 'LightOJ' },
 				'eolymp.com': { oj: 'EOlymp', ojName: 'EOlymp' },
 				'acm.hdu.edu.cn': { oj: 'HDU', ojName: 'HDU', problemIdRegex: '[?&]pid=(\\d+)' },
-				'ac.nowcoder.com': { oj: '牛客', ojName: '牛客', problemIdRegex: 'problem\\/(\\d+)' }
+				'ac.nowcoder.com': { oj: '\u725b\u5ba2', ojName: '\u725b\u5ba2', problemIdRegex: 'problem\\/(\\d+)' }
 			},
 			'cph.language.cpp.Command': compiler,
 			'cph.language.cpp.Args': `-std=${request.cppStandard} -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG -static`,
@@ -1017,35 +1078,35 @@ export class CodeApplication extends Disposable {
 		}
 		const config = `BasedOnStyle: Google
 
-# --- 行为：尽量允许一行写完 ---
+# --- Prefer compact single-line constructs ---
 AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 AllowShortLoopsOnASingleLine: true
 AllowShortBlocksOnASingleLine: true
 AllowShortFunctionsOnASingleLine: Inline
 
-# --- 行长（核心关键，不然上面全白给） ---
+# --- Line length ---
 ColumnLimit: 0
 
-# --- 缩进 ---
+# --- Indentation ---
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
 
-# --- 访问修饰符 ---
+# --- Access modifiers ---
 AccessModifierOffset: -2
 
-# --- 大括号风格 ---
+# --- Brace style ---
 BreakBeforeBraces: Attach
 AlwaysBreakTemplateDeclarations: No
 
-# --- 指针与注释 ---
+# --- Pointers and comments ---
 PointerAlignment: Left
 SpacesBeforeTrailingComments: 4
 
-# --- 代码块间距 ---
+# --- Definition spacing ---
 SeparateDefinitionBlocks: Always
 
-# --- 语言标准 ---
+# --- Language standard ---
 Standard: Latest
 `;
 		await fs.promises.mkdir(dirname(configPath), { recursive: true });
@@ -1078,7 +1139,7 @@ Standard: Latest
 						key: 'autoFormat',
 						type: 'boolean',
 						default: true,
-						label: { en: 'Enable automatic formatting', 'zh-CN': '启用自动格式化' }
+						label: { en: 'Enable automatic formatting', 'zh-CN': '\u542f\u7528\u81ea\u52a8\u683c\u5f0f\u5316' }
 					});
 				}
 				if (controls && !controls.some(control => control.key === 'clangdVariableTypeHints')) {
@@ -1086,7 +1147,7 @@ Standard: Latest
 						key: 'clangdVariableTypeHints',
 						type: 'boolean',
 						default: true,
-						label: { en: 'Show clangd variable type hints', 'zh-CN': '显示 clangd 变量类型提示' }
+						label: { en: 'Show clangd variable type hints', 'zh-CN': '\u663e\u793a clangd \u53d8\u91cf\u7c7b\u578b\u63d0\u793a' }
 					});
 				}
 				return { ...page, controls };
@@ -2348,10 +2409,79 @@ Standard: Latest
 		}
 	}
 
-	private eventuallyAfterWindowOpen(): void {
+	private eventuallyAfterWindowOpen(instantiationService: IInstantiationService): void {
 
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validateDevDeviceId(this.stateService, this.logService);
+
+		instantiationService.invokeFunction(accessor => {
+			const telemetryService = accessor.get(ITelemetryService);
+			if (telemetryService.telemetryLevel < TelemetryLevel.USAGE) {
+				return;
+			}
+
+			const nativeHostMainService = accessor.get(INativeHostMainService);
+			void this.logOSProxyConfigTelemetry(nativeHostMainService, telemetryService);
+		});
 	}
+
+	private async logOSProxyConfigTelemetry(nativeHostMainService: INativeHostMainService, telemetryService: ITelemetryService): Promise<void> {
+		const startTime = Date.now();
+		try {
+			const config = await nativeHostMainService.readProxyConfigWithPackage(undefined);
+			const durationMs = Date.now() - startTime;
+			const pacScriptStats = config.pac ? getPACScriptStats(config.pac.content) : undefined;
+			telemetryService.publicLog2<OSProxyConfigEvent, OSProxyConfigClassification>('osProxyConfig', {
+				success: true,
+				durationMs,
+				platformKind: config.platform?.kind ?? 'none',
+				autoDetect: config.autoDetect,
+				httpProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.httpProxy),
+				httpsProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.httpsProxy),
+				allProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.allProxy),
+				noProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.noProxy),
+				wpadDhcpState: config.wpadDhcp.state,
+				wpadDnsState: config.wpadDns.state,
+				configuredPacState: config.configuredPac.state,
+				hasConfiguredPac: !!config.pacUrl,
+				hasLoadedPac: !!config.pac,
+				pacSource: config.pac?.source ?? 'none',
+				pacScriptCharacterCount: pacScriptStats?.characterCount,
+				pacScriptLineCount: pacScriptStats?.lineCount,
+				pacScriptReturnCount: pacScriptStats?.returnCount,
+				hasHttpProxy: !!config.staticRules?.http,
+				hasHttpsProxy: !!config.staticRules?.https,
+				hasSocksProxy: !!config.staticRules?.socks,
+				hasBypassRules: hasOSProxyBypassRules(config),
+				excludeSimpleHostnames: config.platform?.kind === 'macos' ? config.platform.excludeSimpleHostnames : undefined,
+			});
+		} catch {
+			telemetryService.publicLog2<OSProxyConfigEvent, OSProxyConfigClassification>('osProxyConfig', {
+				success: false,
+				durationMs: Date.now() - startTime,
+			});
+		}
+	}
+}
+
+function hasOSProxyBypassRules(config: IOSProxyConfig): boolean {
+	switch (config.platform?.kind) {
+		case 'windows': return !!config.platform.proxyBypass;
+		case 'macos': return config.platform.excludeSimpleHostnames || config.platform.exceptions.length > 0;
+		case 'linux': return config.platform.ignoreHosts.length > 0;
+		default: return false;
+	}
+}
+
+function getOSProxyEnvironmentState(status: IOSProxyConfig['environment']['httpProxy']): 'unset' | 'configured' | 'invalid' {
+	return status ? status.error ? 'invalid' : 'configured' : 'unset';
+}
+
+function getPACScriptStats(content: string): { characterCount: number; lineCount: number; returnCount: number } {
+	return {
+		characterCount: content.length,
+		lineCount: content.length === 0 ? 0 : content.split(/\r\n|\r|\n/).length,
+		returnCount: content.match(/\breturn\b/g)?.length ?? 0,
+	};
 }

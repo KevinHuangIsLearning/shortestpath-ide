@@ -35,10 +35,16 @@ import {
 } from './webview/editorChange';
 import { submitToCodeForces, submitToKattis } from './submit';
 import JudgeViewProvider from './webview/JudgeView';
-import { getRetainWebviewContextPref } from './preferences';
+import {
+    getRetainWebviewContextPref,
+    getDefaultOnlineJudge,
+} from './preferences';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import config from './config';
 import localize from './i18n';
+import { setOnlineJudgeEnv, compileFile } from './compiler';
+import { checkUnsupported } from './utils';
+import { createLatestTaskScheduler } from './webview/judgeLifecycle';
 
 let judgeViewProvider: JudgeViewProvider;
 
@@ -75,6 +81,23 @@ const registerCommands = (context: vscode.ExtensionContext) => {
         },
     );
 
+    const disposable5 = vscode.commands.registerCommand(
+        'cph.compileWithoutRunning',
+        async () => {
+            globalThis.logger.log('Running command "compileWithoutRunning"');
+            const editor = vscode.window.activeTextEditor;
+            if (editor === undefined) {
+                checkUnsupported('');
+                return;
+            }
+            const srcPath = editor.document.fileName;
+            if (checkUnsupported(srcPath)) {
+                return;
+            }
+            await compileFile(srcPath);
+        },
+    );
+
     judgeViewProvider = new JudgeViewProvider(context.extensionUri);
 
     const webviewView = vscode.window.registerWebviewViewProvider(
@@ -92,6 +115,7 @@ const registerCommands = (context: vscode.ExtensionContext) => {
     context.subscriptions.push(disposable2);
     context.subscriptions.push(disposable3);
     context.subscriptions.push(disposable4);
+    context.subscriptions.push(disposable5);
     globalThis.reporter = new TelemetryReporter(config.telemetryKey);
     context.subscriptions.push(globalThis.reporter);
 };
@@ -99,7 +123,7 @@ const registerCommands = (context: vscode.ExtensionContext) => {
 // This method is called when the extension is activated
 export function activate(context: vscode.ExtensionContext) {
     globalThis.logger.log('cph: activate() execution started');
-    globalThis.cphContext = context;
+    globalThis.extensionContext = context;
 
     downloadRemoteMessage();
 
@@ -122,19 +146,36 @@ export function activate(context: vscode.ExtensionContext) {
     setupCompanionServer();
     checkLaunchWebview();
 
-    vscode.workspace.onDidCloseTextDocument((e) => {
-        editorClosed(e);
-    });
+    context.subscriptions.push(
+        vscode.workspace.onDidCloseTextDocument((e) => {
+            editorClosed(e);
+        }),
+    );
 
-    vscode.window.onDidChangeActiveTextEditor((e) => {
-        editorChanged(e);
-    });
+    const activeEditorChangeScheduler = createLatestTaskScheduler(
+        (task) => setTimeout(task, 0),
+        (handle) => clearTimeout(handle),
+    );
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(() => {
+            // A custom editor (such as the integrated browser) may emit this
+            // event while VS Code is still transitioning tabs. Read the settled
+            // active text editor on the next turn instead of using that transient
+            // event payload.
+            activeEditorChangeScheduler.schedule(() => {
+                editorChanged(vscode.window.activeTextEditor);
+            });
+        }),
+        new vscode.Disposable(activeEditorChangeScheduler.dispose),
+    );
 
-    vscode.window.onDidChangeVisibleTextEditors((editors) => {
-        if (editors.length === 0) {
+    vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('cph.general.defaultOnlineJudge')) {
+            const newValue = getDefaultOnlineJudge();
+            setOnlineJudgeEnv(newValue);
             getJudgeViewProvider().extensionToJudgeViewMessage({
-                command: 'new-problem',
-                problem: undefined,
+                command: 'update-online-judge-env',
+                value: newValue,
             });
         }
     });
