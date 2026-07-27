@@ -19,6 +19,7 @@ import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
 import { INLSConfiguration } from './vs/nls.js';
 import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
+import { resolveUserLocale } from './vs/platform/environment/node/userLocale.js';
 
 perf.mark('code/didStartMain');
 
@@ -127,7 +128,7 @@ let nlsConfigurationPromise: Promise<INLSConfiguration> | undefined = undefined;
 // the 'C' locale is the user's only configured locale.
 // No matter the OS, if the array is empty, default back to 'en'.
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
-const userLocale = getUserDefinedLocale();
+const userLocale = resolveUserLocale(args['locale'], argvConfig.locale, 'zh-cn');
 const nlsMetadataPath = process.env['VSCODE_DEV'] && fs.existsSync(path.join(import.meta.dirname, '..', 'out-build', 'nls.keys.json'))
 	? path.join(import.meta.dirname, '..', 'out-build')
 	: import.meta.dirname;
@@ -721,23 +722,6 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 		userDataPath,
 		nlsMetadataPath
 	});
-}
-
-/**
- * Language tags are case insensitive however an ESM loader is case sensitive
- * To make this work on case preserving & insensitive FS we do the following:
- * the language bundles have lower case language tags and we always lower case
- * the locale we receive from the user or OS.
- */
-function getUserDefinedLocale(): string {
-	const locale = args['locale'];
-	if (locale) {
-		return locale.toLowerCase(); // a directly provided --locale always wins
-	}
-
-	// ShortestPath IDE is Chinese-first. Do not let a locale persisted by an
-	// earlier VS Code installation change the default language unexpectedly.
-	return 'zh-cn';
 }
 
 //#endregion
