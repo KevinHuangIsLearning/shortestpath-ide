@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{CSP_SOURCE}} 'unsafe-inline'; script-src {{CSP_SOURCE}}; font-src {{CSP_SOURCE}}; img-src https:;">
+	<link rel="stylesheet" href="{{KATEX_STYLES_URI}}">
+	<link rel="stylesheet" href="{{STYLES_URI}}">
+</head>
+<body data-elapsed-ms="{{ELAPSED_MS}}" data-timer-running="{{TIMER_RUNNING}}" data-captured-at="{{CAPTURED_AT}}">
+	<header>
+		<div>
+			<h1>{{TITLE}}</h1>
+			<p>{{METADATA}}</p>
+		</div>
+		<time id="problem-timer">00:00:00</time>
+		<div class="problem-actions">
+			<a href="{{PROBLEM_URL}}">在浏览器中打开</a>
+			{{SUBMISSION_BUTTON}}
+		</div>
+	</header>
+	{{STATUS}}
+	{{INFORMATION}}
+	<main data-render-math>{{STATEMENT}}</main>
+	{{HINTS}}
+	<section class="solution-actions">
+		{{EDITORIAL_ACTION}}
+	</section>
+	{{EDITORIAL}}
+	{{SUBMISSIONS}}
+	{{STRESS}}
+	<footer>已将 {{SAMPLE_COUNT}} 组样例交给 CPH Plus。</footer>
+	<script src="{{KATEX_SCRIPT_URI}}"></script>
+	<script src="{{SCRIPT_URI}}"></script>
+</body>
+</html>
