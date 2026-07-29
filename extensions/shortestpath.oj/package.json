@@ -1,0 +1,57 @@
+{
+	"name": "shortestpath-oj",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "shortestpath",
+	"enabledApiProposals": ["browser"],
+	"engines": {
+		"vscode": "^1.129.0"
+	},
+	"categories": ["Other"],
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": false
+		}
+	},
+	"activationEvents": ["onStartupFinished", "onUri", "onCommand:shortestpath.oj.openIntegratedBrowser", "onCommand:shortestpath.oj.openIntegratedBrowserDirect", "onCommand:shortestpath.oj.openControlPanel", "onCommand:shortestpath.oj.showProblemForCph", "onCommand:shortestpath.oj.submitProblem"],
+	"main": "./out/extension.js",
+	"scripts": {
+		"clean": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
+		"compile": "npm run clean && node ../../node_modules/typescript/bin/tsc6 -p ./",
+		"test": "npm run compile && node --test out/test/shortestpathOjProtocol.test.js out/test/shortestpathOjLocalBridge.test.js",
+		"vscode:prepublish": "npm run compile"
+	},
+	"contributes": {
+		"configuration": {
+			"title": "%displayName%",
+			"properties": {
+				"shortestpath.oj.cppSubmissionLanguage": {
+					"type": "string",
+					"enum": ["ask", "cpp14", "cpp20"],
+					"default": "ask",
+					"scope": "window",
+					"description": "%configuration.cppSubmissionLanguage%"
+				}
+			}
+		},
+		"commands": [
+			{
+				"command": "shortestpath.oj.openIntegratedBrowser",
+				"title": "%command.openIntegratedBrowser%"
+			},
+			{
+				"command": "shortestpath.oj.showProblem",
+				"title": "%command.showProblem%"
+			},
+			{
+				"command": "shortestpath.oj.openControlPanel",
+				"title": "%command.openControlPanel%"
+			},
+			{
+				"command": "shortestpath.oj.openIntegratedBrowserDirect",
+				"title": "%command.openIntegratedBrowserDirect%"
+			}
+		]
+	}
+}
