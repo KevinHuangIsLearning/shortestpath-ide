@@ -4,9 +4,9 @@
   "description": "The shortest path to OI.",
   "distro": "ac355fb4d039edb8cc28e1f8e45c6d5d8c437fe2",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "ShortestPath IDE contributors"
   },
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "main": "./out/main.js",
   "type": "module",
   "private": true,

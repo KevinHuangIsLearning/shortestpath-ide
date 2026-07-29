@@ -684,13 +684,13 @@ function forwardSamplesToCph(problem: ImportedProblem, sourcePath: string | unde
 		group: parts.slice(0, -1).join('/'),
 		tests: problem.samples.map(sample => ({ input: sample.input, output: sample.output })),
 	});
-		return new Promise(resolve => {
-			let settled = false;
-			// The callbacks close over these handles before they are initialized.
-			// eslint-disable-next-line prefer-const
-			let timeout: ReturnType<typeof setTimeout> | undefined;
-			// eslint-disable-next-line prefer-const
-			let request: http.ClientRequest;
+	return new Promise(resolve => {
+		let settled = false;
+		// The callbacks close over these handles before they are initialized.
+		// eslint-disable-next-line prefer-const
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		// eslint-disable-next-line prefer-const
+		let request: http.ClientRequest;
 		const abort = () => {
 			request.destroy();
 			finish({ succeeded: false });

@@ -65,6 +65,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/**/colorize-fixtures/**',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 	'!extensions/shortestpath.setup/src/simpleSettings.ts',
+	'!extensions/shortestpath.oj/**',
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',

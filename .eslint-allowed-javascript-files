@@ -98,6 +98,7 @@ extensions/search-result/syntaxes/generateTMLanguage.js
 extensions/shortestpath.setup/resources/linux.js
 extensions/shortestpath.setup/resources/mac.js
 extensions/shortestpath.setup/resources/windows.js
+extensions/shortestpath.oj/resources/katex/katex.min.js
 extensions/sql/build/update-grammar.mjs
 extensions/terminal-suggest/scripts/update-specs.js
 extensions/theme-seti/build/update-icon-theme.js
