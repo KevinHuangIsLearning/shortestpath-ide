@@ -54,3 +54,8 @@ dist
 .github/skills/.local/
 /tmp
 /SHORTESTPATH_OJ_IDE_LOCAL_BRIDGE_API.md
+/AGENTS_raw_project.md
+/INTEGRATED_BROWSER_API_REFERENCE.md
+/ShortestPath IDE Integrate Reference.md
+/*.prob
+/backups/shortestpath.oj-legacy-20260729-before-websocket-refactor.tar.gz
