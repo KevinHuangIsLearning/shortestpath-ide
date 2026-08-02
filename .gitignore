@@ -53,3 +53,4 @@ dist
 .agents/skills/.local/
 .github/skills/.local/
 /tmp
+/SHORTESTPATH_OJ_IDE_LOCAL_BRIDGE_API.md
