@@ -45,7 +45,7 @@ export const bindPayload = {
 			outputFormat: { format: 'markdown', content: '输出。' },
 			constraints: { format: 'markdown', content: '$n \\le 10$' },
 		},
-		samples: [{ input: '1\n', output: '1\n', explanation: '' }],
+		samples: [{ input: '1\n', output: '1\n', explanation: '这个样例的答案是 `1`。' }],
 		limits: { timeMs: 1000, memoryMB: 256 },
 		judge: { mode: 'acm', checkerType: 'default', floatEpsilon: null },
 		metadata: { difficulty: 2, coreAlgorithm: '并查集', auxiliaryAlgorithms: ['路径压缩'] },

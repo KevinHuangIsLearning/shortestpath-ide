@@ -4,22 +4,34 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "shortestpath",
-	"enabledApiProposals": ["browser"],
+	"enabledApiProposals": [
+		"browser"
+	],
 	"engines": {
 		"vscode": "^1.129.0"
 	},
-	"categories": ["Other"],
+	"categories": [
+		"Other"
+	],
 	"capabilities": {
 		"untrustedWorkspaces": {
 			"supported": false
 		}
 	},
-	"activationEvents": ["onStartupFinished", "onUri", "onCommand:shortestpath.oj.openIntegratedBrowser", "onCommand:shortestpath.oj.openIntegratedBrowserDirect", "onCommand:shortestpath.oj.openControlPanel", "onCommand:shortestpath.oj.showProblemForCph", "onCommand:shortestpath.oj.submitProblem"],
+	"activationEvents": [
+		"onStartupFinished",
+		"onUri",
+		"onCommand:shortestpath.oj.openIntegratedBrowser",
+		"onCommand:shortestpath.oj.openIntegratedBrowserDirect",
+		"onCommand:shortestpath.oj.openControlPanel",
+		"onCommand:shortestpath.oj.showProblemForCph",
+		"onCommand:shortestpath.oj.submitProblem"
+	],
 	"main": "./out/extension.js",
 	"scripts": {
 		"clean": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
 		"compile": "npm run clean && node ../../node_modules/typescript/bin/tsc6 -p ./",
-		"test": "npm run compile && node --test out/test/shortestpathOjProtocol.test.js out/test/shortestpathOjLocalBridge.test.js",
+		"test": "npm run compile && node --test out/test/*.test.js",
 		"vscode:prepublish": "npm run compile"
 	},
 	"contributes": {
@@ -28,7 +40,11 @@
 			"properties": {
 				"shortestpath.oj.cppSubmissionLanguage": {
 					"type": "string",
-					"enum": ["ask", "cpp14", "cpp20"],
+					"enum": [
+						"ask",
+						"cpp14",
+						"cpp20"
+					],
 					"default": "ask",
 					"scope": "window",
 					"description": "%configuration.cppSubmissionLanguage%"
@@ -53,5 +69,14 @@
 				"title": "%command.openIntegratedBrowserDirect%"
 			}
 		]
+	},
+	"dependencies": {
+		"@vscode/markdown-it-katex": "^1.1.2",
+		"katex": "^0.16.47",
+		"markdown-it": "^14.3.0",
+		"shiki": "^4.3.1"
+	},
+	"devDependencies": {
+		"@types/markdown-it": "^14.1.2"
 	}
 }
