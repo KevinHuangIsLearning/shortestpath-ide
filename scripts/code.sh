@@ -41,7 +41,13 @@ function code() {
 	export VSCODE_DEV=1
 	export VSCODE_CLI=1
 	export ELECTRON_ENABLE_STACK_DUMPING=1
-	export ELECTRON_ENABLE_LOGGING=1
+	# Chromium forwards every Webview console warning to this terminal when
+	# ELECTRON_ENABLE_LOGGING is set. Keep that verbose diagnostic stream opt-in.
+	if [[ "${VSCODE_ELECTRON_ENABLE_LOGGING:-}" == "1" ]]; then
+		export ELECTRON_ENABLE_LOGGING=1
+	else
+		unset ELECTRON_ENABLE_LOGGING
+	fi
 
 	DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
 	if [[ "$@" == *"--extensionTestsPath"* ]]; then
