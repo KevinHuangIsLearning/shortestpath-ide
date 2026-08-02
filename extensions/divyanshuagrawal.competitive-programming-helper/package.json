@@ -489,6 +489,12 @@
                             "ojName": "Luogu",
                             "problemIdRegex": "problem\\/(\\w+)"
                         },
+                        "shortestpath.cn": {
+                            "oj": "ShortestPath",
+                            "ojName": "ShortestPath",
+                            "contestIdRegex": "problem\\/([^\\/]+)\\/[^\\/]+\\/[^\\/]+",
+                            "problemIdRegex": "problem\\/[^\\/]+\\/(.+)$"
+                        },
                         "open.kattis.com": {
                             "oj": "Kattis",
                             "ojName": "Kattis"

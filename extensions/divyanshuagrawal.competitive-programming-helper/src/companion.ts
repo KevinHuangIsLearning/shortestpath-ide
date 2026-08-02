@@ -1,7 +1,8 @@
 import http from 'http';
 import config from './config';
 import { Problem, CphSubmitResponse, CphEmptyResponse } from './types';
-import { saveProblem } from './parser';
+import { getProblem, saveProblem } from './parser';
+import { appendShortestPathTestCase } from './shortestpathOj';
 import * as vscode from 'vscode';
 import path from 'path';
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
@@ -105,41 +106,18 @@ export const storeSubmitProblem = (problem: Problem) => {
     globalThis.logger.log('Stored savedResponse', savedResponse);
 };
 
+type ProblemCreationResult = { created: boolean; sourcePath?: string };
+
 export const setupCompanionServer = () => {
     try {
         const server = http.createServer((req, res) => {
             const { headers } = req;
-            let rawProblem = '';
+            const waitForProblemCreation = headers['x-shortestpath-oj'] === 'true';
+            const addShortestPathTest = headers['x-shortestpath-oj-add-test'] === 'true';
+            const preferredSourcePath = typeof headers['x-shortestpath-source-path'] === 'string' ? headers['x-shortestpath-source-path'] : undefined;
 
-            req.on('data', (chunk) => {
-                COMPANION_LOGGING &&
-                    globalThis.logger.log('Companion server got data');
-                rawProblem += chunk;
-            });
-            req.on('close', function () {
-                try {
-                    if (rawProblem == '') {
-                        return;
-                    }
-                    const problem: Problem = JSON.parse(rawProblem);
-                    handleNewProblem(problem);
-                    COMPANION_LOGGING &&
-                        globalThis.logger.log(
-                            'Companion server closed connection.',
-                        );
-                } catch (e) {
-                    vscode.window.showErrorMessage(
-                        localize(
-                            'cph.companion.parseError',
-                            'Error parsing problem from companion {0}. Raw problem: {1}',
-                            String(e),
-                            rawProblem,
-                        ),
-                    );
-                }
-            });
-            res.write(JSON.stringify(savedResponse));
             if (headers['cph-submit'] == 'true') {
+                res.write(JSON.stringify(savedResponse));
                 COMPANION_LOGGING &&
                     globalThis.logger.log(
                         'Request was from the cph-submit extension; sending savedResponse and clearing it',
@@ -152,10 +130,61 @@ export const setupCompanionServer = () => {
                     });
                 }
                 savedResponse = emptyResponse;
+                res.end();
+                return;
             }
-            res.end();
+
+            let rawProblem = '';
+
+            req.on('data', (chunk) => {
+                COMPANION_LOGGING &&
+                    globalThis.logger.log('Companion server got data');
+                rawProblem += chunk;
+            });
+            req.on('end', async () => {
+                try {
+                    if (rawProblem === '') {
+                        res.statusCode = 400;
+                        res.end();
+                        return;
+                    }
+                    if (addShortestPathTest) {
+                        const result = appendShortestPathTest(preferredSourcePath, JSON.parse(rawProblem));
+                        res.statusCode = result.added === undefined ? 422 : 200;
+                        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                        res.end(JSON.stringify(result));
+                        return;
+                    }
+                    const problem: Problem = JSON.parse(rawProblem);
+                    if (!waitForProblemCreation) {
+                        void handleNewProblem(problem);
+                        res.write(JSON.stringify(savedResponse));
+                        res.end();
+                        return;
+                    }
+                    const result = await handleNewProblem(problem, preferredSourcePath);
+                    res.statusCode = result.created ? 200 : 422;
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                    res.end(JSON.stringify(result));
+                    COMPANION_LOGGING &&
+                        globalThis.logger.log(
+                            'Companion server processed a problem request.',
+                        );
+                } catch (e) {
+                    vscode.window.showErrorMessage(
+                        localize(
+                            'cph.companion.parseError',
+                            'Error parsing problem from companion {0}. Raw problem: {1}',
+                            String(e),
+                            rawProblem,
+                        ),
+                    );
+                    res.statusCode = 500;
+                    res.end();
+                }
+            });
         });
-        server.listen(config.port);
+        server.listen(config.port, '127.0.0.1');
         server.on('error', (err) => {
             vscode.window.showErrorMessage(
                 localize(
@@ -174,6 +203,31 @@ export const setupCompanionServer = () => {
         globalThis.logger.error('Companion server error :', e);
     }
 };
+
+function appendShortestPathTest(preferredSourcePath: string | undefined, value: unknown): { added?: boolean; message?: string } {
+    const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const sourcePath = folder ? getPreferredSourcePath(folder, preferredSourcePath) : undefined;
+    if (!sourcePath) {
+        return { message: '请先打开包含 CPH 题目的工作区。' };
+    }
+    if (typeof value !== 'object' || value === null) {
+        return { message: '反例格式无效。' };
+    }
+    const { input, output } = value as { input?: unknown; output?: unknown };
+    if (typeof input !== 'string' || typeof output !== 'string') {
+        return { message: '反例输入或输出无效。' };
+    }
+    const problem = getProblem(sourcePath);
+    if (!problem) {
+        return { message: '未找到该文件对应的 CPH 题目。' };
+    }
+    const added = appendShortestPathTestCase(problem, input, output, randomId(problem.tests.length));
+    if (added) {
+        saveProblem(sourcePath, problem);
+        getJudgeViewProvider().extensionToJudgeViewMessage({ command: 'new-problem', problem });
+    }
+    return { added };
+}
 
 interface OjInfo {
     oj: string;
@@ -322,7 +376,7 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
 };
 
 /** Handle the `problem` sent by Competitive Companion, such as showing the webview, opening an editor, managing layout etc. */
-const handleNewProblem = async (problem: Problem) => {
+const handleNewProblem = async (problem: Problem, preferredSourcePath?: string): Promise<ProblemCreationResult> => {
     globalThis.reporter.sendTelemetryEvent(telmetry.GET_PROBLEM_FROM_COMPANION);
     // If webview may be focused, close it, to prevent layout bug.
     if (vscode.window.activeTextEditor == undefined) {
@@ -336,7 +390,7 @@ const handleNewProblem = async (problem: Problem) => {
         vscode.window.showInformationMessage(
             localize('cph.companion.openFolder', 'Please open a folder first.'),
         );
-        return;
+        return { created: false };
     }
     const defaultLanguage = getDefaultLangPref();
     let extn: string;
@@ -353,7 +407,7 @@ const handleNewProblem = async (problem: Problem) => {
                     'Aborted creation of new file',
                 ),
             );
-            return;
+            return { created: false };
         }
         // @ts-ignore
         extn = config.extensions[selected];
@@ -366,7 +420,7 @@ const handleNewProblem = async (problem: Problem) => {
         url = new URL(problem.url);
     } catch (err) {
         globalThis.logger.error(err);
-        return null;
+        return { created: false };
     }
     if (url.hostname == 'open.kattis.com') {
         const splitUrl = problem.url.split('/');
@@ -479,7 +533,7 @@ const handleNewProblem = async (problem: Problem) => {
     }
 
     const problemFileName = getProblemFileName(problem, extn);
-    const srcPath = path.join(folder, problemFileName);
+    const srcPath = getPreferredSourcePath(folder, preferredSourcePath) ?? path.join(folder, problemFileName);
 
     // Add fields absent in competitive companion.
     problem.srcPath = srcPath;
@@ -558,10 +612,10 @@ const handleNewProblem = async (problem: Problem) => {
     saveProblem(srcPath, problem);
     const doc = await vscode.workspace.openTextDocument(srcPath);
 
-    const editor = await vscode.window.showTextDocument(
-        doc,
-        vscode.ViewColumn.One,
-    );
+    const editor = await vscode.window.showTextDocument(doc, {
+        viewColumn: vscode.ViewColumn.One,
+        preview: false,
+    });
 
     // Move cursor to the first occurrence of $CURSOR_PLACEHOLDER and remove it
     const cursorPlaceholder = '$CURSOR_PLACEHOLDER';
@@ -585,4 +639,18 @@ const handleNewProblem = async (problem: Problem) => {
         command: 'new-problem',
         problem,
     });
+    void vscode.commands.executeCommand(
+        'shortestpath.oj.showProblemForCph',
+        problem.url,
+    );
+    return { created: true, sourcePath: srcPath };
 };
+
+function getPreferredSourcePath(workspaceFolder: string, preferredSourcePath: string | undefined): string | undefined {
+    if (!preferredSourcePath) {
+        return undefined;
+    }
+    const sourcePath = path.resolve(preferredSourcePath);
+    const relativePath = path.relative(workspaceFolder, sourcePath);
+    return relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath) ? sourcePath : undefined;
+}

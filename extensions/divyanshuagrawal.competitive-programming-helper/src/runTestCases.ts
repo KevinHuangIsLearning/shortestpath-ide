@@ -41,7 +41,10 @@ export default async () => {
         problem: problem,
     });
     runAllAndSave(problem);
-    vscode.window.showTextDocument(editor.document, vscode.ViewColumn.One);
+    vscode.window.showTextDocument(editor.document, {
+        viewColumn: vscode.ViewColumn.One,
+        preview: false,
+    });
 };
 
 const createLocalProblem = async (editor: vscode.TextEditor) => {
