@@ -42,6 +42,16 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - name: Verify ShortestPath release version
+        if: startsWith(github.ref_name, 'Release-v')
+        shell: bash
+        run: |
+          expected_version="${GITHUB_REF_NAME#Release-v}"
+          declared_version="$(node -p "require('./product.json').shortestPathVersion")"
+          if [[ "$declared_version" != "$expected_version" ]]; then
+            echo "product.json shortestPathVersion ($declared_version) must match $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
       - name: Locate Visual Studio C++ toolchain
         shell: pwsh
         run: |

@@ -5,15 +5,15 @@ import { getAutoShowJudgePref, getDefaultOnlineJudge } from '../preferences';
 import { setOnlineJudgeEnv } from '../compiler';
 import {
     getRefreshSourcePath,
+	shouldClearJudgeForActiveDocument,
 } from './judgeLifecycle';
 
 let lastActiveSourcePath: string | undefined;
 
 /**
- * Refresh the webview only when another supported local source file becomes
- * active. Moving focus to a terminal, Output, integrated browser, or another
- * non-source surface must preserve the current problem and its running
- * results.
+ * Refresh the webview only when a supported local source file becomes active.
+ * Moving focus away from source code clears the current problem, so the CPH
+ * view never remains attached to a .cpp file that no longer has focus.
  *
  * @param e An editor
  */
@@ -22,8 +22,13 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
 
     if (e === undefined) {
         globalThis.logger.log(
-            'No active text editor; preserving the current Judge view',
+            'No active text editor; clearing the current Judge view',
         );
+        lastActiveSourcePath = undefined;
+        getJudgeViewProvider().extensionToJudgeViewMessage({
+            command: 'new-problem',
+            problem: undefined,
+        });
         return;
     }
 
@@ -34,8 +39,15 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
     );
     if (sourcePath === undefined) {
         globalThis.logger.log(
-            'Non-source or repeated editor activation; preserving Judge view',
+            'Non-source or repeated editor activation; clearing Judge view only for non-source focus',
         );
+		if (shouldClearJudgeForActiveDocument(e.document)) {
+			lastActiveSourcePath = undefined;
+			getJudgeViewProvider().extensionToJudgeViewMessage({
+				command: 'new-problem',
+				problem: undefined,
+			});
+		}
         return;
     }
 

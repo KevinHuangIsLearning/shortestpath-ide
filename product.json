@@ -32,9 +32,14 @@
 	"linuxIconName": "shortestpath",
 	"licenseFileName": "LICENSE",
 	"reportIssueUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/issues/new",
+	"shortestPathVersion": "0.2.1",
+	"shortestPathReleaseApiUrl": "https://api.github.com/repos/KevinHuangIsLearning/shortestpath-ide/releases/latest",
 	"nodejsArtifactFeed": "",
 	"electronArtifactFeed": "",
 	"urlProtocol": "shortestpath",
+	"trustedExtensionProtocolHandlers": [
+		"shortestpath.shortestpath-oj"
+	],
 	"agentsTelemetryAppName": "agents",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [

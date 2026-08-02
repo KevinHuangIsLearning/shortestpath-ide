@@ -8,6 +8,7 @@ declare function acquireVsCodeApi(): { postMessage(message: object): void };
 type TimerState = {
 	elapsedMs: number;
 	running: boolean;
+	accepted: boolean;
 	capturedAt: number;
 };
 
@@ -40,11 +41,13 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 (() => {
 	const vscode = acquireVsCodeApi();
 	const body = document.body;
-	const timer = document.getElementById('problem-timer');
+	const timer = document.getElementById('problem-timer-value');
+	const accepted = document.getElementById('problem-accepted');
 	const timerState: TimerState = {
 		elapsedMs: Number(body.dataset.elapsedMs || 0),
 		capturedAt: Number(body.dataset.capturedAt || Date.now()),
 		running: body.dataset.timerRunning === 'true',
+		accepted: body.dataset.timerAccepted === 'true',
 	};
 	let timerInterval: ReturnType<typeof setInterval> | undefined;
 	let submitConfirmationTimer: ReturnType<typeof setTimeout> | undefined;
@@ -70,6 +73,9 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			const elapsed = timerState.elapsedMs + (timerState.running ? Math.max(0, Date.now() - timerState.capturedAt) : 0);
 			timer.textContent = formatDuration(elapsed);
 		}
+		if (accepted) {
+			accepted.hidden = !timerState.accepted;
+		}
 	};
 	const startTimerInterval = (): void => {
 		if (timerInterval === undefined && timerState.running) {
@@ -93,6 +99,33 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 	updateTimer();
 	startTimerInterval();
 
+	const updateTagPopoverDirection = (anchor: HTMLElement): void => {
+		const popover = anchor.querySelector<HTMLElement>('.tag-popover');
+		if (!popover) {
+			return;
+		}
+		anchor.classList.remove('popover-opens-right');
+		const anchorBounds = anchor.getBoundingClientRect();
+		if (anchorBounds.right - popover.offsetWidth < 12) {
+			anchor.classList.add('popover-opens-right');
+		}
+	};
+
+	document.addEventListener('pointerover', event => {
+		const target = event.target;
+		const anchor = target instanceof Element ? target.closest<HTMLElement>('.tag-popover-anchor') : null;
+		if (anchor) {
+			updateTagPopoverDirection(anchor);
+		}
+	});
+	document.addEventListener('focusin', event => {
+		const target = event.target;
+		const anchor = target instanceof Element ? target.closest<HTMLElement>('.tag-popover-anchor') : null;
+		if (anchor) {
+			updateTagPopoverDirection(anchor);
+		}
+	});
+
 	/* ---- Hint countdown ---- */
 	let hintCountdownInterval: ReturnType<typeof setInterval> | undefined;
 	const formatCountdown = (ms: number): string => {
@@ -102,31 +135,37 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		const s = totalSeconds % 60;
 		return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
 	};
-	let hintRenderedAt = Date.now();
+	let countdownRenderedAt = Date.now();
 	const updateHintCountdowns = (): void => {
-		const elapsed = Date.now() - hintRenderedAt;
+		const elapsed = Date.now() - countdownRenderedAt;
 		document.querySelectorAll<HTMLElement>('[data-remaining-ms]').forEach(el => {
 			const base = Number(el.dataset.remainingMs || '0');
 			const remaining = Math.max(0, base - elapsed);
 			const text = `剩余 ${formatCountdown(remaining)}`;
-			const status = el.querySelector<HTMLElement>('.hint-list-status');
 			const countdown = el.querySelector<HTMLElement>('.hint-countdown');
-			if (status) {
-				status.textContent = text;
-			}
 			if (countdown) {
 				countdown.textContent = text;
 			}
+			const editorialCountdown = el.querySelector<HTMLElement>('.editorial-countdown');
+			if (editorialCountdown) {
+				editorialCountdown.textContent = text;
+			}
 			if (remaining === 0) {
 				el.removeAttribute('data-remaining-ms');
-				if (status) {
-					status.textContent = '已解锁';
+				countdown?.remove();
+				editorialCountdown?.remove();
+				const feedback = el.closest('.modal')?.querySelector<HTMLElement>('.hint-feedback');
+				if (feedback) {
+					feedback.textContent = '等待网页同步。';
 				}
-				el.classList.remove('locked');
-				el.setAttribute('tabindex', '0');
-				el.setAttribute('aria-disabled', 'false');
-				const hintName = el.querySelector<HTMLElement>('.hint-list-num')?.textContent || '提示';
-				el.setAttribute('aria-label', `打开${hintName}，已解锁`);
+				const lockLabel = el.querySelector<HTMLElement>('.hint-lock-label');
+				if (lockLabel) {
+					lockLabel.textContent = '等待网页同步';
+				}
+				if (el instanceof HTMLButtonElement) {
+					el.disabled = true;
+					el.textContent = '等待网页同步';
+				}
 			}
 		});
 	};
@@ -224,6 +263,7 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			return;
 		}
 		if (message && message.type === 'showHintModal') {
+			countdownRenderedAt = Date.now();
 			const modal = document.createElement('div');
 			modal.className = 'modal hint-modal';
 			modal.innerHTML = message.html;
@@ -606,7 +646,7 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		if (message.type !== 'update') {
 			return;
 		}
-		const hasHintUpdate = Object.keys(message.sections).some(id => id === 'oj-hints');
+		const hasCountdownUpdate = Object.keys(message.sections).some(id => id === 'oj-hints' || id === 'oj-editorial-action');
 		for (const [id, html] of Object.entries(message.sections)) {
 			const section = document.getElementById(id);
 			if (!section) {
@@ -618,20 +658,25 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 				section.innerHTML = html;
 				restoreSection(section, snapshot);
 			};
-			if (submissionHeights) {
+			if (id === 'oj-hints') {
+				// Hint state is synchronized frequently for countdown and access updates.
+				// Replacing it directly avoids replaying a height animation on every sync.
+				updateSection();
+			} else if (submissionHeights) {
 				updateSection();
 				animateSubmissionResize(section, submissionHeights);
 			} else {
 				animateHeightChange(section, updateSection);
 			}
 		}
-		if (hasHintUpdate) {
-			hintRenderedAt = Date.now();
+		if (hasCountdownUpdate) {
+			countdownRenderedAt = Date.now();
 		}
 		if (message.timer) {
 			timerState.elapsedMs = message.timer.elapsedMs;
 			timerState.capturedAt = message.timer.capturedAt;
 			timerState.running = message.timer.running;
+			timerState.accepted = message.timer.accepted;
 			updateTimer();
 			if (timerState.running) {
 				startTimerInterval();

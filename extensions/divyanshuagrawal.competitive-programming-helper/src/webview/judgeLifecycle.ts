@@ -16,6 +16,11 @@ const isSupportedLocalSource = (
     return config.supportedExtensions.includes(extension);
 };
 
+/** The Judge view is shown only while a supported local source file has focus. */
+export const shouldClearJudgeForActiveDocument = (
+	document: JudgeDocument | undefined,
+): boolean => !isSupportedLocalSource(document);
+
 /**
  * Returns the source path that should refresh the Judge view, if any.
  * Non-source tabs and repeated activation of the current source are ignored.
@@ -37,10 +42,7 @@ export const getRefreshSourcePath = (
     return document.fileName;
 };
 
-/**
- * A recreated view must retain the last source problem while a non-source tab
- * (terminal, Output, integrated browser) is active.
- */
+/** A recreated view only shows a problem for the currently focused source file. */
 export const getInitialJudgeProblem = <
     TDocument extends JudgeDocument,
     TProblem,
@@ -50,10 +52,12 @@ export const getInitialJudgeProblem = <
     getProblemForDocument: (
         document: TDocument | undefined,
     ) => TProblem | undefined,
-): TProblem | undefined =>
-    isSupportedLocalSource(document)
-        ? getProblemForDocument(document)
-        : currentProblem;
+): TProblem | undefined => {
+	void currentProblem;
+	return isSupportedLocalSource(document)
+		? getProblemForDocument(document)
+		: undefined;
+};
 
 export interface LatestTaskScheduler {
     schedule: (task: () => void) => void;

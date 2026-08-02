@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { findOpenFileViewColumn, shouldRestoreProblemPanel } from '../problemPanelLifecycle';
+import { findOpenFileViewColumn, shouldRestoreProblemPanel, shouldRestoreProblemPanelAfterEditorial } from '../problemPanelLifecycle';
 
 suite('ShortestPath OJ problem panel lifecycle', () => {
 	test('restores a closed problem panel while its source tab remains open', () => {
@@ -39,6 +39,27 @@ suite('ShortestPath OJ problem panel lifecycle', () => {
 			true,
 			['/workspace/a.cpp'],
 		), false);
+	});
+
+	test('restores a problem after closing an editorial only while its source remains open', () => {
+		assert.equal(shouldRestoreProblemPanelAfterEditorial(
+			'/workspace/a.cpp',
+			'/workspace/a.cpp',
+			false,
+			['/workspace/a.cpp'],
+		), true);
+		assert.equal(shouldRestoreProblemPanelAfterEditorial(
+			'/workspace/a.cpp',
+			'/workspace/a.cpp',
+			false,
+			[],
+		), false);
+		assert.equal(shouldRestoreProblemPanelAfterEditorial(
+			undefined,
+			undefined,
+			false,
+			[],
+		), true);
 	});
 
 	test('finds the source group even when another tab is visible in that group', () => {
