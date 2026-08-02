@@ -46,6 +46,7 @@ import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editor
 import { prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { getShortestPathOjPrimaryGroupWidth } from './shortestpathEditorGroupSizing.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -119,6 +120,7 @@ export const TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID = 'workbench.action.toggleMo
 export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
 export const API_OPEN_WITH_EDITOR_COMMAND_ID = '_workbench.openWith';
+export const RESIZE_SHORTESTPATH_OJ_EDITOR_GROUPS_COMMAND_ID = 'shortestpath.oj.resizeEditorGroups';
 
 export const EDITOR_CORE_NAVIGATION_COMMANDS = [
 	SPLIT_EDITOR,
@@ -224,6 +226,31 @@ function registerEditorMoveCopyCommand(): void {
 				moveCopyEditorsToGroup(true, { to, by: 'group' }, resolvedContext.groupedEditors[0].group, resolvedContext.groupedEditors[0].editors, accessor);
 			}
 		});
+	});
+
+	CommandsRegistry.registerCommand(RESIZE_SHORTESTPATH_OJ_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, rightGroupIndex: unknown) => {
+		if (!isNumber(rightGroupIndex) || !Number.isInteger(rightGroupIndex)) {
+			return;
+		}
+
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const rightGroup = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE)[rightGroupIndex];
+		if (!rightGroup) {
+			return;
+		}
+		const leftGroup = editorGroupsService.findGroup({ direction: GroupDirection.LEFT }, rightGroup);
+		if (!leftGroup) {
+			return;
+		}
+
+		const leftSize = editorGroupsService.getSize(leftGroup);
+		const rightSize = editorGroupsService.getSize(rightGroup);
+		const primaryWidth = getShortestPathOjPrimaryGroupWidth(leftSize.width, rightSize.width);
+		if (primaryWidth === undefined) {
+			return;
+		}
+
+		editorGroupsService.setSize(leftGroup, { width: primaryWidth, height: leftSize.height });
 	});
 
 	function moveCopySelectedEditors(isMove: boolean, args: SelectedEditorsMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {

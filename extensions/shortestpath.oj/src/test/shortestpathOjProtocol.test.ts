@@ -6,6 +6,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+	applyEditorialLikeResult,
+	applyEditorialLockRemaining,
+	applyHintLockRemaining,
 	applyLikeResult,
 	parseHintAnswerResult,
 	parseIncomingEvent,
@@ -69,6 +72,65 @@ test('allows accepted and running to be independent and applies final like count
 			},
 		},
 	);
+});
+
+test('uses wait times returned by the website for hints and editorials', () => {
+	const problem = parseProblemBindData(bindPayload);
+	const withHintWait = applyHintLockRemaining(problem, '123', 45_000);
+	const withEditorialWait = applyEditorialLockRemaining(withHintWait, 90_000);
+	assert.deepStrictEqual(
+		{
+			hint: withEditorialWait.state.hints[0],
+			editorial: withEditorialWait.state.editorial,
+		},
+		{
+			hint: { ...problem.state.hints[0], unlocked: false, remainingMs: 45_000 },
+			editorial: { ...problem.state.editorial, remainingMs: 90_000 },
+		},
+	);
+});
+
+test('applies final like counts to an available editorial', () => {
+	const editorial = applyEditorialLikeResult({
+		state: 'available',
+		hints: [{
+			hintId: '123',
+			seq: 1,
+			question: { format: 'markdown', content: '问题' },
+			answer: { format: 'markdown', content: '答案' },
+			questionLiked: false,
+			answerLiked: false,
+			questionLikeCount: 3,
+			answerLikeCount: 1,
+		}],
+		simpleContent: { format: 'markdown', content: '简化题解' },
+		content: { format: 'markdown', content: '详细题解' },
+		solutionCode: 'int main() {}',
+	}, {
+		hintId: '123',
+		target: 'answer',
+		liked: true,
+		questionLiked: false,
+		answerLiked: true,
+		questionLikeCount: 4,
+		answerLikeCount: 2,
+	});
+	assert.deepStrictEqual(editorial, {
+		state: 'available',
+		hints: [{
+			hintId: '123',
+			seq: 1,
+			question: { format: 'markdown', content: '问题' },
+			answer: { format: 'markdown', content: '答案' },
+			questionLiked: false,
+			answerLiked: true,
+			questionLikeCount: 4,
+			answerLikeCount: 2,
+		}],
+		simpleContent: { format: 'markdown', content: '简化题解' },
+		content: { format: 'markdown', content: '详细题解' },
+		solutionCode: 'int main() {}',
+	});
 });
 
 test('strictly validates response envelopes', () => {

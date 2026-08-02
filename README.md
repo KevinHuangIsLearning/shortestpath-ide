@@ -8,9 +8,23 @@ ShortestPath IDE is an open-source integrated development environment for compet
 
 - Competitive-programming-focused C++ editor, build, and run defaults
 - Bundled Competitive Programming Helper (CPH) and common online-judge mappings
+- Built-in ShortestPath OJ integration for synchronizing problems, hints, submissions, and editorials with the ShortestPath website
 - clangd, formatting, snippets, and toolchain diagnostics
 - Toolchain setup flows for Windows, macOS, and Linux
 - Bundled Simplified Chinese language pack and contest-oriented extensions
+
+## ShortestPath OJ integration
+
+ShortestPath IDE includes the **ShortestPath OJ integration** extension. On a supported problem page at [ShortestPath OJ](https://shortestpath.cn/), use the website's IDE-integration entry while the IDE is running. The browser and IDE then communicate only through a local connection (`127.0.0.1:21474`).
+
+After the page is connected, the IDE opens the problem view beside your source file and keeps the following information synchronized with the website:
+
+- statement, examples, problem timer, hints, and hint-answer access state;
+- source-code submission, submission progress, and final verdicts;
+- editorial access and hint likes; and
+- the problem context needed to continue the workflow in CPH Plus.
+
+The website remains the source of truth for permissions such as opening hint answers and editorials. If the view shows that it is disconnected, keep ShortestPath IDE open and trigger the website's integration entry again. The local bridge does not expose a network service outside the current machine; source code is sent only when you choose to submit it.
 
 ## Build from source
 

@@ -468,6 +468,28 @@ export function applyProblemState(problem: ImportedProblem, state: ProblemState)
 	return { ...problem, state };
 }
 
+/** Applies the authoritative wait time returned when the website rejects an answer request. */
+export function applyHintLockRemaining(problem: ImportedProblem, hintId: string, remainingMs: number): ImportedProblem {
+	return {
+		...problem,
+		state: {
+			...problem.state,
+			hints: problem.state.hints.map(hint => hint.id === hintId ? { ...hint, unlocked: false, remainingMs } : hint),
+		},
+	};
+}
+
+/** Applies the authoritative wait time returned when the website rejects an editorial request. */
+export function applyEditorialLockRemaining(problem: ImportedProblem, remainingMs: number): ImportedProblem {
+	return {
+		...problem,
+		state: {
+			...problem.state,
+			editorial: { ...problem.state.editorial, remainingMs },
+		},
+	};
+}
+
 export function applyLikeResult(problem: ImportedProblem, result: LikeResult): ImportedProblem {
 	return {
 		...problem,
@@ -481,6 +503,22 @@ export function applyLikeResult(problem: ImportedProblem, result: LikeResult): I
 				},
 			} : hint),
 		},
+	};
+}
+
+export function applyEditorialLikeResult(editorial: EditorialResult, result: LikeResult): EditorialResult {
+	if (editorial.state !== 'available') {
+		return editorial;
+	}
+	return {
+		...editorial,
+		hints: editorial.hints.map(hint => hint.hintId === result.hintId ? {
+			...hint,
+			questionLiked: result.questionLiked,
+			answerLiked: result.answerLiked,
+			questionLikeCount: result.questionLikeCount,
+			answerLikeCount: result.answerLikeCount,
+		} : hint),
 	};
 }
 

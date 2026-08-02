@@ -8,21 +8,20 @@
 	<link rel="stylesheet" href="{{KATEX_STYLES_URI}}">
 	<link rel="stylesheet" href="{{STYLES_URI}}">
 </head>
-<body data-elapsed-ms="{{ELAPSED_MS}}" data-timer-running="{{TIMER_RUNNING}}" data-captured-at="{{CAPTURED_AT}}">
+<body data-elapsed-ms="{{ELAPSED_MS}}" data-timer-running="{{TIMER_RUNNING}}" data-timer-accepted="{{TIMER_ACCEPTED}}" data-captured-at="{{CAPTURED_AT}}">
 	<header>
 		<div class="header-main">
 			<div class="title-line">
 				<h1><a href="{{PROBLEM_URL}}" target="_blank" rel="noopener">{{TITLE}}</a></h1>
 				<span class="metadata">{{METADATA}}</span>
 			</div>
-			<div id="oj-status" class="title-status">{{STATUS}}</div>
+			<div class="title-status-row"><div id="oj-status" class="title-status">{{STATUS}}</div><div id="problem-timer"><span id="problem-timer-value">{{TIMER_VALUE}}</span><span id="problem-accepted" hidden>Accepted</span></div></div>
 			<div class="problem-actions">
 				<span id="oj-submission-button">{{SUBMISSION_BUTTON}}</span>
 				<span id="oj-editorial-action">{{EDITORIAL_ACTION}}</span>
 			</div>
 		</div>
 		<div id="oj-information" class="header-info">{{INFORMATION}}</div>
-		<div id="problem-timer"></div>
 	</header>
 	<div class="tabs" role="tablist" aria-label="题目视图">
 		<button type="button" class="tab-button active" data-tab="statement" role="tab" aria-selected="true" aria-controls="oj-statement">题面</button>

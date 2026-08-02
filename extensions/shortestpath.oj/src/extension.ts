@@ -8,10 +8,14 @@ import { promises as fs } from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { canRequestEditorial, shouldConfirmEditorial } from './editorialAccess';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
-import { findOpenFileViewColumn, OpenFileTabGroup, shouldRestoreProblemPanel } from './problemPanelLifecycle';
+import { findOpenFileViewColumn, OpenFileTabGroup, shouldRestoreProblemPanel, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
 import { OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
 import {
+	applyEditorialLikeResult,
+	applyEditorialLockRemaining,
+	applyHintLockRemaining,
 	applyLikeResult,
 	applyProblemState,
 	EditorialResult,
@@ -125,7 +129,8 @@ class ShortestPathOjProblemPanel {
 	private webviewReady = false;
 	private renderedProblemRef: string | undefined;
 	private editorialPanel: vscode.WebviewPanel | undefined;
-	private editorialConfirmed = false;
+	private reopenProblemAfterEditorial = false;
+	private editorialHiddenSourcePath: string | undefined;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -136,9 +141,10 @@ class ShortestPathOjProblemPanel {
 
 	showProblem(problem: ImportedProblem, connected: boolean, sourcePath?: string): void {
 		if (!this.state || this.state.problem.ref !== problem.ref) {
+			this.reopenProblemAfterEditorial = false;
+			this.editorialHiddenSourcePath = undefined;
 			this.editorialPanel?.dispose();
 			this.editorialPanel = undefined;
-			this.editorialConfirmed = false;
 			const answers = new Map<string, MarkdownContent>();
 			for (const hint of problem.state.hints) {
 				const cached = hintAnswerCache.get(hintAnswerCacheKey(problem.ref, hint.id));
@@ -170,7 +176,10 @@ class ShortestPathOjProblemPanel {
 				this.state.sourcePath = sourcePath;
 			}
 		}
-		const panelCreated = this.ensurePanel(this.getProblemViewColumn());
+		if (this.editorialPanel) {
+			return;
+		}
+		const panelCreated = this.ensureProblemPanel();
 		this.render();
 		const panel = this.panel;
 		if (!panelCreated && !this.editorialPanel && panel) {
@@ -236,10 +245,10 @@ class ShortestPathOjProblemPanel {
 	}
 
 	reveal(): void {
-		if (!this.state) {
+		if (!this.state || this.editorialPanel) {
 			return;
 		}
-		const panelCreated = this.ensurePanel(this.getProblemViewColumn());
+		const panelCreated = this.ensureProblemPanel();
 		this.render();
 		const panel = this.panel;
 		if (!panelCreated && !this.editorialPanel && panel) {
@@ -255,6 +264,8 @@ class ShortestPathOjProblemPanel {
 			return;
 		}
 		this.state = undefined;
+		this.reopenProblemAfterEditorial = false;
+		this.editorialHiddenSourcePath = undefined;
 		this.editorialPanel?.dispose();
 		this.panel?.dispose();
 	}
@@ -279,14 +290,6 @@ class ShortestPathOjProblemPanel {
 		this.editorialPanel.webview.html = getEditorialPanelHtml(this.state.editorial, this.state.problem, this.editorialPanel.webview, this.extensionUri);
 	}
 
-	isEditorialConfirmed(): boolean {
-		return this.editorialConfirmed;
-	}
-
-	markEditorialConfirmed(): void {
-		this.editorialConfirmed = true;
-	}
-
 	private pendingConfirms = new Map<string, { resolve: (result: boolean) => void }>();
 
 	confirm(message: string, confirmLabel: string, cancelLabel: string): Promise<boolean> {
@@ -308,6 +311,13 @@ class ShortestPathOjProblemPanel {
 		}
 		const modalHtml = renderHintModal(state, hint);
 		void this.panel?.webview.postMessage({ type: 'showHintModal', html: modalHtml });
+	}
+
+	private showLockedEditorialNotice(remainingMs: number): void {
+		void this.panel?.webview.postMessage({
+			type: 'showHintModal',
+			html: `<div class="modal-header"><h3>解题报告</h3><button type="button" class="modal-close" data-command="closeModal" aria-label="关闭">×</button></div><div class="modal-body"><p class="hint-feedback" data-remaining-ms="${remainingMs}">${escapeHtml('解题报告尚未解锁，')}<span class="editorial-countdown">${escapeHtml(`剩余 ${formatDuration(remainingMs)}`)}</span></p></div>`,
+		});
 	}
 
 	private getProblemViewColumn(): vscode.ViewColumn {
@@ -346,6 +356,7 @@ class ShortestPathOjProblemPanel {
 		}
 		const title = `解题报告: ${problem.title}`;
 		if (this.editorialPanel) {
+			this.hideProblemWhileEditorialOpen();
 			this.editorialPanel.title = title;
 			this.editorialPanel.webview.html = getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri);
 			this.editorialPanel.reveal(this.editorialPanel.viewColumn, false);
@@ -373,6 +384,9 @@ class ShortestPathOjProblemPanel {
 			if (value.command === 'like' && typeof value.hintId === 'string' && (value.target === 'question' || value.target === 'answer') && typeof value.liked === 'boolean') {
 				const result = await this.actions.like(this.state.problem, value.hintId, value.target, value.liked);
 				this.state.problem = applyLikeResult(this.state.problem, result);
+				if (this.state.editorial) {
+					this.state.editorial = applyEditorialLikeResult(this.state.editorial, result);
+				}
 				this.refreshEditorial();
 			}
 		});
@@ -381,11 +395,31 @@ class ShortestPathOjProblemPanel {
 			if (this.editorialPanel === panel) {
 				this.editorialPanel = undefined;
 			}
-			if (this.state?.sourcePath && isDocumentOpen(this.state.sourcePath)) {
-				this.reveal();
+			if (this.reopenProblemAfterEditorial) {
+				this.reopenProblemAfterEditorial = false;
+				const hiddenSourcePath = this.editorialHiddenSourcePath;
+				this.editorialHiddenSourcePath = undefined;
+				if (shouldRestoreProblemPanelAfterEditorial(
+					hiddenSourcePath,
+					this.state?.sourcePath,
+					this.panel !== undefined,
+					getOpenFileTabGroups().flatMap(group => group.filePaths),
+				)) {
+					this.reveal();
+				}
 			}
 		});
 		this.editorialPanel = panel;
+		this.hideProblemWhileEditorialOpen();
+	}
+
+	private hideProblemWhileEditorialOpen(): void {
+		if (!this.panel) {
+			return;
+		}
+		this.reopenProblemAfterEditorial = true;
+		this.editorialHiddenSourcePath = this.state?.sourcePath;
+		this.panel.dispose();
 	}
 
 	private ensurePanel(viewColumn: vscode.ViewColumn): boolean {
@@ -412,6 +446,9 @@ class ShortestPathOjProblemPanel {
 				this.sentTimerJson = '';
 				this.webviewReady = false;
 			}
+			if (this.reopenProblemAfterEditorial) {
+				return;
+			}
 			setTimeout(() => {
 				if (shouldRestoreProblemPanel(
 					disposedSourcePath,
@@ -428,6 +465,31 @@ class ShortestPathOjProblemPanel {
 		});
 		this.panel = panel;
 		return true;
+	}
+
+	private ensureProblemPanel(): boolean {
+		const existingViewColumns = new Set(vscode.window.tabGroups.all.map(group => group.viewColumn));
+		const panelCreated = this.ensurePanel(this.getProblemViewColumn());
+		const problemViewColumn = this.panel?.viewColumn;
+		if (panelCreated && problemViewColumn !== undefined) {
+			setTimeout(() => this.closeShortestPathNewTabs(problemViewColumn), 0);
+		}
+		if (panelCreated && problemViewColumn !== undefined && !existingViewColumns.has(problemViewColumn)) {
+			setTimeout(() => {
+				void vscode.commands.executeCommand('shortestpath.oj.resizeEditorGroups', problemViewColumn - 1);
+			}, 0);
+		}
+		return panelCreated;
+	}
+
+	private closeShortestPathNewTabs(viewColumn: vscode.ViewColumn): void {
+		const group = vscode.window.tabGroups.all.find(item => item.viewColumn === viewColumn);
+		const newTabs = group?.tabs.filter(item =>
+			!item.isDirty && (item.label === '新建标签页' || item.label === 'New Tab'),
+		) ?? [];
+		if (newTabs.length > 0) {
+			void vscode.window.tabGroups.close(newTabs, true);
+		}
 	}
 
 	private async handleMessage(message: unknown): Promise<void> {
@@ -456,8 +518,6 @@ class ShortestPathOjProblemPanel {
 					if (typeof value.hintId !== 'string') {
 						return;
 					}
-					state.statusMessage = '正在通过网页获取提示答案…';
-					this.render();
 					{
 						const result = await this.actions.answer(state.problem, value.hintId);
 						if (result.state === 'revealed') {
@@ -465,13 +525,12 @@ class ShortestPathOjProblemPanel {
 							state.hintMessages.delete(result.hintId);
 							hintAnswerCache.set(hintAnswerCacheKey(state.problem.ref, result.hintId), result.answer);
 							state.problem = applyAnswerLikes(state.problem, result);
-							state.statusMessage = '提示答案已同步。';
 						} else {
 							const message = result.remainingMs > 0
 								? `提示尚未解锁，剩余 ${formatDuration(result.remainingMs)}。`
 								: '请先打开当前提示后再查看答案。';
+							state.problem = applyHintLockRemaining(state.problem, result.hintId, result.remainingMs);
 							state.hintMessages.set(result.hintId, message);
-							state.statusMessage = message;
 						}
 					}
 					this.refreshHintModal(value.hintId);
@@ -485,11 +544,22 @@ class ShortestPathOjProblemPanel {
 						if (!hint) {
 							return;
 						}
-						if (!hint.unlocked) {
-							const message = getLockedHintMessage(hint);
-							state.hintMessages.set(hint.id, message);
-							state.statusMessage = message;
-							this.render();
+						if (!hint.unlocked && !state.problem.state.timer.accepted) {
+							return;
+						}
+						if (state.problem.state.timer.accepted && !state.answers.has(hint.id)) {
+							const result = await this.actions.answer(state.problem, hint.id);
+							if (result.state === 'revealed') {
+								state.answers.set(result.hintId, result.answer);
+								state.hintMessages.delete(result.hintId);
+								hintAnswerCache.set(hintAnswerCacheKey(state.problem.ref, result.hintId), result.answer);
+								state.problem = applyAnswerLikes(state.problem, result);
+							} else {
+								state.problem = applyHintLockRemaining(state.problem, result.hintId, result.remainingMs);
+								state.hintMessages.set(result.hintId, result.remainingMs > 0
+									? `提示尚未解锁，剩余 ${formatDuration(result.remainingMs)}。`
+									: '网站尚未确认提示答案可查看。');
+							}
 						}
 						this.refreshHintModal(value.hintId);
 					}
@@ -499,19 +569,21 @@ class ShortestPathOjProblemPanel {
 						return;
 					}
 					state.problem = applyLikeResult(state.problem, await this.actions.like(state.problem, value.hintId, value.target, value.liked));
-					state.statusMessage = '点赞状态已同步。';
 					this.refreshHintModal(value.hintId);
 					break;
 				case 'editorial':
 					{
+						if (!state.problem.state.timer.accepted && state.problem.state.editorial.remainingMs > 0) {
+							this.showLockedEditorialNotice(state.problem.state.editorial.remainingMs);
+							return;
+						}
 						const result = await this.actions.editorial(state.problem);
 						if (result) {
 							state.editorial = result;
 							if (result.state === 'available') {
-								state.statusMessage = '解题报告已同步。';
 								this.showEditorialPanel(result, state.problem);
 							} else {
-								state.statusMessage = `解题报告尚未解锁，剩余 ${formatDuration(result.remainingMs)}。`;
+								state.problem = applyEditorialLockRemaining(state.problem, result.remainingMs);
 							}
 						}
 					}
@@ -527,7 +599,6 @@ class ShortestPathOjProblemPanel {
 					}
 					await this.actions.watchSubmission(state.problem, value.submissionId);
 					state.disconnectedSubmissions.delete(value.submissionId);
-					state.statusMessage = `正在观察提交 ${value.submissionId}。`;
 					break;
 				case 'loadStress':
 					state.stressContext = await this.actions.loadStress(state.problem);
@@ -538,15 +609,12 @@ class ShortestPathOjProblemPanel {
 							state.finishedStressTasks.add(task.taskId);
 						}
 					}
-					state.statusMessage = state.stressContext.availability.message || '对拍上下文已同步。';
 					break;
 				case 'startStress':
 					if (typeof value.submissionId !== 'string' || typeof value.rounds !== 'number' || !Number.isInteger(value.rounds) || value.rounds <= 0) {
 						throw new Error('请选择可用提交并填写正整数轮数。');
 					}
 					if (!state.stressContext) {
-						state.statusMessage = '正在加载对拍上下文…';
-						this.render();
 						state.stressContext = await this.actions.loadStress(state.problem);
 						for (const task of state.stressContext.tasks) {
 							state.stressTasks.set(task.taskId, task);
@@ -570,7 +638,6 @@ class ShortestPathOjProblemPanel {
 						const task = await this.actions.startStress(state.problem, value.submissionId, value.rounds);
 						state.stressTasks.set(task.taskId, task);
 						this.unknownStressStarts.delete(state.problem.ref);
-						state.statusMessage = `对拍任务 ${task.taskId} 已受理。`;
 					}
 					break;
 				case 'addStressCounterExample':
@@ -586,12 +653,9 @@ class ShortestPathOjProblemPanel {
 							return;
 						}
 						state.addingStressCounterExamples.add(task.taskId);
-						state.statusMessage = '正在将反例添加到 CPH…';
-						this.render();
 						try {
 							await this.actions.addStressCounterExample(state.problem, task);
 							state.addedStressCounterExamples.add(task.taskId);
-							state.statusMessage = '反例已添加到 CPH。';
 						} finally {
 							state.addingStressCounterExamples.delete(task.taskId);
 						}
@@ -615,9 +679,12 @@ class ShortestPathOjProblemPanel {
 			if (value.command === 'startStress' && error instanceof OutcomeUnknownError) {
 				this.unknownStressStarts.add(state.problem.ref);
 			}
-			state.statusMessage = error instanceof Error ? error.message : String(error);
+			const message = error instanceof Error ? error.message : String(error);
+			if (value.command === 'submit') {
+				state.statusMessage = message;
+			}
 			if ((value.command === 'answer' || value.command === 'openHintModal') && typeof value.hintId === 'string') {
-				state.hintMessages.set(value.hintId, state.statusMessage);
+				state.hintMessages.set(value.hintId, message);
 				this.refreshHintModal(value.hintId);
 			}
 			this.render();
@@ -692,22 +759,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		answer: (problem, hintId) => bridge.requestHintAnswer(problem.ref, hintId),
 		like: (problem, hintId, target, liked) => bridge.requestLike(problem.ref, hintId, target, liked),
 		editorial: async problem => {
-			if (problem.state.editorial.remainingMs > 0) {
-				return {
-					state: 'locked',
-					remainingMs: problem.state.editorial.remainingMs,
-					unlockReason: 'state_wait',
-				};
-			}
 			let confirmed = false;
-			if (!problem.state.editorial.preAcViewed && problem.state.editorial.requiresConfirmation && !panel.isEditorialConfirmed()) {
+			if (shouldConfirmEditorial(problem)) {
 				const result = await panel.confirm(problem.state.editorial.confirmationMessage, '确认查看', '取消');
 				if (!result) {
 					return undefined;
 				}
-				panel.markEditorialConfirmed();
-				confirmed = true;
-			} else {
 				confirmed = true;
 			}
 			return bridge.requestEditorial(problem.ref, confirmed);
@@ -1154,6 +1211,7 @@ function wrapTabSection(key: keyof ProblemViewSections, html: string): string {
 type ProblemViewTimer = {
 	elapsedMs: number;
 	running: boolean;
+	accepted: boolean;
 	capturedAt: number;
 };
 
@@ -1162,6 +1220,7 @@ function getProblemViewTimer(state: ProblemPanelState): ProblemViewTimer {
 	return {
 		elapsedMs: timer.elapsedMs,
 		running: timer.mode === 'timed' && timer.running,
+		accepted: timer.accepted,
 		capturedAt: timer.capturedAtUnixMs,
 	};
 }
@@ -1192,6 +1251,8 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 		SCRIPT_URI: script.toString(),
 		ELAPSED_MS: String(timer.elapsedMs),
 		TIMER_RUNNING: String(timer.running),
+		TIMER_ACCEPTED: String(timer.accepted),
+		TIMER_VALUE: formatDuration(timer.elapsedMs),
 		CAPTURED_AT: String(timer.capturedAt),
 		TITLE: escapeHtml(problem.title),
 		METADATA: `${escapeHtml(problem.topic.title)} · ${problem.limits.timeMs} ms · ${problem.limits.memoryMB} MB · ${escapeHtml(problem.judge.mode.toUpperCase())}`,
@@ -1251,20 +1312,21 @@ function renderHints(state: ProblemPanelState): string {
 		return '';
 	}
 	const items = state.problem.state.hints.map(hint => {
-		const viewed = hint.viewed;
-		const statusText = viewed ? '已查看答案' : hint.unlocked ? '已解锁' : getLockedHintMessage(hint).replace(/[。！]$/, '');
-		const remainingAttr = !hint.unlocked && hint.remainingMs > 0 ? ` data-remaining-ms="${hint.remainingMs}"` : '';
+		// While online, only the website state determines whether an answer was
+		// viewed. The locally cached body is a fallback for an offline panel.
+		const viewed = hint.viewed || (!state.connected && state.answers.has(hint.id));
+		const unlocked = hint.unlocked || state.problem.state.timer.accepted;
+		const locked = !viewed && !unlocked;
+		const statusText = viewed ? '已查看答案' : unlocked ? '已解锁' : '提示尚未解锁';
+		const remainingAttr = !unlocked && hint.remainingMs > 0 ? ` data-remaining-ms="${hint.remainingMs}"` : '';
 		const viewedClass = viewed ? ' viewed' : '';
-		return `<div class="hint-list-item${hint.unlocked ? '' : ' locked'}${viewedClass}" data-command="openHintModal" data-hint-id="${escapeAttribute(hint.id)}" role="button" tabindex="0" aria-label="提示 ${hint.seq}，${escapeAttribute(statusText)}"${remainingAttr}><span class="hint-list-num">提示 ${hint.seq}</span><span class="hint-list-status">${escapeHtml(statusText)}</span></div>`;
+		const countdown = locked && hint.remainingMs > 0 ? `<span class="hint-countdown">剩余 ${formatDuration(hint.remainingMs)}</span>` : '';
+		const interaction = unlocked
+			? ` data-command="openHintModal" data-hint-id="${escapeAttribute(hint.id)}" role="button" tabindex="0"`
+			: ' aria-disabled="true"';
+		return `<div class="hint-list-item${unlocked ? '' : ' locked'}${viewedClass}"${interaction} aria-label="提示 ${hint.seq}，${escapeAttribute(statusText)}"${remainingAttr}><span class="hint-list-num">提示 ${hint.seq}</span><span class="hint-list-status"><span class="hint-lock-label">${escapeHtml(statusText)}</span>${countdown}</span></div>`;
 	}).join('');
 	return `<section class="hints"><h2>提示</h2><div class="hint-list">${items}</div></section>`;
-}
-
-function getLockedHintMessage(hint: ProblemHint): string {
-	if (hint.remainingMs > 0) {
-		return `提示尚未解锁，剩余 ${formatDuration(hint.remainingMs)}。`;
-	}
-	return '提示尚未解锁。';
 }
 
 const likeSvgOutlined = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-thumbs-up size-3.5" aria-hidden="true"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"></path><path d="M7 10v12"></path></svg>';
@@ -1283,9 +1345,12 @@ function renderHintModal(state: ProblemPanelState, hint: ProblemHint): string {
 	const questionLike = renderLikeButton(hint.id, 'question', hint.likes.question, state.connected && Boolean(hint.question) && state.problem.capabilities.hintLike);
 	const answer = state.answers.get(hint.id);
 	const answerLike = renderLikeButton(hint.id, 'answer', hint.likes.answer, state.connected && Boolean(answer) && state.problem.capabilities.hintLike);
+	const unlocked = hint.unlocked || state.problem.state.timer.accepted;
+	const canRequestAnswer = state.connected && state.problem.capabilities.hintAnswer;
+	const canShowAnswer = unlocked && canRequestAnswer;
 	const answerContent = answer
 		? `<div data-render-math>${renderMarkdownContent(answer, state.problem.url)}</div>`
-		: `<button type="button" data-command="answer" data-hint-id="${escapeAttribute(hint.id)}"${!hint.unlocked || !state.connected || !state.problem.capabilities.hintAnswer ? ' disabled' : ''}${hint.unlocked ? '' : ` data-remaining-ms="${hint.remainingMs}"`}>${hint.unlocked ? '显示答案' : `<span class="hint-countdown">剩余 ${formatDuration(hint.remainingMs)}</span>`}</button>`;
+		: `<button type="button" data-command="answer" data-hint-id="${escapeAttribute(hint.id)}" data-can-request="${canRequestAnswer}"${canShowAnswer ? '' : ' disabled'}${!unlocked && hint.remainingMs > 0 ? ` data-remaining-ms="${hint.remainingMs}"` : ''}>${unlocked ? '显示答案' : `<span class="hint-countdown">剩余 ${formatDuration(hint.remainingMs)}</span>`}</button>`;
 	const feedback = state.hintMessages.get(hint.id);
 	return `<div class="modal-header"><h3>提示 ${hint.seq}</h3><button type="button" class="modal-close" data-command="closeModal" aria-label="关闭提示">×</button></div><div class="modal-body">${feedback ? `<p class="hint-feedback" role="status">${escapeHtml(feedback)}</p>` : ''}<div class="modal-columns"><div class="modal-column"><div class="hint-section-heading"><h4>问题</h4>${questionLike}</div>${questionContent}</div><div class="modal-column"><div class="hint-section-heading"><h4>答案</h4>${answerLike}</div>${answerContent}</div></div></div>`;
 }
@@ -1294,8 +1359,10 @@ function renderEditorialAction(problem: ImportedProblem, connected: boolean): st
 	if (!problem.capabilities.editorial) {
 		return '';
 	}
-	const remaining = problem.state.editorial.remainingMs;
-	return `<button type="button" data-command="editorial"${remaining > 0 || !connected ? ' disabled' : ''}>${remaining > 0 ? `解题报告剩余 ${formatDuration(remaining)}` : '查看解题报告'}</button>`;
+	if (!problem.state.timer.accepted && problem.state.editorial.remainingMs > 0) {
+		return '<button type="button" class="editorial-locked" data-command="editorial">查看解题报告</button>';
+	}
+	return `<button type="button" data-command="editorial"${canRequestEditorial(connected) ? '' : ' disabled'}>查看解题报告</button>`;
 }
 
 function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProblem, webview: vscode.Webview, extensionUri: vscode.Uri): string {
@@ -1447,12 +1514,6 @@ function formatDuration(milliseconds: number): string {
 	const minutes = Math.floor(totalSeconds % 3600 / 60);
 	const seconds = totalSeconds % 60;
 	return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':');
-}
-
-function isDocumentOpen(filePath: string): boolean {
-	return vscode.workspace.textDocuments.some(
-		doc => doc.uri.scheme === 'file' && doc.fileName === filePath,
-	);
 }
 
 function getOpenFileTabGroups(): OpenFileTabGroup[] {

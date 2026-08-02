@@ -8,9 +8,23 @@ ShortestPath IDE 是一个面向算法竞赛（OI / ICPC）的开源集成开发
 
 - 面向竞赛的 C++ 编辑器、编译与运行默认配置
 - 内置 Competitive Programming Helper（CPH）及常用在线评测（OJ）链接映射
+- 内置 ShortestPath OJ 互通：同步题目、提示、提交记录与解题报告
 - clangd、格式化、代码片段及工具链诊断支持
 - Windows、macOS 与 Linux 的工具链配置流程
 - 内置简体中文语言包和竞赛相关扩展
+
+## ShortestPath OJ 互通
+
+ShortestPath IDE 内置 **ShortestPath OJ 集成**扩展。保持 IDE 运行后，在 [ShortestPath OJ](https://shortestpath.cn/) 的受支持题目页面使用网站提供的 IDE 互通入口，即可与本机 IDE 建立连接；通信只经过本机 `127.0.0.1:21474`。
+
+连接成功后，IDE 会在源码旁打开题面视图，并与网站同步：
+
+- 题面、样例、比赛计时、提示及提示答案的访问状态；
+- 源码提交、评测进度和最终结果；
+- 解题报告访问与提示点赞；以及
+- 继续使用 CPH Plus 工作流所需的题目上下文。
+
+提示答案和解题报告等权限始终以网站状态为准。若题面显示未连接，请保持 ShortestPath IDE 运行并再次使用网站的互通入口。本地桥接不会向本机以外提供网络服务；只有你主动提交时才会发送源码。
 
 ## 从源码构建
 
