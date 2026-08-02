@@ -132,6 +132,9 @@ function Judge(props: {
     const [moreToolsVisible, setMoreToolsVisible] = useState<boolean>(false);
     const [deleteProblemArmed, setDeleteProblemArmed] =
         useState<boolean>(false);
+    const [submitShortestPathArmed, setSubmitShortestPathArmed] =
+        useState<boolean>(false);
+    const submitShortestPathArmedTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const checkerInputRef = React.useRef<HTMLInputElement>(null);
 
     const numPassed = cases.filter(
@@ -149,12 +152,20 @@ function Judge(props: {
 
     useEffect(() => {
         setDeleteProblemArmed(false);
+        setSubmitShortestPathArmed(false);
+        if (submitShortestPathArmedTimer.current) {
+            clearTimeout(submitShortestPathArmedTimer.current);
+            submitShortestPathArmedTimer.current = null;
+        }
     }, [problem.srcPath]);
 
     useEffect(() => {
         return () => {
             if (submitBrowserHintTimeout.current) {
                 clearTimeout(submitBrowserHintTimeout.current);
+            }
+            if (submitShortestPathArmedTimer.current) {
+                clearTimeout(submitShortestPathArmedTimer.current);
             }
         };
     }, []);
@@ -465,6 +476,29 @@ function Judge(props: {
 
         setWaitingForSubmit(true);
     };
+
+    const submitShortestPath = () => {
+        if (!submitShortestPathArmed) {
+            setSubmitShortestPathArmed(true);
+            if (submitShortestPathArmedTimer.current) {
+                clearTimeout(submitShortestPathArmedTimer.current);
+            }
+            submitShortestPathArmedTimer.current = setTimeout(() => {
+                setSubmitShortestPathArmed(false);
+                submitShortestPathArmedTimer.current = null;
+            }, 3000);
+            return;
+        }
+        if (submitShortestPathArmedTimer.current) {
+            clearTimeout(submitShortestPathArmedTimer.current);
+            submitShortestPathArmedTimer.current = null;
+        }
+        setSubmitShortestPathArmed(false);
+        sendMessageToVSCode({
+            command: 'submitShortestPath',
+            problem,
+        });
+    };
     const debounceFocusLast = () => {
         setTimeout(() => {
             setFocusLast(false);
@@ -612,12 +646,41 @@ function Judge(props: {
             console.error(err, problem);
             return null;
         }
+        const isShortestPathHost =
+            url.hostname === 'shortestpath.cn' ||
+            url.hostname.endsWith('.shortestpath.cn');
         if (
             !url.hostname.endsWith('codeforces.com') &&
             url.hostname !== 'open.kattis.com' &&
-            !url.hostname.endsWith('cses.fi')
+            !url.hostname.endsWith('cses.fi') &&
+            !isShortestPathHost
         ) {
             return null;
+        }
+
+        if (isShortestPathHost) {
+            return (
+                <button
+                    className={`btn ${className} ${
+                        submitShortestPathArmed ? 'btn-yellow' : ''
+                    }`}
+                    onClick={submitShortestPath}
+                    title={
+                        submitShortestPathArmed ? t('confirmSubmit') : t('submit')
+                    }
+                >
+                    {submitShortestPathArmed ? (
+                        t('confirmSubmit')
+                    ) : (
+                        <>
+                            <span className="icon">
+                                <i className="codicon codicon-cloud-upload"></i>
+                            </span>{' '}
+                            {t('submit')}
+                        </>
+                    )}
+                </button>
+            );
         }
 
         if (url.hostname.endsWith('codeforces.com')) {

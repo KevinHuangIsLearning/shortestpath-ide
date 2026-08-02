@@ -1,12 +1,11 @@
 import * as vscode from 'vscode';
-import { getProbSaveLocation } from '../parser';
-import { existsSync, readFileSync } from 'fs';
-import { Problem } from '../types';
 import { getJudgeViewProvider } from '../extension';
 import { getProblemForDocument } from '../utils';
 import { getAutoShowJudgePref, getDefaultOnlineJudge } from '../preferences';
 import { setOnlineJudgeEnv } from '../compiler';
-import { getRefreshSourcePath } from './judgeLifecycle';
+import {
+    getRefreshSourcePath,
+} from './judgeLifecycle';
 
 let lastActiveSourcePath: string | undefined;
 
@@ -66,6 +65,10 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
         command: 'new-problem',
         problem,
     });
+    void vscode.commands.executeCommand(
+        'shortestpath.oj.showProblemForCph',
+        problem.url,
+    );
 };
 
 export const editorClosed = (e: vscode.TextDocument) => {
@@ -74,20 +77,35 @@ export const editorClosed = (e: vscode.TextDocument) => {
     if (lastActiveSourcePath === srcPath) {
         lastActiveSourcePath = undefined;
     }
-    const probPath = getProbSaveLocation(srcPath);
+};
 
-    if (!existsSync(probPath)) {
-        return;
+export const judgeViewTabsChanged = () => {
+	const problemPath = getJudgeViewProvider().problemPath;
+	if (problemPath === undefined) {
+		return;
+	}
+	const sourceTabIsOpen = vscode.window.tabGroups.all.some(group => group.tabs.some(tab => {
+		const input = tab.input as { uri?: vscode.Uri } | undefined;
+		return input?.uri?.scheme === 'file' && input.uri.fsPath === problemPath;
+	}),
+	);
+	if (sourceTabIsOpen) {
+		return;
+	}
+	// The source tab is gone, so clear both the Judge view and the ShortestPath
+	// problem preview. Unlike visibleTextEditors, tabGroups does not report a
+	// false close merely because focus moved to another editor.
+    if (lastActiveSourcePath === problemPath) {
+        lastActiveSourcePath = undefined;
     }
-
-    const problem: Problem = JSON.parse(readFileSync(probPath).toString());
-
-    if (getJudgeViewProvider().problemPath === problem.srcPath) {
-        getJudgeViewProvider().extensionToJudgeViewMessage({
-            command: 'new-problem',
-            problem: undefined,
-        });
-    }
+    getJudgeViewProvider().extensionToJudgeViewMessage({
+        command: 'new-problem',
+        problem: undefined,
+    });
+    void vscode.commands.executeCommand(
+        'shortestpath.oj.hideProblemForCphSourcePath',
+        problemPath,
+    );
 };
 
 export const checkLaunchWebview = () => {

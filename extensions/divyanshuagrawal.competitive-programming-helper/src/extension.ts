@@ -29,8 +29,9 @@ import * as vscode from 'vscode';
 import { setupCompanionServer } from './companion';
 import runTestCases from './runTestCases';
 import {
-    editorChanged,
-    editorClosed,
+	editorChanged,
+	editorClosed,
+	judgeViewTabsChanged,
     checkLaunchWebview,
 } from './webview/editorChange';
 import { submitToCodeForces, submitToKattis } from './submit';
@@ -146,16 +147,30 @@ export function activate(context: vscode.ExtensionContext) {
     setupCompanionServer();
     checkLaunchWebview();
 
-    context.subscriptions.push(
-        vscode.workspace.onDidCloseTextDocument((e) => {
-            editorClosed(e);
-        }),
-    );
+	const tabChangeScheduler = createLatestTaskScheduler(
+		(task) => setTimeout(task, 0),
+		(handle) => clearTimeout(handle),
+	);
+	context.subscriptions.push(
+		vscode.workspace.onDidCloseTextDocument((e) => {
+			editorClosed(e);
+			tabChangeScheduler.schedule(judgeViewTabsChanged);
+		}),
+		new vscode.Disposable(tabChangeScheduler.dispose),
+	);
+	// A document can remain retained after its final editor tab is closed, so
+	// use the tab model rather than visible editors to distinguish closing a
+	// source tab from merely moving focus to another editor.
+	context.subscriptions.push(
+		vscode.window.tabGroups.onDidChangeTabs(() => {
+			tabChangeScheduler.schedule(judgeViewTabsChanged);
+		}),
+	);
 
-    const activeEditorChangeScheduler = createLatestTaskScheduler(
+	const activeEditorChangeScheduler = createLatestTaskScheduler(
         (task) => setTimeout(task, 0),
         (handle) => clearTimeout(handle),
-    );
+	);
     context.subscriptions.push(
         vscode.window.onDidChangeActiveTextEditor(() => {
             // A custom editor (such as the integrated browser) may emit this

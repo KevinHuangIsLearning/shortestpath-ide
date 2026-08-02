@@ -20,7 +20,10 @@ export const submitToKattis = async () => {
     }
 
     const textEditor = await vscode.workspace.openTextDocument(srcPath);
-    await vscode.window.showTextDocument(textEditor, vscode.ViewColumn.One);
+    await vscode.window.showTextDocument(textEditor, {
+        viewColumn: vscode.ViewColumn.One,
+        preview: false,
+    });
     await textEditor.save();
 
     const problem = getProblem(srcPath);
@@ -70,7 +73,10 @@ export const submitToCodeForces = async () => {
     }
 
     const textEditor = await vscode.workspace.openTextDocument(srcPath);
-    await vscode.window.showTextDocument(textEditor, vscode.ViewColumn.One);
+    await vscode.window.showTextDocument(textEditor, {
+        viewColumn: vscode.ViewColumn.One,
+        preview: false,
+    });
     await textEditor.save();
 
     const problem = getProblem(srcPath);

@@ -103,6 +103,22 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                         break;
                     }
 
+                    case 'submitShortestPath': {
+                        try {
+                            await vscode.commands.executeCommand(
+                                'shortestpath.oj.submitProblem',
+                                message.problem,
+                            );
+                        } catch (error) {
+                            void vscode.window.showErrorMessage(
+                                error instanceof Error
+                                    ? error.message
+                                    : String(error),
+                            );
+                        }
+                        break;
+                    }
+
                     case 'online-judge-env': {
                         switch (message.value) {
                             case 'true': {
@@ -171,10 +187,10 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                             const doc = await vscode.workspace.openTextDocument(
                                 message.path,
                             );
-                            await vscode.window.showTextDocument(
-                                doc,
-                                vscode.ViewColumn.One,
-                            );
+                            await vscode.window.showTextDocument(doc, {
+                                viewColumn: vscode.ViewColumn.One,
+                                preview: false,
+                            });
                         } catch (err: any) {
                             globalThis.logger.error('Failed to open file', err);
                             vscode.window.showErrorMessage(
