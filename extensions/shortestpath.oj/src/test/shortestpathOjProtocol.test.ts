@@ -22,7 +22,8 @@ test('parses the official problem.bind data model', () => {
 		{
 			ref: problem.ref,
 			title: problem.title,
-			statement: problem.statement.description?.content,
+		statement: problem.statement.description?.content,
+		sampleExplanation: problem.samples[0].explanation,
 			timerMode: problem.state.timer.mode,
 			hintQuestion: problem.state.hints[0].question?.content,
 			language: problem.capabilities.submission.languages[0],
@@ -31,7 +32,8 @@ test('parses the official problem.bind data model', () => {
 		{
 			ref: 'DSU/found/A',
 			title: '并查集入门',
-			statement: '# 题目\n\n求答案。',
+		statement: '# 题目\n\n求答案。',
+		sampleExplanation: '这个样例的答案是 `1`。',
 			timerMode: 'timed',
 			hintQuestion: '维护什么？',
 			language: { id: 'cpp20', name: 'cpp20', compileArgs: 'g++ -std=gnu++20' },

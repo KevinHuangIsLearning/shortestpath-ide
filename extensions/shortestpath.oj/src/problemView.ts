@@ -4,15 +4,59 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare function acquireVsCodeApi(): { postMessage(message: object): void };
-declare const katex: { render(source: string, element: Element, options: { displayMode?: boolean; throwOnError: boolean }): void };
+
+type TimerState = {
+	elapsedMs: number;
+	running: boolean;
+	capturedAt: number;
+};
+
+type UpdateMessage = {
+	type: 'update';
+	sections: Record<string, string>;
+	timer?: TimerState;
+};
+
+type FocusTabMessage = {
+	type: 'focusTab';
+	tabId: 'statement' | 'hints' | 'submissions';
+};
+
+type ConfirmRequest = {
+	type: 'confirm';
+	id: string;
+	message: string;
+	confirmLabel: string;
+	cancelLabel: string;
+};
+
+type ShowHintModalMessage = {
+	type: 'showHintModal';
+	html: string;
+};
+
+type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHintModalMessage | undefined;
 
 (() => {
 	const vscode = acquireVsCodeApi();
 	const body = document.body;
 	const timer = document.getElementById('problem-timer');
-	const baseElapsed = Number(body.dataset.elapsedMs || 0);
-	const capturedAt = Number(body.dataset.capturedAt || Date.now());
-	const running = body.dataset.timerRunning === 'true';
+	const timerState: TimerState = {
+		elapsedMs: Number(body.dataset.elapsedMs || 0),
+		capturedAt: Number(body.dataset.capturedAt || Date.now()),
+		running: body.dataset.timerRunning === 'true',
+	};
+	let timerInterval: ReturnType<typeof setInterval> | undefined;
+	let submitConfirmationTimer: ReturnType<typeof setTimeout> | undefined;
+	const resetSubmitConfirmation = (button: HTMLButtonElement): void => {
+		if (submitConfirmationTimer) {
+			clearTimeout(submitConfirmationTimer);
+			submitConfirmationTimer = undefined;
+		}
+		button.classList.remove('armed');
+		button.dataset.armed = 'false';
+		button.textContent = '提交代码';
+	};
 
 	const formatDuration = (milliseconds: number): string => {
 		const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -23,22 +67,276 @@ declare const katex: { render(source: string, element: Element, options: { displ
 	};
 	const updateTimer = (): void => {
 		if (timer) {
-			timer.textContent = formatDuration(baseElapsed + (running ? Math.max(0, Date.now() - capturedAt) : 0));
+			const elapsed = timerState.elapsedMs + (timerState.running ? Math.max(0, Date.now() - timerState.capturedAt) : 0);
+			timer.textContent = formatDuration(elapsed);
 		}
 	};
+	const startTimerInterval = (): void => {
+		if (timerInterval === undefined && timerState.running) {
+			timerInterval = setInterval(updateTimer, 1000);
+		}
+	};
+	const stopTimerInterval = (): void => {
+		if (timerInterval !== undefined) {
+			clearInterval(timerInterval);
+			timerInterval = undefined;
+		}
+	};
+	document.addEventListener('visibilitychange', () => {
+		if (document.hidden) {
+			stopTimerInterval();
+		} else {
+			updateTimer();
+			startTimerInterval();
+		}
+	});
 	updateTimer();
-	if (running) {
-		setInterval(updateTimer, 1000);
+	startTimerInterval();
+
+	/* ---- Hint countdown ---- */
+	let hintCountdownInterval: ReturnType<typeof setInterval> | undefined;
+	const formatCountdown = (ms: number): string => {
+		const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+		const h = Math.floor(totalSeconds / 3600);
+		const m = Math.floor(totalSeconds % 3600 / 60);
+		const s = totalSeconds % 60;
+		return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+	};
+	let hintRenderedAt = Date.now();
+	const updateHintCountdowns = (): void => {
+		const elapsed = Date.now() - hintRenderedAt;
+		document.querySelectorAll<HTMLElement>('[data-remaining-ms]').forEach(el => {
+			const base = Number(el.dataset.remainingMs || '0');
+			const remaining = Math.max(0, base - elapsed);
+			const text = `剩余 ${formatCountdown(remaining)}`;
+			const status = el.querySelector<HTMLElement>('.hint-list-status');
+			const countdown = el.querySelector<HTMLElement>('.hint-countdown');
+			if (status) {
+				status.textContent = text;
+			}
+			if (countdown) {
+				countdown.textContent = text;
+			}
+			if (remaining === 0) {
+				el.removeAttribute('data-remaining-ms');
+				if (status) {
+					status.textContent = '已解锁';
+				}
+				el.classList.remove('locked');
+				el.setAttribute('tabindex', '0');
+				el.setAttribute('aria-disabled', 'false');
+				const hintName = el.querySelector<HTMLElement>('.hint-list-num')?.textContent || '提示';
+				el.setAttribute('aria-label', `打开${hintName}，已解锁`);
+			}
+		});
+	};
+	const startHintCountdown = (): void => {
+		if (hintCountdownInterval === undefined) {
+			updateHintCountdowns();
+			hintCountdownInterval = setInterval(updateHintCountdowns, 1000);
+		}
+	};
+	const stopHintCountdown = (): void => {
+		if (hintCountdownInterval !== undefined) {
+			clearInterval(hintCountdownInterval);
+			hintCountdownInterval = undefined;
+		}
+	};
+	document.addEventListener('visibilitychange', () => {
+		if (document.hidden) {
+			stopHintCountdown();
+		} else {
+			startHintCountdown();
+		}
+	});
+	startHintCountdown();
+
+	/* ---- Modal infrastructure ---- */
+	const modalOverlay = document.getElementById('oj-modal-overlay');
+	const pendingConfirms = new Map<string, (result: boolean) => void>();
+
+	const closeModal = (): void => {
+		if (!modalOverlay || modalOverlay.hidden) {
+			return;
+		}
+		modalOverlay.classList.remove('visible');
+		const overlay = modalOverlay;
+		setTimeout(() => {
+			if (!overlay.classList.contains('visible')) {
+				overlay.hidden = true;
+				overlay.innerHTML = '';
+			}
+		}, 200);
+	};
+
+	const showModal = (content: HTMLElement): void => {
+		if (!modalOverlay) {
+			return;
+		}
+		modalOverlay.innerHTML = '';
+		modalOverlay.appendChild(content);
+		modalOverlay.hidden = false;
+		void modalOverlay.offsetHeight;
+		modalOverlay.classList.add('visible');
+	};
+
+	const showConfirmDialog = (message: string, confirmLabel: string, cancelLabel: string): Promise<boolean> => {
+		return new Promise(resolve => {
+			const id = Math.random().toString(36).slice(2);
+			pendingConfirms.set(id, resolve);
+
+			const dialog = document.createElement('div');
+			dialog.className = 'modal confirm-dialog';
+			dialog.innerHTML = `
+				<div class="modal-body">
+					<p class="confirm-message"></p>
+					<div class="confirm-actions">
+						<button type="button" class="secondary cancel-btn"></button>
+						<button type="button" class="confirm-btn"></button>
+					</div>
+				</div>`;
+			dialog.querySelector('.confirm-message')!.textContent = message;
+			dialog.querySelector('.cancel-btn')!.textContent = cancelLabel;
+			dialog.querySelector('.confirm-btn')!.textContent = confirmLabel;
+
+			dialog.querySelector('.cancel-btn')!.addEventListener('click', () => {
+				pendingConfirms.delete(id);
+				closeModal();
+				resolve(false);
+			});
+			dialog.querySelector('.confirm-btn')!.addEventListener('click', () => {
+				pendingConfirms.delete(id);
+				closeModal();
+				resolve(true);
+			});
+
+			showModal(dialog);
+			(dialog.querySelector('.confirm-btn') as HTMLElement)?.focus();
+		});
+	};
+
+	window.addEventListener('message', (event: MessageEvent) => {
+		const message = event.data as ConfirmRequest | ShowHintModalMessage | undefined;
+		if (message && message.type === 'confirm') {
+			void showConfirmDialog(message.message, message.confirmLabel, message.cancelLabel).then(result => {
+				vscode.postMessage({ command: 'confirmResult', confirmId: message.id, result });
+			});
+			return;
+		}
+		if (message && message.type === 'showHintModal') {
+			const modal = document.createElement('div');
+			modal.className = 'modal hint-modal';
+			modal.innerHTML = message.html;
+			showModal(modal);
+			return;
+		}
+	});
+
+	if (modalOverlay) {
+		modalOverlay.addEventListener('click', event => {
+			if (event.target === modalOverlay) {
+				closeModal();
+			}
+		});
 	}
 
+	document.addEventListener('keydown', event => {
+		if (event.key === 'Escape' && modalOverlay && !modalOverlay.hidden) {
+			closeModal();
+		}
+		if (event.key !== 'Enter' && event.key !== ' ') {
+			return;
+		}
+		const target = event.target;
+		const hintItem = target instanceof Element ? target.closest<HTMLElement>('[data-command="openHintModal"]') : null;
+		if (!hintItem) {
+			return;
+		}
+		event.preventDefault();
+		openHintModal(hintItem.dataset.hintId!);
+	});
+
+	/* ---- Hint modal ---- */
+	const openHintModal = (hintId: string): void => {
+		vscode.postMessage({ command: 'openHintModal', hintId });
+	};
+
+	/* ---- Submission collapse/expand animation ---- */
 	document.addEventListener('click', event => {
 		const target = event.target;
+		const summary = target instanceof Element ? target.closest<HTMLElement>('.submission > summary') : null;
+		if (!summary) {
+			return;
+		}
+		const details = summary.parentElement;
+		if (!(details instanceof HTMLDetailsElement) || details.classList.contains('animating')) {
+			return;
+		}
+		event.preventDefault();
+		details.classList.add('animating');
+		const body = details.querySelector<HTMLElement>('.submission-body');
+		if (!body) {
+			details.classList.remove('animating');
+			return;
+		}
+		if (details.open) {
+			// Collapse: animate from current height to 0
+			body.style.maxHeight = `${body.scrollHeight}px`;
+			void body.offsetHeight;
+			body.style.maxHeight = '0';
+			body.style.opacity = '0';
+			setTimeout(() => {
+				details.open = false;
+				details.classList.remove('animating');
+				body.style.maxHeight = '';
+				body.style.opacity = '';
+			}, 200);
+		} else {
+			// Expand: open first, then animate from 0 to scrollHeight
+			details.open = true;
+			body.style.maxHeight = '0';
+			body.style.opacity = '0';
+			void body.offsetHeight;
+			body.style.maxHeight = `${body.scrollHeight}px`;
+			body.style.opacity = '1';
+			setTimeout(() => {
+				details.classList.remove('animating');
+				body.style.maxHeight = '';
+				body.style.opacity = '';
+			}, 200);
+		}
+	});
+
+	/* ---- Click handler ---- */
+	document.addEventListener('click', event => {
+		const target = event.target;
+
+		// Hint list item click → open modal (handled by extension via postMessage)
+		const hintItem = target instanceof Element ? target.closest<HTMLElement>('[data-command="openHintModal"]') : null;
+		if (hintItem) {
+			openHintModal(hintItem.dataset.hintId!);
+			return;
+		}
+
 		const button = target instanceof Element ? target.closest<HTMLButtonElement>('button[data-command]') : null;
 		if (!button || button.disabled) {
 			return;
 		}
 		const command = button.dataset.command;
-		if (command === 'answer') {
+		if (command === 'submit') {
+			if (button.dataset.armed !== 'true') {
+				button.classList.add('armed');
+				button.dataset.armed = 'true';
+				button.textContent = '确认提交';
+				if (submitConfirmationTimer) {
+					clearTimeout(submitConfirmationTimer);
+				}
+				submitConfirmationTimer = setTimeout(() => resetSubmitConfirmation(button), 3000);
+				return;
+			}
+			resetSubmitConfirmation(button);
+			vscode.postMessage({ command });
+		} else if (command === 'answer') {
 			vscode.postMessage({ command, hintId: button.dataset.hintId });
 		} else if (command === 'like') {
 			vscode.postMessage({
@@ -47,65 +345,301 @@ declare const katex: { render(source: string, element: Element, options: { displ
 				target: button.dataset.target,
 				liked: button.dataset.liked !== 'true',
 			});
+		} else if (command === 'addStressCounterExample') {
+			vscode.postMessage({ command, taskId: button.dataset.taskId });
+		} else if (command === 'startStress') {
+			vscode.postMessage({ command, submissionId: button.dataset.submissionId, rounds: Number(button.dataset.rounds) });
+		} else if (command === 'editorial') {
+			vscode.postMessage({ command });
+		} else if (command === 'closeModal') {
+			closeModal();
 		} else if (command) {
 			vscode.postMessage({ command });
 		}
 	});
 
-	document.getElementById('watch-submission')?.addEventListener('submit', event => {
+	document.addEventListener('submit', event => {
+		const form = event.target;
+		if (!(form instanceof HTMLFormElement)) {
+			return;
+		}
 		event.preventDefault();
-		const data = new FormData(event.currentTarget as HTMLFormElement);
-		vscode.postMessage({ command: 'watchSubmission', submissionId: String(data.get('submissionId') || '').trim() });
-	});
-	document.getElementById('start-stress')?.addEventListener('submit', event => {
-		event.preventDefault();
-		const data = new FormData(event.currentTarget as HTMLFormElement);
-		vscode.postMessage({
-			command: 'startStress',
-			submissionId: String(data.get('submissionId') || ''),
-			rounds: Number(data.get('rounds')),
-		});
+		const data = new FormData(form);
+		if (form.id === 'watch-submission') {
+			vscode.postMessage({ command: 'watchSubmission', submissionId: String(data.get('submissionId') || '').trim() });
+		} else if (form.id === 'start-stress') {
+			vscode.postMessage({
+				command: 'startStress',
+				submissionId: String(data.get('submissionId') || ''),
+				rounds: Number(data.get('rounds')),
+			});
+		}
 	});
 
-	for (const block of document.querySelectorAll<HTMLElement>('.math-block[data-tex]')) {
-		try {
-			katex.render(block.dataset.tex || '', block, { displayMode: true, throwOnError: false });
-		} catch {
-			block.textContent = `$$${block.dataset.tex || ''}$$`;
-		}
-	}
-	for (const block of document.querySelectorAll('[data-render-math]')) {
-		const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-		const nodes: Node[] = [];
-		while (walker.nextNode()) {
-			nodes.push(walker.currentNode);
-		}
-		for (const node of nodes) {
-			const parent = node.parentElement;
-			if (!parent || parent.closest('script, style, code, .katex')) {
-				continue;
-			}
-			const source = node.textContent || '';
-			const matches = [...source.matchAll(/\$([^$\n]+)\$/g)];
-			if (matches.length === 0) {
-				continue;
-			}
-			const fragment = document.createDocumentFragment();
-			let position = 0;
-			for (const match of matches) {
-				const matchIndex = match.index ?? 0;
-				fragment.append(document.createTextNode(source.slice(position, matchIndex)));
-				const math = document.createElement('span');
-				try {
-					katex.render(match[1], math, { throwOnError: false });
-				} catch {
-					math.textContent = match[0];
+	type SectionSnapshot = {
+		values: Array<[string, string]>;
+		openDetails: string[];
+		allDetailKeys: string[];
+		focusedName: string | undefined;
+		selectionStart: number | undefined;
+	};
+	const snapshotSection = (section: Element): SectionSnapshot => {
+		const values: Array<[string, string]> = [];
+		let focusedName: string | undefined;
+		let selectionStart: number | undefined;
+		for (const control of section.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input[name], select[name], textarea[name]')) {
+			values.push([control.name, control.value]);
+			if (control === document.activeElement) {
+				focusedName = control.name;
+				if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+					selectionStart = control.selectionStart ?? undefined;
 				}
-				fragment.append(math);
-				position = matchIndex + match[0].length;
 			}
-			fragment.append(document.createTextNode(source.slice(position)));
-			node.parentNode?.replaceChild(fragment, node);
 		}
+		const openDetails: string[] = [];
+		const allDetailKeys: string[] = [];
+		section.querySelectorAll('details').forEach((details, index) => {
+			const key = details.getAttribute('data-persist-key') ?? String(index);
+			allDetailKeys.push(key);
+			if (details.open) {
+				openDetails.push(key);
+			}
+		});
+		return { values, openDetails, allDetailKeys, focusedName, selectionStart };
+	};
+	const restoreSection = (section: Element, snapshot: SectionSnapshot): void => {
+		const remaining = new Map(snapshot.values);
+		for (const control of section.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input[name], select[name], textarea[name]')) {
+			const stored = remaining.get(control.name);
+			if (stored !== undefined) {
+				control.value = stored;
+				remaining.delete(control.name);
+			}
+			if (snapshot.focusedName !== undefined && control.name === snapshot.focusedName) {
+				control.focus();
+				if (snapshot.selectionStart !== undefined && (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement)) {
+					try {
+						control.setSelectionRange(snapshot.selectionStart, snapshot.selectionStart);
+					} catch {
+						// Some control types (e.g. number) do not support selection ranges.
+					}
+				}
+			}
+		}
+		section.querySelectorAll('details').forEach((details, index) => {
+			const key = details.getAttribute('data-persist-key') ?? String(index);
+			if (snapshot.allDetailKeys.includes(key)) {
+				details.open = snapshot.openDetails.includes(key);
+			}
+		});
+	};
+
+	const getActiveTabId = (): string | undefined => {
+		const active = document.querySelector('.tab-button.active');
+		return active instanceof HTMLElement ? active.dataset.tab : undefined;
+	};
+	const tabAnimationTimers = new WeakMap<HTMLElement, number>();
+	const parseAnimationTime = (value: string): number => {
+		const trimmed = value.trim();
+		if (!trimmed) {
+			return 0;
+		}
+		if (trimmed.endsWith('ms')) {
+			return Number(trimmed.slice(0, -2)) || 0;
+		}
+		if (trimmed.endsWith('s')) {
+			return (Number(trimmed.slice(0, -1)) || 0) * 1000;
+		}
+		return 0;
+	};
+	const getElementAnimationDuration = (element: HTMLElement): number => {
+		const style = window.getComputedStyle(element);
+		const durations = style.animationDuration.split(',');
+		const delays = style.animationDelay.split(',');
+		let maxDuration = 0;
+		for (let index = 0; index < durations.length; index++) {
+			const duration = parseAnimationTime(durations[index] || '');
+			const delay = parseAnimationTime(delays[index] || delays[delays.length - 1] || '');
+			maxDuration = Math.max(maxDuration, duration + delay);
+		}
+		return maxDuration;
+	};
+	const getTabAnimationDuration = (panel: HTMLElement): number => {
+		let maxDuration = 0;
+		for (const element of panel.querySelectorAll<HTMLElement>('*')) {
+			maxDuration = Math.max(maxDuration, getElementAnimationDuration(element));
+		}
+		return maxDuration;
+	};
+	const clearTabAnimation = (panel: HTMLElement): void => {
+		const timer = tabAnimationTimers.get(panel);
+		if (timer !== undefined) {
+			window.clearTimeout(timer);
+			tabAnimationTimers.delete(panel);
+		}
+		panel.classList.remove('play-tab-animation');
+	};
+	const playTabAnimation = (panel: HTMLElement): void => {
+		clearTabAnimation(panel);
+		void panel.offsetHeight;
+		panel.classList.add('play-tab-animation');
+		const duration = getTabAnimationDuration(panel);
+		const timer = window.setTimeout(() => {
+			panel.classList.remove('play-tab-animation');
+			tabAnimationTimers.delete(panel);
+		}, duration + 50);
+		tabAnimationTimers.set(panel, timer);
+	};
+	const setActiveTab = (tabId: string, options?: { animate?: boolean }): void => {
+		const previousTabId = getActiveTabId();
+		document.querySelectorAll('.tab-button').forEach(button => {
+			const isActive = button instanceof HTMLElement && button.dataset.tab === tabId;
+			button.classList.toggle('active', isActive);
+			button.setAttribute('aria-selected', String(isActive));
+		});
+		document.querySelectorAll('.tab-panel').forEach(panel => {
+			const isPanel = panel instanceof HTMLElement;
+			const isActive = isPanel && panel.id === `oj-${tabId}`;
+			panel.classList.toggle('active', Boolean(isActive));
+			if (!isPanel) {
+				return;
+			}
+			panel.hidden = !isActive;
+			panel.setAttribute('aria-hidden', String(!isActive));
+			if (isActive && options?.animate !== false && previousTabId !== tabId) {
+				playTabAnimation(panel);
+			} else {
+				clearTabAnimation(panel);
+			}
+		});
+	};
+	document.addEventListener('click', event => {
+		const tabButton = event.target instanceof Element ? event.target.closest<HTMLElement>('.tab-button') : null;
+		if (tabButton) {
+			const tabId = tabButton.dataset.tab;
+			if (tabId) {
+				setActiveTab(tabId);
+			}
+			return;
+		}
+	});
+	const initialTabId = getActiveTabId();
+	if (initialTabId) {
+		setActiveTab(initialTabId, { animate: false });
 	}
+
+	const animateHeightChange = (section: HTMLElement, update: () => void): void => {
+		const oldHeight = section.scrollHeight;
+		const previousTransition = section.style.transition;
+		const previousHeight = section.style.height;
+		const previousOverflow = section.style.overflow;
+		section.style.overflow = 'hidden';
+		section.style.transition = 'none';
+		section.style.height = `${oldHeight}px`;
+		update();
+		const newHeight = section.scrollHeight;
+		if (oldHeight === newHeight) {
+			section.style.height = previousHeight;
+			section.style.transition = previousTransition;
+			section.style.overflow = previousOverflow;
+			return;
+		}
+		void section.offsetHeight;
+		section.style.transition = 'height 200ms ease';
+		section.style.height = `${newHeight}px`;
+		window.setTimeout(() => {
+			section.style.height = previousHeight;
+			section.style.transition = previousTransition;
+			section.style.overflow = previousOverflow;
+		}, 200);
+	};
+	const snapshotSubmissionHeights = (section: HTMLElement): Map<string, number> => {
+		const heights = new Map<string, number>();
+		section.querySelectorAll<HTMLElement>('.submission[data-persist-key]').forEach(submission => {
+			const key = submission.dataset.persistKey;
+			if (key) {
+				heights.set(key, submission.getBoundingClientRect().height);
+			}
+		});
+		return heights;
+	};
+	const animateSubmissionResize = (section: HTMLElement, previousHeights: Map<string, number>): void => {
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			return;
+		}
+		section.querySelectorAll<HTMLElement>('.submission[data-persist-key]').forEach(submission => {
+			const key = submission.dataset.persistKey;
+			const previousHeight = key ? previousHeights.get(key) : undefined;
+			if (previousHeight === undefined) {
+				return;
+			}
+			const nextHeight = submission.getBoundingClientRect().height;
+			if (Math.abs(previousHeight - nextHeight) < 1) {
+				return;
+			}
+			submission.style.overflow = 'hidden';
+			submission.style.transition = 'none';
+			submission.style.height = `${previousHeight}px`;
+			void submission.offsetHeight;
+			submission.style.transition = 'height 200ms ease';
+			submission.style.height = `${nextHeight}px`;
+			window.setTimeout(() => {
+				submission.style.height = '';
+				submission.style.transition = '';
+				submission.style.overflow = '';
+			}, 200);
+		});
+	};
+
+	window.addEventListener('message', event => {
+		const message = event.data as WebViewMessage;
+		if (!message) {
+			return;
+		}
+		if (message.type === 'confirm' || message.type === 'showHintModal') {
+			return; // handled by the dedicated handler above
+		}
+		if (message.type === 'focusTab') {
+			setActiveTab(message.tabId);
+			return;
+		}
+		if (message.type !== 'update') {
+			return;
+		}
+		const hasHintUpdate = Object.keys(message.sections).some(id => id === 'oj-hints');
+		for (const [id, html] of Object.entries(message.sections)) {
+			const section = document.getElementById(id);
+			if (!section) {
+				continue;
+			}
+			const snapshot = snapshotSection(section);
+			const submissionHeights = id === 'oj-submissions' ? snapshotSubmissionHeights(section) : undefined;
+			const updateSection = () => {
+				section.innerHTML = html;
+				restoreSection(section, snapshot);
+			};
+			if (submissionHeights) {
+				updateSection();
+				animateSubmissionResize(section, submissionHeights);
+			} else {
+				animateHeightChange(section, updateSection);
+			}
+		}
+		if (hasHintUpdate) {
+			hintRenderedAt = Date.now();
+		}
+		if (message.timer) {
+			timerState.elapsedMs = message.timer.elapsedMs;
+			timerState.capturedAt = message.timer.capturedAt;
+			timerState.running = message.timer.running;
+			updateTimer();
+			if (timerState.running) {
+				startTimerInterval();
+			} else {
+				stopTimerInterval();
+			}
+		}
+	});
+
+	vscode.postMessage({ command: 'ready' });
 })();

@@ -10,28 +10,31 @@
 </head>
 <body data-elapsed-ms="{{ELAPSED_MS}}" data-timer-running="{{TIMER_RUNNING}}" data-captured-at="{{CAPTURED_AT}}">
 	<header>
-		<div>
-			<h1>{{TITLE}}</h1>
-			<p>{{METADATA}}</p>
+		<div class="header-main">
+			<div class="title-line">
+				<h1><a href="{{PROBLEM_URL}}" target="_blank" rel="noopener">{{TITLE}}</a></h1>
+				<span class="metadata">{{METADATA}}</span>
+			</div>
+			<div id="oj-status" class="title-status">{{STATUS}}</div>
+			<div class="problem-actions">
+				<span id="oj-submission-button">{{SUBMISSION_BUTTON}}</span>
+				<span id="oj-editorial-action">{{EDITORIAL_ACTION}}</span>
+			</div>
 		</div>
-		<time id="problem-timer">00:00:00</time>
-		<div class="problem-actions">
-			<a href="{{PROBLEM_URL}}">在浏览器中打开</a>
-			{{SUBMISSION_BUTTON}}
-		</div>
+		<div id="oj-information" class="header-info">{{INFORMATION}}</div>
+		<div id="problem-timer"></div>
 	</header>
-	{{STATUS}}
-	{{INFORMATION}}
-	<main data-render-math>{{STATEMENT}}</main>
-	{{HINTS}}
-	<section class="solution-actions">
-		{{EDITORIAL_ACTION}}
-	</section>
-	{{EDITORIAL}}
-	{{SUBMISSIONS}}
-	{{STRESS}}
-	<footer>已将 {{SAMPLE_COUNT}} 组样例交给 CPH Plus。</footer>
-	<script src="{{KATEX_SCRIPT_URI}}"></script>
+	<div class="tabs" role="tablist" aria-label="题目视图">
+		<button type="button" class="tab-button active" data-tab="statement" role="tab" aria-selected="true" aria-controls="oj-statement">题面</button>
+		<button type="button" class="tab-button" data-tab="hints" role="tab" aria-selected="false" aria-controls="oj-hints">提示<span class="tab-badge" id="hint-badge"></span></button>
+		<button type="button" class="tab-button" data-tab="submissions" role="tab" aria-selected="false" aria-controls="oj-submissions">评测<span class="tab-badge" id="submission-badge"></span></button>
+	</div>
+	<div class="tab-panels">
+		<section id="oj-statement" class="tab-panel active" role="tabpanel">{{STATEMENT}}</section>
+		<section id="oj-hints" class="tab-panel" role="tabpanel">{{HINTS}}</section>
+		<section id="oj-submissions" class="tab-panel" role="tabpanel">{{SUBMISSIONS}}</section>
+	</div>
+	<div id="oj-modal-overlay" class="modal-overlay" hidden></div>
 	<script src="{{SCRIPT_URI}}"></script>
 </body>
 </html>
