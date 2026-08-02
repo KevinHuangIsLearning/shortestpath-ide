@@ -279,7 +279,10 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			const screenshot = await this._model.captureScreenshot({ quality: 80 });
 			this._setBackgroundImage(screenshot);
 		} catch (error) {
-			this.logService.error('Failed to capture browser view screenshot', error);
+			// A browser view can be visible before Electron has produced a frame.
+			// This best-effort placeholder refresh retries every second, so reporting
+			// the transient capture failure as an error only floods the window log.
+			this.logService.trace('Failed to capture browser view screenshot', error);
 		}
 		const handle = setTimeout(() => void this._doScreenshot(), 1000);
 		this._screenshotHandle.value = toDisposable(() => clearTimeout(handle));
