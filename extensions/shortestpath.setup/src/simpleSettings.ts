@@ -35,6 +35,7 @@ type SimpleSettingsState = {
 	autoDetectColorScheme: boolean;
 	autoSave: string;
 	newFileDefaultLanguage: string;
+	shortestPathCppSubmissionLanguage: string;
 	themes: ThemeOption[];
 };
 
@@ -450,6 +451,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.commands.executeCommand('shortestpath.openToolchainDiagnostics');
 		} else if (message?.type === 'cphSettings') {
 			await vscode.commands.executeCommand('shortestpath.configureCph');
+		} else if (message?.type === 'ojControlPanel') {
+			await vscode.commands.executeCommand('shortestpath.oj.openControlPanel');
 		}
 	}, undefined, context.subscriptions);
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
@@ -539,6 +542,7 @@ function getState(): SimpleSettingsState {
 		autoDetectColorScheme: windowConfiguration.get<boolean>('autoDetectColorScheme') ?? false,
 		autoSave: files.get<string>('autoSave') ?? 'off',
 		newFileDefaultLanguage: vscode.workspace.getConfiguration('shortestpath.newFile', null).get<string>('defaultLanguage') ?? 'cpp',
+		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'ask',
 		themes: getThemeOptions(colorTheme)
 	};
 }
@@ -592,7 +596,8 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('window.autoDetectColorScheme', value.autoDetectColorScheme === true, vscode.ConfigurationTarget.Global),
 		settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global),
 		settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global),
-		settings.update('shortestpath.newFile.defaultLanguage', typeof value.newFileDefaultLanguage === 'string' && value.newFileDefaultLanguage ? value.newFileDefaultLanguage : 'cpp', vscode.ConfigurationTarget.Global)
+		settings.update('shortestpath.newFile.defaultLanguage', typeof value.newFileDefaultLanguage === 'string' && value.newFileDefaultLanguage ? value.newFileDefaultLanguage : 'cpp', vscode.ConfigurationTarget.Global),
+		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global)
 	]);
 }
 
@@ -644,6 +649,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 </section>
 <section class="card" data-category="cpp">
 <div class="row"><div><label for="cppStandard">C++ 版本</label></div><select id="cppStandard"><option>c++11</option><option>c++14</option><option>c++17</option><option>c++20</option><option>c++23</option></select></div>
+<div class="row"><div><label for="shortestPathCppSubmissionLanguage">ShortestPath OJ 提交语言</label><div class="hint">“每次询问”会在 C++ 提交前选择 C++14 或 C++20。</div></div><select id="shortestPathCppSubmissionLanguage"><option value="ask">每次询问</option><option value="cpp14">C++14</option><option value="cpp20">C++20</option></select></div>
 <div class="row"><div><label for="compilerFlags">编译选项</label><div class="hint">同时应用到 CPH 和 C/C++ Compile Run。</div></div><input id="compilerFlags" type="text"></div>
 <div class="row"><div><label for="clangdVariableTypeHints">clangd 变量类型提示</label><div class="hint">在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。</div></div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="executableCleanupEnabled">自动清理生成文件</label><div class="hint">同时作用于 CPH 和 C/C++ Compile Run。</div></div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox"><span>启用</span></label></div>
@@ -656,6 +662,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 </section>
 <section class="card" data-category="tools"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label>ShortestPath OJ 账号</label><div class="hint">查看当前登录用户并退出账号（不影响外部浏览器）。</div></div><button id="ojControlPanel" class="secondary">打开账号面板</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
 <p id="noResults" class="no-results" hidden>没有匹配的设置。</p>
@@ -782,6 +789,7 @@ function apply(state) {
   byId('fontSize').value = state.fontSize;
 	byId('autoFormat').checked = !!state.autoFormat;
   byId('cppStandard').value = state.cppStandard;
+	byId('shortestPathCppSubmissionLanguage').value = state.shortestPathCppSubmissionLanguage;
   byId('compilerFlags').value = state.compilerFlags;
   byId('clangdVariableTypeHints').checked = !!state.clangdVariableTypeHints;
   byId('errorLensCodeLensEnabled').checked = !!state.errorLensCodeLensEnabled;
@@ -795,7 +803,7 @@ function apply(state) {
 	byId('newFileDefaultLanguage').value = state.newFileDefaultLanguage;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value }; }
+function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#settingsSearch), select').forEach(control => {
@@ -812,6 +820,7 @@ byId('advanced').addEventListener('click', () => vscode.postMessage({ type: 'adv
 byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
 byId('cphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
+byId('ojControlPanel').addEventListener('click', () => vscode.postMessage({ type: 'ojControlPanel' }));
 byId('toolchainDiagnostics').addEventListener('click', () => vscode.postMessage({ type: 'toolchainDiagnostics' }));
 window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); if (event.data?.type === 'systemFonts') void applySystemFonts(event.data.value); });
 apply(${serializedState});

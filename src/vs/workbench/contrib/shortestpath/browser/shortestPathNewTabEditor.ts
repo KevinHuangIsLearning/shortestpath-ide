@@ -52,6 +52,8 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open Integrated Browser', '打开内置浏览器'), 'codicon-globe', () => this.commandService.executeCommand('workbench.action.browser.open'));
 		// allow-any-unicode-next-line
+		this.addAction(actions, localizeNewTab('Open ShortestPath OJ', '打开 ShortestPath OJ'), 'codicon-mortar-board', () => this.commandService.executeCommand('shortestpath.oj.openIntegratedBrowser'));
+		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open Settings', '打开设置'), 'codicon-settings-gear', () => this.commandService.executeCommand('shortestpath.openSettings'));
 	}
 

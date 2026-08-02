@@ -998,6 +998,7 @@ export class CodeApplication extends Disposable {
 				AT: '{ojName}/{contestId}/{problemId}.{ext}',
 				CF: '{ojName}/{contestId}/{problemId}.{ext}',
 				LG: '{ojName}/{problemId}.{ext}',
+				ShortestPath: '{ojName}/{contestId}/{problemId}.{ext}',
 				VJ: '{ojName}/{problemId}{slug}.{ext}',
 				'\u725b\u5ba2': 'NowCoder/{problemId}.{ext}'
 			},
@@ -1020,6 +1021,7 @@ export class CodeApplication extends Disposable {
 				'codeforces.com': { oj: 'CF', ojName: 'Codeforces', contestIdRegex: '(?:contest|gym|problemset\\/problem)\\/(\\d+)', problemIdRegex: '(?:contest|gym|problemset\\/problem)\\/\\d+\\/(\\w+)' },
 				'atcoder.jp': { oj: 'AT', ojName: 'AtCoder', contestIdRegex: 'contests\\/(\\w+)\\/tasks\\/\\w+_\\w+', problemIdRegex: 'contests\\/\\w+\\/tasks\\/\\w+_(\\w+)' },
 				'luogu.com.cn': { oj: 'LG', ojName: 'Luogu', problemIdRegex: 'problem\\/(\\w+)' },
+				'shortestpath.cn': { oj: 'ShortestPath', ojName: 'ShortestPath', contestIdRegex: 'problem\\/([^\\/]+)\\/[^\\/]+\\/[^\\/]+', problemIdRegex: 'problem\\/[^\\/]+\\/(.+)$' },
 				'open.kattis.com': { oj: 'Kattis', ojName: 'Kattis' },
 				'codechef.com': { oj: 'CC', ojName: 'CodeChef' },
 				'spoj.com': { oj: 'SPOJ', ojName: 'SPOJ' },
