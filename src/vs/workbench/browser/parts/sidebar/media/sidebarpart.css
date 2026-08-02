@@ -189,6 +189,22 @@
 	overflow: visible;
 }
 
+/* The auxiliary bar intentionally occupies the tab row. Make its background
+ * draggable and opt actual controls out through child no-drag regions. */
+.monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar,
+.monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar {
+	-webkit-app-region: drag;
+}
+
+.monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar > .content,
+.monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar > .title > *,
+.monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar > .header-or-footer,
+.monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar > .content,
+.monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar > .title > *,
+.monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar > .header-or-footer {
+	-webkit-app-region: no-drag;
+}
+
 .monaco-workbench.custom-titlebar-hidden.mac .part.auxiliarybar > .title > .global-actions,
 .monaco-workbench.custom-titlebar-hidden.windows .part.auxiliarybar > .title > .global-actions {
 	position: absolute;
