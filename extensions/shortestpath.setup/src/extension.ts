@@ -46,10 +46,21 @@ const shortestPathHiddenFiles: Record<string, boolean> = {
 	'**/.clang-format': true,
 	'**/.clangd': true,
 	'**/*.exe': true,
+	'**/*.bin': true,
+	'**/*.bin.dSYM': true,
+	'**/*.dSYM': true,
 	'**/.*': true
 };
 
-const FILE_EXCLUDES_MIGRATION = 'shortestpath.fileExcludes.v2';
+const FILE_EXCLUDES_MIGRATION = 'shortestpath.fileExcludes.v3';
+const OJ_MAPPING_MIGRATION = 'shortestpath.ojMapping.v2';
+const FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION = 'shortestpath.fileNameTemplateOverrides.v1';
+const shortestPathOjMapping = {
+	oj: 'ShortestPath',
+	ojName: 'ShortestPath',
+	contestIdRegex: 'problem\\/([^\\/]+)\\/[^\\/]+\\/[^\\/]+',
+	problemIdRegex: 'problem\\/[^\\/]+\\/(.+)$'
+};
 
 function clangdArgumentsForCompiler(compiler: string): string[] {
 	// Homebrew exposes GCC through multiple symlinked paths, for example both
@@ -252,6 +263,7 @@ const cphSettings: Record<string, unknown> = {
 		AT: '{ojName}/{contestId}/{problemId}.{ext}',
 		CF: '{ojName}/{contestId}/{problemId}.{ext}',
 		LG: '{ojName}/{problemId}.{ext}',
+		ShortestPath: '{ojName}/{contestId}/{problemId}.{ext}',
 		VJ: '{ojName}/{problemId}{slug}.{ext}',
 		'牛客': 'NowCoder/{problemId}.{ext}'
 	},
@@ -274,6 +286,7 @@ const cphSettings: Record<string, unknown> = {
 		'codeforces.com': { oj: 'CF', ojName: 'Codeforces', contestIdRegex: '(?:contest|gym|problemset\\/problem)\\/(\\d+)', problemIdRegex: '(?:contest|gym|problemset\\/problem)\\/\\d+\\/(\\w+)' },
 		'atcoder.jp': { oj: 'AT', ojName: 'AtCoder', contestIdRegex: 'contests\\/(\\w+)\\/tasks\\/\\w+_\\w+', problemIdRegex: 'contests\\/\\w+\\/tasks\\/\\w+_(\\w+)' },
 		'luogu.com.cn': { oj: 'LG', ojName: 'Luogu', problemIdRegex: 'problem\\/(\\w+)' },
+		'shortestpath.cn': shortestPathOjMapping,
 		'open.kattis.com': { oj: 'Kattis', ojName: 'Kattis' },
 		'codechef.com': { oj: 'CC', ojName: 'CodeChef' },
 		'spoj.com': { oj: 'SPOJ', ojName: 'SPOJ' },
@@ -306,6 +319,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await ensureShortestPathFileExcludes();
 		await context.globalState.update(FILE_EXCLUDES_MIGRATION, true);
 	}
+	if (!context.globalState.get<boolean>(OJ_MAPPING_MIGRATION)) {
+		await ensureShortestPathOjMapping();
+		await context.globalState.update(OJ_MAPPING_MIGRATION, true);
+	}
+	if (!context.globalState.get<boolean>(FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION)) {
+		await ensureShortestPathFileNameTemplateOverride();
+		await context.globalState.update(FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION, true);
+	}
 	const updateHiddenFilesContext = () => {
 		void vscode.commands.executeCommand('setContext', 'shortestpath.showAllFiles', !hasShortestPathHiddenFiles());
 	};
@@ -328,6 +349,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}));
 	await applyPending();
 	void offerOiWorkspaceInitialization(context);
+}
+
+async function ensureShortestPathOjMapping(): Promise<void> {
+	const configuration = vscode.workspace.getConfiguration('cph.general', null);
+	const globalValue = configuration.inspect<Record<string, unknown>>('ojMapping')?.globalValue;
+	if (!globalValue) {
+		return;
+	}
+	const existing = globalValue['shortestpath.cn'] as { oj?: string; ojName?: string } | undefined;
+	if (existing && !(existing.oj === 'SP' && existing.ojName === 'ShortestPath OJ')) {
+		return;
+	}
+	await configuration.update('ojMapping', { ...globalValue, 'shortestpath.cn': shortestPathOjMapping }, vscode.ConfigurationTarget.Global);
+}
+
+async function ensureShortestPathFileNameTemplateOverride(): Promise<void> {
+	const configuration = vscode.workspace.getConfiguration('cph.general', null);
+	const globalValue = configuration.inspect<Record<string, string>>('fileNameTemplateOverrides')?.globalValue;
+	if (!globalValue || globalValue.ShortestPath) {
+		return;
+	}
+	await configuration.update('fileNameTemplateOverrides', { ...globalValue, ShortestPath: '{ojName}/{contestId}/{problemId}.{ext}' }, vscode.ConfigurationTarget.Global);
 }
 
 async function rerunFirstRunSetup(): Promise<void> {
@@ -437,10 +480,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 			settings['cph.general.vjudgeOpenInBrowser'] = firstRunSelection.vjudgeOpenInBrowser;
 		}
 	}
-	settings['files.exclude'] = {
-		...getGlobalFileExcludes(),
-		...shortestPathHiddenFiles
-	};
+	settings['files.exclude'] = addMissingShortestPathFileExcludes(getGlobalFileExcludes());
 	const cppStandard = firstRunSelection?.cppStandard ?? 'c++23';
 	if (compiler) {
 		const compilerFlags = [
@@ -575,15 +615,23 @@ function hasShortestPathHiddenFiles(): boolean {
 	return Object.keys(shortestPathHiddenFiles).some(pattern => excludes[pattern] === true);
 }
 
+function addMissingShortestPathFileExcludes(excludes: Record<string, boolean>): Record<string, boolean> {
+	const updatedExcludes = { ...excludes };
+	for (const [pattern, excluded] of Object.entries(shortestPathHiddenFiles)) {
+		if (!(pattern in updatedExcludes)) {
+			updatedExcludes[pattern] = excluded;
+		}
+	}
+	return updatedExcludes;
+}
+
 async function ensureShortestPathFileExcludes(): Promise<void> {
 	const excludes = getGlobalFileExcludes();
-	if (Object.keys(shortestPathHiddenFiles).every(pattern => excludes[pattern] === true)) {
+	const updatedExcludes = addMissingShortestPathFileExcludes(excludes);
+	if (Object.keys(updatedExcludes).length === Object.keys(excludes).length) {
 		return;
 	}
-	await vscode.workspace.getConfiguration('files', null).update('exclude', {
-		...excludes,
-		...shortestPathHiddenFiles
-	}, vscode.ConfigurationTarget.Global);
+	await vscode.workspace.getConfiguration('files', null).update('exclude', updatedExcludes, vscode.ConfigurationTarget.Global);
 }
 
 async function toggleHiddenFiles(): Promise<void> {
