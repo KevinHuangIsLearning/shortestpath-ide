@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { canRequestEditorial, shouldConfirmEditorial } from './editorialAccess';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
-import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanel, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
+import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanel, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
 import { OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
 import {
 	applyEditorialLikeResult,
@@ -270,6 +270,18 @@ class ShortestPathOjProblemPanel {
 			this.suppressRestoreForInactiveSource = true;
 			this.panel.dispose();
 		}
+		return true;
+	}
+
+	hideProblemWhenSourceCloses(): boolean {
+		if (!this.state || !shouldHideProblemPanelWhenSourceCloses(this.state.sourcePath, getOpenFileTabGroups().flatMap(group => group.filePaths))) {
+			return false;
+		}
+		this.state = undefined;
+		this.reopenProblemAfterEditorial = false;
+		this.editorialHiddenSourcePath = undefined;
+		this.editorialPanel?.dispose();
+		this.panel?.dispose();
 		return true;
 	}
 
@@ -862,6 +874,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblem', () => panel.reveal()));
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => {
 		setTimeout(() => panel.hideProblemWhenSourceInactive(), 0);
+	}));
+	context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(() => {
+		setTimeout(() => panel.hideProblemWhenSourceCloses(), 0);
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowser', async () => {
 		await vscode.window.openBrowserTab('https://shortestpath.cn/topics', { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });

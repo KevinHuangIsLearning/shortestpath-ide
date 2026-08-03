@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { findOpenFileViewColumn, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanel, shouldRestoreProblemPanelAfterEditorial } from '../problemPanelLifecycle';
+import { findOpenFileViewColumn, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanel, shouldRestoreProblemPanelAfterEditorial } from '../problemPanelLifecycle';
 
 suite('ShortestPath OJ problem panel lifecycle', () => {
 	test('restores a closed problem panel while its source tab remains open', () => {
@@ -74,5 +74,11 @@ suite('ShortestPath OJ problem panel lifecycle', () => {
 		assert.equal(shouldHideProblemPanelWhenSourceInactive('/workspace/a.cpp', '/workspace/b.cpp'), true);
 		assert.equal(shouldHideProblemPanelWhenSourceInactive('/workspace/a.cpp', undefined), false);
 		assert.equal(shouldHideProblemPanelWhenSourceInactive(undefined, undefined), false);
+	});
+
+	test('hides the problem panel after its inactive source tab closes', () => {
+		assert.equal(shouldHideProblemPanelWhenSourceCloses('/workspace/a.cpp', ['/workspace/b.cpp']), true);
+		assert.equal(shouldHideProblemPanelWhenSourceCloses('/workspace/a.cpp', ['/workspace/a.cpp', '/workspace/b.cpp']), false);
+		assert.equal(shouldHideProblemPanelWhenSourceCloses(undefined, ['/workspace/b.cpp']), false);
 	});
 });
