@@ -453,6 +453,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.commands.executeCommand('shortestpath.configureCph');
 		} else if (message?.type === 'ojControlPanel') {
 			await vscode.commands.executeCommand('shortestpath.oj.openControlPanel');
+		} else if (message?.type === 'checkForUpdates') {
+			await vscode.commands.executeCommand('shortestpath.action.checkForUpdates');
 		}
 	}, undefined, context.subscriptions);
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
@@ -663,6 +665,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <section class="card" data-category="tools"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>ShortestPath OJ 账号</label><div class="hint">查看当前登录用户并退出账号（不影响外部浏览器）。</div></div><button id="ojControlPanel" class="secondary">打开账号面板</button></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><button id="checkForUpdates" class="secondary">检查更新</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
 <p id="noResults" class="no-results" hidden>没有匹配的设置。</p>
@@ -821,6 +824,7 @@ byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'sni
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
 byId('cphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
 byId('ojControlPanel').addEventListener('click', () => vscode.postMessage({ type: 'ojControlPanel' }));
+byId('checkForUpdates').addEventListener('click', () => vscode.postMessage({ type: 'checkForUpdates' }));
 byId('toolchainDiagnostics').addEventListener('click', () => vscode.postMessage({ type: 'toolchainDiagnostics' }));
 window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); if (event.data?.type === 'systemFonts') void applySystemFonts(event.data.value); });
 apply(${serializedState});

@@ -5,17 +5,22 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getShortestPathUpdateCheckDelay, isShortestPathUpdateAvailable, parseShortestPathRelease, SHORTESTPATH_UPDATE_CHECK_INTERVAL } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
+import { getShortestPathUpdateCheckDelay, isShortestPathUpdateAvailable, parseShortestPathUpdateDocument, SHORTESTPATH_UPDATE_CHECK_INTERVAL } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
 
 suite('ShortestPath update check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('parses stable release tags only', () => {
-		assert.deepStrictEqual(parseShortestPathRelease({ tag_name: 'Release-v0.2.1', html_url: 'https://example.com/release', draft: false, prerelease: false }), {
+	test('parses a valid latest update document only', () => {
+		assert.deepStrictEqual(parseShortestPathUpdateDocument({
 			version: '0.2.1',
-			downloadUrl: 'https://example.com/release',
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
+		}), {
+			version: '0.2.1',
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
 		});
-		assert.strictEqual(parseShortestPathRelease({ tag_name: 'Beta-v0.2.1', html_url: 'https://example.com/release', draft: false, prerelease: true }), undefined);
+		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://example.com/release' }), undefined);
+		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/example/other/releases/tag/Release-v0.2.1' }), undefined);
+		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.2', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1' }), undefined);
 	});
 
 	test('compares semantic release versions', () => {
@@ -25,7 +30,7 @@ suite('ShortestPath update check', () => {
 	});
 
 	test('schedules the next automatic check after a successful check', () => {
-		assert.strictEqual(getShortestPathUpdateCheckDelay(0, 1000), 10000);
+		assert.strictEqual(getShortestPathUpdateCheckDelay(0, 1000), 0);
 		assert.strictEqual(getShortestPathUpdateCheckDelay(1000, 1000), SHORTESTPATH_UPDATE_CHECK_INTERVAL);
 		assert.strictEqual(getShortestPathUpdateCheckDelay(1000, 1000 + SHORTESTPATH_UPDATE_CHECK_INTERVAL), 10000);
 	});

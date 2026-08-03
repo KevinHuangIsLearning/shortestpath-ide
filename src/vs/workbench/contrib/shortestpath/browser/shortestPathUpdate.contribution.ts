@@ -18,7 +18,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { getShortestPathUpdateCheckDelay, IShortestPathRelease, isShortestPathUpdateAvailable, parseShortestPathRelease, SHORTESTPATH_UPDATE_CHECK_INTERVAL } from './shortestPathUpdate.js';
+import { getShortestPathUpdateCheckDelay, IShortestPathUpdateDocument, isShortestPathUpdateAvailable, parseShortestPathUpdateDocument, SHORTESTPATH_UPDATE_CHECK_INTERVAL } from './shortestPathUpdate.js';
 
 const LAST_CHECKED_STORAGE_KEY = 'shortestpath.update.lastChecked';
 const LAST_NOTIFIED_VERSION_STORAGE_KEY = 'shortestpath.update.lastNotifiedVersion';
@@ -35,15 +35,14 @@ class ShortestPathUpdateChecker {
 
 	async check(explicit: boolean): Promise<void> {
 		const currentVersion = this.productService.shortestPathVersion;
-		const releaseApiUrl = this.productService.shortestPathReleaseApiUrl;
-		if (!currentVersion || !releaseApiUrl) {
+		const updateUrl = this.productService.shortestPathUpdateUrl;
+		if (!currentVersion || !updateUrl) {
 			return;
 		}
 
 		const response = await this.requestService.request({
 			type: 'GET',
-			url: releaseApiUrl,
-			headers: { Accept: 'application/vnd.github+json' },
+			url: updateUrl,
 			disableCache: true,
 			timeout: 10000,
 			callSite: 'shortestPathUpdate.check',
@@ -52,11 +51,12 @@ class ShortestPathUpdateChecker {
 			throw new Error(`Failed to check for ShortestPath IDE updates: HTTP ${response.res.statusCode}`);
 		}
 
-		const releaseResponse = await asJson<IShortestPathRelease>(response);
-		const release = releaseResponse ? parseShortestPathRelease(releaseResponse) : undefined;
+		const updateDocument = await asJson<IShortestPathUpdateDocument>(response);
+		const release = updateDocument ? parseShortestPathUpdateDocument(updateDocument) : undefined;
 		if (!release || !isShortestPathUpdateAvailable(currentVersion, release.version)) {
 			if (explicit) {
-				await this.dialogService.info(localize('shortestpath.update.latest', "You are using the latest version of ShortestPath IDE ({0}).", currentVersion));
+				// allow-any-unicode-next-line
+				await this.dialogService.info(localize('shortestpath.update.latest', "当前已是 ShortestPath IDE 最新版本（{0}）。", currentVersion));
 			}
 			return;
 		}
@@ -68,9 +68,12 @@ class ShortestPathUpdateChecker {
 
 		const result = await this.dialogService.confirm({
 			type: severity.Info,
-			message: localize('shortestpath.update.available', "ShortestPath IDE {0} is available.", release.version),
-			detail: localize('shortestpath.update.detail', "Current version: {0}. Open the release page to choose a download.", currentVersion),
-			primaryButton: localize({ key: 'shortestpath.update.openRelease', comment: ['&& denotes a mnemonic'] }, "&&Open Release Page"),
+			// allow-any-unicode-next-line
+			message: localize('shortestpath.update.available', "ShortestPath IDE {0} 已发布。", release.version),
+			// allow-any-unicode-next-line
+			detail: localize('shortestpath.update.detail', "当前版本：{0}。打开发布页面以选择下载文件。", currentVersion),
+			// allow-any-unicode-next-line
+			primaryButton: localize({ key: 'shortestpath.update.openRelease', comment: ['&& denotes a mnemonic'] }, "&&打开发布页面"),
 		});
 		if (result.confirmed) {
 			await this.openerService.open(URI.parse(release.downloadUrl));
@@ -95,7 +98,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 		this.checkScheduler = this._register(new RunOnceScheduler(() => this.checkForUpdates(instantiationService, storageService, logService), 0));
 
 		const lastChecked = Number(storageService.get(LAST_CHECKED_STORAGE_KEY, StorageScope.APPLICATION, '0'));
-		if (!productService.shortestPathVersion || !productService.shortestPathReleaseApiUrl) {
+		if (!productService.shortestPathVersion || !productService.shortestPathUpdateUrl) {
 			return;
 		}
 		this.checkScheduler.schedule(getShortestPathUpdateCheckDelay(lastChecked, Date.now()));
@@ -119,18 +122,21 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'shortestpath.action.checkForUpdates',
-			title: localize2('shortestpath.checkForUpdates', 'Check for ShortestPath IDE Updates'),
+			// allow-any-unicode-next-line
+			title: localize2('shortestpath.checkForUpdates', '检查 ShortestPath IDE 更新'),
 			f1: true,
 			menu: [{ id: MenuId.MenubarHelpMenu, group: '1_welcome', order: 4 }],
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const dialogService = accessor.get(IDialogService);
 		const checker = accessor.get(IInstantiationService).createInstance(ShortestPathUpdateChecker);
 		try {
 			await checker.check(true);
 		} catch {
-			await accessor.get(IDialogService).error(localize('shortestpath.update.failed', "Unable to check for ShortestPath IDE updates. Please try again later."));
+			// allow-any-unicode-next-line
+			await dialogService.error(localize('shortestpath.update.failed', "无法检查 ShortestPath IDE 更新，请稍后重试。"));
 		}
 	}
 });
