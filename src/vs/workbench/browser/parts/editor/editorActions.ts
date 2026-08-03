@@ -5,7 +5,7 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Action } from '../../../../base/common/actions.js';
-import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, GroupIdentifier, EditorResourceAccessor } from '../../../common/editor.js';
+import { canOpenEditorsInNewWindow, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, GroupIdentifier, EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
@@ -2585,6 +2585,9 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}
+		if (resolvedContext.groupedEditors.some(({ editors }) => !canOpenEditorsInNewWindow(editors))) {
+			return;
+		}
 
 		const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
 
@@ -2648,6 +2651,9 @@ abstract class BaseMoveCopyEditorGroupToNewWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const activeGroup = editorGroupService.activeGroup;
+		if (!canOpenEditorsInNewWindow(activeGroup.editors)) {
+			return;
+		}
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 

@@ -880,7 +880,17 @@ export const enum EditorInputCapabilities {
 	 * part. This is honored unless the user has explicitly opted
 	 * out of modal editors via `workbench.editor.useModal: 'off'`.
 	 */
-	RequiresModal = 1 << 11
+	RequiresModal = 1 << 11,
+
+	/**
+	 * Signals that the editor must remain in its current window. It can still
+	 * move or split between editor groups within that window.
+	 */
+	NoNewWindow = 1 << 12
+}
+
+export function canOpenEditorsInNewWindow(editors: readonly EditorInput[]): boolean {
+	return editors.every(editor => !editor.hasCapability(EditorInputCapabilities.NoNewWindow));
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;

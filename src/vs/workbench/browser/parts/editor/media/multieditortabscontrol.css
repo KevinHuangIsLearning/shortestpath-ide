@@ -53,6 +53,14 @@
 	padding-left: 128px;
 }
 
+/* Auxiliary editor windows have no Activity Bar or Sidebar to keep the native
+ * macOS traffic lights clear of the first tab. Only the group touching the
+ * physical top-left corner needs this inset when the auxiliary part is split. */
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor.auxiliary-editor-part > .content .editor-group-container.top-left-editor-group > .title > .tabs-and-actions-container {
+	box-sizing: border-box;
+	padding-left: 90px;
+}
+
 .monaco-workbench.custom-titlebar-hidden.windows.nosidebar .part.editor > .content .editor-group-container.sidebar-recovery-host > .title > .tabs-and-actions-container {
 	box-sizing: border-box;
 	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
