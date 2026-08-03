@@ -36,6 +36,13 @@ export function shouldHideProblemPanelWhenSourceInactive(
 	return sourcePath !== undefined && activeSourcePath !== undefined && sourcePath !== activeSourcePath;
 }
 
+export function shouldHideProblemPanelWhenSourceCloses(
+	sourcePath: string | undefined,
+	openFilePaths: readonly string[],
+): boolean {
+	return sourcePath !== undefined && !openFilePaths.includes(sourcePath);
+}
+
 export interface OpenFileTabGroup {
 	viewColumn: number;
 	filePaths: readonly string[];
