@@ -29,6 +29,13 @@ export function shouldRestoreProblemPanelAfterEditorial(
 	);
 }
 
+export function shouldHideProblemPanelWhenSourceInactive(
+	sourcePath: string | undefined,
+	activeSourcePath: string | undefined,
+): boolean {
+	return sourcePath !== undefined && activeSourcePath !== undefined && sourcePath !== activeSourcePath;
+}
+
 export interface OpenFileTabGroup {
 	viewColumn: number;
 	filePaths: readonly string[];
