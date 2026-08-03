@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { EditorResourceAccessor, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorInputCapabilities, EditorResourceAccessor, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { TestFileEditorInput, workbenchInstantiationService } from '../../workbenchTestServices.js';
@@ -125,6 +125,20 @@ suite('SideBySideEditorInput', () => {
 		input.fireLabelChangeEvent();
 		otherInput.fireLabelChangeEvent();
 		assert.strictEqual(labelChangeCounter, 2);
+	});
+
+	test('inherits the no-new-window capability from either side', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const regularInput = disposables.add(new MyEditorInput());
+		const noNewWindowInput = disposables.add(new class extends MyEditorInput {
+			override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.NoNewWindow; }
+		}());
+
+		const secondaryRestricted = disposables.add(instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, noNewWindowInput, regularInput));
+		const primaryRestricted = disposables.add(instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, regularInput, noNewWindowInput));
+
+		assert.strictEqual(secondaryRestricted.hasCapability(EditorInputCapabilities.NoNewWindow), true);
+		assert.strictEqual(primaryRestricted.hasCapability(EditorInputCapabilities.NoNewWindow), true);
 	});
 
 	test('toUntyped', () => {

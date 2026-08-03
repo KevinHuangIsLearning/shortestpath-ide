@@ -1,6 +1,9 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *---------------------------------------------------------------------------------------------
+ *  Modifications Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -21,7 +24,7 @@ export class ShortestPathNewTabInput extends EditorInput {
 	override get editorId(): string { return ShortestPathNewTabInput.ID; }
 	// A New Tab is intentionally duplicable: splitting it must populate the new
 	// editor group with another New Tab instead of leaving that group blank.
-	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly; }
+	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.NoNewWindow; }
 	override get resource(): URI { return ShortestPathNewTabInput.RESOURCE; }
 
 	override getName(): string {

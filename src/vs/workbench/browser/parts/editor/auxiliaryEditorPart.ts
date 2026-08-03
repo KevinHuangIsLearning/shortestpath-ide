@@ -192,7 +192,7 @@ export class AuxiliaryEditorPart {
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open(options));
 
 		// Editor Part
-		const editorPartContainer = $('.part.editor', { role: 'main' });
+		const editorPartContainer = $('.part.editor.auxiliary-editor-part', { role: 'main' });
 		editorPartContainer.style.position = 'relative';
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
