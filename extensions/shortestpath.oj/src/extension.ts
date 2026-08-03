@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { canRequestEditorial, shouldConfirmEditorial } from './editorialAccess';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
-import { findOpenFileViewColumn, OpenFileTabGroup, shouldRestoreProblemPanel, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
+import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanel, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
 import { OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
 import {
 	applyEditorialLikeResult,
@@ -131,6 +131,7 @@ class ShortestPathOjProblemPanel {
 	private editorialPanel: vscode.WebviewPanel | undefined;
 	private reopenProblemAfterEditorial = false;
 	private editorialHiddenSourcePath: string | undefined;
+	private suppressRestoreForInactiveSource = false;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -177,6 +178,9 @@ class ShortestPathOjProblemPanel {
 			}
 		}
 		if (this.editorialPanel) {
+			return;
+		}
+		if (this.hideProblemWhenSourceInactive()) {
 			return;
 		}
 		const panelCreated = this.ensureProblemPanel();
@@ -254,6 +258,19 @@ class ShortestPathOjProblemPanel {
 		if (!panelCreated && !this.editorialPanel && panel) {
 			panel.reveal(panel.viewColumn, false);
 		}
+	}
+
+	hideProblemWhenSourceInactive(): boolean {
+		// Problem, CPH, and terminal views can temporarily clear activeTextEditor.
+		// That must not be mistaken for switching to another source file.
+		if (this.panel?.active || !this.state || !shouldHideProblemPanelWhenSourceInactive(this.state.sourcePath, getActiveEditorPath())) {
+			return false;
+		}
+		if (this.panel) {
+			this.suppressRestoreForInactiveSource = true;
+			this.panel.dispose();
+		}
+		return true;
 	}
 
 	hideProblemForCph(problemRef: string, sourcePath?: string): void {
@@ -447,6 +464,10 @@ class ShortestPathOjProblemPanel {
 				this.webviewReady = false;
 			}
 			if (this.reopenProblemAfterEditorial) {
+				return;
+			}
+			if (this.suppressRestoreForInactiveSource) {
+				this.suppressRestoreForInactiveSource = false;
 				return;
 			}
 			setTimeout(() => {
@@ -836,6 +857,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		},
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblem', () => panel.reveal()));
+	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => {
+		setTimeout(() => panel.hideProblemWhenSourceInactive(), 0);
+	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowser', async () => {
 		await vscode.window.openBrowserTab('https://shortestpath.cn/topics', { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
 	}));
@@ -1531,12 +1555,13 @@ function getOpenFileTabGroups(): OpenFileTabGroup[] {
 	return groups;
 }
 
-function isActiveEditor(filePath: string): boolean {
+function getActiveEditorPath(): string | undefined {
 	const activeEditor = vscode.window.activeTextEditor;
-	if (!activeEditor || activeEditor.document.uri.scheme !== 'file') {
-		return false;
-	}
-	return activeEditor.document.fileName === filePath;
+	return activeEditor?.document.uri.scheme === 'file' ? activeEditor.document.fileName : undefined;
+}
+
+function isActiveEditor(filePath: string): boolean {
+	return getActiveEditorPath() === filePath;
 }
 
 function escapeHtml(value: string): string {
