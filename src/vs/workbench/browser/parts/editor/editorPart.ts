@@ -1139,21 +1139,24 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 				(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && sideBarPosition === Position.RIGHT) ||
 				(this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.getPanelPosition() === Position.LEFT);
 
-			let topRightGroup: IEditorGroupView | undefined;
-			let topLeftGroup: IEditorGroupView | undefined;
-			for (const group of this.groups) {
-				if (
-					this.gridWidget.getNeighborViews(group, Direction.Up).length === 0 &&
-					this.gridWidget.getNeighborViews(group, Direction.Right).length === 0
-				) {
-					topRightGroup = group;
-				}
+			const maximizedGroup = this.hasMaximizedGroup() ? this.groups.find(group => this.isGroupMaximized(group)) : undefined;
+			let topRightGroup = maximizedGroup;
+			let topLeftGroup = maximizedGroup;
+			if (!maximizedGroup) {
+				for (const group of this.groups) {
+					if (
+						this.gridWidget.getNeighborViews(group, Direction.Up).length === 0 &&
+						this.gridWidget.getNeighborViews(group, Direction.Right).length === 0
+					) {
+						topRightGroup = group;
+					}
 
-				if (
-					this.gridWidget.getNeighborViews(group, Direction.Up).length === 0 &&
-					this.gridWidget.getNeighborViews(group, Direction.Left).length === 0
-				) {
-					topLeftGroup = group;
+					if (
+						this.gridWidget.getNeighborViews(group, Direction.Up).length === 0 &&
+						this.gridWidget.getNeighborViews(group, Direction.Left).length === 0
+					) {
+						topLeftGroup = group;
+					}
 				}
 			}
 
@@ -1161,9 +1164,11 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 				const contextKey = this.editorPartsView.bind(IsTopRightEditorGroupContext, group);
 				contextKey.set(group === topRightGroup);
 
-				// The native Windows controls may occupy either physical edge. Mark each
-				// edge group independently so its tab row reserves exactly that safe area.
+				// Mark the physical top-left group independently for auxiliary macOS
+				// traffic lights. Native Windows controls may occupy either edge, so
+				// those host classes also account for side surfaces.
 				if (group instanceof EditorGroupView) {
+					group.element.classList.toggle('top-left-editor-group', group === topLeftGroup);
 					group.element.classList.toggle('window-controls-overlay-left-host', group === topLeftGroup && !hasLeftSideSurface);
 					group.element.classList.toggle('window-controls-overlay-right-host', group === topRightGroup && !hasRightSideSurface);
 					group.element.classList.toggle('sidebar-recovery-host', group === topLeftGroup && !this.layoutService.isVisible(Parts.SIDEBAR_PART));
@@ -1187,6 +1192,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}));
 		this._register(this.onDidChangeGroupMaximized(() => {
 			updateContextKeys();
+			updateTopRightGroupContextKey();
 			this.applyContentRightInset();
 		}));
 		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));

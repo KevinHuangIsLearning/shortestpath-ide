@@ -6,7 +6,7 @@
 import './media/multieditortabscontrol.css';
 import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { shorten } from '../../../../base/common/labels.js';
-import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from '../../../common/editor.js';
+import { canOpenEditorsInNewWindow, EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { computeEditorAriaLabel } from '../../editor.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -1288,6 +1288,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					draggedEditors.length === 0
 				) {
 					return; // drag to open in new window is disabled
+				}
+				if (!canOpenEditorsInNewWindow(draggedEditors.map(editor => editor.identifier.editor))) {
+					return;
 				}
 
 				const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, tab);

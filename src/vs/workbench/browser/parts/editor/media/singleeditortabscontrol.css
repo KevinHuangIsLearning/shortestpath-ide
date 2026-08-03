@@ -20,6 +20,14 @@
 	box-sizing: border-box;
 }
 
+/* Auxiliary editor windows start at the physical window edge, so reserve the
+ * native macOS traffic-light area before the single-tab label. Only the group
+ * touching the top-left corner needs the inset in a split auxiliary part. */
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor.auxiliary-editor-part > .content .editor-group-container.top-left-editor-group > .title > .label-container {
+	padding-left: 90px;
+	box-sizing: border-box;
+}
+
 .monaco-workbench.custom-titlebar-hidden.windows.nosidebar .part.editor > .content .editor-group-container.sidebar-recovery-host > .title > .label-container {
 	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
 	box-sizing: border-box;

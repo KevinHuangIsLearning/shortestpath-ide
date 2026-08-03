@@ -48,6 +48,11 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			capabilities |= EditorInputCapabilities.ForceReveal;
 		}
 
+		// NoNewWindow: should be considered for both sides
+		if (this.secondary.hasCapability(EditorInputCapabilities.NoNewWindow)) {
+			capabilities |= EditorInputCapabilities.NoNewWindow;
+		}
+
 		// Indicate we show more than one editor
 		capabilities |= EditorInputCapabilities.MultipleEditors;
 

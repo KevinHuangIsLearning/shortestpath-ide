@@ -176,6 +176,26 @@ export default defineConfig(
 			]
 		}
 	},
+	{
+		files: [
+			'src/vs/workbench/contrib/shortestpath/**/shortestPathNewTabInput*.ts',
+		],
+		rules: {
+			'header/header': [
+				2,
+				'block',
+				[
+					'---------------------------------------------------------------------------------------------',
+					' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+					' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+					' *---------------------------------------------------------------------------------------------',
+					' *  Modifications Copyright (c) 2026 ShortestPath IDE contributors.',
+					' *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.',
+					' *--------------------------------------------------------------------------------------------'
+				]
+			]
+		}
+	},
 	// TS
 	{
 		files: [
