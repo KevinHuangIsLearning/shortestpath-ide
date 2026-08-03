@@ -272,21 +272,33 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ github.ref_name }}"
+          latest_asset=()
+          if [[ "$tag" == Release-v* ]]; then
+            version="${tag#Release-v}"
+            download_url="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}"
+            manifest_version="$(node -p "require('./latest.json').version")"
+            manifest_download_url="$(node -p "require('./latest.json').downloadUrl")"
+            if [[ "$manifest_version" != "$version" || "$manifest_download_url" != "$download_url" ]]; then
+              echo "latest.json must describe $tag before publishing." >&2
+              exit 1
+            fi
+            latest_asset=(latest.json)
+          fi
           if [[ "$tag" == Beta-v* ]]; then
             title="ShortestPath IDE Beta v${tag#Beta-v}"
             notes="Beta release — preview build for testing."
             if gh release view "$tag" >/dev/null 2>&1; then
-              gh release upload "$tag" release/* --clobber
+              gh release upload "$tag" release/* "${latest_asset[@]}" --clobber
               gh release edit "$tag" --prerelease --title "$title" --notes "$notes"
             else
-              gh release create "$tag" release/* --prerelease --title "$title" --notes "$notes"
+              gh release create "$tag" release/* "${latest_asset[@]}" --prerelease --title "$title" --notes "$notes"
             fi
           else
             title="ShortestPath IDE Release v${tag#Release-v}"
             if gh release view "$tag" >/dev/null 2>&1; then
-              gh release upload "$tag" release/* --clobber
+              gh release upload "$tag" release/* "${latest_asset[@]}" --clobber
               gh release edit "$tag" --title "$title"
             else
-              gh release create "$tag" release/* --generate-notes --title "$title"
+              gh release create "$tag" release/* "${latest_asset[@]}" --generate-notes --title "$title"
             fi
           fi

@@ -33,7 +33,7 @@
 	"licenseFileName": "LICENSE",
 	"reportIssueUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/issues/new",
 	"shortestPathVersion": "0.2.2",
-	"shortestPathReleaseApiUrl": "https://api.github.com/repos/KevinHuangIsLearning/shortestpath-ide/releases/latest",
+	"shortestPathUpdateUrl": "https://raw.githubusercontent.com/KevinHuangIsLearning/shortestpath-ide/main/latest.json",
 	"nodejsArtifactFeed": "",
 	"electronArtifactFeed": "",
 	"urlProtocol": "shortestpath",

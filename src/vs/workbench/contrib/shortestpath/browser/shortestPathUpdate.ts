@@ -3,42 +3,43 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IShortestPathRelease {
-	readonly tag_name: string;
-	readonly html_url: string;
-	readonly draft: boolean;
-	readonly prerelease: boolean;
-}
-
 export interface IShortestPathUpdate {
 	readonly version: string;
 	readonly downloadUrl: string;
+}
+
+export interface IShortestPathUpdateDocument {
+	readonly version?: unknown;
+	readonly downloadUrl?: unknown;
 }
 
 export const SHORTESTPATH_UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
 
 export function getShortestPathUpdateCheckDelay(lastChecked: number, now: number): number {
 	if (!Number.isFinite(lastChecked) || lastChecked <= 0) {
-		return 10000;
+		return 0;
 	}
 
 	return Math.max(10000, lastChecked + SHORTESTPATH_UPDATE_CHECK_INTERVAL - now);
 }
 
-export function parseShortestPathRelease(release: IShortestPathRelease): IShortestPathUpdate | undefined {
-	if (release.draft || release.prerelease || typeof release.html_url !== 'string') {
+export function parseShortestPathUpdateDocument(document: IShortestPathUpdateDocument): IShortestPathUpdate | undefined {
+	if (typeof document.version !== 'string' || typeof document.downloadUrl !== 'string' || !parseVersion(document.version)) {
 		return undefined;
 	}
 
-	const match = /^Release-v(\d+)\.(\d+)\.(\d+)$/.exec(release.tag_name);
-	if (!match) {
+	let downloadUrl: URL;
+	try {
+		downloadUrl = new URL(document.downloadUrl);
+	} catch {
+		return undefined;
+	}
+	const expectedPath = `/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v${document.version}`;
+	if (downloadUrl.protocol !== 'https:' || downloadUrl.hostname !== 'github.com' || downloadUrl.pathname !== expectedPath) {
 		return undefined;
 	}
 
-	return {
-		version: `${match[1]}.${match[2]}.${match[3]}`,
-		downloadUrl: release.html_url,
-	};
+	return { version: document.version, downloadUrl: downloadUrl.toString() };
 }
 
 export function isShortestPathUpdateAvailable(currentVersion: string, availableVersion: string): boolean {

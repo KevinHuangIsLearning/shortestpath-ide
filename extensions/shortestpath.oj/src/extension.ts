@@ -187,7 +187,7 @@ class ShortestPathOjProblemPanel {
 		this.render();
 		const panel = this.panel;
 		if (!panelCreated && !this.editorialPanel && panel) {
-			panel.reveal(panel.viewColumn, false);
+			panel.reveal(panel.viewColumn, true);
 		}
 	}
 
@@ -446,7 +446,7 @@ class ShortestPathOjProblemPanel {
 		const panel = vscode.window.createWebviewPanel(
 			'shortestpath.ojProblem',
 			'ShortestPath OJ',
-			{ viewColumn, preserveFocus: false },
+			{ viewColumn, preserveFocus: true },
 			{
 				enableScripts: true,
 				localResourceRoots: [this.extensionUri],
@@ -846,6 +846,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	bridge.onListening(() => output.appendLine(`WebSocket bridge listening at ws://127.0.0.1:${bridgePort}/shortestpath-oj with shortestpath-oj-v1.`));
 	bridge.onError(error => {
 		output.appendLine(`WebSocket bridge error: ${error.message}`);
+		if (isAddressInUseError(error)) {
+			void vscode.window.showErrorMessage(`ShortestPath OJ 集成无法启动：端口 ${bridgePort} 已被占用。请关闭占用该端口的程序后重启 ShortestPath IDE。`);
+		}
 	});
 	context.subscriptions.push(new vscode.Disposable(() => { void bridge.close(); }));
 
@@ -1558,6 +1561,10 @@ function getOpenFileTabGroups(): OpenFileTabGroup[] {
 function getActiveEditorPath(): string | undefined {
 	const activeEditor = vscode.window.activeTextEditor;
 	return activeEditor?.document.uri.scheme === 'file' ? activeEditor.document.fileName : undefined;
+}
+
+function isAddressInUseError(error: Error): boolean {
+	return (error as NodeJS.ErrnoException).code === 'EADDRINUSE';
 }
 
 function isActiveEditor(filePath: string): boolean {
