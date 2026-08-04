@@ -7,5 +7,6 @@
 	"command.openIntegratedBrowser": "ShortestPath OJ：打开",
 	"command.showProblem": "ShortestPath OJ：显示题目",
 	"command.openControlPanel": "ShortestPath OJ：打开账号面板",
-	"command.openIntegratedBrowserDirect": "ShortestPath OJ：在集成浏览器中直接登录"
+	"command.openIntegratedBrowserDirect": "ShortestPath OJ：在集成浏览器中直接登录",
+	"configuration.antiFraudReminder": "打开题目时显示防诈骗提醒。"
 }

@@ -4,6 +4,10 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "shortestpath",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/KevinHuangIsLearning/shortestpath-ide.git"
+	},
 	"enabledApiProposals": [
 		"browser"
 	],
@@ -48,6 +52,12 @@
 					"default": "ask",
 					"scope": "window",
 					"description": "%configuration.cppSubmissionLanguage%"
+				},
+				"shortestpath.oj.antiFraudReminder": {
+					"type": "boolean",
+					"default": false,
+					"scope": "window",
+					"description": "%configuration.antiFraudReminder%"
 				}
 			}
 		},

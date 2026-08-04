@@ -1,0 +1,9 @@
+**/*.ts
+**/*.map
+src/**
+tsconfig.json
+tsconfig.tsbuildinfo
+.gitignore
+.DS_Store
+README_cn.md
+out/test/**
