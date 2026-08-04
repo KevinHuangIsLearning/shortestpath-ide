@@ -18,9 +18,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { getShortestPathUpdateCheckDelay, IShortestPathUpdateDocument, isShortestPathUpdateAvailable, parseShortestPathUpdateDocument, SHORTESTPATH_UPDATE_CHECK_INTERVAL } from './shortestPathUpdate.js';
+import { IShortestPathUpdateDocument, isShortestPathUpdateAvailable, parseShortestPathUpdateDocument } from './shortestPathUpdate.js';
 
-const LAST_CHECKED_STORAGE_KEY = 'shortestpath.update.lastChecked';
 const LAST_NOTIFIED_VERSION_STORAGE_KEY = 'shortestpath.update.lastNotifiedVersion';
 
 class ShortestPathUpdateChecker {
@@ -90,25 +89,21 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
 		@IProductService productService: IProductService,
 		@ILogService logService: ILogService,
 	) {
 		super();
-		this.checkScheduler = this._register(new RunOnceScheduler(() => this.checkForUpdates(instantiationService, storageService, logService), 0));
+		this.checkScheduler = this._register(new RunOnceScheduler(() => this.checkForUpdates(instantiationService, logService), 0));
 
-		const lastChecked = Number(storageService.get(LAST_CHECKED_STORAGE_KEY, StorageScope.APPLICATION, '0'));
 		if (!productService.shortestPathVersion || !productService.shortestPathUpdateUrl) {
 			return;
 		}
-		this.checkScheduler.schedule(getShortestPathUpdateCheckDelay(lastChecked, Date.now()));
+		this.checkScheduler.schedule(0);
 	}
 
-	private async checkForUpdates(instantiationService: IInstantiationService, storageService: IStorageService, logService: ILogService): Promise<void> {
+	private async checkForUpdates(instantiationService: IInstantiationService, logService: ILogService): Promise<void> {
 		try {
 			await instantiationService.createInstance(ShortestPathUpdateChecker).check(false);
-			storageService.store(LAST_CHECKED_STORAGE_KEY, Date.now(), StorageScope.APPLICATION, StorageTarget.USER);
-			this.checkScheduler.schedule(SHORTESTPATH_UPDATE_CHECK_INTERVAL);
 		} catch (error) {
 			logService.debug('ShortestPath IDE update check failed.', error);
 			this.checkScheduler.schedule(ShortestPathUpdateContribution.RETRY_INTERVAL);

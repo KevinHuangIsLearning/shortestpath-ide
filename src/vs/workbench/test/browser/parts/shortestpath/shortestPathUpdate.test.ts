@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getShortestPathUpdateCheckDelay, isShortestPathUpdateAvailable, parseShortestPathUpdateDocument, SHORTESTPATH_UPDATE_CHECK_INTERVAL } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
+import { isShortestPathUpdateAvailable, parseShortestPathUpdateDocument } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
 
 suite('ShortestPath update check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,11 +27,5 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(isShortestPathUpdateAvailable('0.2.0', '0.2.1'), true);
 		assert.strictEqual(isShortestPathUpdateAvailable('0.2.1', '0.2.1'), false);
 		assert.strictEqual(isShortestPathUpdateAvailable('0.3.0', '0.2.9'), false);
-	});
-
-	test('schedules the next automatic check after a successful check', () => {
-		assert.strictEqual(getShortestPathUpdateCheckDelay(0, 1000), 0);
-		assert.strictEqual(getShortestPathUpdateCheckDelay(1000, 1000), SHORTESTPATH_UPDATE_CHECK_INTERVAL);
-		assert.strictEqual(getShortestPathUpdateCheckDelay(1000, 1000 + SHORTESTPATH_UPDATE_CHECK_INTERVAL), 10000);
 	});
 });
