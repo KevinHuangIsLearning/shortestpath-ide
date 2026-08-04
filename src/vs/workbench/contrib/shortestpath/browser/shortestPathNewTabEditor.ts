@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import './media/shortestPathNewTab.css';
@@ -55,6 +55,8 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		this.addAction(actions, localizeNewTab('Open ShortestPath OJ', '打开 ShortestPath OJ'), 'codicon-mortar-board', () => this.commandService.executeCommand('shortestpath.oj.openIntegratedBrowser'));
 		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open Settings', '打开设置'), 'codicon-settings-gear', () => this.commandService.executeCommand('shortestpath.openSettings'));
+		// allow-any-unicode-next-line
+		this.addAction(actions, localizeNewTab('Beware of telecom fraud, do not click!!!', '谨防电信诈骗，千万别点！！！'), 'codicon-warning', () => this.commandService.executeCommand('workbench.action.browser.open', localizeNewTab('https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J', 'https://www.bilibili.com/video/BV1GJ411x7h7/')));
 	}
 
 	private addAction(parent: HTMLElement, label: string, icon: string, run: () => Thenable<unknown>): void {

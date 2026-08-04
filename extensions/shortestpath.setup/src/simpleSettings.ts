@@ -36,6 +36,7 @@ type SimpleSettingsState = {
 	autoSave: string;
 	newFileDefaultLanguage: string;
 	shortestPathCppSubmissionLanguage: string;
+	antiFraudReminder: boolean;
 	themes: ThemeOption[];
 };
 
@@ -471,7 +472,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('shortestpath.executableCleanupDelaySeconds')
 			|| event.affectsConfiguration('workbench.colorTheme')
 			|| event.affectsConfiguration('window.autoDetectColorScheme')
-			|| event.affectsConfiguration('files.autoSave'))) {
+			|| event.affectsConfiguration('files.autoSave')
+			|| event.affectsConfiguration('shortestpath.oj.antiFraudReminder'))) {
 			void panel.webview.postMessage({ type: 'state', value: getState() });
 		}
 	});
@@ -545,6 +547,7 @@ function getState(): SimpleSettingsState {
 		autoSave: files.get<string>('autoSave') ?? 'off',
 		newFileDefaultLanguage: vscode.workspace.getConfiguration('shortestpath.newFile', null).get<string>('defaultLanguage') ?? 'cpp',
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'ask',
+		antiFraudReminder: vscode.workspace.getConfiguration('shortestpath.oj', null).get<boolean>('antiFraudReminder') ?? false,
 		themes: getThemeOptions(colorTheme)
 	};
 }
@@ -599,7 +602,8 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global),
 		settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.newFile.defaultLanguage', typeof value.newFileDefaultLanguage === 'string' && value.newFileDefaultLanguage ? value.newFileDefaultLanguage : 'cpp', vscode.ConfigurationTarget.Global),
-		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global)
+		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global),
+		settings.update('shortestpath.oj.antiFraudReminder', value.antiFraudReminder === true, vscode.ConfigurationTarget.Global)
 	]);
 }
 
@@ -668,6 +672,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <section class="card" data-category="tools"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><button id="checkForUpdates" class="secondary">检查更新</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label for="antiFraudReminder">防诈骗提醒</label><div class="hint">打开题目时显示防诈骗提醒。</div></div><label class="toggle"><input id="antiFraudReminder" type="checkbox"><span>启用</span></label></div></section>
 <p id="noResults" class="no-results" hidden>没有匹配的设置。</p>
 <div class="actions"><button id="advanced" class="secondary">高级设置</button><span id="saved" aria-live="polite"></span></div>
 </div>
@@ -804,9 +809,10 @@ function apply(state) {
   byId('autoDetectColorScheme').checked = !!state.autoDetectColorScheme;
   byId('autoSave').value = state.autoSave;
 	byId('newFileDefaultLanguage').value = state.newFileDefaultLanguage;
+	byId('antiFraudReminder').checked = !!state.antiFraudReminder;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value }; }
+function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, antiFraudReminder: byId('antiFraudReminder').checked }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#settingsSearch), select').forEach(control => {

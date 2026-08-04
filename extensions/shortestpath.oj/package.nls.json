@@ -7,5 +7,6 @@
 	"command.openIntegratedBrowser": "ShortestPath OJ: Open",
 	"command.showProblem": "ShortestPath OJ: Show Problem",
 	"command.openControlPanel": "ShortestPath OJ: Open Account Panel",
-	"command.openIntegratedBrowserDirect": "ShortestPath OJ: Sign In Directly in Integrated Browser"
+	"command.openIntegratedBrowserDirect": "ShortestPath OJ: Sign In Directly in Integrated Browser",
+	"configuration.antiFraudReminder": "Show an anti-fraud reminder when a problem is opened."
 }

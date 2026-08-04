@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { canRequestEditorial, shouldConfirmEditorial } from './editorialAccess';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
-import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanel, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
+import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
 import { OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
 import {
 	applyEditorialLikeResult,
@@ -131,7 +131,6 @@ class ShortestPathOjProblemPanel {
 	private editorialPanel: vscode.WebviewPanel | undefined;
 	private reopenProblemAfterEditorial = false;
 	private editorialHiddenSourcePath: string | undefined;
-	private suppressRestoreForInactiveSource = false;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -141,6 +140,12 @@ class ShortestPathOjProblemPanel {
 	) { }
 
 	showProblem(problem: ImportedProblem, connected: boolean, sourcePath?: string): void {
+		if (vscode.workspace.getConfiguration('shortestpath.oj').get<boolean>('antiFraudReminder', false)) {
+			const rickrollUrl = vscode.env.language.toLowerCase().startsWith('zh')
+				? 'https://www.bilibili.com/video/BV1GJ411x7h7/'
+				: 'https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J';
+			void vscode.window.openBrowserTab(rickrollUrl, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
+		}
 		if (!this.state || this.state.problem.ref !== problem.ref) {
 			this.reopenProblemAfterEditorial = false;
 			this.editorialHiddenSourcePath = undefined;
@@ -267,7 +272,6 @@ class ShortestPathOjProblemPanel {
 			return false;
 		}
 		if (this.panel) {
-			this.suppressRestoreForInactiveSource = true;
 			this.panel.dispose();
 		}
 		return true;
@@ -466,7 +470,6 @@ class ShortestPathOjProblemPanel {
 			},
 		);
 		panel.onDidDispose(() => {
-			const disposedSourcePath = this.state?.sourcePath;
 			if (this.panel === panel) {
 				this.panel = undefined;
 				this.sentSections = undefined;
@@ -475,23 +478,6 @@ class ShortestPathOjProblemPanel {
 				this.sentTimerJson = '';
 				this.webviewReady = false;
 			}
-			if (this.reopenProblemAfterEditorial) {
-				return;
-			}
-			if (this.suppressRestoreForInactiveSource) {
-				this.suppressRestoreForInactiveSource = false;
-				return;
-			}
-			setTimeout(() => {
-				if (shouldRestoreProblemPanel(
-					disposedSourcePath,
-					this.state?.sourcePath,
-					this.panel !== undefined,
-					getOpenFileTabGroups().flatMap(group => group.filePaths),
-				)) {
-					this.reveal();
-				}
-			}, 0);
 		});
 		panel.webview.onDidReceiveMessage(message => {
 			void this.handleMessage(message);
