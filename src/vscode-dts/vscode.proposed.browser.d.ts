@@ -11,6 +11,11 @@ declare module 'vscode' {
 	 * An integrated browser page displayed in an editor tab.
 	 */
 	export interface BrowserTab {
+		/** The stable identifier of this browser tab. */
+		readonly id: string;
+
+		/** The tab that opened this tab, if it was created by a page popup. */
+		readonly parentId: string | undefined;
 		/** The current URL of the page. */
 		readonly url: string;
 
@@ -25,6 +30,26 @@ declare module 'vscode' {
 
 		/** Close this browser tab. */
 		close(): Thenable<void>;
+
+		/** Reveal this browser tab in the window where it is open. */
+		show(): Thenable<void>;
+
+		/** Move this browser tab into its own auxiliary window. */
+		moveToNewWindow(options?: BrowserTabMoveOptions): Thenable<void>;
+
+		/** Move this browser tab back into the main workbench window. */
+		moveToMainWindow(additionalTabs?: readonly BrowserTab[]): Thenable<void>;
+
+		/** Minimize the window that contains this browser tab. */
+		minimizeWindow(): Thenable<void>;
+	}
+
+	export interface BrowserTabMoveOptions {
+		/** Other browser tabs to move with this tab. */
+		additionalTabs?: readonly BrowserTab[];
+
+		/** Minimize the target auxiliary window after moving. */
+		minimize?: boolean;
 	}
 
 	/**

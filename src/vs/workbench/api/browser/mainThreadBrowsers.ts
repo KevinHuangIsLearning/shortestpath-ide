@@ -11,11 +11,12 @@ import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../../cont
 import { BrowserViewUri } from '../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../services/editor/common/editorGroupColumn.js';
-import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../platform/editor/common/editor.js';
 import { CDPRequest } from '../../../platform/browserView/common/cdp/types.js';
 import { BrowserEditorInput } from '../../contrib/browserView/common/browserEditorInput.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 
 @extHostNamedCustomer(MainContext.MainThreadBrowsers)
 export class MainThreadBrowsers extends Disposable implements MainThreadBrowsersShape {
@@ -32,6 +33,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostBrowsers);
@@ -114,6 +116,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 	private _toDto(input: BrowserEditorInput): BrowserTabDto {
 		return {
 			id: input.id,
+			parentId: input.parentViewId,
 			url: input.url || 'about:blank',
 			title: input.getTitle(),
 			favicon: input.favicon,
@@ -168,6 +171,90 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 			throw new Error(`Unknown browser id: ${browserId}`);
 		}
 		known.input.dispose();
+	}
+
+	async $showBrowserTab(browserId: string): Promise<void> {
+		const known = this._knownBrowsers.get(browserId);
+		if (!known) {
+			throw new Error(`Unknown browser id: ${browserId}`);
+		}
+
+		await this.editorService.openEditor(known.input, { preserveFocus: false });
+	}
+
+	async $moveBrowserTabToNewWindow(browserId: string, additionalBrowserIds: readonly string[], minimize = false): Promise<void> {
+		const known = this._knownBrowsers.get(browserId);
+		if (!known) {
+			throw new Error(`Unknown browser id: ${browserId}`);
+		}
+
+		const sourceGroup = this.editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => group.editors.includes(known.input));
+		if (!sourceGroup) {
+			throw new Error(`Browser tab is not open in an editor group: ${browserId}`);
+		}
+
+		const auxiliaryEditorPart = await this.editorGroupsService.createAuxiliaryEditorPart();
+		const browserEditors = this._getBrowserEditors(browserId, additionalBrowserIds, sourceGroup);
+		if (!browserEditors.length || browserEditors.some(editor => !sourceGroup.moveEditor(editor, auxiliaryEditorPart.activeGroup, { preserveFocus: true }))) {
+			throw new Error(`Failed to move browser tabs into a new window: ${browserId}`);
+		}
+
+		await auxiliaryEditorPart.activeGroup.openEditor(known.input, { preserveFocus: false });
+		auxiliaryEditorPart.activeGroup.focus();
+		if (minimize) {
+			await this.commandService.executeCommand('workbench.action.minimizeWindow', auxiliaryEditorPart.windowId);
+		}
+	}
+
+	async $moveBrowserTabToMainWindow(browserId: string, additionalBrowserIds: readonly string[]): Promise<void> {
+		const known = this._knownBrowsers.get(browserId);
+		if (!known) {
+			throw new Error(`Unknown browser id: ${browserId}`);
+		}
+
+		const sourceGroup = this.editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => group.editors.includes(known.input));
+		if (!sourceGroup) {
+			throw new Error(`Browser tab is not open in an editor group: ${browserId}`);
+		}
+
+		const targetGroup = this.editorGroupsService.mainPart.activeGroup;
+		const browserEditors = this._getBrowserEditors(browserId, additionalBrowserIds, sourceGroup);
+		if (!browserEditors.length || browserEditors.some(editor => !sourceGroup.moveEditor(editor, targetGroup, { preserveFocus: true }))) {
+			throw new Error(`Failed to move browser tabs into the main window: ${browserId}`);
+		}
+
+		await targetGroup.openEditor(known.input, { preserveFocus: false });
+		targetGroup.focus();
+	}
+
+	async $minimizeBrowserTabWindow(browserId: string): Promise<void> {
+		const known = this._knownBrowsers.get(browserId);
+		if (!known) {
+			throw new Error(`Unknown browser id: ${browserId}`);
+		}
+
+		const sourceGroup = this.editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => group.editors.includes(known.input));
+		if (!sourceGroup) {
+			throw new Error(`Browser tab is not open in an editor group: ${browserId}`);
+		}
+
+		const editorPart = this.editorGroupsService.getPart(sourceGroup);
+		if (editorPart.windowId === this.editorGroupsService.mainPart.windowId) {
+			return;
+		}
+		await this.commandService.executeCommand('workbench.action.minimizeWindow', editorPart.windowId);
+	}
+
+	private _getBrowserEditors(browserId: string, additionalBrowserIds: readonly string[], sourceGroup: { readonly editors: readonly BrowserEditorInput[] | readonly unknown[] }): BrowserEditorInput[] {
+		const browserIds = new Set([browserId, ...additionalBrowserIds]);
+		const browserEditors: BrowserEditorInput[] = [];
+		for (const id of browserIds) {
+			const input = this._knownBrowsers.get(id)?.input;
+			if (input && sourceGroup.editors.includes(input)) {
+				browserEditors.push(input);
+			}
+		}
+		return browserEditors;
 	}
 
 	// #endregion

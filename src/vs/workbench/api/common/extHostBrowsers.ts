@@ -14,12 +14,15 @@ import * as extHostTypes from './extHostTypes.js';
 import * as typeConverters from './extHostTypeConverters.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../platform/browserView/common/cdp/types.js';
 
+const browserTabIds = new WeakMap<object, string>();
+
 // #region Internal browser tab object
 
 class ExtHostBrowserTab {
 	private _url: string;
 	private _title: string;
 	private _favicon: string | undefined;
+	private readonly _parentId: string | undefined;
 
 	readonly value: vscode.BrowserTab;
 
@@ -32,9 +35,12 @@ class ExtHostBrowserTab {
 		this._url = data.url;
 		this._title = data.title;
 		this._favicon = data.favicon;
+		this._parentId = data.parentId;
 
 		const that = this;
 		this.value = {
+			get id(): string { return that.id; },
+			get parentId(): string | undefined { return that._parentId; },
 			get url(): string { return that._url; },
 			get title(): string { return that._title; },
 			get icon(): vscode.IconPath {
@@ -47,8 +53,21 @@ class ExtHostBrowserTab {
 			},
 			close(): Promise<void> {
 				return that._close();
+			},
+			show(): Promise<void> {
+				return that._show();
+			},
+			moveToNewWindow(options?: vscode.BrowserTabMoveOptions): Promise<void> {
+				return that._moveToNewWindow(options);
+			},
+			moveToMainWindow(additionalTabs?: readonly vscode.BrowserTab[]): Promise<void> {
+				return that._moveToMainWindow(additionalTabs);
+			},
+			minimizeWindow(): Promise<void> {
+				return that._minimizeWindow();
 			}
 		};
+		browserTabIds.set(this.value, this.id);
 	}
 
 	update(data: BrowserTabDto): boolean {
@@ -78,6 +97,30 @@ class ExtHostBrowserTab {
 
 	private async _close(): Promise<void> {
 		await this._proxy.$closeBrowserTab(this.id);
+	}
+
+	private async _show(): Promise<void> {
+		await this._proxy.$showBrowserTab(this.id);
+	}
+
+	private async _moveToNewWindow(options?: vscode.BrowserTabMoveOptions): Promise<void> {
+		await this._proxy.$moveBrowserTabToNewWindow(this.id, options?.additionalTabs?.map(tab => this._getTabId(tab)) ?? [], options?.minimize);
+	}
+
+	private async _moveToMainWindow(additionalTabs?: readonly vscode.BrowserTab[]): Promise<void> {
+		await this._proxy.$moveBrowserTabToMainWindow(this.id, additionalTabs?.map(tab => this._getTabId(tab)) ?? []);
+	}
+
+	private async _minimizeWindow(): Promise<void> {
+		await this._proxy.$minimizeBrowserTabWindow(this.id);
+	}
+
+	private _getTabId(tab: vscode.BrowserTab): string {
+		const id = browserTabIds.get(tab);
+		if (!id) {
+			throw new Error('Browser tab does not belong to this extension host');
+		}
+		return id;
 	}
 }
 

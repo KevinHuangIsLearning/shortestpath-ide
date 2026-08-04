@@ -171,7 +171,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 
 			// Eagerly create the model from the state we already have
-			this._createModel(e.info.id, e.info.owner, e.info.state);
+			this._createModel(e.info.id, e.info.owner, e.info.state, e.openOptions?.parentViewId);
 
 			const editor = this._known.get(e.info.id);
 			if (editor && e.openOptions) {
@@ -318,9 +318,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		});
 	}
 
-	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
+	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel, parentViewId?: string): BrowserEditorInput {
 		if (!this._known.has(id)) {
-			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
+			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState, parentViewId }, async () => {
 				const state = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
@@ -399,7 +399,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 	}
 
-	private _createModel(id: string, owner: IBrowserViewOwner, state: IBrowserViewState): IBrowserViewModel {
+	private _createModel(id: string, owner: IBrowserViewOwner, state: IBrowserViewState, parentViewId?: string): IBrowserViewModel {
 		// Don't double-create
 		const existing = this._known.get(id)?.model;
 		if (existing) {
@@ -409,7 +409,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const model = this.instantiationService.createInstance(BrowserViewModel, id, owner, state, this._browserViewService);
 
 		// Sanity: both pass and assign the model to be sure. It will no-op if already set.
-		this.getOrCreateLazy(id, {}, model).model = model;
+		const input = this.getOrCreateLazy(id, {}, model, parentViewId);
+		input.model = model;
 
 		this._onDidChangeBrowserViews.fire();
 

@@ -66,6 +66,25 @@ export class CloseWindowAction extends Action2 {
 	}
 }
 
+export class MinimizeWindowAction extends Action2 {
+
+	static readonly ID = 'workbench.action.minimizeWindow';
+
+	constructor() {
+		super({
+			id: MinimizeWindowAction.ID,
+			title: localize2('minimizeWindow', 'Minimize Window'),
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, targetWindowId?: number): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+
+		return nativeHostService.minimizeWindow({ targetWindowId: targetWindowId ?? getActiveWindow().vscodeWindowId });
+	}
+}
+
 export class CloseOtherWindowsAction extends Action2 {
 
 	private static readonly ID = 'workbench.action.closeOtherWindows';

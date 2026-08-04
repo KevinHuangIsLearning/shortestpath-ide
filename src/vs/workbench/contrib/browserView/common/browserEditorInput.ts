@@ -43,6 +43,7 @@ const MAX_TITLE_LENGTH = 30;
  */
 export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly id: string;
+	readonly parentViewId?: string;
 }
 
 /**
@@ -106,6 +107,14 @@ export class BrowserEditorInput extends EditorInput {
 
 	get model(): IBrowserViewModel | undefined {
 		return this._model;
+	}
+
+	get parentViewId(): string | undefined {
+		return this._initialData.parentViewId;
+	}
+
+	setParentViewId(parentViewId: string | undefined): void {
+		this._initialData = { ...this._initialData, parentViewId };
 	}
 
 	set model(model: IBrowserViewModel) {
@@ -374,7 +383,8 @@ export class BrowserEditorInput extends EditorInput {
 			id: this._id,
 			url: this.url,
 			title: this.title,
-			favicon: this.favicon
+			favicon: this.favicon,
+			parentViewId: this.parentViewId
 		};
 	}
 }
