@@ -6,6 +6,7 @@
 import MarkdownIt from 'markdown-it';
 import markdownItKatex from '@vscode/markdown-it-katex';
 import type { HighlighterCore } from 'shiki';
+import { registerLatexDelimiterMath } from './markdownItLatexDelimiters';
 
 type RenderEnvironment = { baseUrl: string };
 
@@ -57,6 +58,7 @@ function createMarkdownRendererWithHighlighter(highlighter: HighlighterCore, get
 	};
 
 	markdown.use(markdownItKatex, { throwOnError: false });
+	registerLatexDelimiterMath(markdown);
 
 	markdown.validateLink = (url: string): boolean => {
 		try {
