@@ -13,16 +13,6 @@ export interface IShortestPathUpdateDocument {
 	readonly downloadUrl?: unknown;
 }
 
-export const SHORTESTPATH_UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
-
-export function getShortestPathUpdateCheckDelay(lastChecked: number, now: number): number {
-	if (!Number.isFinite(lastChecked) || lastChecked <= 0) {
-		return 0;
-	}
-
-	return Math.max(10000, lastChecked + SHORTESTPATH_UPDATE_CHECK_INTERVAL - now);
-}
-
 export function parseShortestPathUpdateDocument(document: IShortestPathUpdateDocument): IShortestPathUpdate | undefined {
 	if (typeof document.version !== 'string' || typeof document.downloadUrl !== 'string' || !parseVersion(document.version)) {
 		return undefined;
