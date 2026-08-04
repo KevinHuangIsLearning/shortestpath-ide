@@ -36,6 +36,7 @@ import {
 
 const workspaceCacheDirectoryName = '.shortestpath';
 const workspaceCacheFileName = 'oj-problems.json';
+const workspaceFolderRequiredMessage = '请先在 ShortestPath IDE 中打开一个文件夹，再从网站导入题目。';
 
 type WorkspaceProblemCache = {
 	version: 3;
@@ -804,6 +805,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	bridge = new ShortestPathOjLocalBridge({
 		async importProblem(problem, signal) {
 			signal.throwIfAborted();
+			if (!vscode.workspace.workspaceFolders?.length) {
+				void vscode.window.showErrorMessage(workspaceFolderRequiredMessage);
+				throw new Error(workspaceFolderRequiredMessage);
+			}
 			const cache = await readWorkspaceProblemCache();
 			signal.throwIfAborted();
 			const action = cache.problems[problem.ref] ? 'updated' : 'created';
@@ -901,7 +906,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 function getWorkspaceCacheDirectoryUri(): vscode.Uri {
 	const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 	if (!workspaceFolder) {
-		throw new Error('Open a workspace folder before importing a ShortestPath OJ problem.');
+		throw new Error(workspaceFolderRequiredMessage);
 	}
 	return vscode.Uri.joinPath(workspaceFolder.uri, workspaceCacheDirectoryName);
 }

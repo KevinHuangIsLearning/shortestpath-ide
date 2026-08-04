@@ -182,6 +182,7 @@ test('keeps the previous active session when a later import fails', async () => 
 			{ ok: failed.ok, code: recordField(failed, 'error').code, active: bridge.getActiveSession()?.problemRef },
 			{ ok: false, code: 'request_failed', active: 'DSU/found/A' },
 		);
+		assert.equal(recordField(failed, 'error').message, 'import failed');
 	} finally {
 		first.terminate();
 		second.terminate();
