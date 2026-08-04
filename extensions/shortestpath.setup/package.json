@@ -7,6 +7,9 @@
 	"engines": {
 		"vscode": "^1.129.0"
 	},
+	"enabledApiProposals": [
+		"browser"
+	],
 	"categories": ["Other"],
 	"capabilities": {
 		"untrustedWorkspaces": {
@@ -76,6 +79,10 @@
 				"icon": "$(settings-gear)"
 			},
 			{
+				"command": "shortestpath.fishMode.toggleVisibility",
+				"title": "%command.toggleFishVisibility%"
+			},
+			{
 				"command": "shortestpath.configureCph",
 				"title": "%command.configureCph%"
 			},
@@ -114,6 +121,12 @@
 			}
 		],
 		"menus": {
+			"commandPalette": [
+				{
+					"command": "shortestpath.fishMode.toggleVisibility",
+					"when": "shortestpath.fishMode.unlocked"
+				}
+			],
 			"view/title": [
 				{
 					"command": "shortestpath.showAllFiles",
@@ -126,6 +139,20 @@
 					"group": "navigation@10"
 				}
 			]
-		}
+		},
+		"keybindings": [
+			{
+				"command": "shortestpath.fishMode.toggleVisibility",
+				"key": "ctrl+alt+f",
+				"mac": "cmd+alt+f",
+				"when": "!isAuxiliaryWindow"
+			},
+			{
+				"command": "shortestpath.fishMode.minimizeWindow",
+				"key": "ctrl+alt+f",
+				"mac": "cmd+alt+f",
+				"when": "isAuxiliaryWindow && activeEditor == workbench.editor.browser"
+			}
+		]
 	}
 }

@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { execFile } from 'child_process';
+import { unlockFishMode } from './fishMode';
 
 type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 
@@ -456,6 +457,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.commands.executeCommand('shortestpath.oj.openControlPanel');
 		} else if (message?.type === 'checkForUpdates') {
 			await vscode.commands.executeCommand('shortestpath.action.checkForUpdates');
+		} else if (message?.type === 'unlockFishMode') {
+			await unlockFishMode(context);
 		}
 	}, undefined, context.subscriptions);
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
@@ -824,7 +827,16 @@ byId('fontFamily').addEventListener('change', () => { selectedFonts[0] = byId('f
 byId('addFallback').addEventListener('click', () => { if (systemFonts.length) { selectedFonts.push(systemFonts[0]); renderFonts(); setPreview(); save(0); } });
 byId('cppStandard').addEventListener('change', () => { const flags = byId('compilerFlags'); const standard = byId('cppStandard').value; const withoutStandard = flags.value.replace(/(^|\\s)-std=(?:gnu\\+\\+|c\\+\\+)\\d+\\b/g, ' ').replace(/\\s+/g, ' ').trim(); flags.value = '-std=' + standard + (withoutStandard ? ' ' + withoutStandard : ''); save(0); });
 document.querySelectorAll('.category').forEach(button => button.addEventListener('click', () => { selectedCategory = button.dataset.category; document.querySelectorAll('.category').forEach(item => item.classList.toggle('active', item === button)); updateSettingsFilter(); }));
-byId('settingsSearch').addEventListener('input', updateSettingsFilter);
+byId('settingsSearch').addEventListener('input', () => {
+  const search = byId('settingsSearch').value.trim().toLocaleLowerCase();
+  if (search === 'touchfish') {
+    vscode.postMessage({ type: 'unlockFishMode' });
+    byId('settingsSearch').value = '';
+    updateSettingsFilter();
+    return;
+  }
+  updateSettingsFilter();
+});
 byId('advanced').addEventListener('click', () => vscode.postMessage({ type: 'advanced' }));
 byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));

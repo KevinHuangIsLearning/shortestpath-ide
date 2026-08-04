@@ -4,6 +4,7 @@ import { homedir } from 'os';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
 import { registerSimpleSettings } from './simpleSettings';
+import { registerFishMode } from './fishMode';
 import { registerCphSettings } from './cphSettings';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
 
@@ -306,6 +307,7 @@ const cphSettings: Record<string, unknown> = {
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	registerSimpleSettings(context);
+	registerFishMode(context);
 	registerCphSettings(context);
 	registerToolchainDiagnostics(context);
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.setupEnvironment', () => runSetup(context)));
