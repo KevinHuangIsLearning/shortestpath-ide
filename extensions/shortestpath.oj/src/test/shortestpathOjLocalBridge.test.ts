@@ -153,6 +153,55 @@ test('validates IDE request responses and accepts terminal event snapshots', asy
 	}
 });
 
+test('reports a request that takes longer than the configured notice delay', async () => {
+	const bridge = new ShortestPathOjLocalBridge({
+		async importProblem() { return 'created'; },
+		async updateProblemState() { },
+		handleEvent() { },
+		handleDisconnect() { },
+	}, 0, '127.0.0.1', 15_000, 5);
+	const activity: Array<{ problemRef: string; active: boolean }> = [];
+	bridge.onLongRunningRequest((problemRef, active) => activity.push({ problemRef, active }));
+	const port = await bridge.listeningPort();
+	const socket = await openSocket(port);
+	try {
+		const bound = await sendRequest(socket, 'problem.bind', bindPayload);
+		const sessionId = stringField(bound, 'sessionId');
+		const requestReceived = nextMessage(socket, message => message.type === 'hint.answer.request');
+		const pending = bridge.requestHintAnswer('DSU/found/A', '123');
+		const request = await requestReceived;
+		await waitFor(() => activity.length === 1);
+		assert.deepStrictEqual(activity, [{ problemRef: 'DSU/found/A', active: true }]);
+		socket.send(JSON.stringify({
+			version: 1,
+			id: 'website-response',
+			replyTo: request.id,
+			type: 'hint.answer.result',
+			sessionId,
+			ok: true,
+			data: {
+				state: 'revealed',
+				hintId: '123',
+				answer: { format: 'markdown', content: '答案' },
+				viewedAtUnixMs: 1_785_320_000_001,
+				likes: {
+					question: { liked: false, count: 3 },
+					answer: { liked: false, count: 1 },
+				},
+			},
+		}));
+		await pending;
+		await waitFor(() => activity.length === 2);
+		assert.deepStrictEqual(activity, [
+			{ problemRef: 'DSU/found/A', active: true },
+			{ problemRef: 'DSU/found/A', active: false },
+		]);
+	} finally {
+		socket.terminate();
+		await bridge.close();
+	}
+});
+
 test('keeps the previous active session when a later import fails', async () => {
 	const bridge = new ShortestPathOjLocalBridge({
 		async importProblem(problem) {

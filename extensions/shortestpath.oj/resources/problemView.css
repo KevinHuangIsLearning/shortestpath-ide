@@ -423,6 +423,31 @@ body {
 	padding: 18px;
 }
 
+.operation-notice-container:empty {
+	display: none;
+}
+
+.operation-notice-container {
+	left: 50%;
+	max-width: calc(100vw - 36px);
+	pointer-events: none;
+	position: fixed;
+	top: 12px;
+	transform: translateX(-50%);
+	z-index: 100;
+}
+
+.operation-notice {
+	background: var(--vscode-inputValidation-warningBackground, rgba(255, 204, 0, 0.16));
+	border: 1px solid var(--vscode-inputValidation-warningBorder, #cca700);
+	border-radius: 4px;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+	font-size: 0.9em;
+	line-height: 1.5;
+	padding: 8px 10px;
+}
+
 
 h2, h3, h4 {
 	line-height: 1.4;

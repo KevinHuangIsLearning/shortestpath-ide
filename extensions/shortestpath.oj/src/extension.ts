@@ -133,6 +133,8 @@ class ShortestPathOjProblemPanel {
 	private editorialPanel: vscode.WebviewPanel | undefined;
 	private reopenProblemAfterEditorial = false;
 	private editorialHiddenSourcePath: string | undefined;
+	private longRunningOperationNoticeCount = 0;
+	private longRunningOperationNoticeVisible = false;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -146,6 +148,8 @@ class ShortestPathOjProblemPanel {
 			this.showAntiFraudReminder();
 		}
 		if (!this.state || this.state.problem.ref !== problem.ref) {
+			this.longRunningOperationNoticeCount = 0;
+			this.longRunningOperationNoticeVisible = false;
 			this.reopenProblemAfterEditorial = false;
 			this.editorialHiddenSourcePath = undefined;
 			this.editorialPanel?.dispose();
@@ -733,12 +737,26 @@ class ShortestPathOjProblemPanel {
 		}
 	}
 
+	setLongRunningOperationNotice(problemRef: string, active: boolean): void {
+		if (!this.state || this.state.problem.ref !== problemRef) {
+			return;
+		}
+		this.longRunningOperationNoticeCount = active
+			? this.longRunningOperationNoticeCount + 1
+			: Math.max(0, this.longRunningOperationNoticeCount - 1);
+		const visible = this.longRunningOperationNoticeCount > 0;
+		if (this.longRunningOperationNoticeVisible !== visible) {
+			this.longRunningOperationNoticeVisible = visible;
+			this.render();
+		}
+	}
+
 	private render(): void {
 		if (!this.panel || !this.state) {
 			return;
 		}
 		this.panel.title = `ShortestPath OJ: ${this.state.problem.title}`;
-		const sections = renderProblemViewSections(this.state);
+		const sections = renderProblemViewSections(this.state, this.longRunningOperationNoticeVisible);
 		const timer = getProblemViewTimer(this.state);
 		if (!this.sentSections || this.renderedProblemRef !== this.state.problem.ref) {
 			// Full re-render: the webview reloads and must signal readiness before
@@ -868,6 +886,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			panel.setDisconnected(problemRef);
 		},
 	}, bridgePort);
+	context.subscriptions.push(
+		bridge.onLongRunningRequest((problemRef, active) => panel.setLongRunningOperationNotice(problemRef, active)),
+	);
 	bridge.onListening(() => output.appendLine(`WebSocket bridge listening at ws://127.0.0.1:${bridgePort}/shortestpath-oj with shortestpath-oj-v1.`));
 	bridge.onError(error => {
 		output.appendLine(`WebSocket bridge error: ${error.message}`);
@@ -1231,6 +1252,7 @@ async function addStressCounterExampleToCph(problem: ImportedProblem, task: Stre
 }
 
 type ProblemViewSections = {
+	operationNotice: string;
 	status: string;
 	submissionButton: string;
 	information: string;
@@ -1241,6 +1263,7 @@ type ProblemViewSections = {
 };
 
 const problemViewSectionIds: Record<keyof ProblemViewSections, string> = {
+	operationNotice: 'oj-operation-notice',
 	status: 'oj-status',
 	submissionButton: 'oj-submission-button',
 	information: 'oj-information',
@@ -1280,9 +1303,15 @@ function getProblemViewTimer(state: ProblemPanelState): ProblemViewTimer {
 	};
 }
 
-function renderProblemViewSections(state: ProblemPanelState): ProblemViewSections {
+function renderProblemViewSections(
+	state: ProblemPanelState,
+	showLongRunningOperationNotice: boolean,
+): ProblemViewSections {
 	const { problem } = state;
 	return {
+		operationNotice: showLongRunningOperationNotice
+			? '<div class="operation-notice" role="status">操作长时间没有响应，可能是因为触发了安全验证，请到浏览器处理。</div>'
+			: '',
 		status: `<div class="connection ${state.connected ? 'connected' : 'disconnected'}">${escapeHtml(state.statusMessage)}</div>`,
 		submissionButton: problem.capabilities.submission.enabled ? `<button type="button" data-command="submit"${state.connected ? '' : ' disabled'}>提交代码</button>` : '',
 		information: renderInformation(problem),
@@ -1312,6 +1341,7 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 		TITLE: escapeHtml(problem.title),
 		METADATA: `${escapeHtml(problem.topic.title)} · ${problem.limits.timeMs} ms · ${problem.limits.memoryMB} MB · ${escapeHtml(problem.judge.mode.toUpperCase())}`,
 		PROBLEM_URL: escapeAttribute(problem.url),
+		OPERATION_NOTICE: sections.operationNotice,
 		STATUS: sections.status,
 		SUBMISSION_BUTTON: sections.submissionButton,
 		INFORMATION: sections.information,
