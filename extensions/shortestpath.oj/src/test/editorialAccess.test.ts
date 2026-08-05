@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { canRequestEditorial, shouldConfirmEditorial } from '../editorialAccess';
+import { canRequestEditorial, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from '../editorialAccess';
 import { parseProblemBindData } from '../shortestpathOjProtocol';
 import { bindPayload } from './fixtures';
 
@@ -26,5 +26,11 @@ suite('ShortestPath OJ editorial access', () => {
 				timer: { ...importedProblem.state.timer, accepted: true },
 			},
 		}), false);
+	});
+
+	test('counts down an editorial lock from the last website response', () => {
+		assert.equal(getCurrentEditorialRemainingMs(90_000, 10_000, 40_000), 60_000);
+		assert.equal(getCurrentEditorialRemainingMs(90_000, 10_000, 120_000), 0);
+		assert.equal(getCurrentEditorialRemainingMs(90_000, 10_000, 5_000), 90_000);
 	});
 });

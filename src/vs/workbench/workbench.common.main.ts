@@ -199,6 +199,15 @@ registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, Instantia
 
 //#region --- workbench contributions
 
+// Default Account
+import './services/accounts/browser/defaultAccount.js';
+
+// Account Policy Gate
+import './services/policies/browser/accountPolicyGate.contribution.js';
+
+// Policy Telemetry
+import './services/policies/browser/policyTelemetry.contribution.js';
+
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';
 

@@ -63,10 +63,20 @@ async function ensureCompiled() {
 	}
 }
 
+async function ensureNLSMetadata() {
+	// ShortestPath IDE defaults to zh-cn in development mode. The fast development
+	// compile only produces `out/`, while NLS metadata is emitted by the build
+	// compile into `out-build/`.
+	if (!(await exists('out-build/nls.keys.json')) || !(await exists('out-build/nls.messages.json'))) {
+		await runProcess(npm, ['run', 'gulp', 'compile-build-without-mangling']);
+	}
+}
+
 async function main() {
 	await ensureNodeModules();
 	await getElectron();
 	await ensureCompiled();
+	await ensureNLSMetadata();
 
 	// Can't require this until after dependencies are installed
 	const { getBuiltInExtensions } = await import('./builtInExtensions.ts');

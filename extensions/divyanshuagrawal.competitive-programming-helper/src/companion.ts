@@ -646,11 +646,26 @@ const handleNewProblem = async (problem: Problem, preferredSourcePath?: string):
     return { created: true, sourcePath: srcPath };
 };
 
-function getPreferredSourcePath(workspaceFolder: string, preferredSourcePath: string | undefined): string | undefined {
+function getPreferredSourcePath(
+    workspaceFolder: string,
+    preferredSourcePath: string | undefined,
+): string | undefined {
     if (!preferredSourcePath) {
         return undefined;
     }
     const sourcePath = path.resolve(preferredSourcePath);
     const relativePath = path.relative(workspaceFolder, sourcePath);
-    return relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath) ? sourcePath : undefined;
+    if (
+        !relativePath ||
+        relativePath.startsWith('..') ||
+        path.isAbsolute(relativePath)
+    ) {
+        return undefined;
+    }
+
+    // The OJ integration sends the previous source path so an existing CPH
+    // problem can be updated in place. If that file was moved, the path is stale
+    // and must not be reused; otherwise a re-import recreates/updates the old
+    // problem instead of following the file to its new location.
+    return existsSync(sourcePath) ? sourcePath : undefined;
 }
