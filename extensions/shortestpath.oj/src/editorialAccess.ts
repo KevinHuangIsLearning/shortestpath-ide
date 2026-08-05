@@ -12,3 +12,7 @@ export function canRequestEditorial(connected: boolean): boolean {
 export function shouldConfirmEditorial(problem: ImportedProblem): boolean {
 	return !problem.state.timer.accepted && problem.state.editorial.requiresConfirmation;
 }
+
+export function getCurrentEditorialRemainingMs(remainingMs: number, receivedAtMs: number, nowMs = Date.now()): number {
+	return Math.max(0, remainingMs - Math.max(0, nowMs - receivedAtMs));
+}
