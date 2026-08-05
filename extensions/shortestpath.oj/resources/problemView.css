@@ -448,6 +448,12 @@ body {
 	padding: 8px 10px;
 }
 
+.operation-notice.error {
+	background: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.14));
+	border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground));
+}
+
 
 h2, h3, h4 {
 	line-height: 1.4;
