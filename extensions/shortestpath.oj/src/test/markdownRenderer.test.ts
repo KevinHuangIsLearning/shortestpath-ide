@@ -8,6 +8,7 @@ import { suite, test } from 'node:test';
 import MarkdownIt from 'markdown-it';
 import markdownItKatex from '@vscode/markdown-it-katex';
 import { registerLatexDelimiterMath } from '../markdownItLatexDelimiters';
+import { resolveProblemMarkdownUrl } from '../markdownRenderer';
 
 function createMarkdown(): MarkdownIt {
 	const markdown = new MarkdownIt({
@@ -19,6 +20,15 @@ function createMarkdown(): MarkdownIt {
 	registerLatexDelimiterMath(markdown);
 	return markdown;
 }
+
+suite('ShortestPath OJ Markdown URLs', () => {
+	test('resolves root-relative assets against the ShortestPath website', () => {
+		assert.equal(
+			resolveProblemMarkdownUrl('/assets/problems/299/9f1d54265986-314053_1562642898593_2559_1.jpg', 'https://example.invalid/problem/299'),
+			'https://shortestpath.cn/assets/problems/299/9f1d54265986-314053_1562642898593_2559_1.jpg',
+		);
+	});
+});
 
 suite('ShortestPath OJ LaTeX math delimiters', () => {
 	test('renders \\(...\\) as inline math like $...$', () => {

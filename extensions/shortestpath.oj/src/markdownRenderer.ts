@@ -10,9 +10,13 @@ import { registerLatexDelimiterMath } from './markdownItLatexDelimiters';
 
 type RenderEnvironment = { baseUrl: string };
 
-function resolveUrl(value: string, baseUrl: string): string {
+const shortestPathOrigin = 'https://shortestpath.cn';
+
+export function resolveProblemMarkdownUrl(value: string, baseUrl: string): string {
 	try {
-		const url = new URL(value, baseUrl);
+		const url = value.startsWith('/') && !value.startsWith('//')
+			? new URL(value, shortestPathOrigin)
+			: new URL(value, baseUrl);
 		return url.protocol === 'https:' ? url.toString() : '#';
 	} catch {
 		return '#';
@@ -73,14 +77,14 @@ function createMarkdownRendererWithHighlighter(highlighter: HighlighterCore, get
 	markdown.renderer.rules.link_open = (tokens, index, options, env: RenderEnvironment, self) => {
 		const token = tokens[index];
 		const href = token.attrGet('href');
-		token.attrSet('href', href ? resolveUrl(href, env.baseUrl) : '#');
+		token.attrSet('href', href ? resolveProblemMarkdownUrl(href, env.baseUrl) : '#');
 		return defaultLinkOpen(tokens, index, options, env, self);
 	};
 
 	markdown.renderer.rules.image = (tokens, index, _options, env: RenderEnvironment) => {
 		const token = tokens[index];
 		const src = token.attrGet('src');
-		return `<img src="${escapeAttribute(src ? resolveUrl(src, env.baseUrl) : '#')}" alt="${escapeAttribute(token.content)}">`;
+		return `<img src="${escapeAttribute(src ? resolveProblemMarkdownUrl(src, env.baseUrl) : '#')}" alt="${escapeAttribute(token.content)}">`;
 	};
 
 	return (content: string, baseUrl: string): string => markdown.render(content, { baseUrl });
