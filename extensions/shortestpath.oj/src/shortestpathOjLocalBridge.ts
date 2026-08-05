@@ -64,6 +64,9 @@ type PendingRequest = {
 	resolve(response: ProtocolResponse): void;
 	reject(error: Error): void;
 	timer: ReturnType<typeof setTimeout>;
+	longRunningTimer: ReturnType<typeof setTimeout>;
+	longRunningNoticeShown: boolean;
+	problemRef: string;
 };
 
 type BridgeConnection = {
@@ -91,6 +94,7 @@ export class OutcomeUnknownError extends Error {
 export class ShortestPathOjLocalBridge {
 	private readonly server: WebSocketServer;
 	private readonly connections = new Set<BridgeConnection>();
+	private readonly longRunningRequestListeners = new Set<(problemRef: string, active: boolean) => void>();
 	private activeSession: InternalActiveSession | undefined;
 	private bindQueue = Promise.resolve();
 
@@ -99,6 +103,7 @@ export class ShortestPathOjLocalBridge {
 		port: number,
 		host = '127.0.0.1',
 		private readonly importTimeoutMs = defaultImportTimeoutMs,
+		private readonly longRunningRequestDelayMs = 1_000,
 	) {
 		this.server = new WebSocketServer({
 			host,
@@ -117,6 +122,11 @@ export class ShortestPathOjLocalBridge {
 
 	onListening(listener: () => void): void {
 		this.server.on('listening', listener);
+	}
+
+	onLongRunningRequest(listener: (problemRef: string, active: boolean) => void): { dispose(): void } {
+		this.longRunningRequestListeners.add(listener);
+		return { dispose: () => this.longRunningRequestListeners.delete(listener) };
 	}
 
 	getActiveSession(): ActiveSession | undefined {
@@ -394,9 +404,27 @@ export class ShortestPathOjLocalBridge {
 		return new Promise<ProtocolResponse>((resolve, reject) => {
 			const timer = setTimeout(() => {
 				active.connection.pending.delete(id);
+				this.completePendingRequest(pending);
 				reject(sideEffect ? new OutcomeUnknownError() : new Error(`请求超时：${type}`));
 			}, timeoutMs);
-			active.connection.pending.set(id, { expectedType, sideEffect, resolve, reject, timer });
+			const longRunningTimer = setTimeout(() => {
+				if (!active.connection.pending.has(id)) {
+					return;
+				}
+				pending.longRunningNoticeShown = true;
+				this.fireLongRunningRequest(problemRef, true);
+			}, this.longRunningRequestDelayMs);
+			const pending: PendingRequest = {
+				expectedType,
+				sideEffect,
+				resolve,
+				reject,
+				timer,
+				longRunningTimer,
+				longRunningNoticeShown: false,
+				problemRef,
+			};
+			active.connection.pending.set(id, pending);
 			this.send(active.connection, {
 				version: 1,
 				id,
@@ -407,8 +435,8 @@ export class ShortestPathOjLocalBridge {
 				if (!error) {
 					return;
 				}
-				clearTimeout(timer);
 				active.connection.pending.delete(id);
+				this.completePendingRequest(pending);
 				reject(sideEffect ? new OutcomeUnknownError() : error);
 			});
 		});
@@ -420,7 +448,7 @@ export class ShortestPathOjLocalBridge {
 			return;
 		}
 		connection.pending.delete(response.replyTo);
-		clearTimeout(pending.timer);
+		this.completePendingRequest(pending);
 		const active = this.activeSession;
 		if (!active || active.connection !== connection || response.sessionId !== active.sessionId) {
 			pending.reject(pending.sideEffect ? new OutcomeUnknownError() : new Error('响应会话与当前活动题目不匹配。'));
@@ -469,7 +497,7 @@ export class ShortestPathOjLocalBridge {
 
 	private rejectPending(connection: BridgeConnection, error?: Error): void {
 		for (const pending of connection.pending.values()) {
-			clearTimeout(pending.timer);
+			this.completePendingRequest(pending);
 			pending.reject(pending.sideEffect ? new OutcomeUnknownError() : (error ?? new Error('题目网页连接已断开。')));
 		}
 		connection.pending.clear();
@@ -501,9 +529,24 @@ export class ShortestPathOjLocalBridge {
 			return true;
 		}
 		connection.pending.delete(replyTo);
-		clearTimeout(pending.timer);
+		this.completePendingRequest(pending);
 		pending.reject(pending.sideEffect ? new OutcomeUnknownError() : new Error(errorMessage(error)));
 		return true;
+	}
+
+	private completePendingRequest(pending: PendingRequest): void {
+		clearTimeout(pending.timer);
+		clearTimeout(pending.longRunningTimer);
+		if (pending.longRunningNoticeShown) {
+			pending.longRunningNoticeShown = false;
+			this.fireLongRunningRequest(pending.problemRef, false);
+		}
+	}
+
+	private fireLongRunningRequest(problemRef: string, active: boolean): void {
+		for (const listener of this.longRunningRequestListeners) {
+			listener(problemRef, active);
+		}
 	}
 
 	private sendProtocolFailure(
