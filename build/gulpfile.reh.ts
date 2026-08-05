@@ -565,6 +565,17 @@ async function stripAuthenticodeSignature(filePath: string): Promise<void> {
 	});
 }
 
+async function isWindowsExecutable(filePath: string): Promise<boolean> {
+	const handle = await fs.promises.open(filePath, 'r');
+	try {
+		const header = Buffer.alloc(2);
+		const { bytesRead } = await handle.read(header, 0, header.length, 0);
+		return bytesRead === header.length && header[0] === 0x4d && header[1] === 0x5a;
+	} finally {
+		await handle.close();
+	}
+}
+
 function patchWin32DependenciesTask(destinationFolderName: string) {
 	const cwd = path.join(BUILD_ROOT, destinationFolderName);
 
@@ -576,11 +587,12 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			promisify(glob)('**/node_modules/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/computer-use-mcp.exe', { cwd }),
 			promisify(glob)('**/node_modules/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/CopilotComputerUse.exe', { cwd }),
 		])).flatMap(o => o);
+		const windowsDeps = (await Promise.all(deps.map(async dep => (await isWindowsExecutable(path.join(cwd, dep))) ? dep : undefined))).filter((dep): dep is string => typeof dep === 'string');
 		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));
 		const productContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'product.json'), 'utf8'));
 		const baseVersion = packageJsonContents.version.replace(/-.*$/, '');
 
-		const patchPromises = deps.map<Promise<unknown>>(async dep => {
+		const patchPromises = windowsDeps.map<Promise<unknown>>(async dep => {
 			const basename = path.basename(dep);
 			const fullPath = path.join(cwd, dep);
 
