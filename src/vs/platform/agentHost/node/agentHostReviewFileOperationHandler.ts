@@ -67,7 +67,7 @@ export class AgentHostReviewFileOperationHandler implements IChangesetOperationH
 				`Operation '${this._operationId}' requires a resource target.`);
 		}
 
-		const workingDirectoryStr = sessionState.workingDirectory;
+		const workingDirectoryStr = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}

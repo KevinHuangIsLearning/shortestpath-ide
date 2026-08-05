@@ -883,10 +883,17 @@ export const enum EditorInputCapabilities {
 	RequiresModal = 1 << 11,
 
 	/**
+	 * Signals that the editor is exempt from the opened editors
+	 * limit (`workbench.editor.limit`): it never counts towards the
+	 * limit and is never auto-closed to satisfy it.
+	 */
+	ExcludeFromEditorLimit = 1 << 12,
+
+	/**
 	 * Signals that the editor must remain in its current window. It can still
 	 * move or split between editor groups within that window.
 	 */
-	NoNewWindow = 1 << 12
+	NoNewWindow = 1 << 13
 }
 
 export function canOpenEditorsInNewWindow(editors: readonly EditorInput[]): boolean {

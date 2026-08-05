@@ -76,7 +76,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly revi
 			status: SessionStatus.Idle,
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
-			workingDirectory: opts?.withWorkingDirectory === false ? undefined : URI.file('/repo').toString(),
+			workingDirectories: opts?.withWorkingDirectory === false ? undefined : [URI.file('/repo').toString()],
 		});
 	}
 	const handler = new AgentHostReviewFileOperationHandler(

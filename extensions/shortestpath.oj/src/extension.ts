@@ -8,7 +8,7 @@ import { promises as fs } from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { canRequestEditorial, shouldConfirmEditorial } from './editorialAccess';
+import { canRequestEditorial, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
 import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
 import { OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
@@ -106,6 +106,7 @@ type ProblemPanelState = {
 	disconnectedStressTasks: Set<string>;
 	addingStressCounterExamples: Set<string>;
 	addedStressCounterExamples: Set<string>;
+	editorialRemainingReceivedAtMs: number;
 	sourcePath?: string;
 };
 
@@ -140,12 +141,9 @@ class ShortestPathOjProblemPanel {
 		private readonly unknownStressStarts: Set<string>,
 	) { }
 
-	showProblem(problem: ImportedProblem, connected: boolean, sourcePath?: string): void {
-		if (vscode.workspace.getConfiguration('shortestpath.oj').get<boolean>('antiFraudReminder', false)) {
-			const rickrollUrl = vscode.env.language.toLowerCase().startsWith('zh')
-				? 'https://www.bilibili.com/video/BV1GJ411x7h7/'
-				: 'https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J';
-			void vscode.window.openBrowserTab(rickrollUrl, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
+	showProblem(problem: ImportedProblem, connected: boolean, sourcePath?: string, fromWebsite = false): void {
+		if (fromWebsite) {
+			this.showAntiFraudReminder();
 		}
 		if (!this.state || this.state.problem.ref !== problem.ref) {
 			this.reopenProblemAfterEditorial = false;
@@ -173,12 +171,16 @@ class ShortestPathOjProblemPanel {
 				disconnectedStressTasks: new Set(),
 				addingStressCounterExamples: new Set(),
 				addedStressCounterExamples: new Set(),
+				editorialRemainingReceivedAtMs: Date.now(),
 				sourcePath,
 			};
 		} else {
 			this.state.problem = problem;
 			this.state.connected = connected;
 			this.state.statusMessage = connected ? '已连接题目网页。' : '等待用户从网站重新发送题目。';
+			if (fromWebsite) {
+				this.state.editorialRemainingReceivedAtMs = Date.now();
+			}
 			if (sourcePath) {
 				this.state.sourcePath = sourcePath;
 			}
@@ -197,11 +199,22 @@ class ShortestPathOjProblemPanel {
 		}
 	}
 
+	private showAntiFraudReminder(): void {
+		if (!vscode.workspace.getConfiguration('shortestpath.oj').get<boolean>('antiFraudReminder', false)) {
+			return;
+		}
+		const rickrollUrl = vscode.env.language.toLowerCase().startsWith('zh')
+			? 'https://www.bilibili.com/video/BV1GJ411x7h7/'
+			: 'https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J';
+		void vscode.window.openBrowserTab(rickrollUrl, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
+	}
+
 	updateProblemState(problemRef: string, state: ProblemState): void {
 		if (!this.state || this.state.problem.ref !== problemRef) {
 			return;
 		}
 		this.state.problem = applyProblemState(this.state.problem, state);
+		this.state.editorialRemainingReceivedAtMs = Date.now();
 		this.render();
 	}
 
@@ -352,6 +365,13 @@ class ShortestPathOjProblemPanel {
 			type: 'showHintModal',
 			html: `<div class="modal-header"><h3>解题报告</h3><button type="button" class="modal-close" data-command="closeModal" aria-label="关闭">×</button></div><div class="modal-body"><p class="hint-feedback" data-remaining-ms="${remainingMs}">${escapeHtml('解题报告尚未解锁，')}<span class="editorial-countdown">${escapeHtml(`剩余 ${formatDuration(remainingMs)}`)}</span></p></div>`,
 		});
+	}
+
+	private getCurrentEditorialRemainingMs(state: ProblemPanelState): number {
+		return getCurrentEditorialRemainingMs(
+			state.problem.state.editorial.remainingMs,
+			state.editorialRemainingReceivedAtMs,
+		);
 	}
 
 	private getProblemViewColumn(): vscode.ViewColumn {
@@ -593,8 +613,9 @@ class ShortestPathOjProblemPanel {
 					break;
 				case 'editorial':
 					{
-						if (!state.problem.state.timer.accepted && state.problem.state.editorial.remainingMs > 0) {
-							this.showLockedEditorialNotice(state.problem.state.editorial.remainingMs);
+						const remainingMs = this.getCurrentEditorialRemainingMs(state);
+						if (!state.problem.state.timer.accepted && remainingMs > 0) {
+							this.showLockedEditorialNotice(remainingMs);
 							return;
 						}
 						const result = await this.actions.editorial(state.problem);
@@ -604,6 +625,7 @@ class ShortestPathOjProblemPanel {
 								this.showEditorialPanel(result, state.problem);
 							} else {
 								state.problem = applyEditorialLockRemaining(state.problem, result.remainingMs);
+								state.editorialRemainingReceivedAtMs = Date.now();
 							}
 						}
 					}
@@ -827,7 +849,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		},
 		async activateProblem(problem) {
 			const sourcePath = (await readWorkspaceProblemCache()).sourcePaths[problem.ref];
-			panel.showProblem(problem, true, sourcePath);
+			panel.showProblem(problem, true, sourcePath, true);
 		},
 		async updateProblemState(problemRef, state) {
 			const cache = await readWorkspaceProblemCache();
