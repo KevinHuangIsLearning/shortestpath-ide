@@ -135,6 +135,8 @@ class ShortestPathOjProblemPanel {
 	private editorialHiddenSourcePath: string | undefined;
 	private longRunningOperationNoticeCount = 0;
 	private longRunningOperationNoticeVisible = false;
+	private operationToastMessage: string | undefined;
+	private operationToastTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -150,6 +152,7 @@ class ShortestPathOjProblemPanel {
 		if (!this.state || this.state.problem.ref !== problem.ref) {
 			this.longRunningOperationNoticeCount = 0;
 			this.longRunningOperationNoticeVisible = false;
+			this.clearOperationToast();
 			this.reopenProblemAfterEditorial = false;
 			this.editorialHiddenSourcePath = undefined;
 			this.editorialPanel?.dispose();
@@ -727,7 +730,8 @@ class ShortestPathOjProblemPanel {
 			}
 			const message = error instanceof Error ? error.message : String(error);
 			if (value.command === 'submit') {
-				state.statusMessage = message;
+				state.statusMessage = state.connected ? '已连接题目网页。' : '等待用户从网站重新发送题目。';
+				this.showOperationToast(message);
 			}
 			if ((value.command === 'answer' || value.command === 'openHintModal') && typeof value.hintId === 'string') {
 				state.hintMessages.set(value.hintId, message);
@@ -751,12 +755,40 @@ class ShortestPathOjProblemPanel {
 		}
 	}
 
+	private showOperationToast(message: string): void {
+		if (!message) {
+			return;
+		}
+		this.operationToastMessage = message;
+		if (this.operationToastTimer) {
+			clearTimeout(this.operationToastTimer);
+		}
+		this.operationToastTimer = setTimeout(() => {
+			this.operationToastMessage = undefined;
+			this.operationToastTimer = undefined;
+			this.render();
+		}, 5_000);
+		this.render();
+	}
+
+	private clearOperationToast(): void {
+		if (this.operationToastTimer) {
+			clearTimeout(this.operationToastTimer);
+			this.operationToastTimer = undefined;
+		}
+		this.operationToastMessage = undefined;
+	}
+
 	private render(): void {
 		if (!this.panel || !this.state) {
 			return;
 		}
 		this.panel.title = `ShortestPath OJ: ${this.state.problem.title}`;
-		const sections = renderProblemViewSections(this.state, this.longRunningOperationNoticeVisible);
+		const sections = renderProblemViewSections(
+			this.state,
+			this.longRunningOperationNoticeVisible,
+			this.operationToastMessage,
+		);
 		const timer = getProblemViewTimer(this.state);
 		if (!this.sentSections || this.renderedProblemRef !== this.state.problem.ref) {
 			// Full re-render: the webview reloads and must signal readiness before
@@ -1306,12 +1338,15 @@ function getProblemViewTimer(state: ProblemPanelState): ProblemViewTimer {
 function renderProblemViewSections(
 	state: ProblemPanelState,
 	showLongRunningOperationNotice: boolean,
+	operationToastMessage: string | undefined,
 ): ProblemViewSections {
 	const { problem } = state;
 	return {
-		operationNotice: showLongRunningOperationNotice
-			? '<div class="operation-notice" role="status">操作长时间没有响应，可能是因为触发了安全验证，请到浏览器处理。</div>'
-			: '',
+		operationNotice: operationToastMessage
+			? `<div class="operation-notice error" role="alert">${escapeHtml(operationToastMessage)}</div>`
+			: showLongRunningOperationNotice
+				? '<div class="operation-notice" role="status">操作长时间没有响应，可能是因为触发了安全验证，请到浏览器处理。</div>'
+				: '',
 		status: `<div class="connection ${state.connected ? 'connected' : 'disconnected'}">${escapeHtml(state.statusMessage)}</div>`,
 		submissionButton: problem.capabilities.submission.enabled ? `<button type="button" data-command="submit"${state.connected ? '' : ' disabled'}>提交代码</button>` : '',
 		information: renderInformation(problem),
