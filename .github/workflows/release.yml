@@ -234,11 +234,11 @@ jobs:
         run: |
           app="../VSCode-darwin-arm64/ShortestPath IDE.app"
           for entry in \
-		    "divyanshuagrawal.competitive-programming-helper/dist/extension.js" \
-		    "usernamehw.errorlens/dist/extension.js" \
-		    "shortestpath.setup/out/extension.js" \
-		    "shortestpath.oj/out/extension.js" \
-		    "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
+            "divyanshuagrawal.competitive-programming-helper/dist/extension.js" \
+            "usernamehw.errorlens/dist/extension.js" \
+            "shortestpath.setup/out/extension.js" \
+            "shortestpath.oj/out/extension.js" \
+            "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
             "llvm-vs-code-extensions.vscode-clangd/out/bundle.js"; do
             test -f "$app/Contents/Resources/app/extensions/$entry" || {
               echo "Required extension entry file was not packaged: $entry" >&2
