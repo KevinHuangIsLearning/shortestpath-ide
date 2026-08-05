@@ -12,7 +12,7 @@ import { execSync } from 'child_process';
 import { mkdtempSync, rmSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
-import { raceTimeout, timeout } from '../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -30,8 +30,9 @@ import {
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CapiReplayMode } from './capiReplayProxy.js';
 import {
-	getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient,
+	getActionEnvelope, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
+import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
 import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapshot.js';
 
@@ -45,24 +46,20 @@ import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapsh
 const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || UPDATE_SNAPSHOTS;
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
-const SERVER_SHUTDOWN_TIMEOUT_MS = 30_000;
+
+/**
+ * Upper bound on **model-backed** tests served by a single shared replay server
+ * before it is proactively recycled. The cached provider SDK/CLI subprocess
+ * degrades as a function of the model-driven turns it has run, not of how many
+ * tests connected, so host-only tests do not count against this budget.
+ * Amortizes startup across many tests while keeping each cached provider
+ * subprocess well within the range where it stays healthy.
+ */
+const MAX_MODEL_BACKED_TESTS_PER_SHARED_SERVER = 25;
 const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
 /** A synthetic token used on replay (no real credential needed). */
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
-
-async function stopServer(server: IServerHandle | undefined): Promise<void> {
-	const serverProcess = server?.process;
-	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
-		return;
-	}
-
-	const serverExit = new Promise<void>(resolve => serverProcess.once('exit', () => resolve()));
-	serverProcess.stdin?.end();
-	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
-		serverProcess.kill();
-		await serverExit;
-	}
-}
+export type AgentHostE2EModelTraffic = 'recorded' | 'none';
 
 export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 	const pendingDirs = tempDirs.splice(0);
@@ -97,6 +94,7 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
  * from `out/`/`out-build/` — resolve up to the repo root and into `src/...`.
  */
 const CAPTURES_DIR = fileURLToPath(new URL('../../../../../../../../src/vs/platform/agentHost/test/node/e2e/captures/', import.meta.url));
+const EMPTY_CAPTURE_PATH = join(CAPTURES_DIR, 'empty.yaml');
 
 /** Per-test fixture path derived from the provider + test title. */
 function fixturePathFor(provider: string, testTitle: string): string {
@@ -107,10 +105,13 @@ function fixturePathFor(provider: string, testTitle: string): string {
 /**
  * Build the `capiReplay` option for a test: replays the committed per-test
  * fixture by default (tokenless), or records it against real CAPI when
- * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Shared by
- * {@link defineAgentHostE2ETests} and provider-specific suites.
+ * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
+ * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string): { fixturePath: string; real: true; mode: CapiReplayMode } {
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode } {
+	if (modelTraffic === 'none') {
+		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay' };
+	}
 	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE };
 }
 
@@ -179,11 +180,11 @@ export interface IAgentHostE2EProviderConfig {
 	readonly enabled: boolean;
 	/**
 	 * Optional path to a locally installed `@anthropic-ai/claude-agent-sdk`
-	 * package. Forwarded to `startRealServer` so the agent host registers
+	 * package. Forwarded to the target's `launch` so the agent host registers
 	 * the Claude provider.
 	 */
 	readonly claudeSdkRoot?: string;
-	/** Optional path to a locally installed `codex` binary. Forwarded to `startRealServer`. */
+	/** Optional path to a locally installed `codex` binary. Forwarded to the target's `launch`. */
 	readonly codexSdkRoot?: string;
 	/**
 	 * Provider implements `config.isolation: 'worktree'` and resolves the
@@ -208,12 +209,29 @@ export interface IAgentHostE2EProviderConfig {
 	 * session. Claude has not landed subagents yet (Phase 12 in roadmap).
 	 */
 	readonly supportsSubagents: boolean;
+	/** Whether the provider supports creating side chats from a source turn. */
+	readonly supportsSideChats?: boolean;
 	/**
 	 * When set, shell-dependent replay tests are skipped on Linux because this
 	 * provider completes recorded shell-tool turns without emitting tool-call
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
+	/**
+	 * Gates the whole "new scenario" family of model-backed tests — the file,
+	 * shell, and multi-turn scenarios added after the original suite.
+	 *
+	 * Set this to `false` only while a provider genuinely cannot run them. Note
+	 * that it currently conflates two different states, and a provider that
+	 * needs it should say which one applies:
+	 *
+	 * - a fixture exists but the provider replays it unstably, and
+	 * - no fixture was ever recorded, in which case the test cannot be re-enabled
+	 *   by flipping this flag alone — recording has to succeed first.
+	 *
+	 * See `KNOWN_ISSUES.md` for the current per-test state.
+	 */
+	readonly stableNewScenarioResponse: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -231,6 +249,11 @@ export interface IAgentHostE2EProviderConfig {
 	 * shared test prompt doesn't reliably drive it to `ExitPlanMode`.
 	 */
 	readonly supportsPlanMode: boolean;
+	/** Whether the provider supports additional peer chats and chat forks. */
+	readonly supportsMultipleChats: boolean;
+	readonly supportsChatFork: boolean;
+	/** Whether provider-backed fork context can be tested end-to-end. */
+	readonly supportsChatForkE2E: boolean;
 
 	/**
 	 * The github token to use. If not provided, the test will attempt to resolve it from the environment or `gh auth token`.
@@ -599,11 +622,33 @@ export class AgentHostE2EServerLease {
 	private _server: IServerHandle | undefined;
 	private _client: TestProtocolClient | undefined;
 	private readonly _shared: boolean;
+	private _dataDir: string | undefined;
+	/**
+	 * Number of **model-backed** tests served by the current shared server. A
+	 * single long-lived host caches one provider SDK/CLI subprocess and reuses it
+	 * across every test; after enough model-driven turns that subprocess can
+	 * accumulate state and eventually wedge a turn (turn starts, but no model
+	 * response arrives even though replay is instant). Recycling the server well
+	 * before that keeps each host instance within its reliable range while still
+	 * amortizing startup.
+	 */
+	private _modelBackedTestsOnCurrentServer = 0;
+	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string };
+	private readonly _target: IAgentHostTarget;
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
-		private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir?: string; readonly userDataDir?: string },
+		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
 	) {
+		const dataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		this._dataDir = dataDir;
+		this._target = startOptions.target ?? defaultAgentHostTarget;
+		this._startOptions = {
+			claudeSdkRoot: startOptions.claudeSdkRoot,
+			codexSdkRoot: startOptions.codexSdkRoot,
+			homeDir: dataDir,
+			userDataDir: join(dataDir, 'user-data'),
+		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
 		// In replay it is always safe because every test drains its turns, so the
@@ -612,8 +657,15 @@ export class AgentHostE2EServerLease {
 	}
 
 	/** Acquire a server + connected client for a test, returning both. */
-	async acquire(testTitle: string): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
-		const capiReplay = capiReplayFor(this._config.provider, testTitle);
+	async acquire(testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
+		const capiReplay = capiReplayFor(this._config.provider, testTitle, modelTraffic);
+		// Proactively recycle a shared server whose cached provider subprocess has
+		// handled enough model-backed turns, before it can degrade and wedge a
+		// turn. Host-only tests never reach the provider's model loop, so they do
+		// not consume budget — only model-backed tests do.
+		if (this._shared && this._server && this._modelBackedTestsOnCurrentServer >= MAX_MODEL_BACKED_TESTS_PER_SHARED_SERVER) {
+			await this._recycleSharedServer();
+		}
 		if (this._shared && this._server) {
 			const proxy = this._server.capiReplay;
 			if (!proxy) {
@@ -621,7 +673,11 @@ export class AgentHostE2EServerLease {
 			}
 			proxy.resetForReplay(capiReplay.fixturePath);
 		} else {
-			this._server = await startRealServer({ ...this._startOptions, capiReplay });
+			this._server = await this._target.launch({ ...this._startOptions, capiReplay });
+			this._modelBackedTestsOnCurrentServer = 0;
+		}
+		if (modelTraffic === 'recorded') {
+			this._modelBackedTestsOnCurrentServer++;
 		}
 		this._client = new TestProtocolClient(
 			this._server.port,
@@ -632,12 +688,35 @@ export class AgentHostE2EServerLease {
 		return { server: this._server, client: this._client };
 	}
 
+	/** Stop the current shared server so the next {@link acquire} starts a fresh one. */
+	private async _recycleSharedServer(): Promise<void> {
+		try {
+			await this._server?.capiReplay?.close();
+		} finally {
+			await stopServer(this._server);
+			this._server = undefined;
+			this._modelBackedTestsOnCurrentServer = 0;
+		}
+	}
+
+	get observedModelRequestBodies(): readonly string[] {
+		return this._server?.capiReplay?.observedModelRequestBodies ?? [];
+	}
+
 	/**
 	 * Release a test: dispose its sessions, disconnect the client, and verify the
-	 * replay traffic. A shared server is kept alive (with its cached SDK client)
-	 * for the next test; a per-test server is stopped.
+	 * replay traffic. A shared server is normally kept alive (with its cached SDK
+	 * client) for the next test; a per-test server is stopped.
+	 *
+	 * Pass `forceRestart` when the just-run test failed. A failed test can leave
+	 * a mid-turn session that wedges (or has already killed) the shared host, so
+	 * reusing it would cascade `ECONNREFUSED` / `createSession` timeouts into the
+	 * next, unrelated test. Restarting isolates the failure to the one test that
+	 * caused it. The strict cache-miss assertion is also skipped on restart: the
+	 * test already failed for its own reason, and a secondary cache-miss throw
+	 * would only obscure it.
 	 */
-	async release(createdSessions: string[]): Promise<void> {
+	async release(createdSessions: string[], forceRestart = false): Promise<void> {
 		const client = this._client;
 		if (client) {
 			for (const session of createdSessions) {
@@ -650,7 +729,7 @@ export class AgentHostE2EServerLease {
 						clientSeq: 9999,
 						action: { type: 'session/abortTurn', session },
 					});
-					await client.call('disposeSession', { session }, 30_000);
+					await client.call('disposeSession', { channel: session }, 30_000);
 				} catch { /* best-effort */ }
 			}
 			client.close();
@@ -658,15 +737,19 @@ export class AgentHostE2EServerLease {
 		createdSessions.length = 0;
 		this._client = undefined;
 
-		if (this._shared) {
+		if (this._shared && !forceRestart) {
 			// Surface this test's strict cache-misses but keep the server (and its
 			// cached SDK client) alive for the next test.
 			this._server?.capiReplay?.assertNoCacheMisses();
 		} else {
-			// Flush the recording / surface strict replay cache-misses before the
-			// process goes away. Kill even if the strict check throws.
+			// Per-test server, or a shared server being restarted after a failure.
+			// Flush the recording / surface strict replay cache-misses (unless the
+			// test already failed) before the process goes away. Kill even if the
+			// strict check throws.
 			try {
-				await this._server?.capiReplay?.stop();
+				if (!forceRestart) {
+					await this._server?.capiReplay?.stop();
+				}
 			} finally {
 				await stopServer(this._server);
 				this._server = undefined;
@@ -676,12 +759,20 @@ export class AgentHostE2EServerLease {
 
 	/** Tear down a shared server at the end of the suite (no-op for per-test). */
 	async dispose(): Promise<void> {
-		if (this._server) {
-			try {
-				await this._server.capiReplay?.close();
-			} finally {
-				await stopServer(this._server);
-				this._server = undefined;
+		const dataDir = this._dataDir;
+		this._dataDir = undefined;
+		try {
+			if (this._server) {
+				try {
+					await this._server.capiReplay?.close();
+				} finally {
+					await stopServer(this._server);
+					this._server = undefined;
+				}
+			}
+		} finally {
+			if (dataDir) {
+				await removeTempDirs([dataDir]);
 			}
 		}
 	}

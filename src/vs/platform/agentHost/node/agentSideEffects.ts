@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getErrorCode } from '../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
@@ -15,12 +16,15 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
+import { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionInputRequest } from '../common/state/protocol/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
@@ -31,6 +35,7 @@ import {
 	isSubagentChatUri,
 	isChatReadOnly,
 	AH_META_IS_ARCHIVED_DB_KEY,
+	MessageAttachmentKind,
 	MessageKind,
 	parseChatUri,
 	parseRequiredSessionUriFromChatUri,
@@ -44,6 +49,7 @@ import {
 	type ErrorInfo,
 	type ISessionWithDefaultChat,
 	type Message,
+	type MessageAttachment,
 	type URI as ProtocolURI,
 	type SessionState,
 	type ToolCallState,
@@ -54,7 +60,7 @@ import {
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTurnFailureStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
@@ -91,12 +97,19 @@ export interface IAgentSideEffectsOptions {
 	 * {@link AgentService}.
 	 */
 	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string }) => Promise<URI | undefined>;
+	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
+	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
 	/**
 	 * Called after each top-level session turn completes so git state can be
 	 * refreshed and published via `SessionMetaChanged`. Subagent turns are
 	 * excluded — only the parent session URI is passed.
 	 */
 	readonly onTurnComplete: (session: ProtocolURI) => void;
+}
+
+interface IQueuedMessageSender {
+	readonly clientId: string | undefined;
+	readonly clientType: AgentHostClientType;
 }
 
 /** A signal that was deferred because its subagent session does not exist yet. */
@@ -112,6 +125,8 @@ interface ISubagentSessionRef {
 	readonly chatUri: ProtocolURI;
 	readonly turnStopWatch: StopWatch;
 }
+
+type AgentSignalTurnIdRouting = 'preserve' | 'remap';
 
 /**
  * Shared implementation of agent side-effect handling.
@@ -135,6 +150,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _localCommands: AgentHostLocalCommands;
 
 	private readonly _subagentChats = new NKeyMap<ISubagentSessionRef, [ProtocolURI, string]>();
+	private readonly _cancelledTurnIds = new Map<ProtocolURI, Set<string>>();
 
 	/**
 	 * Buffers signals whose `parentToolCallId` references a subagent
@@ -147,6 +163,7 @@ export class AgentSideEffects extends Disposable {
 	 *
 	 */
 	private readonly _pendingSubagentSignals = new NKeyMap<IPendingSubagentSignal[], [ProtocolURI, string]>();
+	private readonly _queuedMessageSenders = new NKeyMap<IQueuedMessageSender, [ProtocolURI, string]>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _turnTracker: AgentHostTurnTracker;
 	private readonly _toolCallTracker: AgentHostToolCallTracker;
@@ -195,6 +212,14 @@ export class AgentSideEffects extends Disposable {
 		// Listen for these envelopes and notify the agent directly.
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (isAhpChatChannel(envelope.channel) && isChatAction(envelope.action)) {
+				if (envelope.action.type === ActionType.ChatTurnCancelled) {
+					let turnIds = this._cancelledTurnIds.get(envelope.channel);
+					if (!turnIds) {
+						turnIds = new Set();
+						this._cancelledTurnIds.set(envelope.channel, turnIds);
+					}
+					turnIds.add(envelope.action.turnId);
+				}
 				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
 			}
 			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete) {
@@ -366,7 +391,16 @@ export class AgentSideEffects extends Disposable {
 		const authenticationId = this._toolAuthenticationNeededId(chatUri, turnId, toolCallId);
 		const toolCall = this._findToolCall(chatUri, turnId, toolCallId);
 
-		const needsConfirmation = toolCall?.status === ToolCallStatus.PendingConfirmation || toolCall?.status === ToolCallStatus.PendingResultConfirmation;
+		// A call auto-approved by the session's bypass setting is run
+		// automatically by the owning client and never blocks on the user, so
+		// keep it out of the session `inputNeeded` queue (which would flash
+		// "input needed" in the sessions list). `autoApproveBySetting` covers
+		// only the parameter gate; a `PendingResultConfirmation` is a genuine
+		// prompt and is still surfaced.
+		const autoApproved = !!toolCall && readToolCallMeta(toolCall).autoApproveBySetting === true;
+
+		const suppressAutoApprovedConfirmation = autoApproved && toolCall?.status === ToolCallStatus.PendingConfirmation;
+		const needsConfirmation = !suppressAutoApprovedConfirmation && (toolCall?.status === ToolCallStatus.PendingConfirmation || toolCall?.status === ToolCallStatus.PendingResultConfirmation);
 		if (needsConfirmation && toolCall) {
 			this._setSessionInputNeeded(chatUri, {
 				id: confirmationId,
@@ -380,7 +414,7 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const contributor = toolCall?.contributor;
-		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
+		if (!autoApproved && toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
 			this._setSessionInputNeeded(chatUri, {
 				id: clientExecutionId,
 				kind: SessionInputRequestKind.ToolClientExecution,
@@ -513,6 +547,11 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
+		if (signal.kind === 'subagent_resumed') {
+			this._resumeSubagentSession(signal.chat.toString(), signal.toolCallId, signal.message);
+			return;
+		}
+
 		if (signal.kind === 'subagent_completed') {
 			this.completeSubagentSession(signal.chat.toString(), signal.toolCallId);
 			return;
@@ -541,15 +580,27 @@ export class AgentSideEffects extends Disposable {
 			if (subagentSession) {
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession.chatUri);
 				if (subTurnId) {
-					this._dispatchActionForSession(signal, subagentSession.chatUri, subTurnId, agent);
+					this._dispatchActionForSession(signal, subagentSession.chatUri, subTurnId, 'remap', agent);
+				} else {
+					this._logService.error(`[AgentSideEffects] Dropping ${this._describeSignal(signal)} for inactive subagent ${sessionKey}/${parentToolCallId}`);
+					if (signal.kind === 'pending_confirmation') {
+						agent.respondToPermissionRequest(signal.state.toolCallId, false);
+					}
 				}
+				return;
+			}
+
+			const pendingSignals = this._pendingSubagentSignals.get(sessionKey, parentToolCallId);
+			if (signal.kind === 'pending_confirmation' && !pendingSignals) {
+				this._logService.error(`[AgentSideEffects] Denying permission for unroutable subagent ${sessionKey}/${parentToolCallId}: toolCallId=${signal.state.toolCallId}`);
+				agent.respondToPermissionRequest(signal.state.toolCallId, false);
 				return;
 			}
 
 			// Subagent session does not exist yet — buffer the signal so we can
 			// replay it after `subagent_started` arrives.
 			this._logService.trace(`[AgentSideEffects] Buffering ${this._describeSignal(signal)} for pending subagent ${sessionKey}/${parentToolCallId}`);
-			let buffer = this._pendingSubagentSignals.get(sessionKey, parentToolCallId);
+			let buffer = pendingSignals;
 			if (!buffer) {
 				buffer = [];
 				this._pendingSubagentSignals.set(buffer, sessionKey, parentToolCallId);
@@ -575,7 +626,7 @@ export class AgentSideEffects extends Disposable {
 
 		const turnId = this._stateManager.getActiveTurnId(sessionKey);
 		if (turnId) {
-			this._dispatchActionForSession(signal, sessionKey, turnId, agent);
+			this._dispatchActionForSession(signal, sessionKey, turnId, 'preserve', agent);
 			return;
 		}
 
@@ -598,18 +649,22 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		if (signal.kind === 'action') {
-			this._stateManager.dispatchServerAction(sessionKey, signal.action);
-			if (signal.action.type === ActionType.ChatTurnComplete) {
+			const action = signal.action;
+			if (action.type === ActionType.ChatTurnComplete && this._cancelledTurnIds.get(sessionKey)?.has(action.turnId)) {
+				this._logService.trace(`[AgentSideEffects] Dropping completion for cancelled turn ${action.turnId} on ${sessionKey}`);
+				return;
+			}
+			this._stateManager.dispatchServerAction(sessionKey, action);
+			if (action.type === ActionType.ChatTurnComplete) {
 				this._runTurnCompleteSideEffects(sessionKey, undefined);
 			}
 		}
 	}
 
 	/**
-	 * Dispatches a signal against a resolved session+turn. Performs the
-	 * subagent-content merge for tool_complete and the related side effects.
+	 * Dispatches a signal to a resolved chat, preserving top-level turn identity or remapping cross-channel subagent actions.
 	 */
-	private _dispatchActionForSession(signal: AgentSignal, sessionKey: ProtocolURI, turnId: string, agent?: IAgent): void {
+	private _dispatchActionForSession(signal: AgentSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting, agent?: IAgent): void {
 		if (signal.kind === 'pending_confirmation') {
 			if (agent) {
 				void this._handleToolReady(signal, sessionKey, turnId, agent).catch(err => {
@@ -621,17 +676,14 @@ export class AgentSideEffects extends Disposable {
 		if (signal.kind !== 'action') {
 			return;
 		}
-		// The agent emits actions with its own view of the active turnId
-		// targeting the top-level session. The state manager is the source
-		// of truth — rewrite `turnId` so the action lands in the right
-		// reducer (queued turn ID when the agent hasn't yet seen
-		// `sendMessage`, etc.). Routing to subagent sessions is handled by
-		// the caller via the channel argument.
-		// Actions without a `turnId` field (`SessionTitleChanged`,
-		// `ChatInputRequested`) only get their channel rewritten.
 		let action = signal.action;
-		if (hasKey(action, { turnId: true }) && action.turnId !== turnId) {
-			action = { ...action, turnId };
+		if (action.type !== ActionType.ChatTruncated && hasKey(action, { turnId: true }) && action.turnId !== turnId) {
+			if (turnIdRouting === 'remap') {
+				action = { ...action, turnId };
+			} else {
+				this._logService.trace(`[AgentSideEffects] Dropping stale ${action.type} for ${sessionKey}: producerTurnId=${action.turnId}, activeTurnId=${turnId}`);
+				return;
+			}
 		}
 
 		if (action.type === ActionType.ChatToolCallStart && agent) {
@@ -693,10 +745,8 @@ export class AgentSideEffects extends Disposable {
 
 			// Drop any events that were buffered for a subagent whose
 			// `subagent_started` never arrived (e.g. the parent tool failed
-			// before the subagent was created). The actual subagent session
-			// teardown is driven by the `subagent_completed` signal because
-			// background subagents (`mode: background`) continue running
-			// after the parent tool call returns.
+			// before the subagent was created). A registered child chat remains
+			// available across completed turns so it can be steered again.
 			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
 			if (getToolFileEdits(action.result).length > 0) {
 				this._changesets.onToolCallEditsApplied(sessionUri, turnId);
@@ -716,7 +766,7 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatError) {
-			this._turnTracker.turnCompleted(sessionKey, turnId, 'error');
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
 			this._toolCallTracker.clearSession(sessionKey);
 			this._markSessionUnread(sessionUri);
 		}
@@ -834,8 +884,9 @@ export class AgentSideEffects extends Disposable {
 		const parentSessionUri = parseRequiredSessionUriFromChatUri(chatURI);
 		const subagentChatUri = buildSubagentChatUri(parentSessionUri, toolCallId);
 
-		// Already tracking this subagent
-		if (this._subagentChats.get(chatURI, toolCallId)) {
+		const existing = this._subagentChats.get(chatURI, toolCallId);
+		if (existing) {
+			this._resumeSubagentSession(chatURI, toolCallId, taskPrompt ? { text: taskPrompt, origin: { kind: MessageKind.User } } : undefined);
 			return;
 		}
 
@@ -905,6 +956,27 @@ export class AgentSideEffects extends Disposable {
 		return typeof elapsed === 'number' && Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
 	}
 
+	private _resumeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string, message: Message | undefined): void {
+		const subagent = this._subagentChats.get(parentChatURI, toolCallId);
+		if (!subagent) {
+			this._logService.error(`[AgentSideEffects] Cannot resume unknown subagent ${parentChatURI}/${toolCallId}`);
+			return;
+		}
+		if (this._stateManager.getActiveTurnId(subagent.chatUri)) {
+			return;
+		}
+
+		const turnId = generateUuid();
+		this._logService.info(`[AgentSideEffects] Resuming subagent turn: ${subagent.chatUri} (parent=${parentChatURI}, toolCallId=${toolCallId})`);
+		this._stateManager.dispatchServerAction(subagent.chatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: new Date().toISOString(),
+			message: message ?? { text: '', origin: { kind: MessageKind.User } },
+		});
+		this._subagentChats.set({ ...subagent, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);
+	}
+
 	/**
 	 * Cancels all active subagent sessions for a given parent session.
 	 */
@@ -927,11 +999,8 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Completes the subagent session associated with a parent tool call.
-	 * Driven by the `subagent_completed` signal from the agent (which the
-	 * SDK fires on both `subagent.completed` and `subagent.failed`), not by
-	 * parent tool call completion — background subagents keep running after
-	 * their parent tool returns.
+	 * Completes the active turn for the subagent associated with a parent tool
+	 * call. The chat remains registered so a later steered turn can resume it.
 	 */
 	completeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string): void {
 		// Drop any events that were buffered waiting for a `subagent_started`
@@ -953,13 +1022,17 @@ export class AgentSideEffects extends Disposable {
 				duration: this._turnDuration(subagent.turnStopWatch),
 			});
 		}
-		this._subagentChats.delete(parentChatURI, toolCallId);
 	}
 
 	/**
 	 * Removes all subagent chats for a given parent session from the state manager.
 	 */
 	removeSubagentSessions(parentSession: ProtocolURI): void {
+		for (const chatUri of this._cancelledTurnIds.keys()) {
+			if (parseRequiredSessionUriFromChatUri(chatUri) === parentSession) {
+				this._cancelledTurnIds.delete(chatUri);
+			}
+		}
 		const parentChatURIs = new Set<ProtocolURI>();
 		for (const subagent of this._subagentChats.values()) {
 			if (subagent.sessionUri === parentSession) {
@@ -1067,7 +1140,7 @@ export class AgentSideEffects extends Disposable {
 		);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientType = AgentHostClientType.Unknown): void {
 		const chatChannel = isAhpChatChannel(channel) ? channel : undefined;
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
 		switch (action.type) {
@@ -1107,9 +1180,9 @@ export class AgentSideEffects extends Disposable {
 					return;
 				}
 				const attachments = action.message.attachments;
-				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
-				const { model, permissionLevel } = this._getTurnTelemetryContext(state, action.message.model?.id);
-				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, permissionLevel);
+				this._telemetryReporter.userMessageSent(agent.id, clientType, channel, state, 'direct', attachments);
+				const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, state, action.message.model?.id);
+				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, permissionLevel);
 				void this._sendTurnMessage({
 					agent,
 					sessionChannel,
@@ -1118,6 +1191,7 @@ export class AgentSideEffects extends Disposable {
 					message: action.message,
 					turnId: action.turnId,
 					senderClientId: clientId,
+					clientType,
 					turnStopWatch,
 				});
 				break;
@@ -1185,8 +1259,27 @@ export class AgentSideEffects extends Disposable {
 				this._persistSessionFlag(channel, 'customTitle', action.title);
 				break;
 			}
-			case ActionType.ChatPendingMessageSet:
-			case ActionType.ChatPendingMessageRemoved:
+			case ActionType.ChatPendingMessageSet: {
+				if (!chatChannel) {
+					throw new Error(`${action.type} must be handled on an AHP chat channel: ${channel}`);
+				}
+				const queuedMessageExists = this._stateManager.getChatState(channel)?.queuedMessages?.some(message => message.id === action.id) === true;
+				if (action.kind === PendingMessageKind.Queued && queuedMessageExists) {
+					this._queuedMessageSenders.set({ clientId, clientType }, channel, action.id);
+				}
+				this._syncPendingMessages(channel);
+				break;
+			}
+			case ActionType.ChatPendingMessageRemoved: {
+				if (!chatChannel) {
+					throw new Error(`${action.type} must be handled on an AHP chat channel: ${channel}`);
+				}
+				if (action.kind === PendingMessageKind.Queued) {
+					this._queuedMessageSenders.delete(channel, action.id);
+				}
+				this._syncPendingMessages(channel);
+				break;
+			}
 			case ActionType.ChatQueuedMessagesReordered: {
 				if (!chatChannel) {
 					throw new Error(`${action.type} must be handled on an AHP chat channel: ${channel}`);
@@ -1331,6 +1424,10 @@ export class AgentSideEffects extends Disposable {
 		this._titleController.cancelTitleGeneration(session);
 	}
 
+	clearQueuedMessageSenders(chat: ProtocolURI): void {
+		this._queuedMessageSenders.deleteAll(chat);
+	}
+
 	/**
 	 * Generates a content-derived title for a freshly forked session
 	 * (`chatChannel` undefined) or peer chat from its inherited chat
@@ -1369,7 +1466,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Pushes the current pending message state from the session to the agent.
+	 * Pushes the current pending message state from the chat to the agent.
 	 * The server controls queued message consumption; only steering messages
 	 * are forwarded to the agent for mid-turn injection.
 	 */
@@ -1381,10 +1478,9 @@ export class AgentSideEffects extends Disposable {
 		}
 		const agent = this._options.getAgent(sessionChannel);
 		agent?.setPendingMessages?.(
-			URI.parse(sessionChannel),
+			URI.parse(chatChannel),
 			state.steeringMessage,
 			[],
-			isDefaultChatUri(chatChannel) ? undefined : URI.parse(chatChannel),
 		);
 
 		// Steering message removal is now dispatched by the agent
@@ -1414,6 +1510,8 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const msg = state.queuedMessages[0];
+		const sender = this._queuedMessageSenders.get(session, msg.id) ?? { clientId: undefined, clientType: AgentHostClientType.Unknown };
+		this._queuedMessageSenders.delete(session, msg.id);
 		const turnId = generateUuid();
 
 		// Per-turn streaming part tracking is owned by the agent (reset
@@ -1460,9 +1558,9 @@ export class AgentSideEffects extends Disposable {
 		}
 		const attachments = msg.message.attachments;
 		const queuedState = this._stateManager.getSessionState(session);
-		this._telemetryReporter.userMessageSent(agent.id, session, queuedState, 'queued', attachments);
-		const { model, permissionLevel } = this._getTurnTelemetryContext(queuedState, msg.message.model?.id);
-		this._turnTracker.turnStarted(agent.id, session, turnId, model, permissionLevel);
+		this._telemetryReporter.userMessageSent(agent.id, sender.clientType, session, queuedState, 'queued', attachments);
+		const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, queuedState, msg.message.model?.id);
+		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, permissionLevel);
 		// Selection travels on the queued message; it is applied before sending.
 		void this._sendTurnMessage({
 			agent,
@@ -1471,16 +1569,28 @@ export class AgentSideEffects extends Disposable {
 			chat: session,
 			message: msg.message,
 			turnId,
-			senderClientId: undefined,
+			senderClientId: sender.clientId,
+			clientType: sender.clientType,
 			turnStopWatch,
 		});
 	}
 
 
-	private _getTurnTelemetryContext(state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; permissionLevel: string | undefined } {
+	private _getTurnTelemetryContext(agent: IAgent, state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined; permissionLevel: string | undefined } {
 		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
 		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
-		return { model: modelId, permissionLevel };
+		const model = modelId === undefined ? undefined : agent.models.get().find(model => model.id === modelId);
+		let modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+		if (modelId === 'auto') {
+			modelTelemetryKind = 'trusted';
+		} else if (modelId === undefined) {
+			modelTelemetryKind = undefined;
+		} else if (model === undefined) {
+			modelTelemetryKind = 'unknown';
+		} else {
+			modelTelemetryKind = readAgentModelByokIdentifier(model) === undefined ? 'trusted' : 'byok';
+		}
+		return { model: modelId, modelTelemetryKind, permissionLevel };
 	}
 
 	/**
@@ -1501,9 +1611,10 @@ export class AgentSideEffects extends Disposable {
 		message: Message;
 		turnId: string;
 		senderClientId: string | undefined;
+		clientType: AgentHostClientType;
 		turnStopWatch: StopWatch;
 	}): Promise<void> {
-		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId, turnStopWatch } = options;
+		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId, clientType, turnStopWatch } = options;
 
 		// Read-only chats reject user-dispatched turns. `interactivity` is the
 		// general signal (e.g. subagent worker chats are `ReadOnly`), and an
@@ -1516,22 +1627,24 @@ export class AgentSideEffects extends Disposable {
 		const sessionStatus = this._stateManager.getSessionSummary(options.sessionChannel)?.status ?? 0;
 		const sessionArchived = (sessionStatus & SessionStatus.IsArchived) === SessionStatus.IsArchived;
 		if (isChatReadOnly(chatState?.interactivity, sessionArchived)) {
+			const error = sessionArchived
+				? { errorType: 'archived', message: 'This session is archived and read-only. Restore the session to continue the conversation.' }
+				: { errorType: 'readOnly', message: 'This chat is read-only.' };
 			this._logService.warn(`[AgentSideEffects] Rejecting turn on read-only chat=${chat} (archived=${sessionArchived}), turnId=${turnId}`);
 			this._stateManager.dispatchServerAction(turnChannel, {
 				type: ActionType.ChatError,
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
-				error: sessionArchived
-					? { errorType: 'archived', message: 'This session is archived and read-only. Restore the session to continue the conversation.' }
-					: { errorType: 'readOnly', message: 'This chat is read-only.' },
+				error,
 			});
-			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
+			this._turnTracker.turnCompleted(turnChannel, turnId, 'error', { stage: 'validation', error });
 			this._toolCallTracker.clearSession(turnChannel);
 			return;
 		}
 
 		const chatUri = URI.parse(chat);
 
+		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
 		try {
 			// Host-owned working-directory resolution: resolve the session's working
 			// directory before the agent materializes, so the agent runs in it
@@ -1542,29 +1655,71 @@ export class AgentSideEffects extends Disposable {
 
 			const selectionUpdates: Promise<void>[] = [];
 			if (message.model) {
-				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model).catch(err => {
-					this._logService.error('[AgentSideEffects] changeModel failed', err);
-				}));
+				failureStage = 'modelSelection';
+				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model));
 			}
 			selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent).catch(err => {
 				this._logService.error('[AgentSideEffects] changeAgent failed', err);
 			}));
 
 			await Promise.all(selectionUpdates);
-			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectory, message.attachments, turnId, senderClientId);
+
+			failureStage = 'sendMessage';
+			const resolvedAttachments = await this._resolveChatAttachments(sessionChannel, message.attachments);
+			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectory, resolvedAttachments, turnId, senderClientId, clientType);
 		} catch (err) {
-			const errCode = (err as { code?: number })?.code;
-			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
+			const failure = buildTurnFailure(failureStage, err);
+			const error = failure.error;
+			this._logService.error(`[AgentSideEffects] ${failureStage} failed for session=${turnChannel}: code=${failure.errorCode}, message=${error.message}, type=${failure.errorName}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {
 				type: ActionType.ChatError,
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
-				error: buildSendFailedError(err),
+				error,
 			});
-			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
+			this._turnTracker.turnCompleted(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
-			this._failSessionCreationIfStillCreating(sessionChannel, err);
+			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
+	}
+
+	private async _resolveChatAttachments(sessionChannel: ProtocolURI, attachments: readonly MessageAttachment[] | undefined): Promise<readonly MessageAttachment[] | undefined> {
+		if (!attachments?.some(attachment => attachment.type === MessageAttachmentKind.Chat)) {
+			return attachments;
+		}
+		return Promise.all(attachments.map(async attachment => {
+			if (attachment.type !== MessageAttachmentKind.Chat) {
+				return attachment;
+			}
+			const sourceSession = isAhpChatChannel(attachment.resource)
+				? parseRequiredSessionUriFromChatUri(attachment.resource)
+				: URI.parse(attachment.resource).toString();
+			if (sourceSession !== URI.parse(sessionChannel).toString()) {
+				throw new Error(`Chat attachment source must belong to the target session: ${attachment.resource}`);
+			}
+			const sourceState = this._resolveSourceChatState(attachment.resource);
+			if (sourceState?.activeTurn?.id === attachment.endTurn) {
+				throw new Error(`Chat attachment endTurn must reference a completed turn: ${attachment.resource}#${attachment.endTurn}`);
+			}
+			const sourceTurns = await this._options.resolveChatAttachmentTurns?.(attachment.resource)
+				?? sourceState?.turns
+				?? [];
+			return resolveChatAttachment(attachment, sourceTurns);
+		}));
+	}
+
+	private _resolveSourceChatState(sourceUri: string) {
+		const peerState = this._stateManager.getChatState(sourceUri);
+		if (peerState) {
+			return peerState;
+		}
+		if (!isAhpChatChannel(sourceUri)) {
+			return this._stateManager.getDefaultChatState(sourceUri);
+		}
+		if (isDefaultChatUri(sourceUri)) {
+			return this._stateManager.getDefaultChatState(parseRequiredSessionUriFromChatUri(sourceUri));
+		}
+		return undefined;
 	}
 
 	/**
@@ -1588,14 +1743,14 @@ export class AgentSideEffects extends Disposable {
 	 * waiting on a client-side timeout. The provisional session survives on the
 	 * agent, so resending re-attempts materialization.
 	 */
-	private _failSessionCreationIfStillCreating(sessionChannel: ProtocolURI, err: unknown): void {
+	private _failSessionCreationIfStillCreating(sessionChannel: ProtocolURI, error: ErrorInfo): void {
 		const state = this._stateManager.getSessionState(sessionChannel);
 		if (state?.lifecycle !== SessionLifecycle.Creating) {
 			return;
 		}
 		this._stateManager.dispatchServerAction(sessionChannel, {
 			type: ActionType.SessionCreationFailed,
-			error: buildSendFailedError(err),
+			error,
 		});
 		const summary = this._stateManager.getSessionSummary(sessionChannel);
 		if (summary) {
@@ -1618,11 +1773,24 @@ export class AgentSideEffects extends Disposable {
  * error is attached to `_meta.chatError` so core can render a rich, localized
  * message. Otherwise the raw error message is used as-is.
  */
-function buildSendFailedError(err: unknown): ErrorInfo {
+function buildTurnFailure(stage: AgentHostTurnFailureStage, err: unknown): IAgentHostTurnFailure {
+	const error = buildTurnFailureError(stage, err);
+	return {
+		stage,
+		error,
+		errorName: err instanceof Error ? err.name : typeof err,
+		errorCode: getErrorCode(err),
+		errorStack: err instanceof Error ? err.stack : undefined,
+	};
+}
+
+function buildTurnFailureError(stage: AgentHostTurnFailureStage, err: unknown): ErrorInfo {
 	const message = String(err);
 	const forwarded = tryParseForwardedChatError(err instanceof Error ? err.message : message);
+	const errorType = stage === 'modelSelection' ? 'modelSelectionFailed'
+		: stage === 'workingDirectory' ? 'workingDirectoryFailed' : 'sendFailed';
 	if (forwarded) {
-		return { errorType: 'sendFailed', message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
+		return { errorType, message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
 	}
-	return { errorType: 'sendFailed', message };
+	return { errorType, message };
 }

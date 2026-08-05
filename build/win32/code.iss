@@ -8,10 +8,10 @@
 AppId={#AppId}
 AppName={#NameLong}
 AppVerName={#NameVersion}
-AppPublisher=Microsoft Corporation
-AppPublisherURL=https://code.visualstudio.com/
-AppSupportURL=https://code.visualstudio.com/
-AppUpdatesURL=https://code.visualstudio.com/
+AppPublisher=ShortestPath IDE contributors
+AppPublisherURL=https://github.com/KevinHuangIsLearning/shortestpath-ide
+AppSupportURL=https://github.com/KevinHuangIsLearning/shortestpath-ide/issues
+AppUpdatesURL=https://github.com/KevinHuangIsLearning/shortestpath-ide/releases
 DefaultGroupName={#NameLong}
 AllowNoIcons=yes
 OutputDir={#OutputDir}
@@ -282,7 +282,7 @@ begin
 
   #if "user" == InstallTarget
     if not WizardSilent() and IsAdmin() then begin
-      if MsgBox('This User Installer is not meant to be run as an Administrator. If you would like to install VS Code for all users in this system, download the System Installer instead from https://code.visualstudio.com. Are you sure you want to continue?', mbError, MB_OKCANCEL) = IDCANCEL then begin
+      if MsgBox('This User Installer is not meant to be run as an Administrator. If you would like to install ShortestPath IDE for all users in this system, download the System Installer from the ShortestPath IDE releases page. Are you sure you want to continue?', mbError, MB_OKCANCEL) = IDCANCEL then begin
         Result := False;
       end;
     end;
@@ -691,15 +691,6 @@ var
   RemoveAppxPackageResultCode: Integer;
 begin
   KillContextMenuComSurrogate();
-  // Remove the old context menu package
-  // Following condition can be removed in v1.111.
-  if QualityIsInsiders() and not SessionEndFileExists() and AppxPackageInstalled('Microsoft.VSCodeInsiders', RemoveAppxPackageResultCode) then begin
-    Log('Deleting old appx ' + AppxPackageFullname + ' installation...');
-    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
-    Log('Remove-AppxPackage for old appx completed with result code ' + IntToStr(RemoveAppxPackageResultCode) + '.');
-    DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_{#Arch}.appx'));
-    DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_command.dll'));
-  end;
   if not SessionEndFileExists() and AppxPackageInstalled(ExpandConstant('{#AppxPackageName}'), RemoveAppxPackageResultCode) then begin
     Log('Removing current ' + AppxPackageFullname + ' appx installation...');
 #if "user" == InstallTarget
