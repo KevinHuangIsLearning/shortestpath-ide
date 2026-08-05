@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, dialog, globalShortcut, GPUFeatureStatus, ipcMain, net, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, dialog, globalShortcut, GPUFeatureStatus, net, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -18,7 +18,7 @@ import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
+import { FileAccess, Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { dirname, join, posix } from '../../base/common/path.js';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
 import { assertType } from '../../base/common/types.js';
@@ -93,6 +93,7 @@ import { DarwinUpdateService } from '../../platform/update/electron-main/updateS
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
 import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
+import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
 import { NativeURLService } from '../../platform/url/common/urlService.js';
@@ -870,8 +871,8 @@ export class CodeApplication extends Disposable {
 			return undefined;
 		}
 
-		const onboardingPath = join(this.environmentMainService.appRoot, 'resources', 'oi-defaults', 'first-run.html');
 		const preloadPath = join(this.environmentMainService.appRoot, 'resources', 'oi-defaults', 'first-run-preload.js');
+		const onboardingUrl = FileAccess.asBrowserUri('vs/../../resources/oi-defaults/first-run.html').toString(true);
 		const onboardingWindow = new BrowserWindow({
 			show: false,
 			frame: false,
@@ -891,18 +892,18 @@ export class CodeApplication extends Disposable {
 		});
 
 		return new Promise<IShortestPathOnboardingResult | undefined>(resolve => {
-			const channel = 'shortestpath:onboarding-complete';
-			const installChannel = 'shortestpath:onboarding-install-toolchain';
-			const scriptChannel = 'shortestpath:onboarding-script';
-			const localeChannel = 'shortestpath:onboarding-locale';
-			const workspaceChannel = 'shortestpath:onboarding-pick-workspace';
+			const channel = 'vscode:shortestpath:onboarding-complete';
+			const installChannel = 'vscode:shortestpath:onboarding-install-toolchain';
+			const scriptChannel = 'vscode:shortestpath:onboarding-script';
+			const localeChannel = 'vscode:shortestpath:onboarding-locale';
+			const workspaceChannel = 'vscode:shortestpath:onboarding-pick-workspace';
 			let finished = false;
 			const cleanup = () => {
-				ipcMain.removeListener(channel, listener);
-				ipcMain.removeHandler(installChannel);
-				ipcMain.removeHandler(scriptChannel);
-				ipcMain.removeHandler(localeChannel);
-				ipcMain.removeHandler(workspaceChannel);
+				validatedIpcMain.removeListener(channel, listener);
+				validatedIpcMain.removeHandler(installChannel);
+				validatedIpcMain.removeHandler(scriptChannel);
+				validatedIpcMain.removeHandler(localeChannel);
+				validatedIpcMain.removeHandler(workspaceChannel);
 			};
 			const dispose = () => {
 				cleanup();
@@ -925,20 +926,20 @@ export class CodeApplication extends Disposable {
 				if (event.sender !== onboardingWindow.webContents) { return; }
 				void finish(isShortestPathSetupRequest(candidate) ? candidate : undefined);
 			};
-			ipcMain.on(channel, listener);
-			ipcMain.handle(installChannel, async (event, sourceId: unknown, stage: unknown) => {
+			validatedIpcMain.on(channel, listener);
+			validatedIpcMain.handle(installChannel, async (event, sourceId: unknown, stage: unknown) => {
 				if (event.sender !== onboardingWindow.webContents) { throw new Error('Unexpected sender for ShortestPath toolchain installation.'); }
-				return this.installShortestPathToolchain(sourceId, typeof stage === 'string' ? stage : undefined, message => onboardingWindow.webContents.send('shortestpath:onboarding-progress', message));
+				return this.installShortestPathToolchain(sourceId, typeof stage === 'string' ? stage : undefined, message => onboardingWindow.webContents.send('vscode:shortestpath:onboarding-progress', message));
 			});
-			ipcMain.handle(scriptChannel, async event => {
+			validatedIpcMain.handle(scriptChannel, async event => {
 				if (event.sender !== onboardingWindow.webContents) { throw new Error('Unexpected sender for ShortestPath onboarding script.'); }
 				return this.getShortestPathOnboardingScript();
 			});
-			ipcMain.handle(localeChannel, async event => {
+			validatedIpcMain.handle(localeChannel, async event => {
 				if (event.sender !== onboardingWindow.webContents) { throw new Error('Unexpected sender for ShortestPath onboarding locale.'); }
 				return this.environmentMainService.args.locale ?? 'zh-cn';
 			});
-			ipcMain.handle(workspaceChannel, async event => {
+			validatedIpcMain.handle(workspaceChannel, async event => {
 				if (event.sender !== onboardingWindow.webContents) { throw new Error('Unexpected sender for ShortestPath workspace selection.'); }
 				const result = await dialog.showOpenDialog(onboardingWindow, { properties: ['openDirectory', 'createDirectory'] });
 				return result.canceled ? undefined : result.filePaths[0];
@@ -948,8 +949,7 @@ export class CodeApplication extends Disposable {
 				if (!finished) { finished = true; resolve(undefined); }
 			});
 			onboardingWindow.once('ready-to-show', () => onboardingWindow.show());
-			const onboardingHtml = fs.readFileSync(onboardingPath, 'utf8');
-			void onboardingWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(onboardingHtml)}`);
+			void onboardingWindow.loadURL(onboardingUrl);
 		});
 	}
 
@@ -2339,7 +2339,7 @@ Standard: Latest
 
 	private async installMutex(): Promise<void> {
 		const win32MutexName = this.productService.win32MutexName;
-		if (isWindows && win32MutexName) {
+		if (isWindows && win32MutexName && isInnoSetupInstall()) {
 			try {
 				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);

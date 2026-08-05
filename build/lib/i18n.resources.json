@@ -713,6 +713,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/sideChat",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/policyBlocked",
 			"project": "vscode-sessions"
 		},
