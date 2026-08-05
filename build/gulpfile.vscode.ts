@@ -418,6 +418,9 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(jsFilter.restore)
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
+				// node-pty's Windows prebuild loads conpty.dll next to conpty.node and
+				// may start OpenConsole.exe. Neither executable can run from an ASAR.
+				...(platform === 'win32' ? ['**/node-pty/prebuilds/win32-*/conpty/**'] : []),
 				'**/@vscode/ripgrep-universal/bin/**',
 				// Newer node-pty ships `spawn-helper` under prebuilds/<plat>-<arch>/
 				// instead of build/Release/. node-pty exec's it via posix_spawn as
