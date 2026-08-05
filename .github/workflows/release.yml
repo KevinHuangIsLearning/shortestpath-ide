@@ -81,16 +81,14 @@ jobs:
         run: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = 'Stop'
-          exec { npm ci }
-          $nativeBindings = @(
-            'node_modules\@vscode\policy-watcher\build\Release\vscode-policy-watcher.node',
-            'node_modules\@vscode\spdlog\build\Release\spdlog.node',
-            'node_modules\@vscode\sqlite3\build\Release\vscode-sqlite3.node',
-            'node_modules\native-keymap\build\Release\keymapping.node'
-          )
-          if ($nativeBindings.Where({ -not (Test-Path -LiteralPath $_ -PathType Leaf) }).Count -gt 0) {
-            exec { npm rebuild '@vscode/policy-watcher' '@vscode/spdlog' '@vscode/sqlite3' 'native-keymap' --foreground-scripts }
+          $npmrc = Get-Content .npmrc -Raw
+          try {
+            $npmrc -replace '(?m)^build_from_source=.*\r?\n?', '' | Set-Content .npmrc -NoNewline
+            exec { npm ci }
+          } finally {
+            [System.IO.File]::WriteAllText((Resolve-Path .npmrc), $npmrc)
           }
+          exec { npm rebuild '@vscode/policy-watcher' '@vscode/spdlog' '@vscode/sqlite3' 'native-keymap' --build-from-source --foreground-scripts }
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Build bundled OI extensions
@@ -210,18 +208,13 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: |
+          npmrc=$(cat .npmrc)
+          trap 'printf "%s" "$npmrc" > .npmrc' EXIT
+          sed -i '' '/^build_from_source=/d' .npmrc
           npm ci
-          missing=0
-          for binding in \
-            node_modules/@vscode/policy-watcher/build/Release/vscode-policy-watcher.node \
-            node_modules/@vscode/spdlog/build/Release/spdlog.node \
-            node_modules/@vscode/sqlite3/build/Release/vscode-sqlite3.node \
-            node_modules/native-keymap/build/Release/keymapping.node; do
-            test -f "$binding" || missing=1
-          done
-          if [ "$missing" -eq 1 ]; then
-            npm rebuild @vscode/policy-watcher @vscode/spdlog @vscode/sqlite3 native-keymap --foreground-scripts
-          fi
+          printf "%s" "$npmrc" > .npmrc
+          trap - EXIT
+          npm rebuild @vscode/policy-watcher @vscode/spdlog @vscode/sqlite3 native-keymap --build-from-source --foreground-scripts
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Build bundled OI extensions
