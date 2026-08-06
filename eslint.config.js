@@ -1040,6 +1040,7 @@ export default defineConfig(
 						'register',
 						'remove',
 						'rename',
+						'reveal',
 						'save',
 						'send',
 						'start',
