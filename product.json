@@ -115,9 +115,9 @@
 	],
 	"onboardingThemes": [
 		{
-			"id": "dark-2026",
-			"label": "Dark 2026",
-			"themeId": "Dark 2026",
+			"id": "one-monokai",
+			"label": "One Monokai",
+			"themeId": "One Monokai",
 			"type": "dark"
 		},
 		{
