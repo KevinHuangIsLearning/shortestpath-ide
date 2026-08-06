@@ -211,7 +211,7 @@ class ShortestPathOjProblemPanel {
 			return;
 		}
 		const rickrollUrl = vscode.env.language.toLowerCase().startsWith('zh')
-			? 'https://www.bilibili.com/video/BV1GJ411x7h7/'
+			? 'https://player.bilibili.com/player.html?isOutside=true&aid=80433022&bvid=BV1GJ411x7h7&cid=137649199&p=1'
 			: 'https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J';
 		void vscode.window.openBrowserTab(rickrollUrl, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
 	}
