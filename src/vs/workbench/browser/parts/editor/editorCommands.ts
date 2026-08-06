@@ -23,6 +23,7 @@ import { KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keyb
 import { IListService, IOpenEvent, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchTreeStickyScrollFocused } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAccess.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
@@ -46,7 +47,7 @@ import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editor
 import { prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
-import { getShortestPathOjPrimaryGroupWidth } from './shortestpathEditorGroupSizing.js';
+import { getShortestPathOjPrimaryGroupRatio, getShortestPathOjPrimaryGroupWidth, registerShortestPathOjGroupRatioMemory, rememberShortestPathOjPrimaryGroupRatio } from './shortestpathEditorGroupSizing.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -228,12 +229,24 @@ function registerEditorMoveCopyCommand(): void {
 		});
 	});
 
+	let shortestPathOjGroupRatioMemoryRegistered = false;
+
 	CommandsRegistry.registerCommand(RESIZE_SHORTESTPATH_OJ_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, rightGroupIndex: unknown) => {
 		if (!isNumber(rightGroupIndex) || !Number.isInteger(rightGroupIndex)) {
 			return;
 		}
 
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const storageService = accessor.get(IStorageService);
+
+		// Remember the split ratio the user picks while the OJ problem panel is
+		// open. Registered on first use so the command stays usable without a
+		// startup-time service dependency.
+		if (!shortestPathOjGroupRatioMemoryRegistered) {
+			shortestPathOjGroupRatioMemoryRegistered = true;
+			registerShortestPathOjGroupRatioMemory(editorGroupsService, storageService);
+		}
+
 		const rightGroup = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE)[rightGroupIndex];
 		if (!rightGroup) {
 			return;
@@ -245,12 +258,14 @@ function registerEditorMoveCopyCommand(): void {
 
 		const leftSize = editorGroupsService.getSize(leftGroup);
 		const rightSize = editorGroupsService.getSize(rightGroup);
-		const primaryWidth = getShortestPathOjPrimaryGroupWidth(leftSize.width, rightSize.width);
+		const ratio = getShortestPathOjPrimaryGroupRatio(storageService);
+		const primaryWidth = getShortestPathOjPrimaryGroupWidth(leftSize.width, rightSize.width, ratio);
 		if (primaryWidth === undefined) {
 			return;
 		}
 
 		editorGroupsService.setSize(leftGroup, { width: primaryWidth, height: leftSize.height });
+		rememberShortestPathOjPrimaryGroupRatio(storageService, primaryWidth / (primaryWidth + rightSize.width));
 	});
 
 	function moveCopySelectedEditors(isMove: boolean, args: SelectedEditorsMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {
