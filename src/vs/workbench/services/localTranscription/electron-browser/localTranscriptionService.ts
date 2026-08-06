@@ -6,7 +6,7 @@
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { ILocalTranscriptionModelStatus, ILocalTranscriptionResult, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../platform/localTranscription/common/localTranscription.js';
+import { ILocalTranscriptionModelImportResult, ILocalTranscriptionModelStatus, ILocalTranscriptionResult, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../platform/localTranscription/common/localTranscription.js';
 
 /**
  * ShortestPath does not expose Chat or package its AI transcription runtime.
@@ -23,6 +23,10 @@ export class LocalTranscriptionService implements ILocalTranscriptionService {
 
 	async getModelStatus(): Promise<ILocalTranscriptionModelStatus> {
 		return { state: LocalTranscriptionModelState.Error, error: 'unsupported' };
+	}
+
+	async importModel(_options: Parameters<ILocalTranscriptionService['importModel']>[0]): Promise<ILocalTranscriptionModelImportResult> {
+		throw new Error('On-device transcription is not supported in ShortestPath IDE.');
 	}
 
 	async start(_options: Parameters<ILocalTranscriptionService['start']>[0]): Promise<void> {

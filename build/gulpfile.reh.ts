@@ -584,8 +584,6 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			promisify(glob)('**/*.node', { cwd }),
 			promisify(glob)('**/rg.exe', { cwd }),
 			promisify(glob)('**/tgrep.exe', { cwd }),
-			promisify(glob)('**/node_modules/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/computer-use-mcp.exe', { cwd }),
-			promisify(glob)('**/node_modules/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/CopilotComputerUse.exe', { cwd }),
 		])).flatMap(o => o);
 		const windowsDeps = (await Promise.all(deps.map(async dep => (await isWindowsExecutable(path.join(cwd, dep))) ? dep : undefined))).filter((dep): dep is string => typeof dep === 'string');
 		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));

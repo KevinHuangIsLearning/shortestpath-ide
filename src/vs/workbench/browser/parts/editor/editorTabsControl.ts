@@ -10,9 +10,9 @@ import { $, Dimension, getActiveWindow, getWindow, isMouseEvent, setVisibility }
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, ActionRunner } from '../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,7 +27,7 @@ import { EditorPane } from './editorPane.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { canOpenEditorsInNewWindow, IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
+import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { isFirefox } from '../../../../base/browser/browser.js';
@@ -105,7 +105,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		compact: 22 as const,
 		// Style-override (Modern UI) multi-tab mode adds 4px top + 4px bottom padding to
 		// the tabs-and-actions-container (tabs.css), so the total title-bar height is the
-		// --editor-group-tab-height CSS value (24px / 14px) plus that 8px padding.
+		// --editor-group-tab-height CSS value (24px / 20px) plus that 8px padding.
 		styleOverride: 32 as const,        // 24px tab  + 4px top + 4px bottom padding
 		styleOverrideCompact: 28 as const, // 20px tab  + 4px top + 4px bottom padding (20px = minimum to fit 16px icon + 2px padding)
 	};
@@ -131,6 +131,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private editorIsFirstContext: IContextKey<boolean>;
 	private editorIsLastContext: IContextKey<boolean>;
 	private editorStickyContext: IContextKey<boolean>;
+	private editorDirtyContext: IContextKey<boolean>;
 	private editorAvailableEditorIds: IContextKey<string>;
 
 	private editorCanSplitInGroupContext: IContextKey<boolean>;
@@ -176,6 +177,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorIsFirstContext = ActiveEditorFirstInGroupContext.bindTo(this.contextMenuContextKeyService);
 		this.editorIsLastContext = ActiveEditorLastInGroupContext.bindTo(this.contextMenuContextKeyService);
 		this.editorStickyContext = ActiveEditorStickyContext.bindTo(this.contextMenuContextKeyService);
+		this.editorDirtyContext = ActiveEditorDirtyContext.bindTo(this.contextMenuContextKeyService);
 		this.editorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.contextMenuContextKeyService);
 
 		this.editorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(this.contextMenuContextKeyService);
@@ -190,7 +192,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 				this.updateEditorLayoutActionsToolbarScheduler.schedule();
 			}
 		}));
-
 	}
 
 	protected create(parent: HTMLElement): HTMLElement {
@@ -310,7 +311,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPartTrailing',
-			resetMenu: MenuId.LayoutControlMenu,
+			resetMenu: MenuId.EditorTitleLayout,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			highlightToggledItems: true
 		}));
@@ -363,24 +364,31 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected updateEditorLayoutActionsToolbar(): void {
-		if (!this.editorActionsEnabled || !this.editorLayoutActionsToolbar) {
+		if (
+			!this.editorActionsEnabled ||
+			!this.editorLayoutActionsToolbarContainer ||
+			!this.editorLayoutActionsToolbar
+		) {
 			return;
 		}
 
 		this.editorLayoutActionsDisposables.clear();
 
-		const editorActions = this.groupView.createEditorActions(this.editorLayoutActionsDisposables, MenuId.LayoutControlMenu);
+		const editorActions = this.groupView.createEditorActions(this.editorLayoutActionsDisposables, MenuId.EditorTitleLayout);
 		this.editorLayoutActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorLayoutActionsToolbar()));
 
 		const { primary, secondary } = this.prepareEditorLayoutActions(editorActions.actions);
 		this.editorLayoutActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 
-		// Only show the separator when the layout toolbar has actions AND there are
-		// editor actions to its left to separate from.
+		const hasLayoutActions = primary.length > 0 || secondary.length > 0;
+
+		// Only show the separator and the toolbar container when the layout toolbar
+		// has actions AND there are editor actions to its left to separate from.
 		if (this.editorLayoutActionsSeparator) {
-			const hasLayoutActions = primary.length > 0 || secondary.length > 0;
 			setVisibility(hasLayoutActions && this.editorActionsToolbarHasActions, this.editorLayoutActionsSeparator);
 		}
+
+		setVisibility(hasLayoutActions, this.editorLayoutActionsToolbarContainer);
 	}
 
 	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;
@@ -403,6 +411,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorLayoutActionsToolbar?.setActions([], []);
 		if (this.editorLayoutActionsSeparator) {
 			setVisibility(false, this.editorLayoutActionsSeparator);
+		}
+		if (this.editorLayoutActionsToolbarContainer) {
+			setVisibility(false, this.editorLayoutActionsToolbarContainer);
 		}
 	}
 
@@ -543,6 +554,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorIsFirstContext.set(this.tabsModel.isFirst(editor));
 		this.editorIsLastContext.set(this.tabsModel.isLast(editor));
 		this.editorStickyContext.set(this.tabsModel.isSticky(editor));
+		this.editorDirtyContext.set(editor.isDirty() && !editor.isSaving());
 		this.groupLockedContext.set(this.tabsModel.isLocked);
 		this.editorCanSplitInGroupContext.set(editor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
 		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);

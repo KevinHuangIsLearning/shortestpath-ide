@@ -15,29 +15,10 @@ import { resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
-import { CLAUDE_SERVER_TOOL_MCP_SERVER_NAME } from './claudeServerToolMcpServer.js';
-import { buildClientToolMcpServer, CLAUDE_CLIENT_MCP_SERVER_NAME } from './clientTools/claudeClientToolMcpServer.js';
+import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
 import { toSdkModelId } from './claudeModelId.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
-
-/**
- * The in-process MCP servers the agent host injects into
- * `Options.mcpServers` itself: the client-tool bridge and the server-tool
- * bridge. They are internal plumbing — the SDK reports them alongside real,
- * user-configured servers in `mcpServerStatus()`, but they have no on-disk
- * definition, cannot be toggled through the CLI's MCP control requests, and
- * must never surface as user-visible MCP customizations.
- */
-const HOST_INJECTED_MCP_SERVER_NAMES: ReadonlySet<string> = new Set([
-	CLAUDE_CLIENT_MCP_SERVER_NAME,
-	CLAUDE_SERVER_TOOL_MCP_SERVER_NAME,
-]);
-
-/** Whether `name` is one of the {@link HOST_INJECTED_MCP_SERVER_NAMES}. */
-export function isHostInjectedMcpServerName(name: string): boolean {
-	return HOST_INJECTED_MCP_SERVER_NAMES.has(name);
-}
 
 /**
  * Inputs to {@link buildOptions} that vary per startup. Pure-data: no
@@ -48,6 +29,14 @@ export function isHostInjectedMcpServerName(name: string): boolean {
 export interface IBuildOptionsInput {
 	readonly sessionId: string;
 	readonly workingDirectory: URI;
+	/**
+	 * Additional directories (index 1..N of the session's ordered set) the agent
+	 * is granted tool access to beyond the primary {@link workingDirectory}
+	 * (index 0 → `Options.cwd`). Projected onto `Options.additionalDirectories`
+	 * as absolute paths. Omitted from the returned options entirely when empty so
+	 * a single-root session keeps the SDK default (no additional directories).
+	 */
+	readonly additionalDirectories?: readonly URI[];
 	readonly model: ModelSelection | undefined;
 	readonly abortController: AbortController;
 	readonly permissionMode: ClaudePermissionMode;
@@ -141,6 +130,9 @@ export async function buildOptions(
 
 	return {
 		cwd: input.workingDirectory.fsPath,
+		...(input.additionalDirectories && input.additionalDirectories.length > 0
+			? { additionalDirectories: input.additionalDirectories.map(d => d.fsPath) }
+			: {}),
 		executable: process.execPath as 'node',
 		env: subprocessEnv,
 		abortController: input.abortController,
@@ -259,6 +251,8 @@ export function buildSubprocessEnv(proxied: boolean = true): Record<string, stri
 			ANTHROPIC_API_KEY: undefined,
 			HOME: process.env['HOME'],
 			USERPROFILE: process.env['USERPROFILE'],
+			// Load rules from additional directories https://code.claude.com/docs/en/memory#load-from-additional-directories
+			CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
 		}
 		: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: undefined };
 	// Replace semantics mean the sparse (proxied) env would otherwise drop the

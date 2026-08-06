@@ -9,7 +9,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
-import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeToolSearchDeferThreshold } from '../../common/copilotCliConfig.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
@@ -124,6 +124,16 @@ interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
 	readonly workingDirectory: URI | undefined;
+	/**
+	 * The additional working directories beyond the primary process root
+	 * ({@link workingDirectory} = index 0). These are the peer roots of a
+	 * multi-root session's ordered set — the directories the agent should be
+	 * granted tool access to in addition to its process cwd. Empty (or absent)
+	 * for a single-root session. Passed through so the SDK can register them as
+	 * extra accessible roots once that surface is available; the process still
+	 * launches in {@link workingDirectory}.
+	 */
+	readonly additionalDirectories?: readonly URI[];
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
 	/**
@@ -165,7 +175,7 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
-function isReasoningEffort(value: unknown): value is ReasoningEffort {
+export function isCopilotReasoningEffort(value: unknown): value is ReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
@@ -195,18 +205,22 @@ function getErrorMessage(err: unknown): string {
 }
 
 /**
+ * Messages from a failed Copilot SDK `session.resume` that positively indicate
+ * the session has no events on disk, so there is no history to lose. Includes
+ * the post-"Start Over" case, where `truncateSession` leaves zero events.
+ */
+const RESUMABLE_HISTORY_ABSENT_PATTERNS = [
+	/\bSession not found\b/i,
+	/\bno events\b/i,
+	/\bempty session\b/i,
+];
+
+/**
  * Decide whether a Copilot SDK `resumeSession` failure should fall back to
- * `createSession({ sessionId })`. We want to preserve the original
- * recovery for empty / truncated sessions (e.g. after the user invoked
- * "Start Over", which calls `truncateSession` and leaves the on-disk
- * session with zero events - the SDK then refuses to resume it), but we
- * must NOT silently swallow corruption / schema-validation / parse
- * failures: those should surface so the user sees the real error and the
- * original session contents are not masked by a fresh empty session.
- *
- * Heuristic: any `-32603` Internal Error is treated as the empty-session
- * case UNLESS the message clearly indicates corruption, schema
- * validation, parse failure, or malformed input.
+ * `createSession({ sessionId })`, which presents the session as having no
+ * history. Deliberately an allowlist: a fallback on an unrelated failure (a
+ * transient `network fetch failed` is also `-32603`) discards a live session's
+ * history and leaves it exposed to empty-session GC.
  */
 function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 	if (getCopilotSdkErrorCode(err) !== -32603) {
@@ -214,7 +228,7 @@ function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 	}
 
 	const message = getErrorMessage(err);
-	return !/\b(corrupt|corrupted|invalid|validation|schema|must be|parse|malformed|unexpected token)\b/i.test(message);
+	return RESUMABLE_HISTORY_ABSENT_PATTERNS.some(pattern => pattern.test(message));
 }
 
 function isCustomAgentNotFoundError(err: unknown): boolean {
@@ -228,11 +242,11 @@ function isCustomAgentNotFoundError(err: unknown): boolean {
  * caller/operator is responsible for choosing a level the model supports.
  */
 export function getCopilotReasoningEffort(model: ModelSelection | undefined, effortOverride?: string): SessionConfig['reasoningEffort'] {
-	if (isReasoningEffort(effortOverride)) {
+	if (isCopilotReasoningEffort(effortOverride)) {
 		return effortOverride;
 	}
 	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
-	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
+	return isCopilotReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
 }
 
 /**
@@ -245,7 +259,7 @@ export function resolveCopilotReasoningEffort(model: ModelSelection | undefined,
 	// '' is the schema's unset marker, so an unset override reads as `undefined`.
 	const override = rawOverride ? rawOverride : undefined;
 	if (override !== undefined) {
-		if (isReasoningEffort(override)) {
+		if (isCopilotReasoningEffort(override)) {
 			logService.info(`[Copilot:${sessionId}] Applying reasoning-effort override '${override}'`);
 		} else {
 			logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${override}'; expected one of [${ReasoningEfforts.join(', ')}]`);
@@ -286,7 +300,7 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
  * no BYOK models, or when enumeration fails; `startProxy` is invoked only once
  * at least one model is present.
  *
- * Each vendor maps to one `type: 'openai'` / `wireApi: 'completions'` provider
+ * Each vendor maps to one `type: 'openai'` / `wireApi: 'responses'` provider
  * whose `baseUrl` points at the proxy and authenticates with the session-scoped
  * `Bearer <nonce>.<sessionId>`; each model is surfaced under the
  * provider-qualified selection id `vendor/id`, matching what the renderer's
@@ -342,7 +356,7 @@ export async function resolveByokSessionConfig(
 	const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
 		name: vendor,
 		type: 'openai',
-		wireApi: 'completions',
+		wireApi: 'responses',
 		baseUrl: handle.providerBaseUrl(vendor),
 		bearerToken: `${handle.nonce}.${sessionId}`,
 	}));
@@ -411,14 +425,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
 				}
 			}
-			// The SDK fails to resume sessions that have no messages.
-			// Fall back to creating a new session with the same ID,
-			// seeding model & working directory from stored metadata.
+			// Only a session with no events on disk may fall back to creating a
+			// fresh one under the same ID (seeding model & working directory
+			// from stored metadata); every other failure propagates.
 			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Resume failure does not indicate an empty session; surfacing it instead of replacing the session with an empty one`);
 				throw resumeError;
 			}
 
-			this._logService.warn(`[Copilot:${plan.sessionId}] Resume failed (code=-32603), falling back to createSession with same ID`);
+			this._logService.warn(`[Copilot:${plan.sessionId}] Resume reported no session history; falling back to createSession with same ID`);
 			const wrapper = await this._createSession({
 				...fallbackPlan,
 				kind: 'create',
@@ -560,6 +575,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
 			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
+		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
 			hasClientTool: name => clientToolNames.has(name),
@@ -599,7 +615,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			skillDirectories,
 			instructionDirectories,
 			systemMessage,
-			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: 1 } : { enabled: false },
+			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],
