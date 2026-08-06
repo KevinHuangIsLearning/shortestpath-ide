@@ -634,7 +634,7 @@ export function isOsGatedShippedElsewhere(osList: string[], hostPlatform: string
 
 /**
  * The built-in extension names declared in product.json. These are PRE-BUILT
- * extensions (js-debug, js-debug-companion, js-profile-table, ...) that VS Code
+ * extensions (js-debug, js-debug-companion, ...) that VS Code
  * downloads as finished VSIXs rather than building from source, so their bundled
  * dependencies never land in this repo's node_modules and are invisible to CG.
  * Section 7 reads each one's package-lock.json (downloaded into extensionsCG/ by
@@ -1901,7 +1901,7 @@ async function main(): Promise<void> {
 	// =========================================================================
 	// SECTION 7: Built-in (pre-built) extension dependency enumeration
 	//
-	// js-debug, js-debug-companion and js-profile-table are PRE-BUILT extensions:
+	// js-debug and js-debug-companion are PRE-BUILT extensions:
 	// VS Code downloads them as finished VSIXs (product.json `builtInExtensions`)
 	// rather than building them from source. Their bundled npm dependencies are
 	// therefore never installed into this repo's node_modules and never scanned by
