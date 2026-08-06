@@ -56,7 +56,7 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open Settings', '打开设置'), 'codicon-settings-gear', () => this.commandService.executeCommand('shortestpath.openSettings'));
 		// allow-any-unicode-next-line
-		this.addAction(actions, localizeNewTab('Beware of telecom fraud, do not click!!!', '谨防电信诈骗，千万别点！！！'), 'codicon-warning', () => this.commandService.executeCommand('workbench.action.browser.open', localizeNewTab('https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J', 'https://www.bilibili.com/video/BV1GJ411x7h7/')));
+		this.addAction(actions, localizeNewTab('Beware of telecom fraud, do not click!!!', '谨防电信诈骗，千万别点！！！'), 'codicon-warning', () => this.commandService.executeCommand('workbench.action.browser.open', localizeNewTab('https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J', 'https://player.bilibili.com/player.html?isOutside=true&aid=80433022&bvid=BV1GJ411x7h7&cid=137649199&p=1')));
 	}
 
 	private addAction(parent: HTMLElement, label: string, icon: string, run: () => Thenable<unknown>): void {
