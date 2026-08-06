@@ -540,7 +540,6 @@ function createL10nBundleForExtension(extensionFolderName: string, prefixWithBui
 export const EXTERNAL_EXTENSIONS = [
 	'ms-vscode.js-debug',
 	'ms-vscode.js-debug-companion',
-	'ms-vscode.vscode-js-profile-table',
 ];
 
 export function createXlfFilesForExtensions(): eventStream.ThroughStream {

@@ -42,14 +42,12 @@ const realShape = {
 	builtInExtensions: [
 		{ name: 'ms-vscode.js-debug', version: '1.117.0' },
 		{ name: 'ms-vscode.js-debug-companion', version: '1.1.3' },
-		{ name: 'ms-vscode.vscode-js-profile-table', version: '1.0.10' },
 	],
 };
 const realNames = readBuiltInExtensionNames(realShape);
-check('reads the 3 product.json built-in extensions', realNames.length === 3);
+check('reads the 2 product.json built-in extensions', realNames.length === 2);
 check('includes js-debug', realNames.includes('ms-vscode.js-debug'));
 check('includes js-debug-companion', realNames.includes('ms-vscode.js-debug-companion'));
-check('includes js-profile-table', realNames.includes('ms-vscode.vscode-js-profile-table'));
 
 check('merges webBuiltInExtensions', readBuiltInExtensionNames({
 	builtInExtensions: [{ name: 'a' }],
