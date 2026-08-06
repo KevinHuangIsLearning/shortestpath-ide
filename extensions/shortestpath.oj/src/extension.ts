@@ -344,6 +344,25 @@ class ShortestPathOjProblemPanel {
 		this.editorialPanel.webview.html = getEditorialPanelHtml(this.state.editorial, this.state.problem, this.editorialPanel.webview, this.extensionUri);
 	}
 
+	private refreshEditorialLike(hintId: string): void {
+		const editorial = this.state?.editorial;
+		if (!this.editorialPanel || !editorial || editorial.state !== 'available') {
+			return;
+		}
+		const hint = editorial.hints.find(item => item.hintId === hintId);
+		if (!hint) {
+			return;
+		}
+		void this.editorialPanel.webview.postMessage({
+			type: 'editorialLike',
+			hintId,
+			questionLiked: hint.questionLiked,
+			answerLiked: hint.answerLiked,
+			questionLikeCount: hint.questionLikeCount,
+			answerLikeCount: hint.answerLikeCount,
+		});
+	}
+
 	private pendingConfirms = new Map<string, { resolve: (result: boolean) => void }>();
 
 	confirm(message: string, confirmLabel: string, cancelLabel: string): Promise<boolean> {
@@ -448,7 +467,7 @@ class ShortestPathOjProblemPanel {
 				if (this.state.editorial) {
 					this.state.editorial = applyEditorialLikeResult(this.state.editorial, result);
 				}
-				this.refreshEditorial();
+				this.refreshEditorialLike(value.hintId);
 			}
 		});
 		panel.webview.html = getEditorialPanelHtml(editorial, problem, panel.webview, this.extensionUri);
@@ -1387,16 +1406,58 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 	});
 }
 
+type DifficultyTag = {
+	label: string;
+	backgroundClass: string;
+	borderClass?: string;
+	textClass?: string;
+	backgroundRgb: string;
+	backgroundHex: string;
+	textColor: string;
+};
+
+const difficultyTagMap: Readonly<Record<number, DifficultyTag>> = {
+	0: { label: '入门', backgroundClass: 'bg-rose-700', backgroundRgb: 'rgb(190, 18, 60)', backgroundHex: '#be123c', textColor: 'white' },
+	1: { label: '普及-', backgroundClass: 'bg-orange-600', backgroundRgb: 'rgb(234, 88, 12)', backgroundHex: '#ea580c', textColor: 'white' },
+	2: { label: '普及', backgroundClass: 'bg-amber-500', backgroundRgb: 'rgb(245, 158, 11)', backgroundHex: '#f59e0b', textColor: 'black' },
+	3: { label: '普及+', backgroundClass: 'bg-yellow-400', backgroundRgb: 'rgb(250, 204, 21)', backgroundHex: '#facc15', textColor: 'black' },
+	4: { label: '提高-', backgroundClass: 'bg-lime-500', backgroundRgb: 'rgb(132, 204, 22)', backgroundHex: '#84cc16', textColor: 'black' },
+	5: { label: '提高', backgroundClass: 'bg-emerald-600', backgroundRgb: 'rgb(5, 150, 105)', backgroundHex: '#059669', textColor: 'white' },
+	6: { label: '提高+', backgroundClass: 'bg-sky-600', backgroundRgb: 'rgb(2, 132, 199)', backgroundHex: '#0284c7', textColor: 'white' },
+	7: { label: 'NOI-', backgroundClass: 'bg-indigo-600', backgroundRgb: 'rgb(79, 70, 229)', backgroundHex: '#4f46e5', textColor: 'white' },
+	8: { label: 'NOI', backgroundClass: 'bg-violet-700', backgroundRgb: 'rgb(109, 40, 217)', backgroundHex: '#6d28d9', textColor: 'white' },
+	9: { label: 'NOI+', backgroundClass: 'bg-purple-900', backgroundRgb: 'rgb(88, 28, 135)', backgroundHex: '#581c87', textColor: 'white' },
+	10: { label: 'IOI', backgroundClass: 'bg-zinc-950', backgroundRgb: 'rgb(9, 9, 11)', backgroundHex: '#09090b', textColor: 'white' },
+};
+
+const defaultDifficultyTag: DifficultyTag = {
+	label: '—',
+	backgroundClass: 'muted',
+	borderClass: 'border',
+	textClass: 'muted-foreground',
+	backgroundRgb: 'var(--vscode-badge-background)',
+	backgroundHex: 'var(--vscode-badge-background)',
+	textColor: 'var(--vscode-descriptionForeground)',
+};
+
 function renderInformation(problem: ImportedProblem): string {
 	const coreTags = problem.metadata.coreAlgorithm ? [`<span class="tag core">${escapeHtml(problem.metadata.coreAlgorithm)}</span>`] : [];
 	const auxiliaryTags = problem.metadata.auxiliaryAlgorithms.map(tag => `<span class="tag auxiliary">${escapeHtml(tag)}</span>`);
-	const allTags = [...coreTags, ...auxiliaryTags].join('') || '<span class="empty-tags">暂无标签</span>';
+	const renderTagGroup = (label: string, tags: string[]): string => tags.length > 0
+		? `<div class="tag-group"><div class="tag-group-label">${label}</div><div class="tag-group-items">${tags.join('')}</div></div>`
+		: '';
+	const allTags = [renderTagGroup('核心算法', coreTags), renderTagGroup('辅助算法', auxiliaryTags)].filter(Boolean).join('') || '<span class="empty-tags">暂无标签</span>';
 	const summaryCount = (problem.metadata.coreAlgorithm ? 1 : 0) + problem.metadata.auxiliaryAlgorithms.length;
-	const difficulty = String(problem.metadata.difficulty);
+	const difficulty = difficultyTagMap[problem.metadata.difficulty] ?? defaultDifficultyTag;
+	const difficultyTagClasses = [difficulty.backgroundClass, difficulty.borderClass, difficulty.textClass]
+		.filter((value): value is string => value !== undefined)
+		.map(escapeAttribute)
+		.join(' ');
+	const difficultyTag = `<span class="tag difficulty-tag ${difficultyTagClasses}" style="--difficulty-background: ${escapeAttribute(difficulty.backgroundHex)}; --difficulty-foreground: ${escapeAttribute(difficulty.textColor)};">${escapeHtml(difficulty.label)}</span>`;
 	return `<div class="info-grid">
 				<div class="info-cell"><span class="info-label">时间限制</span><span class="info-value">${problem.limits.timeMs} ms</span></div>
 				<div class="info-cell"><span class="info-label">内存限制</span><span class="info-value">${problem.limits.memoryMB} MB</span></div>
-				<div class="info-cell"><span class="info-label">题目难度</span><span class="info-value">${escapeHtml(difficulty)}</span></div>
+				<div class="info-cell"><span class="info-label">题目难度</span><span class="info-value">${difficultyTag}</span></div>
 				<div class="info-cell info-action tag-popover-anchor">
 					<span class="info-label">题目标签</span>
 					<span class="info-value tag-summary" aria-label="${summaryCount} 个标签">${summaryCount > 0 ? `${summaryCount}` : '0'} <span class="tag-arrow" aria-hidden="true"></span></span>
@@ -1453,9 +1514,8 @@ const likeSvgOutlined = '<svg xmlns="http://www.w3.org/2000/svg" width="24" heig
 const likeSvgFilled = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-thumbs-up size-3.5 fill-current" aria-hidden="true"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"></path><path d="M7 10v12"></path></svg>';
 
 function renderLikeButton(hintId: string, target: 'question' | 'answer', likes: { liked: boolean; count: number }, enabled: boolean): string {
-	const svg = likes.liked ? likeSvgFilled : likeSvgOutlined;
 	const label = `${likes.liked ? '取消点赞' : '点赞'}提示${target === 'question' ? '问题' : '答案'}，当前 ${likes.count} 赞`;
-	return `<button type="button" class="like-btn${likes.liked ? ' liked' : ''}" data-command="like" data-hint-id="${escapeAttribute(hintId)}" data-target="${target}" data-liked="${likes.liked}" aria-label="${escapeAttribute(label)}"${enabled ? '' : ' disabled'}>${svg}<span aria-hidden="true">${likes.count}</span></button>`;
+	return `<button type="button" class="like-btn${likes.liked ? ' liked' : ''}" data-command="like" data-hint-id="${escapeAttribute(hintId)}" data-target="${target}" data-liked="${likes.liked}" aria-label="${escapeAttribute(label)}"${enabled ? '' : ' disabled'}><span class="like-icon like-icon-outline" aria-hidden="true">${likeSvgOutlined}</span><span class="like-icon like-icon-filled" aria-hidden="true">${likeSvgFilled}</span><span class="like-count" aria-hidden="true">${likes.count}</span></button>`;
 }
 
 function renderHintModal(state: ProblemPanelState, hint: ProblemHint): string {
@@ -1526,6 +1586,30 @@ function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProb
 </div>
 <script>
 const vscode = acquireVsCodeApi();
+window.addEventListener('message', (event) => {
+	const message = event.data;
+	if (!message || message.type !== 'editorialLike' || typeof message.hintId !== 'string') {
+		return;
+	}
+	document.querySelectorAll('[data-command="like"]').forEach((element) => {
+		if (!(element instanceof HTMLButtonElement) || element.dataset.hintId !== message.hintId) {
+			return;
+		}
+		const isQuestion = element.dataset.target === 'question';
+		const liked = isQuestion ? message.questionLiked : message.answerLiked;
+		const count = isQuestion ? message.questionLikeCount : message.answerLikeCount;
+		if (typeof liked !== 'boolean' || typeof count !== 'number') {
+			return;
+		}
+		element.dataset.liked = String(liked);
+		element.classList.toggle('liked', liked);
+		element.setAttribute('aria-label', (liked ? '取消点赞' : '点赞') + '提示' + (isQuestion ? '问题' : '答案') + '，当前 ' + count + ' 赞');
+		const countElement = element.querySelector('.like-count');
+		if (countElement) {
+			countElement.textContent = String(count);
+		}
+	});
+});
 document.addEventListener('click', (event) => {
 	const button = event.target.closest('[data-command="like"]');
 	if (!button) {

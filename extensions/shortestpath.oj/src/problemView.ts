@@ -51,6 +51,7 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 	};
 	let timerInterval: ReturnType<typeof setInterval> | undefined;
 	let submitConfirmationTimer: ReturnType<typeof setTimeout> | undefined;
+	let operationNoticeRemovalTimer: number | undefined;
 	const resetSubmitConfirmation = (button: HTMLButtonElement): void => {
 		if (submitConfirmationTimer) {
 			clearTimeout(submitConfirmationTimer);
@@ -593,6 +594,27 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			section.style.overflow = previousOverflow;
 		}, 200);
 	};
+	const updateOperationNotice = (section: HTMLElement, html: string): void => {
+		if (operationNoticeRemovalTimer !== undefined) {
+			window.clearTimeout(operationNoticeRemovalTimer);
+			operationNoticeRemovalTimer = undefined;
+		}
+		const currentNotice = section.querySelector<HTMLElement>('.operation-notice');
+		if (html === '' && currentNotice) {
+			currentNotice.classList.add('leaving');
+			const removalDelay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 160;
+			operationNoticeRemovalTimer = window.setTimeout(() => {
+				operationNoticeRemovalTimer = undefined;
+				animateHeightChange(section, () => {
+					section.innerHTML = '';
+				});
+			}, removalDelay);
+			return;
+		}
+		animateHeightChange(section, () => {
+			section.innerHTML = html;
+		});
+	};
 	const snapshotSubmissionHeights = (section: HTMLElement): Map<string, number> => {
 		const heights = new Map<string, number>();
 		section.querySelectorAll<HTMLElement>('.submission[data-persist-key]').forEach(submission => {
@@ -650,6 +672,10 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		for (const [id, html] of Object.entries(message.sections)) {
 			const section = document.getElementById(id);
 			if (!section) {
+				continue;
+			}
+			if (id === 'oj-operation-notice') {
+				updateOperationNotice(section, html);
 				continue;
 			}
 			const snapshot = snapshotSection(section);
