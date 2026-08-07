@@ -158,6 +158,7 @@ export default defineConfig(
 	{
 		files: [
 			'extensions/shortestpath.oj/src/**/*.ts',
+			'extensions/shortestpath.setup/src/**/*.ts',
 			'src/vs/workbench/browser/parts/editor/shortestpath*.ts',
 			'src/vs/workbench/contrib/shortestpath/**/*.ts',
 			'src/vs/workbench/test/browser/parts/editor/shortestpath*.ts',
