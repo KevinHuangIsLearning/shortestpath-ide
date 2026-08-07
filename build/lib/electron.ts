@@ -146,6 +146,7 @@ export const config = {
 	copyright: 'Copyright (C) 2026 KevinHuangIsLearning. All rights reserved',
 	darwinExecutable: product.nameShort,
 	darwinIcon: 'resources/darwin/code.icns',
+	darwinAssetsCar: 'resources/darwin/Assets.car',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
 	darwinHelpBookFolder: 'VS Code HelpBook',
