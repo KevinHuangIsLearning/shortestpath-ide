@@ -292,16 +292,15 @@ class ShortestPathOjProblemPanel {
 		if (this.panel?.active || !this.state || !shouldHideProblemPanelWhenSourceInactive(this.state.sourcePath, getActiveEditorPath())) {
 			return false;
 		}
-		if (this.panel) {
-			this.panel.dispose();
-		}
+		void this.closeProblemPanelAfterRemembering();
 		return true;
 	}
 
-	hideProblemWhenSourceCloses(): boolean {
+	async hideProblemWhenSourceCloses(): Promise<boolean> {
 		if (!this.state || !shouldHideProblemPanelWhenSourceCloses(this.state.sourcePath, getOpenFileTabGroups().flatMap(group => group.filePaths))) {
 			return false;
 		}
+		await this.rememberSplitRatioBeforeClosing();
 		this.state = undefined;
 		this.reopenProblemAfterEditorial = false;
 		this.editorialHiddenSourcePath = undefined;
@@ -310,17 +309,32 @@ class ShortestPathOjProblemPanel {
 		return true;
 	}
 
-	hideProblemForCph(problemRef: string, sourcePath?: string): void {
+	async hideProblemForCph(problemRef: string, sourcePath?: string): Promise<void> {
 		if (this.state?.problem.ref !== problemRef) {
 			return;
 		}
 		if (sourcePath && isActiveEditor(sourcePath)) {
 			return;
 		}
+		await this.rememberSplitRatioBeforeClosing();
 		this.state = undefined;
 		this.reopenProblemAfterEditorial = false;
 		this.editorialHiddenSourcePath = undefined;
 		this.editorialPanel?.dispose();
+		this.panel?.dispose();
+	}
+
+	/**
+	 * Records the current code/problem split ratio before the problem panel is
+	 * closed, so the next freshly created split uses the same ratio. The panel
+	 * must still be open at this point for the workbench to measure the groups.
+	 */
+	private async rememberSplitRatioBeforeClosing(): Promise<void> {
+		await vscode.commands.executeCommand('shortestpath.oj.rememberProblemSplitRatio');
+	}
+
+	private async closeProblemPanelAfterRemembering(): Promise<void> {
+		await this.rememberSplitRatioBeforeClosing();
 		this.panel?.dispose();
 	}
 
@@ -534,15 +548,16 @@ class ShortestPathOjProblemPanel {
 	}
 
 	private ensureProblemPanel(): boolean {
-		const existingViewColumns = new Set(vscode.window.tabGroups.all.map(group => group.viewColumn));
 		const panelCreated = this.ensurePanel(this.getProblemViewColumn());
 		const problemViewColumn = this.panel?.viewColumn;
 		if (panelCreated && problemViewColumn !== undefined) {
 			setTimeout(() => this.closeShortestPathNewTabs(problemViewColumn), 0);
-		}
-		if (panelCreated && problemViewColumn !== undefined && !existingViewColumns.has(problemViewColumn)) {
+			// Always apply the remembered ratio when a fresh panel is created,
+			// even when it lands in a still-existing column (e.g. after the last
+			// problem panel was closed). The command locates the panel group
+			// itself, so the column index is not needed.
 			setTimeout(() => {
-				void vscode.commands.executeCommand('shortestpath.oj.resizeEditorGroups', problemViewColumn - 1);
+				void vscode.commands.executeCommand('shortestpath.oj.resizeEditorGroups');
 			}, 0);
 		}
 		return panelCreated;
@@ -579,6 +594,12 @@ class ShortestPathOjProblemPanel {
 				case 'ready':
 					this.webviewReady = true;
 					this.flushPendingUpdate();
+					return;
+				case 'reportProblemPanelResized':
+					// The user resized the split between the code editor and the
+					// problem panel; remember the new ratio (globally) right away so
+					// it survives closing and re-importing the problem.
+					void vscode.commands.executeCommand('shortestpath.oj.rememberProblemSplitRatio');
 					return;
 				case 'answer':
 					if (typeof value.hintId !== 'string') {
@@ -1382,6 +1403,10 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 	const styles = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'resources', 'problemView.css'));
 	const katexStyles = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'resources', 'katex', 'katex.min.css'));
 	const timer = getProblemViewTimer(state);
+	const judgeType = problem.judge.checkerType !== 'default'
+		? (problem.judge.floatEpsilon !== null ? 'Float Judge' : 'Special Judge')
+		: undefined;
+	const metadataJudge = judgeType ? ` · <strong class="judge-type">${escapeHtml(judgeType)}</strong>` : '';
 	return fillTemplate(template, {
 		CSP_SOURCE: webview.cspSource,
 		KATEX_STYLES_URI: katexStyles.toString(),
@@ -1393,7 +1418,7 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 		TIMER_VALUE: formatDuration(timer.elapsedMs),
 		CAPTURED_AT: String(timer.capturedAt),
 		TITLE: escapeHtml(problem.title),
-		METADATA: `${escapeHtml(problem.topic.title)} · ${problem.limits.timeMs} ms · ${problem.limits.memoryMB} MB · ${escapeHtml(problem.judge.mode.toUpperCase())}`,
+		METADATA: `${escapeHtml(problem.topic.title)} · ${problem.limits.timeMs} ms · ${problem.limits.memoryMB} MB · ${escapeHtml(problem.judge.mode.toUpperCase())}${metadataJudge}`,
 		PROBLEM_URL: escapeAttribute(problem.url),
 		OPERATION_NOTICE: sections.operationNotice,
 		STATUS: sections.status,
@@ -1480,12 +1505,22 @@ function renderStatement(problem: ImportedProblem): string {
 		.filter((entry): entry is [string, MarkdownContent] => entry[1] !== undefined)
 		.map(([title, content]) => `<section><h2>${title}</h2>${renderMarkdownContent(content, problem.url)}</section>`)
 		.join('');
-	const explanations = problem.samples
-		.map((sample, index) => sample.explanation.trim() ? `<article class="sample"><h3>样例 ${index + 1} 解释</h3><div data-render-math>${renderProblemMarkdown(sample.explanation, problem.url)}</div></article>` : '')
-		.filter(Boolean)
+	const samples = problem.samples
+		.map((sample, index) => {
+			const io = `<article class="sample">
+				<h3>样例 ${index + 1}</h3>
+				<h4>样例输入</h4>
+				<pre><code>${escapeHtml(sample.input)}</code></pre>
+				<h4>样例输出</h4>
+				<pre><code>${escapeHtml(sample.output)}</code></pre>
+			</article>`;
+			const explanation = sample.explanation.trim()
+				? `<div class="sample-explanation" data-render-math>${renderProblemMarkdown(sample.explanation, problem.url)}</div>`
+				: '';
+			return `${io}${explanation}`;
+		})
 		.join('');
-	const sampleHint = '<p class="sample-hint">样例输入/输出请在左侧 CPH 面板中查看。</p>';
-	return `${statement}${explanations ? `<section class="samples"><h2>样例解释</h2>${explanations}</section>` : ''}${sampleHint}`;
+	return `${statement}${samples ? `<section class="samples"><h2>样例</h2>${samples}</section>` : ''}`;
 }
 
 function renderHints(state: ProblemPanelState): string {

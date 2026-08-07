@@ -69,15 +69,6 @@
 	margin: 12px 0;
 }
 
-.sample-hint {
-	background: var(--vscode-editorInfoBackground, rgba(0, 122, 204, 0.1));
-	border: 1px solid var(--vscode-editorInfoBorder, rgba(0, 122, 204, 0.4));
-	border-radius: 6px;
-	color: var(--vscode-editorInfoForeground, var(--vscode-foreground));
-	margin: 0 0 16px;
-	padding: 10px 12px;
-}
-
 .tab-panels {
 	position: relative;
 }
@@ -224,18 +215,25 @@ header {
 	margin: 0;
 }
 
-.title-line .metadata {
+.title-meta-line {
 	color: var(--vscode-descriptionForeground);
 	font-size: 0.95em;
+	grid-column: 1 / -1;
+	line-height: 1.4;
+	text-align: center;
 }
 
+.title-meta-line .judge-type {
+	color: var(--vscode-textLink-foreground);
+	font-weight: 700;
+}
 
 .title-status-row {
 	align-items: center;
 	display: flex;
-	gap: 16px;
+	flex-wrap: wrap;
+	gap: 8px 16px;
 	grid-column: 1 / -1;
-	white-space: nowrap;
 	width: 100%;
 }
 
@@ -283,7 +281,9 @@ header {
 .info-grid {
 	align-items: baseline;
 	display: flex;
-	gap: 16px;
+	flex-wrap: wrap;
+	gap: 6px 16px;
+	justify-content: center;
 	white-space: nowrap;
 }
 
@@ -540,9 +540,8 @@ header p, .unlock {
 	align-items: center;
 	align-self: center;
 	display: flex;
-	gap: 12px;
-	grid-column: 2;
-	grid-row: 1;
+	gap: 8px;
+	margin-left: auto;
 }
 
 a {
@@ -698,6 +697,10 @@ th, td {
 
 .sample h3, .sample h4 {
 	margin: 0 0 8px;
+}
+
+.sample .sample-explanation {
+	margin-top: 10px;
 }
 
 .solution-actions {
