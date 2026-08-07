@@ -9,6 +9,7 @@ import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { canRequestEditorial, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
+import { describeJudgeType } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
 import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
 import { OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
@@ -1403,10 +1404,13 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 	const styles = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'resources', 'problemView.css'));
 	const katexStyles = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'resources', 'katex', 'katex.min.css'));
 	const timer = getProblemViewTimer(state);
-	const judgeType = problem.judge.checkerType !== 'default'
-		? (problem.judge.floatEpsilon !== null ? 'Float Judge' : 'Special Judge')
-		: undefined;
-	const metadataJudge = judgeType ? ` · <strong class="judge-type">${escapeHtml(judgeType)}</strong>` : '';
+	const judgeType = describeJudgeType(problem.judge.checkerType, problem.judge.floatEpsilon);
+	const metadataJudge = judgeType ? `<strong class="judge-type">${escapeHtml(judgeType)}</strong>` : '';
+	const metadataParts = [
+		`<span class="meta-item meta-collapsible">${escapeHtml(problem.topic.title)}</span>`,
+		`<span class="meta-item meta-collapsible">${escapeHtml(problem.judge.mode.toUpperCase())}</span>`,
+		metadataJudge ? `<span class="meta-item">${metadataJudge}</span>` : '',
+	].filter(Boolean);
 	return fillTemplate(template, {
 		CSP_SOURCE: webview.cspSource,
 		KATEX_STYLES_URI: katexStyles.toString(),
@@ -1418,7 +1422,7 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 		TIMER_VALUE: formatDuration(timer.elapsedMs),
 		CAPTURED_AT: String(timer.capturedAt),
 		TITLE: escapeHtml(problem.title),
-		METADATA: `${escapeHtml(problem.topic.title)} · ${problem.limits.timeMs} ms · ${problem.limits.memoryMB} MB · ${escapeHtml(problem.judge.mode.toUpperCase())}${metadataJudge}`,
+		METADATA: metadataParts.join(''),
 		PROBLEM_URL: escapeAttribute(problem.url),
 		OPERATION_NOTICE: sections.operationNotice,
 		STATUS: sections.status,
@@ -1509,10 +1513,14 @@ function renderStatement(problem: ImportedProblem): string {
 		.map((sample, index) => {
 			const io = `<article class="sample">
 				<h3>样例 ${index + 1}</h3>
-				<h4>样例输入</h4>
-				<pre><code>${escapeHtml(sample.input)}</code></pre>
-				<h4>样例输出</h4>
-				<pre><code>${escapeHtml(sample.output)}</code></pre>
+				<div class="io-block">
+					<div class="io-header"><h4>样例输入</h4><button type="button" class="copy-btn" aria-label="复制样例输入">复制</button></div>
+					<pre><code>${escapeHtml(sample.input)}</code></pre>
+				</div>
+				<div class="io-block">
+					<div class="io-header"><h4>样例输出</h4><button type="button" class="copy-btn" aria-label="复制样例输出">复制</button></div>
+					<pre><code>${escapeHtml(sample.output)}</code></pre>
+				</div>
 			</article>`;
 			const explanation = sample.explanation.trim()
 				? `<div class="sample-explanation" data-render-math>${renderProblemMarkdown(sample.explanation, problem.url)}</div>`

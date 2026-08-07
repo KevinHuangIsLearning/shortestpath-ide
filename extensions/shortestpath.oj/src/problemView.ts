@@ -374,9 +374,62 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		}
 	});
 
+	/* ---- Sample copy ---- */
+	const copySample = async (button: HTMLButtonElement): Promise<void> => {
+		const block = button.closest('.io-block');
+		const code = block?.querySelector('pre code');
+		if (!code) {
+			return;
+		}
+		const text = code.textContent ?? '';
+		if (!text) {
+			return;
+		}
+		const writeText = async (): Promise<boolean> => {
+			if (navigator.clipboard?.writeText) {
+				try {
+					await navigator.clipboard.writeText(text);
+					return true;
+				} catch {
+					// Fall through to the textarea fallback below.
+				}
+			}
+			try {
+				const textarea = document.createElement('textarea');
+				textarea.value = text;
+				textarea.style.position = 'fixed';
+				textarea.style.opacity = '0';
+				document.body.appendChild(textarea);
+				textarea.focus();
+				textarea.select();
+				const ok = document.execCommand('copy');
+				document.body.removeChild(textarea);
+				return ok;
+			} catch {
+				return false;
+			}
+		};
+		if (await writeText()) {
+			const original = button.textContent;
+			button.textContent = '已复制';
+			button.classList.add('copied');
+			setTimeout(() => {
+				button.textContent = original;
+				button.classList.remove('copied');
+			}, 1500);
+		}
+	};
+
 	/* ---- Click handler ---- */
 	document.addEventListener('click', event => {
 		const target = event.target;
+
+		// Sample input/output copy button (local webview operation).
+		const copyButton = target instanceof Element ? target.closest<HTMLButtonElement>('.copy-btn') : null;
+		if (copyButton) {
+			void copySample(copyButton);
+			return;
+		}
 
 		// Hint list item click → open modal (handled by extension via postMessage)
 		const hintItem = target instanceof Element ? target.closest<HTMLElement>('[data-command="openHintModal"]') : null;
