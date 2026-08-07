@@ -70,6 +70,10 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/shortestpath.setup/src/extension.ts',
 	'!extensions/shortestpath.setup/src/gettingStarted.ts',
 	'!extensions/shortestpath.setup/src/systemFonts.ts',
+	'!extensions/shortestpath.setup/src/cphMappings.ts',
+	'!extensions/shortestpath.setup/src/cphSettings.ts',
+	'!extensions/shortestpath.setup/src/toolchainDiagnostics.ts',
+	'!extensions/shortestpath.setup/src/fishMode.ts',
 	'!extensions/shortestpath.oj/**',
 
 	// extensions/copilot has its own code style
