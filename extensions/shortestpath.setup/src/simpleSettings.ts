@@ -486,19 +486,33 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 	}, undefined, context.subscriptions);
 }
 
+let cachedSystemFonts: SystemFontsResult | undefined;
+
 async function getSystemFonts(): Promise<SystemFontsResult> {
+	if (cachedSystemFonts) {
+		return cachedSystemFonts;
+	}
 	try {
-		let output: string;
 		if (process.platform === 'darwin') {
-			output = await runFontCommand('system_profiler', ['SPFontsDataType', '-json']);
-			return { fonts: uniqueFonts(getMacFontFamilies(output)) };
+			// system_profiler SPFontsDataType -json is very slow (several seconds),
+			// so use CoreText via osascript JXA first and fall back to system_profiler.
+			try {
+				const output = await runFontCommand('osascript', ['-l', 'JavaScript', '-e', 'ObjC.import(\'AppKit\'); const f = $.NSFontManager.sharedFontManager.availableFontFamilies; const out = []; for (let i = 0; i < f.count; i++) out.push(ObjC.unwrap(f.objectAtIndex(i))); out.join(\'\\n\');']);
+				if (output.trim()) {
+					return cachedSystemFonts = { fonts: uniqueFonts(output.split(/\r?\n/)) };
+				}
+			} catch {
+				// fall through to system_profiler
+			}
+			const output = await runFontCommand('system_profiler', ['SPFontsDataType', '-json']);
+			return cachedSystemFonts = { fonts: uniqueFonts(getMacFontFamilies(output)) };
 		}
 		if (process.platform === 'win32') {
-			output = await runFontCommand('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Add-Type -AssemblyName System.Drawing; (New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object Name']);
-			return { fonts: uniqueFonts(output.split(/\r?\n/)) };
+			const output = await runFontCommand('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Add-Type -AssemblyName System.Drawing; (New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object Name']);
+			return cachedSystemFonts = { fonts: uniqueFonts(output.split(/\r?\n/)) };
 		}
-		output = await runFontCommand('fc-list', ['--format=%{family}\\n']);
-		return { fonts: uniqueFonts(output.split(/[,\r\n]+/)) };
+		const output = await runFontCommand('fc-list', ['--format=%{family}\\n']);
+		return cachedSystemFonts = { fonts: uniqueFonts(output.split(/[,\r\n]+/)) };
 	} catch {
 		return { fonts: [], error: '未能读取系统字体。请检查系统字体服务后重新打开此页面。' };
 	}
@@ -634,6 +648,7 @@ h1 { font-size: 28px; margin: 0 0 8px; } p { color: var(--vscode-descriptionFore
 input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); padding: 7px 9px; border-radius: 3px; font: inherit; }
 input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { display: flex; align-items: center; gap: 10px; }
 .font-preview { color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; font-size: 16px; line-height: 1.65; margin: -4px 0 14px 208px; padding: 10px 12px; white-space: pre; }
+.row.disabled { opacity: .6; } .row.disabled input, .row.disabled select { cursor: not-allowed; }
 .fallback-list { display: grid; gap: 7px; }.fallback-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; }.fallback-row .icon { min-width: 28px; padding: 5px; }.add-fallback { margin-top: 8px; }
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); } button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } #saved { color: var(--vscode-testing-iconPassed); }
 section.card[hidden], .row[hidden] { display: none; } .no-results { color: var(--vscode-descriptionForeground); margin: 28px 0; } @media (max-width: 720px) { body { height: auto; overflow: auto; } main { display: block; height: auto; padding: 24px 18px 48px; }.sidebar { position: static; margin-bottom: 22px; }.settings-content { overflow: visible; padding-right: 0; }.categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }.row { grid-template-columns: 1fr; gap: 8px; }.font-preview { margin-left: 0; } }
@@ -648,7 +663,7 @@ section.card[hidden], .row[hidden] { display: none; } .no-results { color: var(-
 <div id="fontPreview" class="font-preview">#include &lt;bits/stdc++.h&gt;
 int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <div class="row"><div><label>回退字体</label><div class="hint">字形缺失时按顺序回退；可选择非等宽中文或 Emoji 字体。</div></div><div><div id="fallbackFonts" class="fallback-list"></div><button id="addFallback" class="secondary add-fallback" type="button">添加回退字体</button></div></div>
-<div class="row"><div><label for="fontLigatures">启用字体连字</label></div><label class="toggle"><input id="fontLigatures" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="fontLigatures">启用字体连字</label><div id="fontLigaturesStatus" class="hint" role="status"></div></div><label class="toggle"><input id="fontLigatures" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="fontSize">字体大小</label></div><input id="fontSize" type="number" min="1" step="1"></div>
 <div class="row"><div><label for="newFileDefaultLanguage">新建文件默认语言</label><div class="hint">从 New Tab 新建文件时默认使用的语言。</div></div><select id="newFileDefaultLanguage"><option value="cpp">C++</option><option value="c">C</option><option value="python">Python</option><option value="java">Java</option><option value="rust">Rust</option><option value="javascript">JavaScript</option><option value="typescript">TypeScript</option></select></div>
 </section>
@@ -713,6 +728,59 @@ function updateSettingsFilter() {
 function setPreview() { byId('fontPreview').style.fontFamily = serializeFontStack(selectedFonts); }
 function addOptions(select, fonts, label) { const group = document.createElement('optgroup'); group.label = label; fonts.forEach(font => { const option = document.createElement('option'); option.value = font; option.textContent = font; option.style.fontFamily = serializeFontStack([font]); group.append(option); }); select.append(group); }
 function isMonospaceFont(font, context) { context.font = '16px ' + serializeFontStack([font]); return Math.abs(context.measureText('iiiiiiiiii').width - context.measureText('WWWWWWWWWW').width) < 0.01; }
+async function supportsLigatures(font) {
+  const stack = serializeFontStack([font]);
+  const size = 48;
+  try { await document.fonts.load(size + 'px ' + stack); } catch (error) { }
+  const probe = document.createElement('canvas');
+  probe.width = 240; probe.height = 96;
+  const context = probe.getContext('2d');
+  if (!context) return false;
+  context.font = size + 'px ' + stack;
+  const composed = document.createElement('canvas');
+  composed.width = probe.width; composed.height = probe.height;
+  const composedContext = composed.getContext('2d');
+  if (!composedContext) return false;
+  composedContext.font = size + 'px ' + stack;
+  const cell = composedContext.measureText('M').width;
+  const probes = ['->', '=>', '>=', '<=', '!=', '==', ':=', '&&', '||', 'ffi'];
+  for (let index = 0; index < probes.length; index++) {
+    const text = probes[index];
+    composedContext.clearRect(0, 0, composed.width, composed.height);
+    for (let charIndex = 0; charIndex < text.length; charIndex++) {
+      composedContext.fillText(text[charIndex], charIndex * cell, size);
+    }
+    context.clearRect(0, 0, probe.width, probe.height);
+    context.fillText(text, 0, size);
+    const singleData = context.getImageData(0, 0, probe.width, probe.height).data;
+    const composedData = composedContext.getImageData(0, 0, composed.width, composed.height).data;
+    let difference = 0;
+    for (let pixel = 0; pixel < singleData.length; pixel += 4) {
+      if (singleData[pixel] !== composedData[pixel] || singleData[pixel + 1] !== composedData[pixel + 1] || singleData[pixel + 2] !== composedData[pixel + 2] || singleData[pixel + 3] !== composedData[pixel + 3]) {
+        difference++;
+        if (difference > 8) return true;
+      }
+    }
+  }
+  return false;
+}
+let ligatureGeneration = 0;
+async function updateLigatureSupport() {
+  const generation = ++ligatureGeneration;
+  const checkbox = byId('fontLigatures');
+  const status = byId('fontLigaturesStatus');
+  const row = checkbox.closest('.row');
+  const supported = await supportsLigatures(selectedFonts[0] || 'monospace');
+  if (generation !== ligatureGeneration) return;
+  checkbox.disabled = !supported;
+  row.classList.toggle('disabled', !supported);
+  if (supported) {
+    status.textContent = '';
+    return;
+  }
+  if (checkbox.checked) checkbox.checked = false;
+  status.textContent = '当前字体不支持连字，无法启用。';
+}
 async function getMonospaceFonts(fonts) {
   const context = document.createElement('canvas').getContext('2d');
   if (!context) return [];
@@ -746,6 +814,7 @@ function renderFonts() {
     status.textContent = fontDetectionInProgress
       ? '正在检测 ' + systemFonts.length + ' 个系统字体中的等宽字体，请稍候。'
       : '正在读取系统字体，请稍候。';
+    void updateLigatureSupport();
     return;
   }
   const primarySelect = fontSelect(selectedFonts[0], monospaceSystemFonts, '系统等宽字体', false);
@@ -763,6 +832,7 @@ function renderFonts() {
       : !monospaceSystemFonts.length
         ? '未发现可用的系统等宽字体，无法选择代码字体。'
         : '已检测到 ' + monospaceSystemFonts.length + ' 个系统等宽字体。';
+  void updateLigatureSupport();
 }
 async function applySystemFonts(result) {
   const generation = ++fontDetectionGeneration;
@@ -818,12 +888,12 @@ function apply(state) {
 function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, antiFraudReminder: byId('antiFraudReminder').checked }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
-document.querySelectorAll('input:not(#settingsSearch), select').forEach(control => {
+document.querySelectorAll('input:not(#settingsSearch):not(#fontFamily), select:not(#fontFamily)').forEach(control => {
   const immediate = control.type === 'checkbox' || control.tagName === 'SELECT';
   control.addEventListener('input', () => save(immediate ? 0 : 250));
   control.addEventListener('change', () => save(0));
 });
-byId('fontFamily').addEventListener('change', () => { selectedFonts[0] = byId('fontFamily').value; setPreview(); save(0); });
+byId('fontFamily').addEventListener('change', async () => { selectedFonts[0] = byId('fontFamily').value; setPreview(); await updateLigatureSupport(); save(0); });
 byId('addFallback').addEventListener('click', () => { if (systemFonts.length) { selectedFonts.push(systemFonts[0]); renderFonts(); setPreview(); save(0); } });
 byId('cppStandard').addEventListener('change', () => { const flags = byId('compilerFlags'); const standard = byId('cppStandard').value; const withoutStandard = flags.value.replace(/(^|\\s)-std=(?:gnu\\+\\+|c\\+\\+)\\d+\\b/g, ' ').replace(/\\s+/g, ' ').trim(); flags.value = '-std=' + standard + (withoutStandard ? ' ' + withoutStandard : ''); save(0); });
 document.querySelectorAll('.category').forEach(button => button.addEventListener('click', () => { selectedCategory = button.dataset.category; document.querySelectorAll('.category').forEach(item => item.classList.toggle('active', item === button)); updateSettingsFilter(); }));
