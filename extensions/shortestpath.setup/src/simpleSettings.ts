@@ -4,22 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { execFile } from 'child_process';
 import { unlockFishMode } from './fishMode';
+import { getSystemFonts } from './systemFonts';
 
-type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
+export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 
-type ThemeOption = {
+export type ThemeOption = {
 	id: string;
 	label: string;
 };
 
-type SystemFontsResult = {
-	fonts: string[];
-	error?: string;
-};
-
-const defaultCompilerFlags = `-std=c++23 -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG${process.platform === 'win32' ? ' -static' : ''}`;
+export const defaultCompilerFlags = `-std=c++23 -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG${process.platform === 'win32' ? ' -static' : ''}`;
 
 type SimpleSettingsState = {
 	fontFamily: string;
@@ -447,6 +442,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.commands.executeCommand('workbench.action.openSettings2');
 		} else if (message?.type === 'snippets') {
 			await vscode.commands.executeCommand('shortestpath.configureCppSnippets');
+		} else if (message?.type === 'gettingStarted') {
+			await vscode.commands.executeCommand('shortestpath.openGettingStarted');
 		} else if (message?.type === 'autoFormat') {
 			await vscode.commands.executeCommand('shortestpath.configureAutoFormat');
 		} else if (message?.type === 'toolchainDiagnostics') {
@@ -486,55 +483,6 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 	}, undefined, context.subscriptions);
 }
 
-let cachedSystemFonts: SystemFontsResult | undefined;
-
-async function getSystemFonts(): Promise<SystemFontsResult> {
-	if (cachedSystemFonts) {
-		return cachedSystemFonts;
-	}
-	try {
-		if (process.platform === 'darwin') {
-			// system_profiler SPFontsDataType -json is very slow (several seconds),
-			// so use CoreText via osascript JXA first and fall back to system_profiler.
-			try {
-				const output = await runFontCommand('osascript', ['-l', 'JavaScript', '-e', 'ObjC.import(\'AppKit\'); const f = $.NSFontManager.sharedFontManager.availableFontFamilies; const out = []; for (let i = 0; i < f.count; i++) out.push(ObjC.unwrap(f.objectAtIndex(i))); out.join(\'\\n\');']);
-				if (output.trim()) {
-					return cachedSystemFonts = { fonts: uniqueFonts(output.split(/\r?\n/)) };
-				}
-			} catch {
-				// fall through to system_profiler
-			}
-			const output = await runFontCommand('system_profiler', ['SPFontsDataType', '-json']);
-			return cachedSystemFonts = { fonts: uniqueFonts(getMacFontFamilies(output)) };
-		}
-		if (process.platform === 'win32') {
-			const output = await runFontCommand('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Add-Type -AssemblyName System.Drawing; (New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object Name']);
-			return cachedSystemFonts = { fonts: uniqueFonts(output.split(/\r?\n/)) };
-		}
-		const output = await runFontCommand('fc-list', ['--format=%{family}\\n']);
-		return cachedSystemFonts = { fonts: uniqueFonts(output.split(/[,\r\n]+/)) };
-	} catch {
-		return { fonts: [], error: '未能读取系统字体。请检查系统字体服务后重新打开此页面。' };
-	}
-}
-
-function runFontCommand(executable: string, args: string[]): Promise<string> {
-	return new Promise((resolve, reject) => execFile(executable, args, { timeout: 15_000, maxBuffer: 10 * 1024 * 1024, windowsHide: true }, (error, stdout) => error ? reject(error) : resolve(stdout)));
-}
-
-function getMacFontFamilies(output: string): string[] {
-	try {
-		const data = JSON.parse(output) as { SPFontsDataType?: { typefaces?: { family?: unknown }[] }[] };
-		return data.SPFontsDataType?.flatMap(font => font.typefaces?.map(typeface => typeof typeface.family === 'string' ? typeface.family : '') ?? []) ?? [];
-	} catch {
-		return [];
-	}
-}
-
-function uniqueFonts(fonts: readonly string[]): string[] {
-	return [...new Set(fonts.map(font => font.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right));
-}
-
 function getState(): SimpleSettingsState {
 	const editor = vscode.workspace.getConfiguration('editor', null);
 	const files = vscode.workspace.getConfiguration('files', null);
@@ -569,7 +517,7 @@ function getState(): SimpleSettingsState {
 	};
 }
 
-function getThemeOptions(currentTheme: string): ThemeOption[] {
+export function getThemeOptions(currentTheme: string): ThemeOption[] {
 	const themes = new Map<string, string>([[currentTheme, currentTheme]]);
 	for (const extension of vscode.extensions.all) {
 		const contributedThemes = extension.packageJSON?.contributes?.themes;
@@ -585,12 +533,12 @@ function getThemeOptions(currentTheme: string): ThemeOption[] {
 	return [...themes].map(([id, label]) => ({ id, label })).sort((left, right) => left.label.localeCompare(right.label));
 }
 
-function findCppStandard(flags: string): CppStandard {
+export function findCppStandard(flags: string): CppStandard {
 	const match = /-std=(?:gnu\+\+|c\+\+)(11|14|17|20|23)\b/.exec(flags);
 	return match ? `c++${match[1]}` as CppStandard : 'c++23';
 }
 
-function applyCppStandard(flags: string, cppStandard: CppStandard): string {
+export function applyCppStandard(flags: string, cppStandard: CppStandard): string {
 	const withoutStandard = flags.replace(/(^|\s)-std=(?:gnu\+\+|c\+\+)\d+\b/g, ' ').replace(/\s+/g, ' ').trim();
 	return `-std=${cppStandard}${withoutStandard ? ` ${withoutStandard}` : ''}`;
 }
@@ -624,7 +572,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 	]);
 }
 
-function isCppStandard(value: unknown): value is CppStandard {
+export function isCppStandard(value: unknown): value is CppStandard {
 	return value === 'c++11' || value === 'c++14' || value === 'c++17' || value === 'c++20' || value === 'c++23';
 }
 
@@ -684,6 +632,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <div class="row"><div><label for="autoDetectColorScheme">同步系统主题</label></div><label class="toggle"><input id="autoDetectColorScheme" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="autoSave">自动保存</label></div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
 </section>
+<section class="card" data-category="tools"><div class="row"><div><label>开始使用</label><div class="hint">分步引导配置字体、主题、语言版本等偏好。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>ShortestPath OJ 账号</label><div class="hint">查看当前登录用户并退出账号（不影响外部浏览器）。</div></div><button id="ojControlPanel" class="secondary">打开账号面板</button></div></section>
@@ -725,7 +674,7 @@ function updateSettingsFilter() {
   });
   byId('noResults').hidden = visibleRows > 0;
 }
-function setPreview() { byId('fontPreview').style.fontFamily = serializeFontStack(selectedFonts); }
+function setPreview() { byId('fontPreview').style.fontFamily = serializeFontStack(selectedFonts); byId('fontPreview').style.fontVariantLigatures = byId('fontLigatures').checked ? 'normal' : 'none'; }
 function addOptions(select, fonts, label) { const group = document.createElement('optgroup'); group.label = label; fonts.forEach(font => { const option = document.createElement('option'); option.value = font; option.textContent = font; option.style.fontFamily = serializeFontStack([font]); group.append(option); }); select.append(group); }
 function isMonospaceFont(font, context) { context.font = '16px ' + serializeFontStack([font]); return Math.abs(context.measureText('iiiiiiiiii').width - context.measureText('WWWWWWWWWW').width) < 0.01; }
 async function supportsLigatures(font) {
@@ -894,6 +843,7 @@ document.querySelectorAll('input:not(#settingsSearch):not(#fontFamily), select:n
   control.addEventListener('change', () => save(0));
 });
 byId('fontFamily').addEventListener('change', async () => { selectedFonts[0] = byId('fontFamily').value; setPreview(); await updateLigatureSupport(); save(0); });
+byId('fontLigatures').addEventListener('change', () => setPreview());
 byId('addFallback').addEventListener('click', () => { if (systemFonts.length) { selectedFonts.push(systemFonts[0]); renderFonts(); setPreview(); save(0); } });
 byId('cppStandard').addEventListener('change', () => { const flags = byId('compilerFlags'); const standard = byId('cppStandard').value; const withoutStandard = flags.value.replace(/(^|\\s)-std=(?:gnu\\+\\+|c\\+\\+)\\d+\\b/g, ' ').replace(/\\s+/g, ' ').trim(); flags.value = '-std=' + standard + (withoutStandard ? ' ' + withoutStandard : ''); save(0); });
 document.querySelectorAll('.category').forEach(button => button.addEventListener('click', () => { selectedCategory = button.dataset.category; document.querySelectorAll('.category').forEach(item => item.classList.toggle('active', item === button)); updateSettingsFilter(); }));
@@ -909,6 +859,7 @@ byId('settingsSearch').addEventListener('input', () => {
 });
 byId('advanced').addEventListener('click', () => vscode.postMessage({ type: 'advanced' }));
 byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));
+byId('gettingStarted').addEventListener('click', () => vscode.postMessage({ type: 'gettingStarted' }));
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
 byId('cphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
 byId('ojControlPanel').addEventListener('click', () => vscode.postMessage({ type: 'ojControlPanel' }));
