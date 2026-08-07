@@ -3,12 +3,9 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from '../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../base/browser/window.js';
-import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 
 export const SHORTESTPATH_OJ_PRIMARY_GROUP_RATIO = 0.6;
@@ -48,66 +45,41 @@ export function getShortestPathOjPrimaryGroupWidth(
 	return Math.round(totalWidth * ratio);
 }
 
-const isShortestPathOjProblemEditor = (editor: EditorInput): boolean =>
+export const isShortestPathOjProblemEditor = (editor: EditorInput): boolean =>
 	editor.resource?.scheme === Schemas.webviewPanel && editor.editorId === SHORTESTPATH_OJ_PROBLEM_VIEW_TYPE;
 
-const isShortestPathOjProblemGroup = (group: IEditorGroup): boolean =>
+export const isShortestPathOjProblemGroup = (group: IEditorGroup): boolean =>
 	group.editors.some(isShortestPathOjProblemEditor);
 
 /**
- * Remembers the split ratio (left group width over the combined width of the
- * two adjacent groups) whenever the user finishes dragging an editor sash
- * while the ShortestPath OJ problem panel is open. The remembered ratio is
- * applied the next time the OJ problem panel is opened in a fresh split.
+ * Remembers the current split ratio (left group width over the combined width
+ * of the two adjacent groups) between the code editor and the ShortestPath OJ
+ * problem panel. Does nothing when the OJ problem panel is not open.
  *
- * Sash drags are observed through the sash DOM elements (`.monaco-sash`)
- * instead of grid-internal events so that no upstream editor part code
- * needs to change.
+ * The ratio is a global preference: it applies to every problem, so a freshly
+ * created split (after closing and re-importing a problem, or after switching
+ * source files) reuses the last ratio the user picked.
  */
-export function registerShortestPathOjGroupRatioMemory(
+export function rememberShortestPathOjProblemSplitRatio(
 	editorGroupsService: IEditorGroupsService,
 	storageService: IStorageService,
-): IDisposable {
-	const store = new DisposableStore();
+): void {
+	const problemGroup = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE).find(isShortestPathOjProblemGroup);
+	if (!problemGroup) {
+		return;
+	}
 
-	store.add(addDisposableListener(mainWindow, 'pointerdown', (event: PointerEvent) => {
-		const target = event.target;
-		if (!(target instanceof Element) || !target.closest('.monaco-sash')) {
-			return;
-		}
+	const leftGroup = editorGroupsService.findGroup({ direction: GroupDirection.LEFT }, problemGroup);
+	if (!leftGroup) {
+		return;
+	}
 
-		// A sash drag starts; remember the current OJ split ratio once the
-		// drag ends (or when it is cancelled without a move).
-		const rememberCurrentRatio = (): void => {
-			const problemGroup = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE).find(isShortestPathOjProblemGroup);
-			if (!problemGroup) {
-				return;
-			}
+	const leftSize = editorGroupsService.getSize(leftGroup);
+	const rightSize = editorGroupsService.getSize(problemGroup);
+	const totalWidth = leftSize.width + rightSize.width;
+	if (!Number.isFinite(totalWidth) || totalWidth <= 0) {
+		return;
+	}
 
-			const leftGroup = editorGroupsService.findGroup({ direction: GroupDirection.LEFT }, problemGroup);
-			if (!leftGroup) {
-				return;
-			}
-
-			const leftSize = editorGroupsService.getSize(leftGroup);
-			const rightSize = editorGroupsService.getSize(problemGroup);
-			const totalWidth = leftSize.width + rightSize.width;
-			if (!Number.isFinite(totalWidth) || totalWidth <= 0) {
-				return;
-			}
-
-			rememberShortestPathOjPrimaryGroupRatio(storageService, leftSize.width / totalWidth);
-		};
-
-		const dragDisposables = new DisposableStore();
-		const finishDrag = (): void => {
-			dragDisposables.dispose();
-			rememberCurrentRatio();
-		};
-		dragDisposables.add(addDisposableListener(mainWindow, 'pointerup', finishDrag));
-		dragDisposables.add(addDisposableListener(mainWindow, 'pointercancel', () => dragDisposables.dispose()));
-		store.add(dragDisposables);
-	}, true));
-
-	return store;
+	rememberShortestPathOjPrimaryGroupRatio(storageService, leftSize.width / totalWidth);
 }

@@ -5,14 +5,25 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import {
 	getShortestPathOjPrimaryGroupRatio,
 	getShortestPathOjPrimaryGroupWidth,
 	rememberShortestPathOjPrimaryGroupRatio,
+	rememberShortestPathOjProblemSplitRatio,
 	SHORTESTPATH_OJ_PRIMARY_GROUP_RATIO,
 } from '../../../../browser/parts/editor/shortestpathEditorGroupSizing.js';
+
+class TestWebviewEditorInput extends EditorInput {
+	override get typeId(): string { return 'test.webview'; }
+	override get resource(): URI { return URI.from({ scheme: 'webview-panel', path: '/test' }); }
+	override get editorId(): string { return this.viewType; }
+	constructor(private readonly viewType: string) { super(); }
+}
 
 suite('ShortestPath OJ editor group sizing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,6 +64,35 @@ suite('ShortestPath OJ editor group sizing', () => {
 	test('ignores invalid stored values', () => {
 		const storageService = store.add(new TestStorageService());
 		storageService.store('shortestpath.oj.primaryGroupRatio', 0, StorageScope.PROFILE, StorageTarget.USER);
+		assert.strictEqual(getShortestPathOjPrimaryGroupRatio(storageService), SHORTESTPATH_OJ_PRIMARY_GROUP_RATIO);
+	});
+
+	test('remembers the split ratio next to the OJ panel', () => {
+		const storageService = store.add(new TestStorageService());
+		const problemGroup = { editors: [store.add(new TestWebviewEditorInput('shortestpath.ojProblem'))] } as unknown as IEditorGroup;
+		const codeGroup = { editors: [] } as unknown as IEditorGroup;
+		const groupsService = {
+			getGroups: () => [codeGroup, problemGroup],
+			findGroup: () => codeGroup,
+			getSize: (group: IEditorGroup) => group === codeGroup ? { width: 700, height: 600 } : { width: 300, height: 600 },
+		} as unknown as IEditorGroupsService;
+
+		rememberShortestPathOjProblemSplitRatio(groupsService, storageService);
+
+		assert.strictEqual(getShortestPathOjPrimaryGroupRatio(storageService), 0.7);
+	});
+
+	test('does not remember the ratio when the OJ panel is not open', () => {
+		const storageService = store.add(new TestStorageService());
+		const codeGroup = { editors: [] } as unknown as IEditorGroup;
+		const groupsService = {
+			getGroups: () => [codeGroup],
+			findGroup: () => undefined,
+			getSize: () => ({ width: 100, height: 600 }),
+		} as unknown as IEditorGroupsService;
+
+		rememberShortestPathOjProblemSplitRatio(groupsService, storageService);
+
 		assert.strictEqual(getShortestPathOjPrimaryGroupRatio(storageService), SHORTESTPATH_OJ_PRIMARY_GROUP_RATIO);
 	});
 });

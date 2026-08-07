@@ -47,7 +47,7 @@ import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editor
 import { prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
-import { getShortestPathOjPrimaryGroupRatio, getShortestPathOjPrimaryGroupWidth, registerShortestPathOjGroupRatioMemory, rememberShortestPathOjPrimaryGroupRatio } from './shortestpathEditorGroupSizing.js';
+import { getShortestPathOjPrimaryGroupRatio, getShortestPathOjPrimaryGroupWidth, isShortestPathOjProblemGroup, rememberShortestPathOjPrimaryGroupRatio, rememberShortestPathOjProblemSplitRatio } from './shortestpathEditorGroupSizing.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -229,35 +229,31 @@ function registerEditorMoveCopyCommand(): void {
 		});
 	});
 
-	let shortestPathOjGroupRatioMemoryRegistered = false;
+	CommandsRegistry.registerCommand('shortestpath.oj.rememberProblemSplitRatio', (accessor: ServicesAccessor) => {
+		rememberShortestPathOjProblemSplitRatio(
+			accessor.get(IEditorGroupsService),
+			accessor.get(IStorageService),
+		);
+	});
 
-	CommandsRegistry.registerCommand(RESIZE_SHORTESTPATH_OJ_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, rightGroupIndex: unknown) => {
-		if (!isNumber(rightGroupIndex) || !Number.isInteger(rightGroupIndex)) {
-			return;
-		}
-
+	CommandsRegistry.registerCommand(RESIZE_SHORTESTPATH_OJ_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, _rightGroupIndex: unknown) => {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const storageService = accessor.get(IStorageService);
 
-		// Remember the split ratio the user picks while the OJ problem panel is
-		// open. Registered on first use so the command stays usable without a
-		// startup-time service dependency.
-		if (!shortestPathOjGroupRatioMemoryRegistered) {
-			shortestPathOjGroupRatioMemoryRegistered = true;
-			registerShortestPathOjGroupRatioMemory(editorGroupsService, storageService);
-		}
-
-		const rightGroup = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE)[rightGroupIndex];
-		if (!rightGroup) {
+		// Locate the OJ problem panel group directly instead of trusting a
+		// view-column index, which can point at the wrong group depending on the
+		// grid layout (e.g. after the last problem panel is closed and reopened).
+		const problemGroup = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE).find(isShortestPathOjProblemGroup);
+		if (!problemGroup) {
 			return;
 		}
-		const leftGroup = editorGroupsService.findGroup({ direction: GroupDirection.LEFT }, rightGroup);
+		const leftGroup = editorGroupsService.findGroup({ direction: GroupDirection.LEFT }, problemGroup);
 		if (!leftGroup) {
 			return;
 		}
 
 		const leftSize = editorGroupsService.getSize(leftGroup);
-		const rightSize = editorGroupsService.getSize(rightGroup);
+		const rightSize = editorGroupsService.getSize(problemGroup);
 		const ratio = getShortestPathOjPrimaryGroupRatio(storageService);
 		const primaryWidth = getShortestPathOjPrimaryGroupWidth(leftSize.width, rightSize.width, ratio);
 		if (primaryWidth === undefined) {
