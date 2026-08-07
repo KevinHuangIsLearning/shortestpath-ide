@@ -15,6 +15,7 @@
 	"command.configureCph": "ShortestPath IDE: Configure CPH",
 	"command.configureCppSnippets": "ShortestPath IDE: Configure Code Snippets",
 	"command.configureAutoFormat": "ShortestPath IDE: Configure Automatic Formatting",
+	"command.openGettingStarted": "ShortestPath IDE: Open Getting Started",
 	"command.openToolchainDiagnostics": "ShortestPath IDE: Toolchain Diagnostics",
 	"command.redetectToolchain": "ShortestPath IDE: Re-detect Toolchain",
 	"command.repairToolchain": "ShortestPath IDE: Repair Toolchain",

@@ -67,6 +67,9 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/**/colorize-fixtures/**',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 	'!extensions/shortestpath.setup/src/simpleSettings.ts',
+	'!extensions/shortestpath.setup/src/extension.ts',
+	'!extensions/shortestpath.setup/src/gettingStarted.ts',
+	'!extensions/shortestpath.setup/src/systemFonts.ts',
 	'!extensions/shortestpath.oj/**',
 
 	// extensions/copilot has its own code style
@@ -98,6 +101,8 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!extensions/shortestpath.setup/src/simpleSettings.ts',
+	'!extensions/shortestpath.setup/src/extension.ts',
+	'!extensions/shortestpath.setup/src/gettingStarted.ts',
 	'!src/vs/editor/common/languages/highlights/*.scm',
 	'!src/vs/editor/common/languages/injections/*.scm',
 	'!test/unit/assert.js',

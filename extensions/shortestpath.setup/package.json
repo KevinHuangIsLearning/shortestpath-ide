@@ -16,7 +16,7 @@
 			"supported": true
 		}
 	},
-	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment", "onCommand:shortestpath.redetectToolchain", "onCommand:shortestpath.repairToolchain", "onCommand:shortestpath.openSettings", "onCommand:shortestpath.configureCph", "onCommand:shortestpath.configureCppSnippets", "onCommand:shortestpath.configureAutoFormat", "onCommand:shortestpath.openToolchainDiagnostics"],
+	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment", "onCommand:shortestpath.redetectToolchain", "onCommand:shortestpath.repairToolchain", "onCommand:shortestpath.openSettings", "onCommand:shortestpath.configureCph", "onCommand:shortestpath.configureCppSnippets", "onCommand:shortestpath.configureAutoFormat", "onCommand:shortestpath.openGettingStarted", "onCommand:shortestpath.openToolchainDiagnostics"],
 	"main": "./out/extension.js",
 	"scripts": {
 		"compile": "node ../../node_modules/typescript/bin/tsc6 -p ./",
@@ -93,6 +93,10 @@
 			{
 				"command": "shortestpath.configureAutoFormat",
 				"title": "%command.configureAutoFormat%"
+			},
+			{
+				"command": "shortestpath.openGettingStarted",
+				"title": "%command.openGettingStarted%"
 			},
 			{
 				"command": "shortestpath.openToolchainDiagnostics",

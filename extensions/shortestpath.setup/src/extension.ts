@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { homedir } from 'os';
@@ -6,6 +11,7 @@ import * as vscode from 'vscode';
 import { registerSimpleSettings } from './simpleSettings';
 import { registerFishMode } from './fishMode';
 import { registerCphSettings } from './cphSettings';
+import { registerGettingStarted } from './gettingStarted';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
 
 type PlatformPreset = {
@@ -27,14 +33,7 @@ type SetupSelection = 'recommended';
 
 type FirstRunSelection = {
 	mode: SetupSelection;
-	editor: boolean;
-	cph: boolean;
 	installToolchain: boolean;
-	fontLigatures: boolean;
-	fontSize: number;
-	autoFormat: boolean;
-	clangdVariableTypeHints: boolean;
-	vjudgeOpenInBrowser: boolean;
 	cppStandard: 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 	workspaceFolder: string;
 };
@@ -227,88 +226,11 @@ async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext):
 	}
 }
 
-const editorSettings: Record<string, unknown> = {
-	'editor.fontLigatures': false,
-	'editor.cursorSmoothCaretAnimation': 'on',
-	'editor.smoothScrolling': true,
-	'workbench.list.smoothScrolling': true,
-	'terminal.integrated.smoothScrolling': true,
-	'editor.cursorBlinking': 'smooth',
-	'editor.fontSize': 14,
-	'files.autoSave': 'onFocusChange',
-	'editor.formatOnSave': true,
-	'editor.formatOnPaste': true,
-	'editor.inlayHints.enabled': 'on',
-	'editor.mouseWheelZoom': true,
-	'window.systemColorTheme': 'auto',
-	'window.titleBarStyle': 'custom',
-	'window.commandCenter': false,
-	'workbench.startupEditor': 'welcomePage',
-	'workbench.navigationControl.enabled': false,
-	'workbench.layoutControl.enabled': true,
-	'workbench.layoutControl.type': 'both',
-	'workbench.activityBar.location': 'top',
-	'workbench.statusBar.visible': false,
-};
-
-const cphSettings: Record<string, unknown> = {
-	'cph.general.defaultLanguage': 'cpp',
-	'cph.general.collectProblemsInRoot': true,
-	'c-cpp-compile-run.output-location': '.',
-	'cph.general.vjudgeOpenInBrowser': false,
-	'cph.general.vjudgeBrowserSplitRatio': 65,
-	'cph.general.vjudgeUrlSuffix': '#author=translator:1281309:zh',
-	'cph.general.fileNameTemplate': '{ojName}/{contestId}/{problemId}.{ext}',
-	'cph.general.fileNameTemplateOverrides': {
-		CSES: '{ojName}/{problemId}_{slug}.{ext}',
-		AT: '{ojName}/{contestId}/{problemId}.{ext}',
-		CF: '{ojName}/{contestId}/{problemId}.{ext}',
-		LG: '{ojName}/{problemId}.{ext}',
-		ShortestPath: '{ojName}/{contestId}/{problemId}.{ext}',
-		VJ: '{ojName}/{problemId}{slug}.{ext}',
-		'牛客': 'NowCoder/{problemId}.{ext}'
-	},
-	'cph.general.vjudgeOjNames': {
-		CodeForces: { urlTemplate: 'https://codeforces.com/problemset/problem/{contestId}/{problemId}', problemIdRegex: '^(\\d+)([A-Z]\\d*)$' },
-		CF: { urlTemplate: 'https://codeforces.com/problemset/problem/{contestId}/{problemId}', problemIdRegex: '^(\\d+)([A-Z]\\d*)$' },
-		AtCoder: { urlTemplate: 'https://atcoder.jp/contests/{contestId}/tasks/{contestId}_{problemId}', problemIdRegex: '^([a-z]+\\d+)_([a-z]\\d*)$' },
-		Luogu: { urlTemplate: 'https://www.luogu.com.cn/problem/{problemId}' },
-		'洛谷': { urlTemplate: 'https://www.luogu.com.cn/problem/{problemId}' },
-		SPOJ: { urlTemplate: 'https://www.spoj.com/problems/{problemId}' },
-		UVA: { urlTemplate: 'https://onlinejudge.org/index.php?option=com_onlinejudge&Itemid=8&page=show_problem&problem={problemId}' },
-		HDU: { urlTemplate: 'https://acm.hdu.edu.cn/showproblem.php?pid={problemId}' },
-		POJ: { urlTemplate: 'http://poj.org/problem?id={problemId}' },
-		Bailian: { urlTemplate: 'http://bailian.openjudge.cn/practice/{problemId}' },
-		CSES: { urlTemplate: 'https://cses.fi/problemset/task/{problemId}' },
-		NowCoder: { urlTemplate: 'https://ac.nowcoder.com/acm/problem/{problemId}', problemIdRegex: '^(\\d+)$' },
-		'牛客': { urlTemplate: 'https://ac.nowcoder.com/acm/problem/{problemId}' }
-	},
-	'cph.general.ojMapping': {
-		'codeforces.com': { oj: 'CF', ojName: 'Codeforces', contestIdRegex: '(?:contest|gym|problemset\\/problem)\\/(\\d+)', problemIdRegex: '(?:contest|gym|problemset\\/problem)\\/\\d+\\/(\\w+)' },
-		'atcoder.jp': { oj: 'AT', ojName: 'AtCoder', contestIdRegex: 'contests\\/(\\w+)\\/tasks\\/\\w+_\\w+', problemIdRegex: 'contests\\/\\w+\\/tasks\\/\\w+_(\\w+)' },
-		'luogu.com.cn': { oj: 'LG', ojName: 'Luogu', problemIdRegex: 'problem\\/(\\w+)' },
-		'shortestpath.cn': shortestPathOjMapping,
-		'open.kattis.com': { oj: 'Kattis', ojName: 'Kattis' },
-		'codechef.com': { oj: 'CC', ojName: 'CodeChef' },
-		'spoj.com': { oj: 'SPOJ', ojName: 'SPOJ' },
-		'hackerrank.com': { oj: 'HR', ojName: 'HackerRank' },
-		'hackerearth.com': { oj: 'HE', ojName: 'HackerEarth' },
-		'leetcode.com': { oj: 'LC', ojName: 'LeetCode' },
-		'acm.timus.ru': { oj: 'Timus', ojName: 'Timus' },
-		'dmoj.ca': { oj: 'DMOJ', ojName: 'DMOJ' },
-		'cses.fi': { oj: 'CSES', ojName: 'CSES', problemIdRegex: 'task\\/(\\d+)' },
-		'usaco.org': { oj: 'USACO', ojName: 'USACO' },
-		'lightoj.com': { oj: 'LOJ', ojName: 'LightOJ' },
-		'eolymp.com': { oj: 'EOlymp', ojName: 'EOlymp' },
-		'acm.hdu.edu.cn': { oj: 'HDU', ojName: 'HDU', problemIdRegex: '[?&]pid=(\\d+)' },
-		'ac.nowcoder.com': { oj: '牛客', ojName: '牛客', problemIdRegex: 'problem\\/(\\d+)' }
-	}
-};
-
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	registerSimpleSettings(context);
 	registerFishMode(context);
 	registerCphSettings(context);
+	registerGettingStarted(context);
 	registerToolchainDiagnostics(context);
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.setupEnvironment', () => runSetup(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.redetectToolchain', () => runSetup(context)));
@@ -434,11 +356,8 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	let compiler = await findPreferredCompiler(preset.compilerCandidates);
 	let clangd = await findFirstExecutable(preset.clangdCandidates);
 	let installerStarted = false;
-	let includeEditor = true;
-	const includeCph = true;
 
 	if (firstRunSelection) {
-		includeEditor = firstRunSelection.editor;
 		if (firstRunSelection.installToolchain && (!compiler || !clangd)) {
 			await offerInstaller(context, preset, !compiler, !clangd);
 			installerStarted = true;
@@ -465,24 +384,9 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		).then(action => action === '修复工具链' ? repairToolchain(context) : undefined);
 	}
 
-	const settings: Record<string, unknown> = {};
-	if (includeEditor) {
-		Object.assign(settings, editorSettings);
-		if (firstRunSelection) {
-			settings['editor.fontLigatures'] = firstRunSelection.fontLigatures;
-			settings['editor.fontSize'] = firstRunSelection.fontSize;
-			settings['editor.formatOnSave'] = firstRunSelection.autoFormat;
-			settings['editor.formatOnPaste'] = firstRunSelection.autoFormat;
-			settings['editor.inlayHints.enabled'] = firstRunSelection.clangdVariableTypeHints ? 'on' : 'off';
-		}
-	}
-	if (includeCph) {
-		Object.assign(settings, cphSettings);
-		if (firstRunSelection) {
-			settings['cph.general.vjudgeOpenInBrowser'] = firstRunSelection.vjudgeOpenInBrowser;
-		}
-	}
-	settings['files.exclude'] = addMissingShortestPathFileExcludes(getGlobalFileExcludes());
+	const settings: Record<string, unknown> = {
+		'files.exclude': addMissingShortestPathFileExcludes(getGlobalFileExcludes())
+	};
 	const cppStandard = firstRunSelection?.cppStandard ?? 'c++23';
 	if (compiler) {
 		const compilerFlags = [
@@ -496,6 +400,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		].join(' ');
 		settings['cph.language.cpp.Command'] = compiler;
 		settings['cph.language.cpp.Args'] = compilerFlags;
+		settings['c-cpp-compile-run.output-location'] = '.';
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
 		settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
 		createDefaultClangdUserConfig(compiler, cppStandard);
@@ -506,9 +411,6 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	}
 	if (clangd) {
 		settings['clangd.path'] = clangd;
-	}
-	if (firstRunSelection?.autoFormat) {
-		createDefaultClangFormatConfig(firstRunSelection.workspaceFolder);
 	}
 	await updateGlobalSettings(settings);
 	if (firstRunSelection) {
@@ -533,14 +435,7 @@ function isFirstRunSelection(candidate: unknown): candidate is FirstRunSelection
 	}
 	const value = candidate as Partial<FirstRunSelection>;
 	return value.mode === 'recommended'
-		&& typeof value.editor === 'boolean'
-		&& typeof value.cph === 'boolean'
 		&& typeof value.installToolchain === 'boolean'
-		&& typeof value.fontLigatures === 'boolean'
-		&& typeof value.fontSize === 'number'
-		&& typeof value.autoFormat === 'boolean'
-		&& typeof value.clangdVariableTypeHints === 'boolean'
-		&& typeof value.vjudgeOpenInBrowser === 'boolean'
 		&& (value.cppStandard === 'c++11' || value.cppStandard === 'c++14' || value.cppStandard === 'c++17' || value.cppStandard === 'c++20' || value.cppStandard === 'c++23')
 		&& typeof value.workspaceFolder === 'string'
 		&& path.isAbsolute(value.workspaceFolder);
