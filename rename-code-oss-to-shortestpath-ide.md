@@ -1,6 +1,6 @@
 # 改名：Code - OSS → ShortestPath IDE
 
-定制版 VSCode（`/Users/kevin/Documents/VSCode-for-OI/vscode`，基于 Code - OSS）全套品牌替换为 ShortestPath IDE。
+定制版 VSCode 全套品牌替换为 ShortestPath IDE。
 
 ## 决策
 
