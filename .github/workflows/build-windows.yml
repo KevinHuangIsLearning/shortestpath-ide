@@ -157,9 +157,12 @@ jobs:
           New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
           Move-Item -LiteralPath $source -Destination $destination
           $includeCompiler = '${{ inputs.compiler }}' -eq 'Include Compiler'
+          & .\build\azure-pipelines\win32\prepare-shortestpath-portable.ps1 `
+            -PackagePath $destination
           & .\build\azure-pipelines\win32\verify-shortestpath-package.ps1 `
             -PackagePath $destination `
-            -IncludeCompiler $includeCompiler
+            -IncludeCompiler $includeCompiler `
+            -RequirePortableData
           Write-Host "Staged Windows package at $destination"
 
       - name: Upload Windows package

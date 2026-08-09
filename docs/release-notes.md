@@ -16,7 +16,7 @@ The English version follows the Chinese version.
 | --- | --- | --- |
 | Windows x64（大多数人） | [`ShortestPath-IDE-Windows-Include-Compiler-x64-User-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64-User-Setup.exe) | 当前用户安装，**内置 GCC 编译器**，无需管理员权限，装完即用、离线可用 |
 | Windows x64，升级已有版本 | [`...-Exclude-Compiler-x64-User-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe) · [`...-x64-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-Setup.exe) · [`...-x64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip)（看你上次的安装方式） | 编译器已装好，更新选 Exclude 即可，体积更小、下载更快 |
-| Windows x64，要绿色版 | [`ShortestPath-IDE-Windows-Include-Compiler-x64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64.zip) | 解压即用，**内置 GCC**，不写注册表 |
+| Windows x64，要 U 盘便携版 | [`ShortestPath-IDE-Windows-Include-Compiler-x64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64.zip) | 解压即用，**内置 GCC**；设置、插件和工具链保存在安装目录的 `data` 中，可随 U 盘移动 |
 | Windows x64，系统级安装 | [`ShortestPath-IDE-Windows-Include-Compiler-x64-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64-Setup.exe) | 系统级安装（需管理员），**内置 GCC**，给这台机器所有用户用 |
 | Windows x64，已有自己的编译器 | [`...-Exclude-Compiler-x64-User-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe) · [`...-x64-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-Setup.exe) · [`...-x64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip)（看你上次的安装方式） | 体积更小，首次运行向导时联网下载 GCC |
 | macOS（Apple Silicon，M 系列）| [`ShortestPath-IDE-macos-arm64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip) | 唯一选择；解压后拖入「应用程序」，首次打开被拦截请看下方指南 |
@@ -26,17 +26,27 @@ The English version follows the Chinese version.
 
 所有 Windows 包都只支持 **64 位**。
 
+所有 Windows `.zip` 发布包现在都默认启用便携模式，并在程序根目录内携带 `data`；Setup/User-Setup 安装包不启用该模式。
+
 #### 推荐：内置编译器的版本（Include-Compiler）
 
 `-Include-Compiler-` 的版本把 **WinLibs GCC（g++）** 直接打包进了安装包，首次启动的开箱向导会把它解压到 IDE 数据目录，**不需要联网下载、不需要自己装编译器、不需要改 PATH**，装完就能打比赛。**绝大多数人应该选这类。**
 
-三种形态选一个即可（内容完全一样，只是安装方式不同）：
+三种形态的核心程序相同，但数据位置和安装方式不同：
 
 | 文件 | 适合谁 |
 | --- | --- |
 | [`ShortestPath-IDE-Windows-Include-Compiler-x64-User-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64-User-Setup.exe) | **默认选这个。** 当前用户安装，无需管理员权限，适合绝大多数人；只装给自己，不动系统设置。 |
 | [`ShortestPath-IDE-Windows-Include-Compiler-x64-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64-Setup.exe) | 系统级安装（要管理员权限），给这台机器上的所有用户安装，会写入「开始菜单 / 右键菜单」。多人共用一台电脑时才需要。 |
-| [`ShortestPath-IDE-Windows-Include-Compiler-x64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64.zip) | 绿色便携版，解压后直接运行 `ShortestPath.exe`，不写注册表 |
+| [`ShortestPath-IDE-Windows-Include-Compiler-x64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64.zip) | U 盘便携版，解压后直接运行 `ShortestPath.exe`。ZIP 默认包含 `data`，设置、插件、工作状态及 ShortestPath 工具链都保存在其中；U 盘盘符变化时会自动修复内置 GCC/clangd 路径。 |
+
+#### 便携版数据与升级
+
+- 请完整保留程序目录中的 `data` 文件夹；它就是便携版的用户数据。
+- 升级时先完全退出 ShortestPath IDE，将新 ZIP 解压到新目录，再用旧版本的整个 `data` 替换新目录中的 `data`。
+- 工作区代码若也需要随身携带，请将项目文件夹放在 U 盘上；它不属于 IDE 的 `data`。
+- 登录令牌受 Windows 凭据保护，换到另一台电脑后，部分账号或扩展可能需要重新登录。
+- 拔出或同步 U 盘前必须退出 IDE，避免正在写入的状态数据库损坏。
 
 #### 可选：不内置编译器的版本（Exclude-Compiler）
 
@@ -81,7 +91,7 @@ A: 安装方式不同：User-Setup 只装当前用户、**无需管理员权限�
 A: 文件没坏，是 macOS Gatekeeper 在拦截未签名软件，按上面 `xattr -c` 命令解决。
 
 **Q: 下载哪个都行吗？**
-A: 同平台同变体内，zip 和 exe 内容一致。Windows 没有特殊偏好时认准 `-Include-Compiler-` 前缀，安装方式默认选 User-Setup 即可。
+A: 核心功能一致，但数据位置不同：Setup/User-Setup 使用 Windows 用户目录，ZIP 默认使用自身的 `data` 目录并适合 U 盘携带。没有便携需求时，默认选择 `-Include-Compiler-User-Setup.exe`。
 
 ## English / 英语
 
@@ -95,7 +105,7 @@ A: 同平台同变体内，zip 和 exe 内容一致。Windows 没有特殊偏好
 | :--------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
 | Windows x64 (Most users)                 | [\`ShortestPath-IDE-Windows-Include-Compiler-x64-User-Setup.exe\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64-User-Setup.exe) | Per-user installation; **includes GCC compiler**; no admin rights needed; ready to use immediately; works offline. |
 | Windows x64 (Upgrading existing version) | [\`...-Exclude-Compiler-x64-User-Setup.exe\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe) · [\`...-x64-Setup.exe\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-Setup.exe) · [\`...-x64.zip\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip) (Choose based on your previous installation method) | Compiler is already installed; choose "Exclude" for updates; smaller size and faster download. |
-| Windows x64 (Portable version)           | [\`ShortestPath-IDE-Windows-Include-Compiler-x64.zip\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64.zip) | Extract and run; **includes GCC**; does not modify the Windows Registry. |
+| Windows x64 (Portable version)           | [\`ShortestPath-IDE-Windows-Include-Compiler-x64.zip\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64.zip) | Extract and run; **includes GCC**; settings, extensions, and the toolchain stay in the adjacent `data` directory and travel with a USB drive. |
 | Windows x64 (System-wide)                | [\`ShortestPath-IDE-Windows-Include-Compiler-x64-Setup.exe\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64-Setup.exe) | System-wide installation (requires administrator privileges); **includes GCC**; for all users on the machine. |
 | Windows x64 (Already have a compiler)    | [\`...-Exclude-Compiler-x64-User-Setup.exe\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe) · [\`...-x64-Setup.exe\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-Setup.exe) · [\`...-x64.zip\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip) (Choose based on your previous installation method) | Smaller download size; downloads GCC via the internet during the initial setup wizard. |
 | macOS (Apple Silicon / M-series)         | [\`ShortestPath-IDE-macos-arm64.zip\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip) | The only option; extract and drag to "Applications"; see the guide below if blocked upon first launch. |
@@ -105,17 +115,27 @@ A: 同平台同变体内，zip 和 exe 内容一致。Windows 没有特殊偏好
 
 All Windows packages support **64-bit** systems only.
 
+All Windows `.zip` releases now enable portable mode by default and include a `data` directory next to the executable. Setup and User-Setup installers do not enable portable mode.
+
 #### Recommended: Version with Built-in Compiler (Include-Compiler)
 
 The `-Include-Compiler-` version bundles **WinLibs GCC (g++)** directly into the installer. Upon the first launch, the setup wizard extracts it to the IDE data directory. **No internet download, manual compiler installation, or PATH modification is required**—you can start coding for competitions immediately after installation. **This is the recommended choice for the vast majority of users.**
 
-Choose one of the three formats (the content is identical; only the installation method differs):
+The three formats contain the same core application, but use different installation and data locations:
 
 | File                                                         | Best For                                                     |
 | :----------------------------------------------------------- | :----------------------------------------------------------- |
 | [\`ShortestPath-IDE-Windows-Include-Compiler-x64-User-Setup.exe\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64-User-Setup.exe) | **Default choice.** Installs only for the current user account; no administrator privileges required; suitable for most users. |
 | [\`ShortestPath-IDE-Windows-Include-Compiler-x64-Setup.exe\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64-Setup.exe) | System-wide installation (requires administrator privileges); installs for all users on the machine and adds entries to the Start Menu and context menus. Only needed for shared machines. |
-| [\`ShortestPath-IDE-Windows-Include-Compiler-x64.zip\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64.zip) | Portable version; simply extract and run `ShortestPath.exe`. Does not modify the Windows Registry. |
+| [\`ShortestPath-IDE-Windows-Include-Compiler-x64.zip\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Include-Compiler-x64.zip) | USB portable version; simply extract and run `ShortestPath.exe`. The ZIP includes `data` by default, which stores settings, extensions, session state, and the ShortestPath toolchain. Managed GCC/clangd paths are repaired automatically when the USB drive letter changes. |
+
+#### Portable Data and Updates
+
+- Keep the entire `data` directory next to `ShortestPath.exe`; it contains the portable user data.
+- To update, fully quit ShortestPath IDE, extract the new ZIP into a new directory, then replace its `data` directory with the complete `data` directory from the old version.
+- Put project folders on the USB drive too if source files must travel with the IDE; workspaces are not stored inside IDE `data`.
+- Windows protects sign-in secrets with OS credentials, so some accounts or extensions might require signing in again on another computer.
+- Quit the IDE before ejecting or synchronizing the drive to avoid corrupting state databases that are still being written.
 
 #### Optional: Version without Built-in Compiler (Exclude-Compiler)
 
@@ -160,4 +180,4 @@ A: The installation method differs: "User-Setup" installs only for the current u
 A: The file isn't actually damaged; macOS Gatekeeper is blocking unsigned software. Resolve this by running the `xattr -c` command mentioned above.
 
 **Q: Does it matter which one I download?**
-A: Within the same platform and variant, the contents of the zip and exe files are identical. On Windows, unless you have a specific preference, choose the `-Include-Compiler-` version and default to User-Setup for installation.
+A: The core features are the same, but data locations differ: Setup/User-Setup use the Windows user profile, while ZIP uses its adjacent `data` directory and is intended for USB portability. Without a portability requirement, choose `-Include-Compiler-x64-User-Setup.exe` by default.

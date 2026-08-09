@@ -139,9 +139,12 @@ jobs:
           New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
           Move-Item -LiteralPath $source -Destination $destination
           $includeCompiler = '${{ matrix.id }}' -eq 'include'
+          & .\build\azure-pipelines\win32\prepare-shortestpath-portable.ps1 `
+            -PackagePath $destination
           & .\build\azure-pipelines\win32\verify-shortestpath-package.ps1 `
             -PackagePath $destination `
-            -IncludeCompiler $includeCompiler
+            -IncludeCompiler $includeCompiler `
+            -RequirePortableData
           $requiredExtensionEntries = @(
             'resources\app\extensions\divyanshuagrawal.competitive-programming-helper\dist\extension.js',
             'resources\app\extensions\usernamehw.errorlens\dist\extension.js',

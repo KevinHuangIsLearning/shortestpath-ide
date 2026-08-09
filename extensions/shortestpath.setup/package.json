@@ -20,6 +20,7 @@
 	"main": "./out/extension.js",
 	"scripts": {
 		"compile": "node ../../node_modules/typescript/bin/tsc6 -p ./",
+		"test": "npm run compile && node --test out/test/*.test.js",
 		"vscode:prepublish": "npm run compile"
 	},
 	"contributes": {

@@ -1513,13 +1513,15 @@ function renderStatement(problem: ImportedProblem): string {
 		.map((sample, index) => {
 			const io = `<article class="sample">
 				<h3>样例 ${index + 1}</h3>
-				<div class="io-block">
-					<div class="io-header"><h4>样例输入</h4><button type="button" class="copy-btn" aria-label="复制样例输入">复制</button></div>
-					<pre><code>${escapeHtml(sample.input)}</code></pre>
-				</div>
-				<div class="io-block">
-					<div class="io-header"><h4>样例输出</h4><button type="button" class="copy-btn" aria-label="复制样例输出">复制</button></div>
-					<pre><code>${escapeHtml(sample.output)}</code></pre>
+				<div class="sample-io-grid">
+					<div class="io-block">
+						<div class="io-header"><h4>样例输入</h4><button type="button" class="copy-btn" aria-label="复制样例输入">复制</button></div>
+						<pre><code>${escapeHtml(sample.input)}</code></pre>
+					</div>
+					<div class="io-block">
+						<div class="io-header"><h4>样例输出</h4><button type="button" class="copy-btn" aria-label="复制样例输出">复制</button></div>
+						<pre><code>${escapeHtml(sample.output)}</code></pre>
+					</div>
 				</div>
 			</article>`;
 			const explanation = sample.explanation.trim()

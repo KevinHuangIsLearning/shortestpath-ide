@@ -716,12 +716,14 @@ th, td {
 	margin: 0 0 8px;
 }
 
-.sample .io-block {
-	margin-bottom: 12px;
+.sample .sample-io-grid {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.sample .io-block:last-child {
-	margin-bottom: 0;
+.sample .io-block {
+	min-width: 0;
 }
 
 .sample .io-header {
@@ -759,6 +761,12 @@ th, td {
 
 .sample .sample-explanation {
 	margin-top: 10px;
+}
+
+@media (max-width: 520px) {
+	.sample .sample-io-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
 }
 
 .solution-actions {
