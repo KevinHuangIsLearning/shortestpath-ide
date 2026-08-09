@@ -154,6 +154,8 @@ import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../pla
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
+const shortestPathManagedClangdConfigMarker = '# Managed by ShortestPath IDE setup.';
+
 interface IShortestPathSetupRequest {
 	readonly mode: 'recommended';
 	readonly installToolchain: boolean;
@@ -965,8 +967,10 @@ export class CodeApplication extends Disposable {
 		for (const [key, value] of Object.entries(settings)) {
 			await this.configurationService.updateValue(key, value, ConfigurationTarget.USER);
 		}
-		const localAppData = process.env['LOCALAPPDATA'] ?? join(dirname(dirname(this.environmentMainService.userDataPath)), 'Local');
-		await this.createShortestPathClangdConfig(join(localAppData, 'clangd', 'config.yaml'), compiler, request.cppStandard);
+		if (!this.environmentMainService.isPortable) {
+			const localAppData = process.env['LOCALAPPDATA'] ?? join(dirname(dirname(this.environmentMainService.userDataPath)), 'Local');
+			await this.createShortestPathClangdConfig(join(localAppData, 'clangd', 'config.yaml'), compiler, request.cppStandard);
+		}
 		await this.createShortestPathClangdConfig(join(request.workspaceFolder, '.clangd'), compiler, request.cppStandard);
 		await this.configurationService.updateValue('shortestpath.setup.pending', undefined, ConfigurationTarget.USER);
 		await this.configurationService.updateValue('shortestpath.setup.completed', true, ConfigurationTarget.USER);
@@ -976,7 +980,7 @@ export class CodeApplication extends Disposable {
 		if (fs.existsSync(configPath)) {
 			return;
 		}
-		const config = `CompileFlags:\n  Add:\n    - -std=${cppStandard}\n    - -Wall\n    - -Wextra\n    - "-Drsize_t=size_t"\n    - "-D__STDC_WANT_LIB_EXT1__=1"\n    - "-D__float128=long double"\n    - -U__SIZEOF_FLOAT128__\n  BuiltinHeaders: QueryDriver\n  Compiler: ${JSON.stringify(compiler.replaceAll('\\', '/'))}\n\nCompletion:\n  HeaderInsertion: Never\n\nIndex:\n  Background: Build\n`;
+		const config = `${shortestPathManagedClangdConfigMarker}\nCompileFlags:\n  Add:\n    - -std=${cppStandard}\n    - -Wall\n    - -Wextra\n    - "-Drsize_t=size_t"\n    - "-D__STDC_WANT_LIB_EXT1__=1"\n    - "-D__float128=long double"\n    - -U__SIZEOF_FLOAT128__\n  BuiltinHeaders: QueryDriver\n  Compiler: ${JSON.stringify(compiler.replaceAll('\\', '/'))}\n\nCompletion:\n  HeaderInsertion: Never\n\nIndex:\n  Background: Build\n`;
 		await fs.promises.mkdir(dirname(configPath), { recursive: true });
 		try {
 			await fs.promises.writeFile(configPath, config, { encoding: 'utf8', flag: 'wx' });

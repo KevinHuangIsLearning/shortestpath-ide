@@ -13,6 +13,7 @@ import { registerFishMode } from './fishMode';
 import { registerCphSettings } from './cphSettings';
 import { registerGettingStarted } from './gettingStarted';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
+import { managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
 
 type PlatformPreset = {
 	portableToolchain: boolean;
@@ -80,7 +81,8 @@ function clangdArgumentsForCompiler(compiler: string): string[] {
 function defaultClangdProjectConfig(compiler: string, cppStandard: FirstRunSelection['cppStandard']): string {
 	const includePath = process.platform === 'darwin' ? '\n    - -I/opt/homebrew/include' : '';
 	const compilerPath = compiler.replaceAll('\\', '/');
-	return `CompileFlags:
+	return `${managedClangdConfigMarker}
+CompileFlags:
   Add:
     - -std=${cppStandard}
     - -Wall
@@ -239,6 +241,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.initializeOiWorkspace', () => initializeOiWorkspace(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.showAllFiles', toggleHiddenFiles));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.hideSetupFiles', toggleHiddenFiles));
+	await rebasePortableToolchain(context);
 	if (!context.globalState.get<boolean>(FILE_EXCLUDES_MIGRATION)) {
 		await ensureShortestPathFileExcludes();
 		await context.globalState.update(FILE_EXCLUDES_MIGRATION, true);
@@ -403,7 +406,9 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		settings['c-cpp-compile-run.output-location'] = '.';
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
 		settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
-		createDefaultClangdUserConfig(compiler, cppStandard);
+		if (!vscode.env.isAppPortable) {
+			createDefaultClangdUserConfig(compiler, cppStandard);
+		}
 		if (firstRunSelection) {
 			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard);
 		}
@@ -426,6 +431,64 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		void vscode.window.showWarningMessage('The preset was saved, but one or more compilers are not installed yet. Finish the terminal installer, then run “ShortestPath IDE: Configure Competitive Programming Environment” again to detect their actual paths.');
 	} else {
 		void vscode.window.showInformationMessage(`ShortestPath IDE is ready. Using g++ at ${compiler}.`);
+	}
+}
+
+async function rebasePortableToolchain(context: vscode.ExtensionContext): Promise<void> {
+	if (process.platform !== 'win32' || !vscode.env.isAppPortable) {
+		return;
+	}
+
+	const preset = loadPreset(context);
+	const compiler = preset.compilerCandidates[0];
+	const clangd = preset.clangdCandidates[0];
+	const compilerExists = fs.existsSync(compiler);
+	const clangdExists = fs.existsSync(clangd);
+	const configuration = vscode.workspace.getConfiguration(undefined, null);
+	const settings: Record<string, unknown> = {};
+
+	if (compilerExists) {
+		for (const key of ['cph.language.cpp.Command', 'c-cpp-compile-run.cpp-compiler']) {
+			const value = configuration.inspect<string>(key)?.globalValue;
+			if (value && rebaseManagedToolchainPath(value, compiler, clangd) === compiler && value !== compiler) {
+				settings[key] = compiler;
+			}
+		}
+
+		const argumentsValue = configuration.inspect<string[]>('clangd.arguments')?.globalValue;
+		if (argumentsValue) {
+			const rebasedArguments = argumentsValue.map(argument => rebaseManagedQueryDriver(argument, compiler));
+			if (rebasedArguments.some((argument, index) => argument !== argumentsValue[index])) {
+				settings['clangd.arguments'] = rebasedArguments;
+			}
+		}
+	}
+
+	if (clangdExists) {
+		const value = configuration.inspect<string>('clangd.path')?.globalValue;
+		if (value && rebaseManagedToolchainPath(value, compiler, clangd) === clangd && value !== clangd) {
+			settings['clangd.path'] = clangd;
+		}
+	}
+
+	await updateGlobalSettings(settings);
+	if (!compilerExists) {
+		return;
+	}
+
+	for (const workspaceFolder of vscode.workspace.workspaceFolders ?? []) {
+		if (workspaceFolder.uri.scheme !== 'file') {
+			continue;
+		}
+		const configPath = path.join(workspaceFolder.uri.fsPath, '.clangd');
+		if (!fs.existsSync(configPath)) {
+			continue;
+		}
+		const content = fs.readFileSync(configPath, 'utf8');
+		const rebasedContent = rebaseGeneratedClangdConfig(content, compiler);
+		if (rebasedContent !== content) {
+			fs.writeFileSync(configPath, rebasedContent, 'utf8');
+		}
 	}
 }
 

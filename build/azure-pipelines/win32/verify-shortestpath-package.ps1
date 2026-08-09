@@ -3,7 +3,9 @@ param(
 	[string]$PackagePath,
 
 	[Parameter(Mandatory = $true)]
-	[bool]$IncludeCompiler
+	[bool]$IncludeCompiler,
+
+	[switch]$RequirePortableData
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,4 +51,17 @@ if ($IncludeCompiler) {
 	throw "The Exclude Compiler package unexpectedly contains WinLibs: $compilerRelativePath"
 }
 
-Write-Host "Verified staged Windows package at $PackagePath (IncludeCompiler=$IncludeCompiler)"
+if ($RequirePortableData) {
+	$portableFiles = @(
+		'data\portable-mode.txt',
+		'data\tmp\portable-tmp.txt'
+	)
+	foreach ($relativePath in $portableFiles) {
+		$path = Join-Path $PackagePath $relativePath
+		if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+			throw "The portable package is missing its data marker: $relativePath"
+		}
+	}
+}
+
+Write-Host "Verified staged Windows package at $PackagePath (IncludeCompiler=$IncludeCompiler, RequirePortableData=$RequirePortableData)"
