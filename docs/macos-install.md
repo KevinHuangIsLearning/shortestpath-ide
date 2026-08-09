@@ -1,13 +1,11 @@
 # macOS 安装指南
 
----
+> [English](macos-install.en.md)
 
 ## 1. 准备工作
 
 - 一台 Apple Silicon 的 Mac，如果没有，请你在[这里](https://www.apple.com.cn/mac/)更新版本。
 - 浏览器下载好 ShortestPath IDE 的 zip 压缩包（一般在「下载 / Downloads」文件夹里）
-
----
 
 ## 2. 安装步骤
 
@@ -18,8 +16,6 @@
    
    > 拖不进去？说明当前账户没有管理员权限。没关系，拖进你自己的用户目录下的「应用程序」文件夹（`~/Applications`）效果一样。
 3. **首次打开**：双击 `ShortestPath IDE.app`。此时很可能被 Mac 拦一下——正常现象，请看下一节。
-
----
 
 ## 3. 为什么 Mac 会拦我？
 
@@ -32,8 +28,6 @@
 （个别系统版本也可能显示「无法验证开发者」或「Apple 无法检查其是否包含恶意软件」，含义相同，都按第 4 节解决。）
 
 ShortestPath IDE 是开源项目，没有购买 Apple 的签名服务，所以会触发这个提示。**这是 macOS 对所有未签名软件的默认检查，不是针对本项目的特殊警告。**
-
----
 
 ## 4. 解决办法（终端命令，唯一有效）
 
@@ -52,8 +46,6 @@ xattr -c "/Applications/ShortestPath IDE.app"
 >
 > 如果 app 还在「下载」文件夹里没拖走，就直接对下载路径执行（记得先确认路径拼写）。
 
----
-
 ## 5. 常见问题速查
 
 | 提示 | 原因 | 解决办法 |
@@ -65,14 +57,10 @@ xattr -c "/Applications/ShortestPath IDE.app"
 
 **「已损坏」提示的 90% 情况都靠 `xattr -c` 解决**——如果遇到别的报错，先把提示截图发到 [Issues](https://github.com/KevinHuangIsLearning/shortestpath-ide/issues)，我们帮你看。
 
----
-
 ## 6. 其他平台
 
 - **Windows**：下载安装包或 zip，解压后运行 `ShortestPath.exe`；若 SmartScreen 提示「已保护你的电脑」，点「更多信息」→「仍要运行」。
 - ~~**Linux**：解压后运行 `./code` 或 `./ShortestPath`，可能需要 `chmod +x`。~~ 懒得开发 Linux，自己编译去。
-
----
 
 ## 7. 为什么项目不直接签名
 

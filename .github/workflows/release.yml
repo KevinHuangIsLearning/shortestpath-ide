@@ -279,21 +279,21 @@ jobs:
             fi
             latest_asset=(latest.json)
           fi
+          # The release body defaults to the bilingual download guide in the repo.
+          notes_file="docs/release-notes.md"
+          prerelease=()
           if [[ "$tag" == Beta-v* ]]; then
             title="ShortestPath IDE Beta v${tag#Beta-v}"
-            notes="Beta release — preview build for testing."
-            if gh release view "$tag" >/dev/null 2>&1; then
-              gh release upload "$tag" release/* "${latest_asset[@]}" --clobber
-              gh release edit "$tag" --prerelease --title "$title" --notes "$notes"
-            else
-              gh release create "$tag" release/* "${latest_asset[@]}" --prerelease --title "$title" --notes "$notes"
-            fi
+            prerelease=(--prerelease)
+            notes_file="$(mktemp)"
+            printf '> **Beta release — preview build for testing.**\n\n' > "$notes_file"
+            cat docs/release-notes.md >> "$notes_file"
           else
             title="ShortestPath IDE Release v${tag#Release-v}"
-            if gh release view "$tag" >/dev/null 2>&1; then
-              gh release upload "$tag" release/* "${latest_asset[@]}" --clobber
-              gh release edit "$tag" --title "$title"
-            else
-              gh release create "$tag" release/* "${latest_asset[@]}" --generate-notes --title "$title"
-            fi
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release/* "${latest_asset[@]}" --clobber
+            gh release edit "$tag" "${prerelease[@]}" --title "$title" --notes-file "$notes_file"
+          else
+            gh release create "$tag" release/* "${latest_asset[@]}" "${prerelease[@]}" --title "$title" --notes-file "$notes_file"
           fi
