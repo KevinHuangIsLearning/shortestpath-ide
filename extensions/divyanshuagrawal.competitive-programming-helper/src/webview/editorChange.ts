@@ -3,17 +3,14 @@ import { getJudgeViewProvider } from '../extension';
 import { getProblemForDocument } from '../utils';
 import { getAutoShowJudgePref, getDefaultOnlineJudge } from '../preferences';
 import { setOnlineJudgeEnv } from '../compiler';
-import {
-    getRefreshSourcePath,
-	shouldClearJudgeForActiveDocument,
-} from './judgeLifecycle';
+import { getRefreshSourcePath } from './judgeLifecycle';
 
 let lastActiveSourcePath: string | undefined;
 
 /**
- * Refresh the webview only when a supported local source file becomes active.
- * Moving focus away from source code clears the current problem, so the CPH
- * view never remains attached to a .cpp file that no longer has focus.
+ * Refresh the webview only when another supported local source file becomes
+ * active. Moving focus to a terminal, Output, integrated browser, or another
+ * non-source surface preserves the current problem and its running results.
  *
  * @param e An editor
  */
@@ -22,13 +19,8 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
 
     if (e === undefined) {
         globalThis.logger.log(
-            'No active text editor; clearing the current Judge view',
+            'No active text editor; preserving the current Judge view',
         );
-        lastActiveSourcePath = undefined;
-        getJudgeViewProvider().extensionToJudgeViewMessage({
-            command: 'new-problem',
-            problem: undefined,
-        });
         return;
     }
 
@@ -39,15 +31,8 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
     );
     if (sourcePath === undefined) {
         globalThis.logger.log(
-            'Non-source or repeated editor activation; clearing Judge view only for non-source focus',
+            'Non-source or repeated editor activation; preserving Judge view',
         );
-		if (shouldClearJudgeForActiveDocument(e.document)) {
-			lastActiveSourcePath = undefined;
-			getJudgeViewProvider().extensionToJudgeViewMessage({
-				command: 'new-problem',
-				problem: undefined,
-			});
-		}
         return;
     }
 
