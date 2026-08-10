@@ -75,7 +75,7 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		running: body.dataset.timerRunning === 'true',
 		accepted: body.dataset.timerAccepted === 'true',
 	};
-	let timerInterval: ReturnType<typeof setInterval> | undefined;
+	let timerTimeout: ReturnType<typeof setTimeout> | undefined;
 	let submitConfirmationTimer: ReturnType<typeof setTimeout> | undefined;
 	let operationNoticeRemovalTimer: number | undefined;
 	const resetSubmitConfirmation = (button: HTMLButtonElement): void => {
@@ -95,24 +95,30 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		const seconds = totalSeconds % 60;
 		return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':');
 	};
+	const formatElapsedTimer = (milliseconds: number): string => milliseconds > 5 * 60 * 60 * 1000 ? '05:00:00+' : formatDuration(milliseconds);
+	const getElapsedTimerMs = (): number => timerState.elapsedMs + (timerState.running ? Math.max(0, Date.now() - timerState.capturedAt) : 0);
 	const updateTimer = (): void => {
 		if (timer) {
-			const elapsed = timerState.elapsedMs + (timerState.running ? Math.max(0, Date.now() - timerState.capturedAt) : 0);
-			timer.textContent = formatDuration(elapsed);
+			timer.textContent = formatElapsedTimer(getElapsedTimerMs());
 		}
 		if (accepted) {
 			accepted.hidden = !timerState.accepted;
 		}
 	};
 	const startTimerInterval = (): void => {
-		if (timerInterval === undefined && timerState.running) {
-			timerInterval = setInterval(updateTimer, 1000);
+		if (timerTimeout === undefined && timerState.running) {
+			const delay = 1000 - getElapsedTimerMs() % 1000;
+			timerTimeout = setTimeout(() => {
+				timerTimeout = undefined;
+				updateTimer();
+				startTimerInterval();
+			}, delay);
 		}
 	};
 	const stopTimerInterval = (): void => {
-		if (timerInterval !== undefined) {
-			clearInterval(timerInterval);
-			timerInterval = undefined;
+		if (timerTimeout !== undefined) {
+			clearTimeout(timerTimeout);
+			timerTimeout = undefined;
 		}
 	};
 	document.addEventListener('visibilitychange', () => {
@@ -784,6 +790,7 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			timerState.accepted = message.timer.accepted;
 			updateTimer();
 			if (timerState.running) {
+				stopTimerInterval();
 				startTimerInterval();
 			} else {
 				stopTimerInterval();

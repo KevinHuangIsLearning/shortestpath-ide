@@ -13,6 +13,7 @@ import { describeJudgeType } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
 import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
 import { OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
+import { formatElapsedTimer } from './timerDisplay';
 import {
 	applyEditorialLikeResult,
 	applyEditorialLockRemaining,
@@ -1419,7 +1420,7 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 		ELAPSED_MS: String(timer.elapsedMs),
 		TIMER_RUNNING: String(timer.running),
 		TIMER_ACCEPTED: String(timer.accepted),
-		TIMER_VALUE: formatDuration(timer.elapsedMs),
+		TIMER_VALUE: formatElapsedTimer(timer.elapsedMs),
 		CAPTURED_AT: String(timer.capturedAt),
 		TITLE: escapeHtml(problem.title),
 		METADATA: metadataParts.join(''),
