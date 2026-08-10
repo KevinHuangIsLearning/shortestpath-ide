@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { homedir } from 'os';
+import { createHash } from 'crypto';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
 import { registerSimpleSettings } from './simpleSettings';
@@ -13,7 +14,7 @@ import { registerRelaxMode } from './relaxMode';
 import { registerCphSettings } from './cphSettings';
 import { registerGettingStarted } from './gettingStarted';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
-import { managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
+import { getPortableDataRoot, isLegacyManagedClangdConfig, managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
 
 type PlatformPreset = {
 	portableToolchain: boolean;
@@ -241,6 +242,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.initializeOiWorkspace', () => initializeOiWorkspace(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.showAllFiles', toggleHiddenFiles));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.hideSetupFiles', toggleHiddenFiles));
+	warnAboutPortablePathWithSpaces();
 	await rebasePortableToolchain(context);
 	if (!context.globalState.get<boolean>(FILE_EXCLUDES_MIGRATION)) {
 		await ensureShortestPathFileExcludes();
@@ -276,6 +278,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}));
 	await applyPending();
 	void offerOiWorkspaceInitialization(context);
+}
+
+function warnAboutPortablePathWithSpaces(): void {
+	if (process.platform !== 'win32' || !vscode.env.isAppPortable || !/\s/.test(vscode.env.appRoot)) {
+		return;
+	}
+	void vscode.window.showWarningMessage('ShortestPath 所处运行路径包含空格，可能出现意外错误，开发者不会处理因包含空格而导致的 bug。');
 }
 
 async function ensureShortestPathOjMapping(): Promise<void> {
@@ -392,6 +401,9 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	};
 	const cppStandard = firstRunSelection?.cppStandard ?? 'c++23';
 	if (compiler) {
+		if (process.platform === 'win32' && vscode.env.isAppPortable) {
+			compiler = getSpaceSafePortableCompilerPath(context, compiler);
+		}
 		const compilerFlags = [
 			`-std=${cppStandard}`,
 			'-O2',
@@ -440,9 +452,10 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 	}
 
 	const preset = loadPreset(context);
-	const compiler = preset.compilerCandidates[0];
+	const installedCompiler = preset.compilerCandidates[0];
 	const clangd = preset.clangdCandidates[0];
-	const compilerExists = fs.existsSync(compiler);
+	const compilerExists = fs.existsSync(installedCompiler);
+	const compiler = compilerExists ? getSpaceSafePortableCompilerPath(context, installedCompiler) : installedCompiler;
 	const clangdExists = fs.existsSync(clangd);
 	const configuration = vscode.workspace.getConfiguration(undefined, null);
 	const settings: Record<string, unknown> = {};
@@ -472,6 +485,8 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 	}
 
 	await updateGlobalSettings(settings);
+	await migrateLegacyClangdUserConfig();
+	await enableBundledConptyWhenUnset();
 	if (!compilerExists) {
 		return;
 	}
@@ -490,6 +505,76 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 			fs.writeFileSync(configPath, rebasedContent, 'utf8');
 		}
 	}
+}
+
+/**
+ * Some MinGW distributions pass their derived libexec path to ld without
+ * quoting it. Run through a no-space drive-root junction instead.
+ */
+function getSpaceSafePortableCompilerPath(context: vscode.ExtensionContext, compiler: string): string {
+	if (!/\s/.test(compiler)) {
+		return compiler;
+	}
+	const dataRoot = getPortableDataRoot(context.globalStorageUri.fsPath);
+	if (!dataRoot) {
+		return compiler;
+	}
+	const volumeRoot = path.parse(dataRoot).root;
+	if (!volumeRoot) {
+		return compiler;
+	}
+	const hash = createHash('sha256').update(dataRoot.toLowerCase()).digest('hex').slice(0, 12);
+	const alias = path.join(volumeRoot, `.shortestpath-toolchain-${hash}`);
+	try {
+		if (fs.existsSync(alias)) {
+			if (normalizeWindowsPath(fs.realpathSync(alias)) !== normalizeWindowsPath(dataRoot)) {
+				return compiler;
+			}
+		} else {
+			fs.symlinkSync(dataRoot, alias, 'junction');
+		}
+		return path.join(alias, path.relative(dataRoot, compiler));
+	} catch {
+		return compiler;
+	}
+}
+
+function normalizeWindowsPath(value: string): string {
+	return value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
+}
+
+async function migrateLegacyClangdUserConfig(): Promise<void> {
+	const configPath = clangdUserConfigPath();
+	if (!fs.existsSync(configPath)) {
+		return;
+	}
+	let content: string;
+	try {
+		content = fs.readFileSync(configPath, 'utf8');
+	} catch {
+		return;
+	}
+	if (!isLegacyManagedClangdConfig(content)) {
+		return;
+	}
+	let backupPath = `${configPath}.shortestpath-legacy.bak`;
+	for (let index = 1; fs.existsSync(backupPath); index++) {
+		backupPath = `${configPath}.shortestpath-legacy.${index}.bak`;
+	}
+	try {
+		fs.renameSync(configPath, backupPath);
+		void vscode.window.showInformationMessage('已停用旧版 ShortestPath IDE 生成的 clangd 全局配置，当前便携工具链将不再受它影响。');
+	} catch {
+		// Do not modify the host config when it cannot be safely migrated.
+	}
+}
+
+async function enableBundledConptyWhenUnset(): Promise<void> {
+	const configuration = vscode.workspace.getConfiguration(undefined, null);
+	if (configuration.inspect<boolean>('terminal.integrated.windowsUseConptyDll')?.globalValue !== undefined) {
+		return;
+	}
+	await configuration.update('terminal.integrated.windowsUseConptyDll', true, vscode.ConfigurationTarget.Global);
 }
 
 function isFirstRunSelection(candidate: unknown): candidate is FirstRunSelection {
