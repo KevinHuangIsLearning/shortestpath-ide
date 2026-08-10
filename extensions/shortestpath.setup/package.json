@@ -80,8 +80,8 @@
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "shortestpath.fishMode.toggleVisibility",
-				"title": "%command.toggleFishVisibility%"
+				"command": "shortestpath.relaxMode.toggleVisibility",
+				"title": "%command.toggleRelaxVisibility%"
 			},
 			{
 				"command": "shortestpath.configureCph",
@@ -128,8 +128,8 @@
 		"menus": {
 			"commandPalette": [
 				{
-					"command": "shortestpath.fishMode.toggleVisibility",
-					"when": "shortestpath.fishMode.unlocked"
+					"command": "shortestpath.relaxMode.toggleVisibility",
+					"when": "shortestpath.relaxMode.unlocked"
 				}
 			],
 			"view/title": [
@@ -147,13 +147,13 @@
 		},
 		"keybindings": [
 			{
-				"command": "shortestpath.fishMode.toggleVisibility",
+				"command": "shortestpath.relaxMode.toggleVisibility",
 				"key": "ctrl+alt+f",
 				"mac": "cmd+alt+f",
 				"when": "!isAuxiliaryWindow"
 			},
 			{
-				"command": "shortestpath.fishMode.minimizeWindow",
+				"command": "shortestpath.relaxMode.minimizeWindow",
 				"key": "ctrl+alt+f",
 				"mac": "cmd+alt+f",
 				"when": "isAuxiliaryWindow && activeEditor == workbench.editor.browser"

@@ -11,7 +11,7 @@
 	"command.configure": "ShortestPath IDE：配置竞赛编程环境",
 	"command.rerunFirstRun": "ShortestPath IDE：重新运行首次配置",
 	"command.openSettings": "ShortestPath IDE：设置",
-	"command.toggleFishVisibility": "ShortestPath IDE：显示/隐藏摸鱼网页",
+	"command.toggleRelaxVisibility": "ShortestPath IDE：显示/隐藏放松网页",
 	"command.configureCph": "ShortestPath IDE：配置 CPH",
 	"command.configureCppSnippets": "ShortestPath IDE：配置代码模板",
 	"command.configureAutoFormat": "ShortestPath IDE：配置自动格式化",

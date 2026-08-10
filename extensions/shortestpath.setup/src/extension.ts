@@ -9,7 +9,7 @@ import { homedir } from 'os';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
 import { registerSimpleSettings } from './simpleSettings';
-import { registerFishMode } from './fishMode';
+import { registerRelaxMode } from './relaxMode';
 import { registerCphSettings } from './cphSettings';
 import { registerGettingStarted } from './gettingStarted';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
@@ -230,7 +230,7 @@ async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext):
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	registerSimpleSettings(context);
-	registerFishMode(context);
+	registerRelaxMode(context);
 	registerCphSettings(context);
 	registerGettingStarted(context);
 	registerToolchainDiagnostics(context);
