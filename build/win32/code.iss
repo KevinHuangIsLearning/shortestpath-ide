@@ -712,6 +712,7 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
+    SaveStringToFile(ExpandConstant('{app}\.shortestpath-install-mode'), '{#InstallTarget}', False);
     LogContextMenuInstallState();
 
 #ifdef AppxPackageName
