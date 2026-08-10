@@ -6,11 +6,13 @@
 export interface IShortestPathUpdate {
 	readonly version: string;
 	readonly downloadUrl: string;
+	readonly minimumSupportedVersion?: string;
 }
 
 export interface IShortestPathUpdateDocument {
 	readonly version?: unknown;
 	readonly downloadUrl?: unknown;
+	readonly minimumSupportedVersion?: unknown;
 }
 
 export function parseShortestPathUpdateDocument(document: IShortestPathUpdateDocument): IShortestPathUpdate | undefined {
@@ -29,7 +31,19 @@ export function parseShortestPathUpdateDocument(document: IShortestPathUpdateDoc
 		return undefined;
 	}
 
-	return { version: document.version, downloadUrl: downloadUrl.toString() };
+	const minimumSupportedVersion = document.minimumSupportedVersion;
+	if (minimumSupportedVersion !== undefined && (typeof minimumSupportedVersion !== 'string' || !parseVersion(minimumSupportedVersion))) {
+		return undefined;
+	}
+	if (minimumSupportedVersion && isShortestPathUpdateAvailable(document.version, minimumSupportedVersion)) {
+		return undefined;
+	}
+
+	return {
+		version: document.version,
+		downloadUrl: downloadUrl.toString(),
+		...(minimumSupportedVersion ? { minimumSupportedVersion } : {}),
+	};
 }
 
 export function isShortestPathUpdateAvailable(currentVersion: string, availableVersion: string): boolean {
@@ -46,6 +60,10 @@ export function isShortestPathUpdateAvailable(currentVersion: string, availableV
 	}
 
 	return false;
+}
+
+export function isShortestPathVersionSupported(currentVersion: string, minimumSupportedVersion: string): boolean {
+	return !isShortestPathUpdateAvailable(currentVersion, minimumSupportedVersion);
 }
 
 function parseVersion(value: string): readonly number[] | undefined {
