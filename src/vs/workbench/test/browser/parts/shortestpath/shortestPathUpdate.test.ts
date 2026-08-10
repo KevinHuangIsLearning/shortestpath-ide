@@ -5,9 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfirmResult } from '../../../../../platform/dialogs/common/dialogs.js';
-import { isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
-import { ShortestPathUpdateRequiredInput } from '../../../../contrib/shortestpath/browser/shortestPathUpdateRequiredInput.js';
+import { getShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
 
 suite('ShortestPath update check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,13 +53,48 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(isShortestPathVersionSupported('0.1.9', '0.2.0'), false);
 	});
 
-	test('does not allow the required update editor to close', async () => {
-		const input = new ShortestPathUpdateRequiredInput('0.2.0', 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1');
-		try {
-			assert.strictEqual(input.closeHandler?.showConfirm(), true);
-			assert.strictEqual(await input.closeHandler?.confirm(), ConfirmResult.CANCEL);
-		} finally {
-			input.dispose();
-		}
+	test('selects the matching direct download asset', () => {
+		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', 'user'), {
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe',
+			allowsMinimumVersionLock: true,
+		});
+		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', 'system'), {
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-Setup.exe',
+			allowsMinimumVersionLock: true,
+		});
+		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', undefined), {
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip',
+			allowsMinimumVersionLock: false,
+		});
+		assert.deepStrictEqual(getShortestPathUpdateTarget('darwin', undefined), {
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip',
+			allowsMinimumVersionLock: true,
+		});
 	});
+
+	test('accepts only installer modes written by supported installers', () => {
+		assert.strictEqual(parseShortestPathWindowsInstallMode('user\n'), 'user');
+		assert.strictEqual(parseShortestPathWindowsInstallMode(' system '), 'system');
+		assert.strictEqual(parseShortestPathWindowsInstallMode('portable'), undefined);
+		assert.strictEqual(parseShortestPathWindowsInstallMode(''), undefined);
+	});
+
+	test('accepts only valid persisted network grace states', () => {
+		const grace = {
+			version: '0.2.0',
+			minimumSupportedVersion: '0.2.1',
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip',
+			graceCount: 1,
+			graceUntil: 123,
+		};
+		assert.deepStrictEqual(parseShortestPathUpdateGraceState(grace, '0.2.0'), grace);
+		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 0 }, '0.2.0'), undefined);
+		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 3 }, '0.2.0'), undefined);
+		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceUntil: Number.NaN }, '0.2.0'), undefined);
+		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, downloadUrl: 'https://example.com/update' }, '0.2.0'), undefined);
+		assert.deepStrictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 2, graceUntil: undefined, permanentlyAllowed: true }, '0.2.0'), { ...grace, graceCount: 2, graceUntil: undefined, permanentlyAllowed: true });
+		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 1, graceUntil: undefined, permanentlyAllowed: true }, '0.2.0'), undefined);
+		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, permanentlyAllowed: true }, '0.2.0'), undefined);
+	});
+
 });

@@ -15,6 +15,66 @@ export interface IShortestPathUpdateDocument {
 	readonly minimumSupportedVersion?: unknown;
 }
 
+export interface IShortestPathUpdateTarget {
+	readonly downloadUrl: string;
+	readonly allowsMinimumVersionLock: boolean;
+}
+
+export interface IShortestPathUpdateGraceState {
+	readonly version: string;
+	readonly minimumSupportedVersion: string;
+	readonly downloadUrl: string;
+	readonly graceCount: number;
+	readonly graceUntil?: number;
+	readonly permanentlyAllowed?: boolean;
+}
+
+export function parseShortestPathUpdateGraceState(value: unknown, version: string): IShortestPathUpdateGraceState | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const state = value as Partial<IShortestPathUpdateGraceState>;
+	const graceCount = state.graceCount;
+	if (state.version !== version || typeof state.minimumSupportedVersion !== 'string' || typeof state.downloadUrl !== 'string' || typeof graceCount !== 'number' || !Number.isInteger(graceCount) || graceCount < 0 || graceCount > 2 || (state.permanentlyAllowed !== undefined && typeof state.permanentlyAllowed !== 'boolean')) {
+		return undefined;
+	}
+	try {
+		const url = new URL(state.downloadUrl);
+		if (url.protocol !== 'https:' || url.hostname !== 'github.com' || !url.pathname.startsWith('/KevinHuangIsLearning/shortestpath-ide/releases/')) {
+			return undefined;
+		}
+	} catch {
+		return undefined;
+	}
+	if (state.permanentlyAllowed === true) {
+		return graceCount === 2 && state.graceUntil === undefined ? state as IShortestPathUpdateGraceState : undefined;
+	}
+	return graceCount >= 1 && typeof state.graceUntil === 'number' && Number.isFinite(state.graceUntil) ? state as IShortestPathUpdateGraceState : undefined;
+}
+
+export function parseShortestPathWindowsInstallMode(value: string): 'user' | 'system' | undefined {
+	const installMode = value.trim();
+	return installMode === 'user' || installMode === 'system' ? installMode : undefined;
+}
+
+export function getShortestPathUpdateTarget(platform: string, installMode: 'user' | 'system' | undefined): IShortestPathUpdateTarget | undefined {
+	const latestDownload = 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/';
+	if (platform === 'darwin') {
+		return { downloadUrl: `${latestDownload}ShortestPath-IDE-macos-arm64.zip`, allowsMinimumVersionLock: true };
+	}
+	if (platform !== 'win32') {
+		return undefined;
+	}
+
+	if (installMode === 'user') {
+		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe`, allowsMinimumVersionLock: true };
+	}
+	if (installMode === 'system') {
+		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64-Setup.exe`, allowsMinimumVersionLock: true };
+	}
+	return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip`, allowsMinimumVersionLock: false };
+}
+
 export function parseShortestPathUpdateDocument(document: IShortestPathUpdateDocument): IShortestPathUpdate | undefined {
 	if (typeof document.version !== 'string' || typeof document.downloadUrl !== 'string' || !parseVersion(document.version)) {
 		return undefined;

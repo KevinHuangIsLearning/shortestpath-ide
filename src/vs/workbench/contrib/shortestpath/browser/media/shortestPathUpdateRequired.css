@@ -3,41 +3,103 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.shortestpath-update-required {
+.shortestpath-update-required-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 100000;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 100%;
-	height: 100%;
-	background: var(--vscode-editor-background);
+	background: color-mix(in srgb, var(--vscode-editor-background) 45%, transparent);
 	color: var(--vscode-editor-foreground);
+	outline: none;
 }
 
-.shortestpath-update-required-content {
-	max-width: 32rem;
+.shortestpath-update-required-dialog {
+	position: relative;
+	box-sizing: border-box;
+	width: min(30rem, calc(100% - 3rem));
 	padding: 2rem;
+	border: 0;
+	border-radius: 6px;
+	background: var(--vscode-editorWidget-background);
+	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.36);
 	text-align: center;
+	outline: none;
 }
 
-.shortestpath-update-required-content h1 {
+.shortestpath-update-required-dialog h1 {
 	font-size: 1.5rem;
 	font-weight: 600;
 }
 
-.shortestpath-update-required-content p {
+.shortestpath-update-required-dialog p {
 	margin: 1rem 0 1.5rem;
 	line-height: 1.6;
 }
 
-.shortestpath-update-required-action {
-	padding: 0.55rem 1rem;
+.shortestpath-update-required-network {
+	margin: 0 0 1rem;
+	padding: 0;
 	border: 0;
-	border-radius: 2px;
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.85rem;
 	cursor: pointer;
 }
 
-.shortestpath-update-required-action:hover {
+.shortestpath-update-required-network:hover {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: underline;
+}
+
+.shortestpath-update-required-close {
+	position: absolute;
+	top: 0.5rem;
+	right: 0.5rem;
+	width: 1.75rem;
+	height: 1.75rem;
+	border: 0;
+	border-radius: 3px;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	font-size: 1.4rem;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.shortestpath-update-required-close:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.shortestpath-update-required-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+}
+
+.shortestpath-update-required-action {
+	padding: 0.55rem 1rem;
+	border-radius: 2px;
+	cursor: pointer;
+}
+
+.shortestpath-update-required-action.primary {
+	border: 0;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.shortestpath-update-required-action.primary:hover {
 	background: var(--vscode-button-hoverBackground);
+}
+
+.shortestpath-update-required-action.secondary {
+	border: 1px solid var(--vscode-button-secondaryBackground);
+	background: transparent;
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.shortestpath-update-required-action.secondary:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
 }
