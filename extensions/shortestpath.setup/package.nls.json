@@ -11,7 +11,7 @@
 	"command.configure": "ShortestPath IDE: Configure Competitive Programming Environment",
 	"command.rerunFirstRun": "ShortestPath IDE: Re-run First-Run Setup",
 	"command.openSettings": "ShortestPath IDE: Settings",
-	"command.toggleFishVisibility": "ShortestPath IDE: Show/Hide Fish Browser",
+	"command.toggleRelaxVisibility": "ShortestPath IDE: Show/Hide Relax Browser",
 	"command.configureCph": "ShortestPath IDE: Configure CPH",
 	"command.configureCppSnippets": "ShortestPath IDE: Configure Code Snippets",
 	"command.configureAutoFormat": "ShortestPath IDE: Configure Automatic Formatting",

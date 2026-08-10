@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { unlockFishMode } from './fishMode';
+import { unlockRelaxMode } from './relaxMode';
 import { getSystemFonts } from './systemFonts';
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
@@ -454,8 +454,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.commands.executeCommand('shortestpath.oj.openControlPanel');
 		} else if (message?.type === 'checkForUpdates') {
 			await vscode.commands.executeCommand('shortestpath.action.checkForUpdates');
-		} else if (message?.type === 'unlockFishMode') {
-			await unlockFishMode(context);
+		} else if (message?.type === 'unlockRelaxMode') {
+			await unlockRelaxMode(context);
 		}
 	}, undefined, context.subscriptions);
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
@@ -849,8 +849,8 @@ byId('cppStandard').addEventListener('change', () => { const flags = byId('compi
 document.querySelectorAll('.category').forEach(button => button.addEventListener('click', () => { selectedCategory = button.dataset.category; document.querySelectorAll('.category').forEach(item => item.classList.toggle('active', item === button)); updateSettingsFilter(); }));
 byId('settingsSearch').addEventListener('input', () => {
   const search = byId('settingsSearch').value.trim().toLocaleLowerCase();
-  if (search === 'touchfish') {
-    vscode.postMessage({ type: 'unlockFishMode' });
+  if (search === 'relax') {
+    vscode.postMessage({ type: 'unlockRelaxMode' });
     byId('settingsSearch').value = '';
     updateSettingsFilter();
     return;
