@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import { Buffer } from 'node:buffer';
 import { createRequire } from 'node:module';
 import type { IProductConfiguration } from './vs/base/common/product.js';
+import { shouldUsePortableTemp } from './vs/base/node/portablePaths.js';
 
 const require = createRequire(import.meta.url);
 const isWindows = process.platform === 'win32';
@@ -246,7 +247,10 @@ export function configurePortable(product: Partial<IProductConfiguration>): { po
 		delete process.env['VSCODE_PORTABLE'];
 	}
 
-	if (isTempPortable) {
+	// ConPTY fails to launch on some Windows systems when TMP/TEMP contains
+	// spaces. Keep user data portable, but retain the system temp directory in
+	// that case so a ZIP extracted to "Shortest Path IDE" can start terminals.
+	if (isTempPortable && shouldUsePortableTemp(process.platform, portableTempPath)) {
 		if (process.platform === 'win32') {
 			process.env['TMP'] = portableTempPath;
 			process.env['TEMP'] = portableTempPath;
