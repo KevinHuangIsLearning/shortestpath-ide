@@ -1,14 +1,14 @@
 # ShortestPath IDE 下载说明 / Download Guide
 
-## v0.3.1 更新 / What's New
+## v0.3.3 更新 / What's New
 
-- 「打开 ShortestPath OJ」现在使用系统默认浏览器。
-- 升级后首次启动会显示本版本的更新说明。
-- 修复卸载扩展时可选聊天代理配置缺失可能导致的错误。
+- 修复 ShortestPath OJ 网页缺少部分能力信息时无法导入题目的问题；题面会优先打开，无法使用的操作会在页面内说明。
+- 评测记录现在按题目分别保存到 `.shortestpath`，旧版汇总缓存会自动迁移，降低缓存损坏影响范围。
+- 修复评测完成后仍显示 `waiting`，并优化评测结果颜色与显示样式。
 
-- “Open ShortestPath OJ” now uses the system default browser.
-- The release notes for the installed version open on the first launch after an upgrade.
-- Fixed an uninstall error when the optional chat-agent configuration is absent.
+- Fixed ShortestPath OJ problem import when the website omits part of its capability data. The statement now opens first and unavailable actions report in the webview.
+- Submission history is now stored per problem in `.shortestpath`; legacy aggregate caches migrate automatically to reduce the blast radius of cache corruption.
+- Fixed the lingering `waiting` row after judging and improved verdict colors and presentation.
 
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。
 >
