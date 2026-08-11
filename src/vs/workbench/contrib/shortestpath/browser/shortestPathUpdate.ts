@@ -126,6 +126,10 @@ export function isShortestPathVersionSupported(currentVersion: string, minimumSu
 	return !isShortestPathUpdateAvailable(currentVersion, minimumSupportedVersion);
 }
 
+export function getShortestPathReleaseNotesUrl(version: string): string | undefined {
+	return parseVersion(version) ? `https://raw.githubusercontent.com/KevinHuangIsLearning/shortestpath-ide/main/release-notes/${version}.md` : undefined;
+}
+
 function parseVersion(value: string): readonly number[] | undefined {
 	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value);
 	if (!match) {

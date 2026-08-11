@@ -5,8 +5,10 @@
 
 import './media/shortestPathNewTab.css';
 import { $, addDisposableListener, append, Dimension } from '../../../../base/browser/dom.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -27,6 +29,7 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(ShortestPathNewTabEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -52,7 +55,7 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open Integrated Browser', '打开内置浏览器'), 'codicon-globe', () => this.commandService.executeCommand('workbench.action.browser.open'));
 		// allow-any-unicode-next-line
-		this.addAction(actions, localizeNewTab('Open ShortestPath OJ', '打开 ShortestPath OJ'), 'codicon-mortar-board', () => this.commandService.executeCommand('shortestpath.oj.openIntegratedBrowser'));
+		this.addAction(actions, localizeNewTab('Open ShortestPath OJ', '打开 ShortestPath OJ'), 'codicon-mortar-board', () => this.openerService.open(URI.parse('https://shortestpath.cn'), { openExternal: true }));
 		// allow-any-unicode-next-line
 		this.addAction(actions, localizeNewTab('Open Settings', '打开设置'), 'codicon-settings-gear', () => this.commandService.executeCommand('shortestpath.openSettings'));
 		// allow-any-unicode-next-line

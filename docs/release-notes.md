@@ -1,5 +1,15 @@
 # ShortestPath IDE 下载说明 / Download Guide
 
+## v0.3.1 更新 / What's New
+
+- 「打开 ShortestPath OJ」现在使用系统默认浏览器。
+- 升级后首次启动会显示本版本的更新说明。
+- 修复卸载扩展时可选聊天代理配置缺失可能导致的错误。
+
+- “Open ShortestPath OJ” now uses the system default browser.
+- The release notes for the installed version open on the first launch after an upgrade.
+- Fixed an uninstall error when the optional chat-agent configuration is absent.
+
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。
 >
 > Can't decide? Just read the table. **When in doubt, pick the first row for your platform.**
