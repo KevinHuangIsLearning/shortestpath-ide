@@ -32,7 +32,7 @@
 	"linuxIconName": "shortestpath",
 	"licenseFileName": "LICENSE",
 	"reportIssueUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/issues/new",
-	"shortestPathVersion": "0.3.1",
+	"shortestPathVersion": "0.3.2",
 	"shortestPathUpdateUrl": "https://raw.githubusercontent.com/KevinHuangIsLearning/shortestpath-ide/main/latest.json",
 	"nodejsArtifactFeed": "",
 	"electronArtifactFeed": "",
