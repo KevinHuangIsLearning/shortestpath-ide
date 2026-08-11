@@ -5,28 +5,32 @@
 
 import './media/shortestPathUpdateRequired.css';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { $, addDisposableListener, append, isHTMLElement } from '../../../../base/browser/dom.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import severity from '../../../../base/common/severity.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
+import { asJson, asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { getShortestPathUpdateTarget, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
+import { getShortestPathReleaseNotesUrl, getShortestPathUpdateTarget, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
 
 interface IShortestPathUpdateCheckResult {
 	readonly release: IShortestPathUpdate;
@@ -34,7 +38,15 @@ interface IShortestPathUpdateCheckResult {
 }
 
 const UPDATE_GRACE_STORAGE_KEY = 'shortestpath.update.networkGrace';
+const RELEASE_NOTES_VERSION_STORAGE_KEY = 'shortestpath.releaseNotes.shownVersion';
+const RELEASE_NOTES_CLAIM_STORAGE_KEY = 'shortestpath.releaseNotes.claim';
 const NETWORK_GRACE_DURATION = 3 * 60 * 60 * 1000;
+
+interface IShortestPathReleaseNotesClaim {
+	readonly version: string;
+	readonly owner: string;
+	readonly createdAt: number;
+}
 
 function getShortestPathUpdateGraceState(storageService: IStorageService, version: string): IShortestPathUpdateGraceState | undefined {
 	return parseShortestPathUpdateGraceState(storageService.getObject(UPDATE_GRACE_STORAGE_KEY, StorageScope.APPLICATION), version);
@@ -378,7 +390,105 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
+class ShortestPathReleaseNotesContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.shortestPathReleaseNotes';
+	private static readonly RETRY_INTERVAL = 5 * 60 * 1000;
+	private readonly retryScheduler: RunOnceScheduler;
+
+	constructor(
+		@ICommandService private readonly commandService: ICommandService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService,
+		@IRequestService private readonly requestService: IRequestService,
+		@IStorageService private readonly storageService: IStorageService,
+	) {
+		super();
+		this.retryScheduler = this._register(new RunOnceScheduler(() => this.showReleaseNotesForNewVersion(), 0));
+		this.retryScheduler.schedule(0);
+	}
+
+	private async showReleaseNotesForNewVersion(): Promise<void> {
+		const version = this.productService.shortestPathVersion;
+		if (!version) {
+			return;
+		}
+		const releaseNotesUrl = getShortestPathReleaseNotesUrl(version);
+		if (!releaseNotesUrl) {
+			return;
+		}
+		const lastShownVersion = this.storageService.get(RELEASE_NOTES_VERSION_STORAGE_KEY, StorageScope.APPLICATION);
+		if (lastShownVersion && !isShortestPathUpdateAvailable(lastShownVersion, version)) {
+			return;
+		}
+		const existingClaim = this.storageService.getObject<IShortestPathReleaseNotesClaim>(RELEASE_NOTES_CLAIM_STORAGE_KEY, StorageScope.APPLICATION);
+		if (existingClaim?.version === version && Date.now() - existingClaim.createdAt < 60 * 1000) {
+			return;
+		}
+		const claim: IShortestPathReleaseNotesClaim = { version, owner: generateUuid(), createdAt: Date.now() };
+		this.storageService.store(RELEASE_NOTES_CLAIM_STORAGE_KEY, claim, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await timeout(25);
+		if (this.storageService.getObject<IShortestPathReleaseNotesClaim>(RELEASE_NOTES_CLAIM_STORAGE_KEY, StorageScope.APPLICATION)?.owner !== claim.owner) {
+			return;
+		}
+
+		let response;
+		try {
+			response = await this.requestService.request({
+				type: 'GET',
+				url: releaseNotesUrl,
+				disableCache: true,
+				timeout: 10000,
+				callSite: 'shortestPathReleaseNotes.fetch',
+			}, CancellationToken.None);
+		} catch (error) {
+			this.logService.debug('Failed to fetch ShortestPath IDE release notes.', error);
+			this.retryScheduler.schedule(ShortestPathReleaseNotesContribution.RETRY_INTERVAL);
+			this.releaseClaim(claim);
+			return;
+		}
+
+		const statusCode = response.res.statusCode;
+		if (statusCode !== 200) {
+			this.logService.debug(`Failed to fetch ShortestPath IDE release notes: HTTP ${statusCode}`);
+			if (statusCode !== undefined && statusCode >= 500) {
+				this.retryScheduler.schedule(ShortestPathReleaseNotesContribution.RETRY_INTERVAL);
+			}
+			this.releaseClaim(claim);
+			return;
+		}
+
+		try {
+			const releaseNotes = await asTextOrError(response);
+			if (typeof releaseNotes !== 'string' || !releaseNotes.trim()) {
+				this.logService.debug('Empty ShortestPath IDE release notes response.');
+				return;
+			}
+
+			const releaseNotesFolder = joinPath(this.environmentService.userRoamingDataHome, 'Release Notes');
+			const releaseNotesFile = joinPath(releaseNotesFolder, `${version}.md`);
+			await this.fileService.createFolder(releaseNotesFolder);
+			await this.fileService.writeFile(releaseNotesFile, VSBuffer.fromString(releaseNotes));
+			await this.commandService.executeCommand('markdown.showPreview', releaseNotesFile);
+			this.storageService.store(RELEASE_NOTES_VERSION_STORAGE_KEY, version, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} catch (error) {
+			this.logService.debug('Failed to save or preview ShortestPath IDE release notes.', error);
+		} finally {
+			this.releaseClaim(claim);
+		}
+	}
+
+	private releaseClaim(claim: IShortestPathReleaseNotesClaim): void {
+		if (this.storageService.getObject<IShortestPathReleaseNotesClaim>(RELEASE_NOTES_CLAIM_STORAGE_KEY, StorageScope.APPLICATION)?.owner === claim.owner) {
+			this.storageService.remove(RELEASE_NOTES_CLAIM_STORAGE_KEY, StorageScope.APPLICATION);
+		}
+	}
+}
+
 registerWorkbenchContribution2(ShortestPathUpdateContribution.ID, ShortestPathUpdateContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ShortestPathReleaseNotesContribution.ID, ShortestPathReleaseNotesContribution, WorkbenchPhase.AfterRestored);
 
 registerAction2(class extends Action2 {
 	constructor() {

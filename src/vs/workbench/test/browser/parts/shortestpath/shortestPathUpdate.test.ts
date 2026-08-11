@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
+import { getShortestPathReleaseNotesUrl, getShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
 
 suite('ShortestPath update check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,6 +51,11 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(isShortestPathUpdateAvailable('0.3.0', '0.2.9'), false);
 		assert.strictEqual(isShortestPathVersionSupported('0.2.0', '0.2.0'), true);
 		assert.strictEqual(isShortestPathVersionSupported('0.1.9', '0.2.0'), false);
+	});
+
+	test('gets release notes from the fixed GitHub Markdown directory', () => {
+		assert.strictEqual(getShortestPathReleaseNotesUrl('0.3.0'), 'https://raw.githubusercontent.com/KevinHuangIsLearning/shortestpath-ide/main/release-notes/0.3.0.md');
+		assert.strictEqual(getShortestPathReleaseNotesUrl('invalid'), undefined);
 	});
 
 	test('selects the matching direct download asset', () => {
