@@ -9,10 +9,11 @@ import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { canRequestEditorial, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
-import { describeJudgeType } from './judgeDisplay';
+import { describeJudgeType, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
 import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
-import { OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
+import { ImportAction, OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
+import { mergeSubmissionHistory, sanitizeSubmissionHistoryEntry, SubmissionHistoryEntry, toSubmissionHistoryEntry } from './submissionHistory';
 import { formatElapsedTimer } from './timerDisplay';
 import {
 	applyEditorialLikeResult,
@@ -39,15 +40,19 @@ import {
 const workspaceCacheDirectoryName = '.shortestpath';
 const workspaceCacheFileName = 'oj-problems.json';
 const workspaceFolderRequiredMessage = '请先在 ShortestPath IDE 中打开一个文件夹，再从网站导入题目。';
+const workspaceCachesNeedingRewrite = new WeakSet<WorkspaceProblemCache>();
+let workspaceCacheMutationTail = Promise.resolve();
 
 type WorkspaceProblemCache = {
-	version: 3;
+	version: 4;
 	problems: Record<string, ImportedProblem>;
 	sourcePaths: Record<string, string>;
+	submissions: Record<string, SubmissionHistoryEntry[]>;
 };
 
 type CphImportResult = { succeeded: boolean; sourcePath?: string };
 
+type CachedWorkspaceProblemCache = Omit<Partial<WorkspaceProblemCache>, 'version'> & { version?: 3 | 4 };
 
 function isWrongAnswerStatus(status: string): boolean {
 	return status === 'WA' || status === 'Wrong Answer' || /\bWA\b/i.test(status);
@@ -99,7 +104,7 @@ type ProblemPanelState = {
 	answers: Map<string, MarkdownContent>;
 	hintMessages: Map<string, string>;
 	editorial?: EditorialResult;
-	submissions: Map<string, SubmissionSnapshot>;
+	submissions: Map<string, SubmissionSnapshot | SubmissionHistoryEntry>;
 	finishedSubmissions: Set<string>;
 	disconnectedSubmissions: Set<string>;
 	stressContext?: StressContext;
@@ -121,6 +126,8 @@ type ProblemPanelActions = {
 	loadStress(problem: ImportedProblem): Promise<StressContext>;
 	startStress(problem: ImportedProblem, submissionId: string, rounds: number): Promise<StressTask>;
 	addStressCounterExample(problem: ImportedProblem, task: StressTask): Promise<void>;
+	loadSubmissionHistory(problem: ImportedProblem): Promise<SubmissionHistoryEntry[]>;
+	saveSubmissionHistory(problem: ImportedProblem, submission: SubmissionHistoryEntry): Promise<void>;
 };
 
 class ShortestPathOjProblemPanel {
@@ -183,6 +190,20 @@ class ShortestPathOjProblemPanel {
 				editorialRemainingReceivedAtMs: Date.now(),
 				sourcePath,
 			};
+			const state = this.state;
+			void this.actions.loadSubmissionHistory(problem).then(submissions => {
+				if (this.state !== state || state.problem.ref !== problem.ref) {
+					return;
+				}
+				for (const submission of submissions) {
+					const existing = state.submissions.get(submission.submissionId);
+					if (!existing || !isLiveSubmission(existing)) {
+						state.submissions.set(submission.submissionId, submission);
+					}
+					state.finishedSubmissions.add(submission.submissionId);
+				}
+				this.render();
+			}).catch(error => console.error('Failed to load ShortestPath OJ submission history.', error));
 		} else {
 			this.state.problem = problem;
 			this.state.connected = connected;
@@ -242,6 +263,7 @@ class ShortestPathOjProblemPanel {
 			state.disconnectedSubmissions.delete(snapshot.submissionId);
 			if (event.type === 'submission.finished') {
 				state.finishedSubmissions.add(snapshot.submissionId);
+				void this.actions.saveSubmissionHistory(state.problem, toSubmissionHistoryEntry(snapshot)).catch(error => console.error('Failed to save ShortestPath OJ submission history.', error));
 			}
 		} else {
 			const task = event.data.task;
@@ -915,6 +937,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			return result.task;
 		},
 		addStressCounterExample: (problem, task) => addStressCounterExampleToCph(problem, task),
+		loadSubmissionHistory: problem => mutateWorkspaceProblemCache(cache => cache.submissions[problem.ref] ?? [], false),
+		saveSubmissionHistory: (problem, submission) => mutateWorkspaceProblemCache(cache => {
+			cache.submissions[problem.ref] = mergeSubmissionHistory(cache.submissions[problem.ref] ?? [], submission);
+		}, true),
 	}, unknownStressStarts);
 	bridge = new ShortestPathOjLocalBridge({
 		async importProblem(problem, signal) {
@@ -923,17 +949,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				void vscode.window.showErrorMessage(workspaceFolderRequiredMessage);
 				throw new Error(workspaceFolderRequiredMessage);
 			}
-			const cache = await readWorkspaceProblemCache();
-			signal.throwIfAborted();
-			const action = cache.problems[problem.ref] ? 'updated' : 'created';
-			const previousSourcePath = cache.sourcePaths[problem.ref];
-			cache.problems[problem.ref] = problem;
-			const cph = await forwardSamplesToCph(problem, previousSourcePath, signal);
-			signal.throwIfAborted();
-			if (cph.sourcePath) {
-				cache.sourcePaths[problem.ref] = cph.sourcePath;
-			}
-			await writeWorkspaceProblemCache(cache);
+			const { action, cph } = await mutateWorkspaceProblemCache(async cache => {
+				signal.throwIfAborted();
+				const action: ImportAction = cache.problems[problem.ref] ? 'updated' : 'created';
+				const previousSourcePath = cache.sourcePaths[problem.ref];
+				cache.problems[problem.ref] = problem;
+				const cph = await forwardSamplesToCph(problem, previousSourcePath, signal);
+				signal.throwIfAborted();
+				if (cph.sourcePath) {
+					cache.sourcePaths[problem.ref] = cph.sourcePath;
+				}
+				return { action, cph };
+			}, true);
 			if (!cph.succeeded) {
 				output.appendLine(`CPH Plus did not accept samples for ${problem.ref}.`);
 			}
@@ -944,14 +971,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			panel.showProblem(problem, true, sourcePath, true);
 		},
 		async updateProblemState(problemRef, state) {
-			const cache = await readWorkspaceProblemCache();
-			const problem = cache.problems[problemRef];
-			if (!problem) {
-				throw new Error('当前连接尚未导入题目。');
-			}
-			cache.problems[problemRef] = applyProblemState(problem, state);
+			await mutateWorkspaceProblemCache(cache => {
+				const problem = cache.problems[problemRef];
+				if (!problem) {
+					throw new Error('当前连接尚未导入题目。');
+				}
+				cache.problems[problemRef] = applyProblemState(problem, state);
+			}, true);
 			panel.updateProblemState(problemRef, state);
-			await writeWorkspaceProblemCache(cache);
 		},
 		handleEvent(problemRef, event) {
 			panel.handleEvent(problemRef, event);
@@ -992,9 +1019,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowserDirect', async () => {
 		await vscode.window.openBrowserTab('https://shortestpath.cn/login', { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openControlPanel', async () => {
-		await vscode.window.openBrowserTab('https://shortestpath.cn/topics', { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
-	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblemForCph', async (url: string) => {
 		const cache = await readWorkspaceProblemCache();
 		const problem = Object.values(cache.problems).find(item => item.url === url);
@@ -1034,9 +1058,10 @@ function getWorkspaceCacheUri(): vscode.Uri {
 
 function createEmptyWorkspaceProblemCache(): WorkspaceProblemCache {
 	return {
-		version: 3,
+		version: 4,
 		problems: Object.create(null) as Record<string, ImportedProblem>,
 		sourcePaths: Object.create(null) as Record<string, string>,
+		submissions: Object.create(null) as Record<string, SubmissionHistoryEntry[]>,
 	};
 }
 
@@ -1046,20 +1071,40 @@ async function readWorkspaceProblemCache(): Promise<WorkspaceProblemCache> {
 		if (!content.trim()) {
 			return createEmptyWorkspaceProblemCache();
 		}
-		const value = JSON.parse(content) as Partial<WorkspaceProblemCache>;
+		const value = JSON.parse(content) as CachedWorkspaceProblemCache;
 		const problems = Object.create(null) as Record<string, ImportedProblem>;
 		const sourcePaths = Object.create(null) as Record<string, string>;
-		if (value.version === 3 && value.problems && typeof value.problems === 'object') {
+		const submissions = Object.create(null) as Record<string, SubmissionHistoryEntry[]>;
+		let historyWasSanitized = false;
+		if ((value.version === 3 || value.version === 4) && value.problems && typeof value.problems === 'object') {
 			Object.assign(problems, value.problems);
 		}
-		if (value.version === 3 && value.sourcePaths && typeof value.sourcePaths === 'object') {
+		if ((value.version === 3 || value.version === 4) && value.sourcePaths && typeof value.sourcePaths === 'object') {
 			Object.assign(sourcePaths, value.sourcePaths);
 		}
-		return {
-			version: 3,
+		if (value.version === 4 && value.submissions && typeof value.submissions === 'object') {
+			for (const [problemRef, entries] of Object.entries(value.submissions)) {
+				if (Array.isArray(entries)) {
+					const sanitizedEntries = entries.map(sanitizeSubmissionHistoryEntry).filter((entry): entry is SubmissionHistoryEntry => entry !== undefined);
+					if (sanitizedEntries.length !== entries.length || entries.some((entry, index) => JSON.stringify(entry) !== JSON.stringify(sanitizedEntries[index]))) {
+						historyWasSanitized = true;
+					}
+					submissions[problemRef] = sanitizedEntries;
+				} else {
+					historyWasSanitized = true;
+				}
+			}
+		}
+		const cache: WorkspaceProblemCache = {
+			version: 4,
 			problems,
 			sourcePaths,
+			submissions,
 		};
+		if (historyWasSanitized) {
+			workspaceCachesNeedingRewrite.add(cache);
+		}
+		return cache;
 	} catch (error) {
 		if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
 			return createEmptyWorkspaceProblemCache();
@@ -1071,6 +1116,20 @@ async function readWorkspaceProblemCache(): Promise<WorkspaceProblemCache> {
 async function writeWorkspaceProblemCache(cache: WorkspaceProblemCache): Promise<void> {
 	await vscode.workspace.fs.createDirectory(getWorkspaceCacheDirectoryUri());
 	await vscode.workspace.fs.writeFile(getWorkspaceCacheUri(), new TextEncoder().encode(`${JSON.stringify(cache, undefined, '\t')}\n`));
+	workspaceCachesNeedingRewrite.delete(cache);
+}
+
+function mutateWorkspaceProblemCache<T>(mutation: (cache: WorkspaceProblemCache) => T | Promise<T>, alwaysWrite: boolean): Promise<T> {
+	const operation = workspaceCacheMutationTail.then(async () => {
+		const cache = await readWorkspaceProblemCache();
+		const result = await mutation(cache);
+		if (alwaysWrite || workspaceCachesNeedingRewrite.has(cache)) {
+			await writeWorkspaceProblemCache(cache);
+		}
+		return result;
+	});
+	workspaceCacheMutationTail = operation.then(() => undefined, () => undefined);
+	return operation;
 }
 
 async function submitCphProblem(
@@ -1679,16 +1738,31 @@ function renderSubmissions(state: ProblemPanelState): string {
 	const items = [...state.submissions.values()]
 		.sort((left, right) => compareSubmissionIdDescending(left.submissionId, right.submissionId))
 		.map((item, index) => {
-			const detailNotice = item.detailState === 'unavailable' ? `<p class="warning">结果已结束，详情暂不可用：${escapeHtml(item.detailError?.message ?? '')}</p>` : '';
-			const compileError = item.compileErrorMessage ? `<pre class="error"><code>${escapeHtml(item.compileErrorMessage)}</code></pre>` : '';
-			const details = item.details.length ? `<table><thead><tr><th>#</th><th>测试点</th><th>状态</th><th>时间</th><th>内存</th></tr></thead><tbody>${item.details.map(detail => `<tr><td>${detail.seq}</td><td>${escapeHtml(detail.caseName)}</td><td>${escapeHtml(detail.status)}</td><td>${detail.timeMs} ms</td><td>${detail.memoryKB} KB</td></tr>`).join('')}</tbody></table>` : '';
-			const disconnected = state.disconnectedSubmissions.has(item.submissionId) ? '<p class="warning">评测转发已断开；后端任务状态未知，请重新连接并恢复观察。</p>' : '';
-			const showStressHint = shouldShowStressHint(state, item);
+			const liveSubmission = isLiveSubmission(item);
+			const stage = liveSubmission ? describeSubmissionStage(item.stage, item.detailState) : undefined;
+			const statusClass = describeSubmissionStatus(item.status);
+			const status = `<span class="submission-status${statusClass ? ` ${statusClass}` : ''}">${escapeHtml(item.status)}</span>`;
+			const detailNotice = liveSubmission && item.detailState === 'unavailable' ? `<p class="warning">结果已结束，详情暂不可用：${escapeHtml(item.detailError?.message ?? '')}</p>` : '';
+			const compileError = liveSubmission && item.compileErrorMessage ? `<pre class="error"><code>${escapeHtml(item.compileErrorMessage)}</code></pre>` : '';
+			const details = liveSubmission && item.details.length ? `<table><thead><tr><th>#</th><th>测试点</th><th>状态</th><th>时间</th><th>内存</th></tr></thead><tbody>${item.details.map(detail => {
+				const detailStatusClass = describeSubmissionStatus(detail.status);
+				const detailStatus = `<span class="submission-status${detailStatusClass ? ` ${detailStatusClass}` : ''}">${escapeHtml(detail.status)}</span>`;
+				return `<tr><td>${detail.seq}</td><td>${escapeHtml(detail.caseName)}</td><td>${detailStatus}</td><td>${detail.timeMs} ms</td><td>${detail.memoryKB} KB</td></tr>`;
+			}).join('')}</tbody></table>` : '';
+			const disconnected = liveSubmission && state.disconnectedSubmissions.has(item.submissionId) ? '<p class="warning">评测转发已断开；后端任务状态未知，请重新连接并恢复观察。</p>' : '';
+			const showStressHint = liveSubmission && shouldShowStressHint(state, item);
 			const stressSection = showStressHint ? renderSubmissionStress(state, item) : '';
 			const shouldOpen = index === 0;
-			return `<details class="submission" data-persist-key="submission:${escapeAttribute(item.submissionId)}"${shouldOpen ? ' open' : ''}><summary><span class="submission-summary-title">提交 ${escapeHtml(item.submissionId)} · ${escapeHtml(item.status)}</span><span class="submission-summary-meta">${escapeHtml(item.stage ?? 'waiting') || 'waiting'} · ${item.score} 分 · ${item.maxTimeMs} ms · ${item.maxMemoryKB} KB</span></summary><div class="submission-body">${disconnected}${detailNotice}${compileError}${details}${stressSection}</div></details>`;
+			const stagePrefix = stage ? `${escapeHtml(stage)} · ` : '';
+			const summary = `<span class="submission-summary-title">提交 ${escapeHtml(item.submissionId)} · ${status}</span><span class="submission-summary-meta">${stagePrefix}${item.score} 分 · ${item.maxTimeMs} ms · ${item.maxMemoryKB} KB</span>`;
+			const body = `${disconnected}${detailNotice}${compileError}${details}${stressSection}`;
+			return body ? `<details class="submission" data-persist-key="submission:${escapeAttribute(item.submissionId)}"${shouldOpen ? ' open' : ''}><summary>${summary}</summary><div class="submission-body">${body}</div></details>` : `<article class="submission submission-record">${summary}</article>`;
 		}).join('');
 	return `<section class="submissions"><h2>评测</h2><form id="watch-submission"><input name="submissionId" inputmode="numeric" placeholder="已有提交 ID"><button type="submit"${submission.watchExisting && state.connected ? '' : ' disabled'}>恢复观察</button></form>${items || '<p>暂无评测记录。</p>'}</section>`;
+}
+
+function isLiveSubmission(submission: SubmissionSnapshot | SubmissionHistoryEntry): submission is SubmissionSnapshot {
+	return 'details' in submission;
 }
 
 function renderSubmissionStress(state: ProblemPanelState, submission: SubmissionSnapshot): string {

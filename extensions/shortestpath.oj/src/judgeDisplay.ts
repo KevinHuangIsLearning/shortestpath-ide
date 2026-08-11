@@ -19,3 +19,37 @@ export function describeJudgeType(checkerType: string, floatEpsilon: number | nu
 	}
 	return floatEpsilon !== null ? 'Float Judge' : 'Special Judge';
 }
+
+/**
+ * 返回评测进行中的阶段文本。终态快照不要求网站继续提供 stage，不能将其误显示为 waiting。
+ */
+export function describeSubmissionStage(stage: string | undefined, detailState: 'complete' | 'unavailable' | undefined): string | undefined {
+	const displayStage = stage?.trim();
+	if (displayStage) {
+		return displayStage;
+	}
+	return detailState === undefined ? 'waiting' : undefined;
+}
+
+/**
+ * 将常见评测结果映射为主题相关的颜色类名。
+ */
+export function describeSubmissionStatus(status: string): 'accepted' | 'compilation-error' | 'failed' | 'wrong-answer' | 'runtime-error' | 'time-limit-exceeded' {
+	const normalized = status.trim().toLowerCase();
+	if (normalized === 'ac' || normalized === 'accepted') {
+		return 'accepted';
+	}
+	if (normalized === 'ce' || normalized === 'compile error' || normalized === 'compilation error') {
+		return 'compilation-error';
+	}
+	if (normalized === 'wa' || normalized === 'wrong answer') {
+		return 'wrong-answer';
+	}
+	if (normalized === 're' || normalized === 'runtime error') {
+		return 'runtime-error';
+	}
+	if (normalized === 'tle' || normalized === 'time limit exceeded') {
+		return 'time-limit-exceeded';
+	}
+	return 'failed';
+}

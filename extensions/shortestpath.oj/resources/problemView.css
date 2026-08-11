@@ -654,7 +654,17 @@ th, td {
 
 .submission {
 	box-sizing: border-box;
+	font-family: var(--vscode-editor-font-family);
 	padding: 0;
+}
+
+.submission-record {
+	padding: 12px;
+}
+
+.submission-record .submission-summary-title,
+.submission-record .submission-summary-meta {
+	display: block;
 }
 
 .submission summary {
@@ -696,6 +706,24 @@ th, td {
 .submission-summary-meta {
 	color: var(--vscode-descriptionForeground);
 	padding-right: 18px;
+}
+
+.submission-status.accepted {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.submission-status.compilation-error,
+.submission-status.failed,
+.submission-status.wrong-answer {
+	color: var(--vscode-testing-iconFailed, #f14c4c);
+}
+
+.submission-status.runtime-error {
+	color: var(--vscode-charts-purple, #b180d7);
+}
+
+.submission-status.time-limit-exceeded {
+	color: var(--vscode-editorWarning-foreground, #cca700);
 }
 
 .submission-body {
