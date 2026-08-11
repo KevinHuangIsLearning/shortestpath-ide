@@ -24,7 +24,9 @@ shortestpath://shortestpath.shortestpath-oj/wake
 
 Imported statements appear beside the editor and samples are forwarded to CPH
 Plus. The problem cache and CPH-created source path mapping are stored in the
-current workspace at `.shortestpath/oj-problems.json`. The extension never
+current workspace as one `.shortestpath/<problem-ref>.json` file per problem
+(for example, `.shortestpath/ACOMB.found.A.json`). Legacy aggregate caches are
+automatically migrated when first read. The extension never
 replays website operations after a disconnect; reconnect from the problem page.
 
 [中文](README_cn.md)

@@ -78,6 +78,28 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 	let timerTimeout: ReturnType<typeof setTimeout> | undefined;
 	let submitConfirmationTimer: ReturnType<typeof setTimeout> | undefined;
 	let operationNoticeRemovalTimer: number | undefined;
+	let compatibilityWarningDismissTimer: ReturnType<typeof setTimeout> | undefined;
+	const dismissCompatibilityWarning = (): void => {
+		const warning = document.querySelector<HTMLElement>('#oj-compatibility-warning .compatibility-warning');
+		if (!warning || warning.classList.contains('leaving')) {
+			return;
+		}
+		if (compatibilityWarningDismissTimer !== undefined) {
+			clearTimeout(compatibilityWarningDismissTimer);
+			compatibilityWarningDismissTimer = undefined;
+		}
+		warning.classList.add('leaving');
+		const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180;
+		setTimeout(() => vscode.postMessage({ command: 'dismissCompatibilityWarning' }), delay);
+	};
+	const scheduleCompatibilityWarningDismissal = (): void => {
+		if (compatibilityWarningDismissTimer !== undefined) {
+			clearTimeout(compatibilityWarningDismissTimer);
+		}
+		if (document.querySelector('#oj-compatibility-warning .compatibility-warning')) {
+			compatibilityWarningDismissTimer = setTimeout(dismissCompatibilityWarning, 60_000);
+		}
+	};
 	const resetSubmitConfirmation = (button: HTMLButtonElement): void => {
 		if (submitConfirmationTimer) {
 			clearTimeout(submitConfirmationTimer);
@@ -449,6 +471,10 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			return;
 		}
 		const command = button.dataset.command;
+		if (command === 'dismissCompatibilityWarning') {
+			dismissCompatibilityWarning();
+			return;
+		}
 		if (command === 'submit') {
 			if (button.dataset.armed !== 'true') {
 				button.classList.add('armed');
@@ -773,6 +799,11 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 				// Hint state is synchronized frequently for countdown and access updates.
 				// Replacing it directly avoids replaying a height animation on every sync.
 				updateSection();
+			} else if (id === 'oj-compatibility-warning') {
+				// The warning has its own entrance animation. Avoid the generic height
+				// transition so reduced-motion users do not receive a second animation.
+				updateSection();
+				scheduleCompatibilityWarningDismissal();
 			} else if (submissionHeights) {
 				updateSection();
 				animateSubmissionResize(section, submissionHeights);
@@ -797,6 +828,8 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			}
 		}
 	});
+
+	scheduleCompatibilityWarningDismissal();
 
 	vscode.postMessage({ command: 'ready' });
 })();

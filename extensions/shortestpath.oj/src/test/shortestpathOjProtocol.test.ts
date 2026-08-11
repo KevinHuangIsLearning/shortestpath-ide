@@ -16,6 +16,8 @@ import {
 	parseProblemBindData,
 	parseProblemStateSyncData,
 	ProtocolValidationError,
+	restoreCachedProblemCompatibilityWarnings,
+	type ImportedProblem,
 } from '../shortestpathOjProtocol';
 import { bindPayload, statePayload } from './fixtures';
 
@@ -42,6 +44,56 @@ test('parses the official problem.bind data model', () => {
 			language: { id: 'cpp20', name: 'cpp20', compileArgs: 'g++ -std=gnu++20' },
 			stressRounds: 120,
 		},
+	);
+});
+
+test('shows a complete problem when auxiliary website data is incompatible', () => {
+	const problem = parseProblemBindData({
+		...bindPayload,
+		state: { invalid: true },
+		capabilities: { ...bindPayload.capabilities, stress: undefined },
+	});
+	assert.deepStrictEqual(
+		{
+			title: problem.title,
+			description: problem.statement.description?.content,
+			timerMode: problem.state.timer.mode,
+			submissionEnabled: problem.capabilities.submission.enabled,
+			stressSupported: problem.capabilities.stress.supported,
+			warnings: problem.compatibilityWarnings,
+		},
+		{
+			title: '并查集入门',
+			description: '# 题目\n\n求答案。',
+			timerMode: 'untimed',
+			submissionEnabled: true,
+			stressSupported: false,
+			warnings: [
+				'网页提供的题目状态不兼容，已关闭计时、提示和题解等辅助功能。',
+				'网页未提供对拍功能，提交等其他功能仍可使用。',
+			],
+		},
+	);
+});
+
+test('restores compatibility warnings for cached problems from earlier versions', () => {
+	const currentCachedProblem = parseProblemBindData(bindPayload);
+	assert.strictEqual(restoreCachedProblemCompatibilityWarnings(currentCachedProblem), currentCachedProblem);
+	const oldCachedProblem = currentCachedProblem as ImportedProblem;
+	delete (oldCachedProblem as Partial<ImportedProblem>).compatibilityWarnings;
+	assert.deepStrictEqual(restoreCachedProblemCompatibilityWarnings(oldCachedProblem).compatibilityWarnings, []);
+});
+
+test('disables state-dependent actions when only the website state is incompatible', () => {
+	const problem = parseProblemBindData({ ...bindPayload, state: { invalid: true } });
+	assert.deepStrictEqual(
+		{
+			hintAnswer: problem.capabilities.hintAnswer,
+			hintLike: problem.capabilities.hintLike,
+			editorial: problem.capabilities.editorial,
+			submission: problem.capabilities.submission.enabled,
+		},
+		{ hintAnswer: false, hintLike: false, editorial: false, submission: true },
 	);
 });
 
@@ -222,15 +274,16 @@ test('accepts unavailable final details and open-required hint answers', () => {
 	);
 });
 
-test('rejects unsupported problem URLs and duplicate hint ids', () => {
+test('rejects malformed core problem identifiers but degrades invalid auxiliary state', () => {
 	assert.throws(() => parseProblemBindData({
 		...bindPayload,
 		problem: { ...bindPayload.problem, url: 'https://www.shortestpath.cn/problem/DSU/found/A' },
 	}), /problem\.url/);
-	assert.throws(() => parseProblemBindData({
+	const duplicateHints = parseProblemBindData({
 		...bindPayload,
 		state: { ...statePayload, hints: [statePayload.hints[0], statePayload.hints[0]] },
-	}), /不能重复/);
+	});
+	assert.deepStrictEqual(duplicateHints.compatibilityWarnings, ['网页提供的题目状态不兼容，已关闭计时、提示和题解等辅助功能。']);
 	assert.throws(() => parseProblemBindData({
 		...bindPayload,
 		problem: { ...bindPayload.problem, ref: '__proto__' },
