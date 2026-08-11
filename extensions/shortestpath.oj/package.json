@@ -27,7 +27,6 @@
 		"onUri",
 		"onCommand:shortestpath.oj.openIntegratedBrowser",
 		"onCommand:shortestpath.oj.openIntegratedBrowserDirect",
-		"onCommand:shortestpath.oj.openControlPanel",
 		"onCommand:shortestpath.oj.showProblemForCph",
 		"onCommand:shortestpath.oj.submitProblem"
 	],
@@ -69,10 +68,6 @@
 			{
 				"command": "shortestpath.oj.showProblem",
 				"title": "%command.showProblem%"
-			},
-			{
-				"command": "shortestpath.oj.openControlPanel",
-				"title": "%command.openControlPanel%"
 			},
 			{
 				"command": "shortestpath.oj.openIntegratedBrowserDirect",

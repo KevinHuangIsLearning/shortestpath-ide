@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { describeJudgeType } from '../judgeDisplay';
+import { describeJudgeType, describeSubmissionStage, describeSubmissionStatus } from '../judgeDisplay';
 
 suite('ShortestPath OJ judge type display', () => {
 	test('does not label normal token checkers as special judge', () => {
@@ -24,5 +24,26 @@ suite('ShortestPath OJ judge type display', () => {
 
 	test('prefers Float Judge when an unknown checker carries an epsilon', () => {
 		assert.equal(describeJudgeType('custom', 1e-3), 'Float Judge');
+	});
+
+	test('does not show waiting after a submission has finished without a stage', () => {
+		assert.equal(describeSubmissionStage(undefined, undefined), 'waiting');
+		assert.equal(describeSubmissionStage(undefined, 'complete'), undefined);
+		assert.equal(describeSubmissionStage('   ', 'unavailable'), undefined);
+		assert.equal(describeSubmissionStage('compile', 'complete'), 'compile');
+	});
+
+	test('maps common submission results to display colors', () => {
+		assert.equal(describeSubmissionStatus('AC'), 'accepted');
+		assert.equal(describeSubmissionStatus('Accepted'), 'accepted');
+		assert.equal(describeSubmissionStatus('CE'), 'compilation-error');
+		assert.equal(describeSubmissionStatus('Compile Error'), 'compilation-error');
+		assert.equal(describeSubmissionStatus('WA'), 'wrong-answer');
+		assert.equal(describeSubmissionStatus('Wrong Answer'), 'wrong-answer');
+		assert.equal(describeSubmissionStatus('RE'), 'runtime-error');
+		assert.equal(describeSubmissionStatus('Runtime Error'), 'runtime-error');
+		assert.equal(describeSubmissionStatus('TLE'), 'time-limit-exceeded');
+		assert.equal(describeSubmissionStatus('Time Limit Exceeded'), 'time-limit-exceeded');
+		assert.equal(describeSubmissionStatus('Memory Limit Exceeded'), 'failed');
 	});
 });

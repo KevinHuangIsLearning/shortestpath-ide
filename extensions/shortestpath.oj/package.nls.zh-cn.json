@@ -6,7 +6,6 @@
 	"configuration.cppSubmissionLanguage": "ShortestPath OJ 提交使用的默认 C++ 语言。选择“每次询问”会在每次 C++ 提交前提示。",
 	"command.openIntegratedBrowser": "ShortestPath OJ：打开",
 	"command.showProblem": "ShortestPath OJ：显示题目",
-	"command.openControlPanel": "ShortestPath OJ：打开账号面板",
 	"command.openIntegratedBrowserDirect": "ShortestPath OJ：在集成浏览器中直接登录",
 	"configuration.antiFraudReminder": "打开题目时显示防诈骗提醒。"
 }
