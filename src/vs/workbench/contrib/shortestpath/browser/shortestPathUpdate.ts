@@ -52,6 +52,19 @@ export function parseShortestPathUpdateGraceState(value: unknown, version: strin
 	return graceCount >= 1 && typeof state.graceUntil === 'number' && Number.isFinite(state.graceUntil) ? state as IShortestPathUpdateGraceState : undefined;
 }
 
+export function isShortestPathUpdateGraceStateForMinimumVersion(state: IShortestPathUpdateGraceState | undefined, minimumSupportedVersion: string | undefined): boolean {
+	return state?.minimumSupportedVersion === minimumSupportedVersion;
+}
+
+export function getShortestPathUpdateGraceStateForMinimumVersion(value: unknown, version: string, minimumSupportedVersion: string | undefined, clear: () => void): IShortestPathUpdateGraceState | undefined {
+	const state = parseShortestPathUpdateGraceState(value, version);
+	if (state && !isShortestPathUpdateGraceStateForMinimumVersion(state, minimumSupportedVersion)) {
+		clear();
+		return undefined;
+	}
+	return state;
+}
+
 export function parseShortestPathWindowsInstallMode(value: string): 'user' | 'system' | undefined {
 	const installMode = value.trim();
 	return installMode === 'user' || installMode === 'system' ? installMode : undefined;
