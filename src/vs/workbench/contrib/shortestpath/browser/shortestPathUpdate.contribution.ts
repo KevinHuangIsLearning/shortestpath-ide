@@ -30,7 +30,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { getShortestPathReleaseNotesUrl, getShortestPathUpdateTarget, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
+import { getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
 
 interface IShortestPathUpdateCheckResult {
 	readonly release: IShortestPathUpdate;
@@ -50,6 +50,10 @@ interface IShortestPathReleaseNotesClaim {
 
 function getShortestPathUpdateGraceState(storageService: IStorageService, version: string): IShortestPathUpdateGraceState | undefined {
 	return parseShortestPathUpdateGraceState(storageService.getObject(UPDATE_GRACE_STORAGE_KEY, StorageScope.APPLICATION), version);
+}
+
+function getShortestPathUpdateGraceStateForCurrentMinimumVersion(storageService: IStorageService, version: string, minimumSupportedVersion: string | undefined): IShortestPathUpdateGraceState | undefined {
+	return getShortestPathUpdateGraceStateForMinimumVersion(storageService.getObject(UPDATE_GRACE_STORAGE_KEY, StorageScope.APPLICATION), version, minimumSupportedVersion, () => storageService.remove(UPDATE_GRACE_STORAGE_KEY, StorageScope.APPLICATION));
 }
 
 class ShortestPathUpdateChecker {
@@ -300,12 +304,12 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 				this.checkScheduler.schedule(ShortestPathUpdateContribution.RETRY_INTERVAL);
 				return;
 			}
+			const graceState = this.productService.shortestPathVersion ? getShortestPathUpdateGraceStateForCurrentMinimumVersion(this.storageService, this.productService.shortestPathVersion, result.release.minimumSupportedVersion) : undefined;
 			if (!result.release.minimumSupportedVersion || result.target?.allowsMinimumVersionLock === false || !this.productService.shortestPathVersion || isShortestPathVersionSupported(this.productService.shortestPathVersion, result.release.minimumSupportedVersion)) {
 				this.clearInactiveGrace();
 				return;
 			}
 
-			const graceState = getShortestPathUpdateGraceState(this.storageService, this.productService.shortestPathVersion);
 			if (graceState?.permanentlyAllowed) {
 				this.unlockAfterFailedCheck();
 				return;
@@ -513,8 +517,8 @@ registerAction2(class extends Action2 {
 				ShortestPathUpdateBlocker.dismiss();
 				return;
 			}
+			const graceState = productService.shortestPathVersion ? getShortestPathUpdateGraceStateForCurrentMinimumVersion(storageService, productService.shortestPathVersion, result.release.minimumSupportedVersion) : undefined;
 			if (result.release.minimumSupportedVersion && result.target?.allowsMinimumVersionLock !== false && productService.shortestPathVersion && !isShortestPathVersionSupported(productService.shortestPathVersion, result.release.minimumSupportedVersion)) {
-				const graceState = getShortestPathUpdateGraceState(storageService, productService.shortestPathVersion);
 				if (graceState?.permanentlyAllowed || (graceState?.graceUntil && graceState.graceUntil > Date.now())) {
 					return;
 				}

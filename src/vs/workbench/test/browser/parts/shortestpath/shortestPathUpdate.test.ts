@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getShortestPathReleaseNotesUrl, getShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
+import { getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathUpdateGraceStateForMinimumVersion, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
 
 suite('ShortestPath update check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -100,6 +100,35 @@ suite('ShortestPath update check', () => {
 		assert.deepStrictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 2, graceUntil: undefined, permanentlyAllowed: true }, '0.2.0'), { ...grace, graceCount: 2, graceUntil: undefined, permanentlyAllowed: true });
 		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 1, graceUntil: undefined, permanentlyAllowed: true }, '0.2.0'), undefined);
 		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, permanentlyAllowed: true }, '0.2.0'), undefined);
+	});
+
+	test('binds persisted grace state to its minimum supported version', () => {
+		const grace = parseShortestPathUpdateGraceState({
+			version: '0.2.0',
+			minimumSupportedVersion: '0.2.1',
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip',
+			graceCount: 2,
+			permanentlyAllowed: true,
+		}, '0.2.0');
+
+		assert.strictEqual(isShortestPathUpdateGraceStateForMinimumVersion(grace, '0.2.1'), true);
+		assert.strictEqual(isShortestPathUpdateGraceStateForMinimumVersion(grace, '0.2.2'), false);
+		assert.strictEqual(isShortestPathUpdateGraceStateForMinimumVersion(grace, undefined), false);
+	});
+
+	test('clears temporary and permanent grace when the minimum version changes', () => {
+		for (const state of [
+			{ version: '0.2.0', minimumSupportedVersion: '0.2.2', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip', graceCount: 1, graceUntil: 123 },
+			{ version: '0.2.0', minimumSupportedVersion: '0.2.2', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip', graceCount: 2, permanentlyAllowed: true },
+		]) {
+			let stored: unknown = state;
+			assert.strictEqual(getShortestPathUpdateGraceStateForMinimumVersion(stored, '0.2.0', '0.2.1', () => stored = undefined), undefined);
+			assert.strictEqual(stored, undefined);
+
+			stored = state;
+			assert.strictEqual(getShortestPathUpdateGraceStateForMinimumVersion(stored, '0.2.0', undefined, () => stored = undefined), undefined);
+			assert.strictEqual(stored, undefined);
+		}
 	});
 
 });
