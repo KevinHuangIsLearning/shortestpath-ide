@@ -112,6 +112,7 @@ export type ImportedProblem = {
 	};
 	state: ProblemState;
 	capabilities: ProblemCapabilities;
+	compatibilityWarnings: string[];
 };
 
 export type WebsiteError = {
@@ -304,11 +305,45 @@ export function parseMessage(value: unknown): ProtocolRequest | ProtocolResponse
 export function parseProblemBindData(value: unknown): ImportedProblem {
 	const data = record(value, 'problem.bind.data 无效。');
 	const problem = parseProblem(data.problem);
+	const compatibilityWarnings: string[] = [];
+	let stateIncompatible = false;
+	let state: ProblemState;
+	let capabilities: ProblemCapabilities;
+	try {
+		state = parseProblemState(data.state);
+	} catch {
+		state = unavailableProblemState();
+		stateIncompatible = true;
+		compatibilityWarnings.push('网页提供的题目状态不兼容，已关闭计时、提示和题解等辅助功能。');
+	}
+	try {
+		capabilities = parseCapabilities(data.capabilities);
+		if (isStressCapabilityUnavailable(data.capabilities)) {
+			compatibilityWarnings.push('网页未提供对拍功能，提交等其他功能仍可使用。');
+		}
+	} catch {
+		capabilities = unavailableProblemCapabilities();
+		compatibilityWarnings.push('网页提供的功能信息不兼容，已关闭提交、对拍等增强功能。');
+	}
+	if (stateIncompatible) {
+		capabilities = disableStateDependentCapabilities(capabilities);
+	}
 	return {
 		...problem,
-		state: parseProblemState(data.state),
-		capabilities: parseCapabilities(data.capabilities),
+		state,
+		capabilities,
+		compatibilityWarnings,
 	};
+}
+
+export function restoreCachedProblemCompatibilityWarnings(problem: ImportedProblem): ImportedProblem {
+	if (Array.isArray(problem.compatibilityWarnings) && problem.compatibilityWarnings.every(warning => typeof warning === 'string')) {
+		return problem;
+	}
+	const warnings = Array.isArray(problem.compatibilityWarnings)
+		? problem.compatibilityWarnings.filter((warning): warning is string => typeof warning === 'string')
+		: [];
+	return { ...problem, compatibilityWarnings: warnings };
 }
 
 export function parseProblemStateSyncData(value: unknown): ProblemState {
@@ -535,7 +570,7 @@ export class ProtocolValidationError extends Error {
 	}
 }
 
-function parseProblem(value: unknown): Omit<ImportedProblem, 'state' | 'capabilities'> {
+function parseProblem(value: unknown): Omit<ImportedProblem, 'state' | 'capabilities' | 'compatibilityWarnings'> {
 	const problem = record(value, 'problem 无效。');
 	const url = nonEmptyString(problem.url, 'problem.url');
 	if (!shortestPathProblemUrl.test(url)) {
@@ -642,6 +677,58 @@ function parseProblemState(value: unknown): ProblemState {
 	};
 }
 
+function unavailableProblemState(): ProblemState {
+	return {
+		timer: { mode: 'untimed', running: false, accepted: false, elapsedMs: 0, capturedAtUnixMs: 0 },
+		progress: { status: 'unknown', bestScore: 0, submitCount: 0 },
+		hints: [],
+		editorial: { remainingMs: 0, preAcViewed: false, requiresConfirmation: false, confirmationMessage: '' },
+	};
+}
+
+function unavailableProblemCapabilities(): ProblemCapabilities {
+	return {
+		hintAnswer: false,
+		hintLike: false,
+		editorial: false,
+		submission: {
+			enabled: false,
+			progressPush: false,
+			progressMode: 'unavailable',
+			compileErrorPush: false,
+			compileInfo: 'unavailable',
+			finalResultPush: false,
+			watchExisting: false,
+			languages: [],
+		},
+		stress: {
+			supported: false,
+			mode: 'unavailable',
+			contextRequired: false,
+			defaultRounds: 1,
+			progressPush: false,
+			progressMode: 'unavailable',
+			roundProgress: 'unavailable',
+			nominalPollIntervalMs: 1,
+			finalResultPush: false,
+		},
+	};
+}
+
+function disableStateDependentCapabilities(capabilities: ProblemCapabilities): ProblemCapabilities {
+	return {
+		...capabilities,
+		hintAnswer: false,
+		hintLike: false,
+		editorial: false,
+	};
+}
+
+function isStressCapabilityUnavailable(value: unknown): boolean {
+	return typeof value === 'object' && value !== null && !Array.isArray(value)
+		&& ((value as Record<string, unknown>).stress === undefined || (value as Record<string, unknown>).stress === null);
+}
+
 function problemRefSegmentsFromUrl(url: string): string[] {
 	try {
 		return new URL(url).pathname.split('/').slice(2).map(segment => decodeURIComponent(segment));
@@ -653,7 +740,9 @@ function problemRefSegmentsFromUrl(url: string): string[] {
 function parseCapabilities(value: unknown): ProblemCapabilities {
 	const capabilities = record(value, 'capabilities 无效。');
 	const submission = record(capabilities.submission, 'capabilities.submission');
-	const stress = record(capabilities.stress, 'capabilities.stress');
+	const stress = capabilities.stress === undefined || capabilities.stress === null
+		? undefined
+		: record(capabilities.stress, 'capabilities.stress');
 	const languages = array(submission.languages, 'capabilities.submission.languages').map((value, index) => {
 		const language = record(value, `capabilities.submission.languages[${index}]`);
 		return {
@@ -677,7 +766,7 @@ function parseCapabilities(value: unknown): ProblemCapabilities {
 			watchExisting: booleanValue(submission.watchExisting, 'capabilities.submission.watchExisting'),
 			languages,
 		},
-		stress: {
+		stress: stress ? {
 			supported: booleanValue(stress.supported, 'capabilities.stress.supported'),
 			mode: nonEmptyString(stress.mode, 'capabilities.stress.mode'),
 			contextRequired: booleanValue(stress.contextRequired, 'capabilities.stress.contextRequired'),
@@ -687,7 +776,7 @@ function parseCapabilities(value: unknown): ProblemCapabilities {
 			roundProgress: nonEmptyString(stress.roundProgress, 'capabilities.stress.roundProgress'),
 			nominalPollIntervalMs: positiveInteger(stress.nominalPollIntervalMs, 'capabilities.stress.nominalPollIntervalMs'),
 			finalResultPush: booleanValue(stress.finalResultPush, 'capabilities.stress.finalResultPush'),
-		},
+		} : unavailableProblemCapabilities().stress,
 	};
 }
 

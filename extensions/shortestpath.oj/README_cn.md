@@ -21,7 +21,8 @@ shortestpath://shortestpath.shortestpath-oj/wake
 ```
 
 导入后的题面显示在 IDE 右侧，样例交给 CPH Plus。题目缓存与 CPH Plus 创建的源文件映射
-保存在当前工作区的 `.shortestpath/oj-problems.json`。断线后扩展不会自动重放网站操作；
+按题目分别保存在当前工作区的 `.shortestpath/<题目路径>.json`（例如
+`.shortestpath/ACOMB.found.A.json`）。旧版汇总缓存会在首次读取时自动迁移。断线后扩展不会自动重放网站操作；
 请回到题目网页重新点击“在 ShortestPath IDE 中打开”。
 
 [English](README.md)

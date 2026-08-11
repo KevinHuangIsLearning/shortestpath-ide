@@ -70,6 +70,7 @@ type PendingRequest = {
 };
 
 type BridgeConnection = {
+	id: number;
 	socket: WebSocket;
 	pending: Map<string, PendingRequest>;
 	queue: Promise<void>;
@@ -95,8 +96,10 @@ export class ShortestPathOjLocalBridge {
 	private readonly server: WebSocketServer;
 	private readonly connections = new Set<BridgeConnection>();
 	private readonly longRunningRequestListeners = new Set<(problemRef: string, active: boolean) => void>();
+	private readonly traceListeners = new Set<(message: string) => void>();
 	private activeSession: InternalActiveSession | undefined;
 	private bindQueue = Promise.resolve();
+	private nextConnectionId = 1;
 
 	constructor(
 		private readonly handlers: LocalBridgeHandlers,
@@ -127,6 +130,11 @@ export class ShortestPathOjLocalBridge {
 	onLongRunningRequest(listener: (problemRef: string, active: boolean) => void): { dispose(): void } {
 		this.longRunningRequestListeners.add(listener);
 		return { dispose: () => this.longRunningRequestListeners.delete(listener) };
+	}
+
+	onTrace(listener: (message: string) => void): { dispose(): void } {
+		this.traceListeners.add(listener);
+		return { dispose: () => this.traceListeners.delete(listener) };
 	}
 
 	getActiveSession(): ActiveSession | undefined {
@@ -242,8 +250,9 @@ export class ShortestPathOjLocalBridge {
 	}
 
 	private accept(socket: WebSocket): void {
-		const connection: BridgeConnection = { socket, pending: new Map(), queue: Promise.resolve() };
+		const connection: BridgeConnection = { id: this.nextConnectionId++, socket, pending: new Map(), queue: Promise.resolve() };
 		this.connections.add(connection);
+		this.trace(`Connection #${connection.id} opened.`);
 		socket.on('message', (data, isBinary) => {
 			if (isBinary) {
 				this.closeInvalidFrame(connection);
@@ -253,8 +262,14 @@ export class ShortestPathOjLocalBridge {
 				.then(() => this.handleRawMessage(connection, data))
 				.catch(error => this.logUnhandledError(connection, error));
 		});
-		socket.on('close', () => this.removeConnection(connection));
-		socket.on('error', () => this.removeConnection(connection));
+		socket.on('close', (code, reason) => {
+			this.trace(`Connection #${connection.id} closed (code ${code}, reason ${reason.toString() || 'none'}).`);
+			this.removeConnection(connection);
+		});
+		socket.on('error', error => {
+			this.trace(`Connection #${connection.id} errored: ${error.message}`);
+			this.removeConnection(connection);
+		});
 	}
 
 	private async handleRawMessage(connection: BridgeConnection, rawData: RawData): Promise<void> {
@@ -281,9 +296,11 @@ export class ShortestPathOjLocalBridge {
 			return;
 		}
 		if (isProtocolResponse(message)) {
+			this.trace(`Connection #${connection.id} received response ${message.type}.`);
 			this.resolveResponse(connection, message);
 			return;
 		}
+		this.trace(`Connection #${connection.id} received ${message.type}.`);
 		if (message.type === 'problem.bind') {
 			this.bindQueue = this.bindQueue
 				.catch(() => undefined)
@@ -314,15 +331,18 @@ export class ShortestPathOjLocalBridge {
 		try {
 			problem = parseProblemBindData(request.data);
 		} catch (error) {
+			this.trace(`Connection #${connection.id} rejected problem.bind: ${errorMessage(error)}`);
 			this.sendProtocolFailure(connection, request, 'problem.bind.result', error);
 			return;
 		}
+		this.trace(`Connection #${connection.id} binding ${problem.ref}.`);
 		const current = this.activeSession;
 		const reactivated = current?.connection === connection && current.problemRef === problem.ref;
 		let action: ImportAction;
 		try {
 			action = await this.runImport(problem);
 		} catch (error) {
+			this.trace(`Connection #${connection.id} failed to import ${problem.ref}: ${errorMessage(error)}`);
 			this.sendFailure(connection, request.id, 'problem.bind.result', undefined, 'request_failed', errorMessage(error));
 			return;
 		}
@@ -336,6 +356,7 @@ export class ShortestPathOjLocalBridge {
 			return;
 		}
 		this.activeSession = next;
+		this.trace(`Connection #${connection.id} bound ${problem.ref} (${reactivated ? 'reactivated' : action}).`);
 		this.sendSuccess(connection, request.id, 'problem.bind.result', sessionId, {
 			active: true,
 			action: reactivated ? 'reactivated' : action,
@@ -546,6 +567,12 @@ export class ShortestPathOjLocalBridge {
 	private fireLongRunningRequest(problemRef: string, active: boolean): void {
 		for (const listener of this.longRunningRequestListeners) {
 			listener(problemRef, active);
+		}
+	}
+
+	private trace(message: string): void {
+		for (const listener of this.traceListeners) {
+			listener(message);
 		}
 	}
 

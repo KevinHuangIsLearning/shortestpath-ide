@@ -15,6 +15,8 @@ import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSou
 import { ImportAction, OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
 import { mergeSubmissionHistory, sanitizeSubmissionHistoryEntry, SubmissionHistoryEntry, toSubmissionHistoryEntry } from './submissionHistory';
 import { formatElapsedTimer } from './timerDisplay';
+import { assertUniqueWorkspaceProblemRecordFileNames, getWorkspaceProblemRecordFileName } from './workspaceProblemCache';
+import { migrateLegacyWorkspaceCache } from './workspaceProblemCacheMigration';
 import {
 	applyEditorialLikeResult,
 	applyEditorialLockRemaining,
@@ -34,14 +36,17 @@ import {
 	StressTask,
 	SubmissionLanguage,
 	SubmissionSnapshot,
+	restoreCachedProblemCompatibilityWarnings,
 	bridgePort,
 } from './shortestpathOjProtocol';
 
 const workspaceCacheDirectoryName = '.shortestpath';
-const workspaceCacheFileName = 'oj-problems.json';
+const legacyWorkspaceCacheFileName = 'oj-problems.json';
+const workspaceProblemRecordVersion = 1;
 const workspaceFolderRequiredMessage = '请先在 ShortestPath IDE 中打开一个文件夹，再从网站导入题目。';
 const workspaceCachesNeedingRewrite = new WeakSet<WorkspaceProblemCache>();
 let workspaceCacheMutationTail = Promise.resolve();
+let workspaceCacheMigration: Promise<void> | undefined;
 
 type WorkspaceProblemCache = {
 	version: 4;
@@ -54,8 +59,19 @@ type CphImportResult = { succeeded: boolean; sourcePath?: string };
 
 type CachedWorkspaceProblemCache = Omit<Partial<WorkspaceProblemCache>, 'version'> & { version?: 3 | 4 };
 
+type WorkspaceProblemRecord = {
+	version: typeof workspaceProblemRecordVersion;
+	problem: ImportedProblem;
+	sourcePath?: string;
+	submissions: SubmissionHistoryEntry[];
+};
+
 function isWrongAnswerStatus(status: string): boolean {
 	return status === 'WA' || status === 'Wrong Answer' || /\bWA\b/i.test(status);
+}
+
+function hasIncompatibleProblemState(problem: ImportedProblem): boolean {
+	return problem.compatibilityWarnings.some(warning => warning.includes('题目状态不兼容'));
 }
 
 let renderProblemMarkdown: ProblemMarkdownRenderer = (content) => {
@@ -99,6 +115,7 @@ type SubmissionAttempt = {
 
 type ProblemPanelState = {
 	problem: ImportedProblem;
+	compatibilityWarningDismissed: boolean;
 	connected: boolean;
 	statusMessage: string;
 	answers: Map<string, MarkdownContent>;
@@ -175,6 +192,7 @@ class ShortestPathOjProblemPanel {
 			}
 			this.state = {
 				problem,
+				compatibilityWarningDismissed: false,
 				connected,
 				statusMessage: connected ? '已连接题目网页。' : '等待用户从网站重新发送题目。',
 				answers,
@@ -241,6 +259,9 @@ class ShortestPathOjProblemPanel {
 
 	updateProblemState(problemRef: string, state: ProblemState): void {
 		if (!this.state || this.state.problem.ref !== problemRef) {
+			return;
+		}
+		if (hasIncompatibleProblemState(this.state.problem)) {
 			return;
 		}
 		this.state.problem = applyProblemState(this.state.problem, state);
@@ -500,12 +521,16 @@ class ShortestPathOjProblemPanel {
 			}
 			const value = message as { command?: unknown; hintId?: unknown; target?: unknown; liked?: unknown };
 			if (value.command === 'like' && typeof value.hintId === 'string' && (value.target === 'question' || value.target === 'answer') && typeof value.liked === 'boolean') {
-				const result = await this.actions.like(this.state.problem, value.hintId, value.target, value.liked);
-				this.state.problem = applyLikeResult(this.state.problem, result);
-				if (this.state.editorial) {
-					this.state.editorial = applyEditorialLikeResult(this.state.editorial, result);
+				try {
+					const result = await this.actions.like(this.state.problem, value.hintId, value.target, value.liked);
+					this.state.problem = applyLikeResult(this.state.problem, result);
+					if (this.state.editorial) {
+						this.state.editorial = applyEditorialLikeResult(this.state.editorial, result);
+					}
+					this.refreshEditorialLike(value.hintId);
+				} catch (error) {
+					console.error('Failed to update ShortestPath OJ editorial like.', error);
 				}
-				this.refreshEditorialLike(value.hintId);
 			}
 		});
 		panel.webview.html = getEditorialPanelHtml(editorial, problem, panel.webview, this.extensionUri);
@@ -618,6 +643,10 @@ class ShortestPathOjProblemPanel {
 				case 'ready':
 					this.webviewReady = true;
 					this.flushPendingUpdate();
+					return;
+				case 'dismissCompatibilityWarning':
+					state.compatibilityWarningDismissed = true;
+					this.render();
 					return;
 				case 'reportProblemPanelResized':
 					// The user resized the split between the code editor and the
@@ -737,9 +766,6 @@ class ShortestPathOjProblemPanel {
 							}
 						}
 					}
-					if (!state.stressContext.eligibleSubmissions.some(submission => submission.submissionId === value.submissionId)) {
-						throw new Error('该提交当前不可用于对拍。');
-					}
 					if (this.unknownStressStarts.has(state.problem.ref)) {
 						const choice = await this.confirm('上一次对拍启动结果未知。再次发起可能创建另一个任务，是否继续？', '继续', '取消');
 						if (!choice) {
@@ -793,9 +819,9 @@ class ShortestPathOjProblemPanel {
 				this.unknownStressStarts.add(state.problem.ref);
 			}
 			const message = error instanceof Error ? error.message : String(error);
+			this.showOperationToast(message);
 			if (value.command === 'submit') {
 				state.statusMessage = state.connected ? '已连接题目网页。' : '等待用户从网站重新发送题目。';
-				this.showOperationToast(message);
 			}
 			if ((value.command === 'answer' || value.command === 'openHintModal') && typeof value.hintId === 'string') {
 				state.hintMessages.set(value.hintId, message);
@@ -897,15 +923,13 @@ class ShortestPathOjProblemPanel {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	const activationStartedAt = Date.now();
 	const output = vscode.window.createOutputChannel('ShortestPath OJ');
+	const log = (message: string) => output.appendLine(`[+${Date.now() - activationStartedAt}ms] ${message}`);
 	context.subscriptions.push(output);
+	log('Activating extension.');
 	const template = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(context.extensionUri, 'resources', 'problemView.html')));
-	renderProblemMarkdown = await createProblemMarkdownRenderer(getShikiTheme);
-	context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => {
-		markdownContentCache = new WeakMap();
-		panel.refreshEditorial();
-		panel.reveal();
-	}));
+	log('Problem view template loaded.');
 	// The action closures are created before their bridge and panel dependencies are assigned.
 	// eslint-disable-next-line prefer-const
 	let bridge: ShortestPathOjLocalBridge;
@@ -942,6 +966,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			cache.submissions[problem.ref] = mergeSubmissionHistory(cache.submissions[problem.ref] ?? [], submission);
 		}, true),
 	}, unknownStressStarts);
+	// Loading Shiki can take long enough for the page's first WebSocket connection after a
+	// wake URI to fail. Start the local bridge first and upgrade the renderer when ready.
+	void createProblemMarkdownRenderer(getShikiTheme).then(renderer => {
+		renderProblemMarkdown = renderer;
+		markdownContentCache = new WeakMap();
+		panel.refreshEditorial();
+		panel.reveal();
+		log('Problem Markdown renderer initialized.');
+	}).catch(error => log(`Failed to initialize problem Markdown renderer: ${error instanceof Error ? error.message : String(error)}`));
+	context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => {
+		markdownContentCache = new WeakMap();
+		panel.refreshEditorial();
+		panel.reveal();
+	}));
 	bridge = new ShortestPathOjLocalBridge({
 		async importProblem(problem, signal) {
 			signal.throwIfAborted();
@@ -971,14 +1009,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			panel.showProblem(problem, true, sourcePath, true);
 		},
 		async updateProblemState(problemRef, state) {
-			await mutateWorkspaceProblemCache(cache => {
+			const applied = await mutateWorkspaceProblemCache(cache => {
 				const problem = cache.problems[problemRef];
 				if (!problem) {
 					throw new Error('当前连接尚未导入题目。');
 				}
+				if (hasIncompatibleProblemState(problem)) {
+					return false;
+				}
 				cache.problems[problemRef] = applyProblemState(problem, state);
-			}, true);
-			panel.updateProblemState(problemRef, state);
+				return true;
+			}, applied => applied);
+			if (applied) {
+				panel.updateProblemState(problemRef, state);
+			}
 		},
 		handleEvent(problemRef, event) {
 			panel.handleEvent(problemRef, event);
@@ -989,10 +1033,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}, bridgePort);
 	context.subscriptions.push(
 		bridge.onLongRunningRequest((problemRef, active) => panel.setLongRunningOperationNotice(problemRef, active)),
+		bridge.onTrace(log),
 	);
-	bridge.onListening(() => output.appendLine(`WebSocket bridge listening at ws://127.0.0.1:${bridgePort}/shortestpath-oj with shortestpath-oj-v1.`));
+	bridge.onListening(() => log(`WebSocket bridge listening at ws://127.0.0.1:${bridgePort}/shortestpath-oj with shortestpath-oj-v1.`));
 	bridge.onError(error => {
-		output.appendLine(`WebSocket bridge error: ${error.message}`);
+		log(`WebSocket bridge error: ${error.message}`);
 		if (isAddressInUseError(error)) {
 			void vscode.window.showErrorMessage(`ShortestPath OJ 集成无法启动：端口 ${bridgePort} 已被占用。请关闭占用该端口的程序后重启 ShortestPath IDE。`);
 		}
@@ -1002,7 +1047,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.window.registerUriHandler({
 		handleUri(uri) {
 			if (uri.authority === 'shortestpath.shortestpath-oj' && uri.path === '/wake') {
-				output.appendLine('Received ShortestPath OJ wake URI.');
+				log('Received ShortestPath OJ wake URI.');
 			}
 		},
 	}));
@@ -1052,8 +1097,12 @@ function getWorkspaceCacheDirectoryUri(): vscode.Uri {
 	return vscode.Uri.joinPath(workspaceFolder.uri, workspaceCacheDirectoryName);
 }
 
-function getWorkspaceCacheUri(): vscode.Uri {
-	return vscode.Uri.joinPath(getWorkspaceCacheDirectoryUri(), workspaceCacheFileName);
+function getLegacyWorkspaceCacheUri(): vscode.Uri {
+	return vscode.Uri.joinPath(getWorkspaceCacheDirectoryUri(), legacyWorkspaceCacheFileName);
+}
+
+function getWorkspaceProblemRecordUri(problemRef: string): vscode.Uri {
+	return vscode.Uri.joinPath(getWorkspaceCacheDirectoryUri(), getWorkspaceProblemRecordFileName(problemRef));
 }
 
 function createEmptyWorkspaceProblemCache(): WorkspaceProblemCache {
@@ -1066,20 +1115,134 @@ function createEmptyWorkspaceProblemCache(): WorkspaceProblemCache {
 }
 
 async function readWorkspaceProblemCache(): Promise<WorkspaceProblemCache> {
+	await ensureWorkspaceCacheMigration();
+	return readWorkspaceProblemCacheFiles();
+}
+
+async function ensureWorkspaceCacheMigration(): Promise<void> {
+	if (workspaceCacheMigration) {
+		await workspaceCacheMigration;
+		return;
+	}
+	const migration = (async () => {
+		await migrateLegacyWorkspaceCache({
+			readCurrent: readWorkspaceProblemCacheFiles,
+			readLegacy: async () => {
+				try {
+					return await readLegacyWorkspaceProblemCache();
+				} catch (error) {
+					console.warn(`Unable to migrate ${legacyWorkspaceCacheFileName}; leaving it unchanged.`, error);
+					return undefined;
+				}
+			},
+			merge: (cache, legacyCache) => {
+				for (const [problemRef, problem] of Object.entries(legacyCache.problems)) {
+					if (!cache.problems[problemRef]) {
+						cache.problems[problemRef] = problem;
+						if (legacyCache.sourcePaths[problemRef]) {
+							cache.sourcePaths[problemRef] = legacyCache.sourcePaths[problemRef];
+						}
+						cache.submissions[problemRef] = legacyCache.submissions[problemRef] ?? [];
+					}
+				}
+				return cache;
+			},
+			writeCurrent: writeWorkspaceProblemCache,
+			deleteLegacy: async () => {
+				try {
+					await vscode.workspace.fs.delete(getLegacyWorkspaceCacheUri(), { recursive: false, useTrash: false });
+				} catch (error) {
+					if (!(error instanceof vscode.FileSystemError) || error.code !== 'FileNotFound') {
+						throw error;
+					}
+				}
+			},
+		});
+	})();
+	workspaceCacheMigration = migration;
 	try {
-		const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(getWorkspaceCacheUri()));
-		if (!content.trim()) {
+		await migration;
+	} finally {
+		if (workspaceCacheMigration === migration) {
+			workspaceCacheMigration = undefined;
+		}
+	}
+}
+
+async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> {
+	try {
+		const cache = createEmptyWorkspaceProblemCache();
+		let needsRewrite = false;
+		const entries = await vscode.workspace.fs.readDirectory(getWorkspaceCacheDirectoryUri());
+		for (const [name, type] of entries) {
+			if (type !== vscode.FileType.File || name === legacyWorkspaceCacheFileName || !name.endsWith('.json')) {
+				continue;
+			}
+			try {
+				const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(getWorkspaceCacheDirectoryUri(), name)));
+				if (!content.trim()) {
+					continue;
+				}
+				const record = JSON.parse(content) as Partial<WorkspaceProblemRecord>;
+				if (record.version !== workspaceProblemRecordVersion || !record.problem || typeof record.problem !== 'object') {
+					continue;
+				}
+				const problem = restoreCachedProblemCompatibilityWarnings(record.problem as ImportedProblem);
+				if (name !== getWorkspaceProblemRecordUri(problem.ref).path.split('/').at(-1)) {
+					console.warn(`Ignoring ShortestPath OJ cache record with mismatched file name: ${name}`);
+					continue;
+				}
+				cache.problems[problem.ref] = problem;
+				if (typeof record.sourcePath === 'string') {
+					cache.sourcePaths[problem.ref] = record.sourcePath;
+				}
+				const submissions = sanitizeSubmissionHistory(record.submissions);
+				cache.submissions[problem.ref] = submissions.entries;
+				needsRewrite ||= problem !== record.problem || submissions.changed;
+			} catch (error) {
+				console.warn(`Ignoring unreadable ShortestPath OJ cache record: ${name}`, error);
+			}
+		}
+		if (needsRewrite) {
+			workspaceCachesNeedingRewrite.add(cache);
+		}
+		return cache;
+	} catch (error) {
+		if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
 			return createEmptyWorkspaceProblemCache();
 		}
+		throw error;
+	}
+}
+
+async function readLegacyWorkspaceProblemCache(): Promise<WorkspaceProblemCache | undefined> {
+	try {
+		const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(getLegacyWorkspaceCacheUri()));
+		if (!content.trim()) {
+			return undefined;
+		}
 		const value = JSON.parse(content) as CachedWorkspaceProblemCache;
+		if (value.version !== 3 && value.version !== 4) {
+			console.warn(`ShortestPath OJ cache ${legacyWorkspaceCacheFileName} has unsupported version and was left unchanged.`);
+			return undefined;
+		}
 		const problems = Object.create(null) as Record<string, ImportedProblem>;
 		const sourcePaths = Object.create(null) as Record<string, string>;
 		const submissions = Object.create(null) as Record<string, SubmissionHistoryEntry[]>;
 		let historyWasSanitized = false;
-		if ((value.version === 3 || value.version === 4) && value.problems && typeof value.problems === 'object') {
-			Object.assign(problems, value.problems);
+		if (value.problems && typeof value.problems === 'object') {
+			for (const [problemRef, cachedProblem] of Object.entries(value.problems)) {
+				const problem = restoreCachedProblemCompatibilityWarnings(cachedProblem as ImportedProblem);
+				if (problem.ref !== problemRef) {
+					throw new Error(`旧题目缓存的键 ${problemRef} 与题目路径 ${problem.ref} 不一致。`);
+				}
+				problems[problemRef] = problem;
+				if (problem !== cachedProblem) {
+					historyWasSanitized = true;
+				}
+			}
 		}
-		if ((value.version === 3 || value.version === 4) && value.sourcePaths && typeof value.sourcePaths === 'object') {
+		if (value.sourcePaths && typeof value.sourcePaths === 'object') {
 			Object.assign(sourcePaths, value.sourcePaths);
 		}
 		if (value.version === 4 && value.submissions && typeof value.submissions === 'object') {
@@ -1107,23 +1270,43 @@ async function readWorkspaceProblemCache(): Promise<WorkspaceProblemCache> {
 		return cache;
 	} catch (error) {
 		if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
-			return createEmptyWorkspaceProblemCache();
+			return undefined;
 		}
 		throw error;
 	}
 }
 
+function sanitizeSubmissionHistory(value: unknown): { entries: SubmissionHistoryEntry[]; changed: boolean } {
+	if (!Array.isArray(value)) {
+		return { entries: [], changed: true };
+	}
+	const entries = value.map(sanitizeSubmissionHistoryEntry).filter((entry): entry is SubmissionHistoryEntry => entry !== undefined);
+	return {
+		entries,
+		changed: entries.length !== value.length || value.some((entry, index) => JSON.stringify(entry) !== JSON.stringify(entries[index])),
+	};
+}
+
 async function writeWorkspaceProblemCache(cache: WorkspaceProblemCache): Promise<void> {
 	await vscode.workspace.fs.createDirectory(getWorkspaceCacheDirectoryUri());
-	await vscode.workspace.fs.writeFile(getWorkspaceCacheUri(), new TextEncoder().encode(`${JSON.stringify(cache, undefined, '\t')}\n`));
+	assertUniqueWorkspaceProblemRecordFileNames(Object.keys(cache.problems));
+	await Promise.all(Object.entries(cache.problems).map(async ([problemRef, problem]) => {
+		const record: WorkspaceProblemRecord = {
+			version: workspaceProblemRecordVersion,
+			problem,
+			sourcePath: cache.sourcePaths[problemRef],
+			submissions: cache.submissions[problemRef] ?? [],
+		};
+		await vscode.workspace.fs.writeFile(getWorkspaceProblemRecordUri(problemRef), new TextEncoder().encode(`${JSON.stringify(record, undefined, '\t')}\n`));
+	}));
 	workspaceCachesNeedingRewrite.delete(cache);
 }
 
-function mutateWorkspaceProblemCache<T>(mutation: (cache: WorkspaceProblemCache) => T | Promise<T>, alwaysWrite: boolean): Promise<T> {
+function mutateWorkspaceProblemCache<T>(mutation: (cache: WorkspaceProblemCache) => T | Promise<T>, alwaysWrite: boolean | ((result: T) => boolean)): Promise<T> {
 	const operation = workspaceCacheMutationTail.then(async () => {
 		const cache = await readWorkspaceProblemCache();
 		const result = await mutation(cache);
-		if (alwaysWrite || workspaceCachesNeedingRewrite.has(cache)) {
+		if ((typeof alwaysWrite === 'function' ? alwaysWrite(result) : alwaysWrite) || workspaceCachesNeedingRewrite.has(cache)) {
 			await writeWorkspaceProblemCache(cache);
 		}
 		return result;
@@ -1155,8 +1338,8 @@ async function submitProblem(
 	unknownSubmissions: Map<string, SubmissionAttempt>,
 	explicitSourcePath?: string,
 ): Promise<void> {
-	if (!problem.capabilities.submission.enabled || problem.capabilities.submission.languages.length === 0) {
-		throw new Error('当前题目不允许从 IDE 提交。');
+	if (problem.capabilities.submission.languages.length === 0) {
+		throw new Error('网页未提供可用的提交语言，无法发起提交。');
 	}
 	if (!bridge.isBound(problem.ref)) {
 		throw new Error('题目网页未连接，请从网站重新在 ShortestPath IDE 中打开。');
@@ -1393,6 +1576,7 @@ type ProblemViewSections = {
 	hints: string;
 	editorialAction: string;
 	submissions: string;
+	compatibilityWarning: string;
 };
 
 const problemViewSectionIds: Record<keyof ProblemViewSections, string> = {
@@ -1404,6 +1588,7 @@ const problemViewSectionIds: Record<keyof ProblemViewSections, string> = {
 	hints: 'oj-hints',
 	editorialAction: 'oj-editorial-action',
 	submissions: 'oj-submissions',
+	compatibilityWarning: 'oj-compatibility-warning',
 };
 
 const problemViewTabIds: Record<'statement' | 'hints' | 'submissions', string> = {
@@ -1449,12 +1634,15 @@ function renderProblemViewSections(
 				? '<div class="operation-notice" role="status">操作长时间没有响应，可能是因为触发了安全验证，请到浏览器处理。</div>'
 				: '',
 		status: `<div class="connection ${state.connected ? 'connected' : 'disconnected'}">${escapeHtml(state.statusMessage)}</div>`,
-		submissionButton: problem.capabilities.submission.enabled ? `<button type="button" data-command="submit"${state.connected ? '' : ' disabled'}>提交代码</button>` : '',
+		submissionButton: `<button type="button" data-command="submit"${state.connected ? '' : ' disabled'}>提交代码</button>`,
 		information: renderInformation(problem),
 		statement: renderStatement(problem),
 		hints: renderHints(state),
 		editorialAction: renderEditorialAction(problem, state.connected),
 		submissions: renderSubmissions(state),
+		compatibilityWarning: state.compatibilityWarningDismissed || problem.compatibilityWarnings.length === 0
+			? ''
+			: `<div class="compatibility-warning" role="status"><span>${escapeHtml(problem.compatibilityWarnings.join(' '))}</span><button type="button" data-command="dismissCompatibilityWarning" aria-label="关闭兼容性提示">关闭</button></div>`,
 	};
 }
 
@@ -1492,6 +1680,7 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 		HINTS: sections.hints,
 		EDITORIAL_ACTION: sections.editorialAction,
 		SUBMISSIONS: sections.submissions,
+		COMPATIBILITY_WARNING: sections.compatibilityWarning,
 	});
 }
 
@@ -1627,11 +1816,11 @@ function renderHintModal(state: ProblemPanelState, hint: ProblemHint): string {
 	const questionContent = hint.question
 		? `<div data-render-math>${renderMarkdownContent(hint.question, state.problem.url)}</div>`
 		: '<p>提示问题尚未解锁。</p>';
-	const questionLike = renderLikeButton(hint.id, 'question', hint.likes.question, state.connected && Boolean(hint.question) && state.problem.capabilities.hintLike);
+	const questionLike = renderLikeButton(hint.id, 'question', hint.likes.question, state.connected && Boolean(hint.question));
 	const answer = state.answers.get(hint.id);
-	const answerLike = renderLikeButton(hint.id, 'answer', hint.likes.answer, state.connected && Boolean(answer) && state.problem.capabilities.hintLike);
+	const answerLike = renderLikeButton(hint.id, 'answer', hint.likes.answer, state.connected && Boolean(answer));
 	const unlocked = hint.unlocked || state.problem.state.timer.accepted;
-	const canRequestAnswer = state.connected && state.problem.capabilities.hintAnswer;
+	const canRequestAnswer = state.connected;
 	const canShowAnswer = unlocked && canRequestAnswer;
 	const answerContent = answer
 		? `<div data-render-math>${renderMarkdownContent(answer, state.problem.url)}</div>`
@@ -1641,9 +1830,6 @@ function renderHintModal(state: ProblemPanelState, hint: ProblemHint): string {
 }
 
 function renderEditorialAction(problem: ImportedProblem, connected: boolean): string {
-	if (!problem.capabilities.editorial) {
-		return '';
-	}
 	if (!problem.state.timer.accepted && problem.state.editorial.remainingMs > 0) {
 		return '<button type="button" class="editorial-locked" data-command="editorial">查看解题报告</button>';
 	}
@@ -1731,10 +1917,6 @@ document.addEventListener('click', (event) => {
 }
 
 function renderSubmissions(state: ProblemPanelState): string {
-	const submission = state.problem.capabilities.submission;
-	if (!submission.enabled) {
-		return '';
-	}
 	const items = [...state.submissions.values()]
 		.sort((left, right) => compareSubmissionIdDescending(left.submissionId, right.submissionId))
 		.map((item, index) => {
@@ -1758,7 +1940,7 @@ function renderSubmissions(state: ProblemPanelState): string {
 			const body = `${disconnected}${detailNotice}${compileError}${details}${stressSection}`;
 			return body ? `<details class="submission" data-persist-key="submission:${escapeAttribute(item.submissionId)}"${shouldOpen ? ' open' : ''}><summary>${summary}</summary><div class="submission-body">${body}</div></details>` : `<article class="submission submission-record">${summary}</article>`;
 		}).join('');
-	return `<section class="submissions"><h2>评测</h2><form id="watch-submission"><input name="submissionId" inputmode="numeric" placeholder="已有提交 ID"><button type="submit"${submission.watchExisting && state.connected ? '' : ' disabled'}>恢复观察</button></form>${items || '<p>暂无评测记录。</p>'}</section>`;
+	return `<section class="submissions"><h2>评测</h2><form id="watch-submission" hidden><input name="submissionId" inputmode="numeric" placeholder="已有提交 ID"><button type="submit"${state.connected ? '' : ' disabled'}>恢复观察</button></form>${items || '<p>暂无评测记录。</p>'}</section>`;
 }
 
 function isLiveSubmission(submission: SubmissionSnapshot | SubmissionHistoryEntry): submission is SubmissionSnapshot {
@@ -1782,13 +1964,8 @@ function renderSubmissionStress(state: ProblemPanelState, submission: Submission
 		}).join('');
 	}
 	const defaultRounds = state.stressContext?.defaultRounds ?? state.problem.capabilities.stress.defaultRounds ?? 120;
-	const eligibility = state.stressContext
-		? state.stressContext.eligibleSubmissions.some(item => item.submissionId === submissionId)
-		: true;
 	const hint = '<p class="submission-stress-hint">提交出现 WA，可以使用对拍找到错误数据。</p>';
-	const button = eligibility
-		? `<button type="button" data-command="startStress" data-submission-id="${escapeAttribute(submissionId)}" data-rounds="${defaultRounds}"${state.connected ? '' : ' disabled'}>发起对拍</button>`
-		: '<p class="warning">该提交当前不可用于对拍。</p>';
+	const button = `<button type="button" data-command="startStress" data-submission-id="${escapeAttribute(submissionId)}" data-rounds="${defaultRounds}"${state.connected ? '' : ' disabled'}>发起对拍</button>`;
 	return `${hint}${button}`;
 }
 
@@ -1805,13 +1982,10 @@ function shouldShowStressHint(state: ProblemPanelState, submission: SubmissionSn
 	if ([...state.stressTasks.values()].some(task => task.submissionId === submission.submissionId)) {
 		return true;
 	}
-	if (!state.problem.capabilities.stress.supported || !isWrongAnswerStatus(submission.status)) {
+	if (!isWrongAnswerStatus(submission.status)) {
 		return false;
 	}
-	if (!state.stressContext) {
-		return true;
-	}
-	return state.stressContext.eligibleSubmissions.some(item => item.submissionId === submission.submissionId);
+	return true;
 }
 
 function fillTemplate(template: string, values: Readonly<Record<string, string>>): string {
