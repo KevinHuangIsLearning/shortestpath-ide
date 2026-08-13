@@ -58,3 +58,4 @@ dist
 /ShortestPath IDE Integrate Reference.md
 /*.prob
 /backups/shortestpath.oj-legacy-20260729-before-websocket-refactor.tar.gz
+/artifacts/vsix
