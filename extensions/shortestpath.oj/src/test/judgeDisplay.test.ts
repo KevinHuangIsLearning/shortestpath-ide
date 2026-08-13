@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { describeJudgeType, describeSubmissionStage, describeSubmissionStatus } from '../judgeDisplay';
+import { describeFloatJudgeTolerance, describeJudgeType, describeSubmissionStage, describeSubmissionStatus } from '../judgeDisplay';
 
 suite('ShortestPath OJ judge type display', () => {
 	test('does not label normal token checkers as special judge', () => {
@@ -15,6 +15,7 @@ suite('ShortestPath OJ judge type display', () => {
 
 	test('labels float checkers as Float Judge', () => {
 		assert.equal(describeJudgeType('float', 1e-6), 'Float Judge');
+		assert.equal(describeFloatJudgeTolerance(0.000001), '允许的精度误差：0.000001');
 	});
 
 	test('labels testlib and other special checkers as Special Judge', () => {
@@ -38,6 +39,8 @@ suite('ShortestPath OJ judge type display', () => {
 		assert.equal(describeSubmissionStatus('Accepted'), 'accepted');
 		assert.equal(describeSubmissionStatus('JG'), 'in-progress');
 		assert.equal(describeSubmissionStatus('NA'), 'in-progress');
+		assert.equal(describeSubmissionStatus('PD'), 'in-progress');
+		assert.equal(describeSubmissionStatus('Pending'), 'in-progress');
 		assert.equal(describeSubmissionStatus('CE'), 'compilation-error');
 		assert.equal(describeSubmissionStatus('Compile Error'), 'compilation-error');
 		assert.equal(describeSubmissionStatus('WA'), 'wrong-answer');

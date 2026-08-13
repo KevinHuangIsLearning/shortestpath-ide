@@ -238,11 +238,39 @@ header {
 	font-weight: 700;
 }
 
-/* 窄面板折叠专题名和记分规则，SPJ 始终显示 */
-@container (max-width: 380px) {
-	.title-meta-line .meta-collapsible {
-		display: none;
-	}
+.title-meta-line .judge-type-with-tolerance {
+	position: relative;
+	cursor: help;
+}
+
+.title-meta-line .judge-type-tolerance {
+	position: absolute;
+	top: calc(100% + 8px);
+	right: 0;
+	z-index: 10;
+	width: max-content;
+	max-width: calc(100vw - 24px);
+	padding: 6px 8px;
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-radius: 4px;
+	background: var(--vscode-editorHoverWidget-background);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	color: var(--vscode-editorHoverWidget-foreground);
+	font-size: 0.9em;
+	font-weight: 400;
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(-4px);
+	transition: opacity 120ms ease, transform 120ms ease;
+	visibility: hidden;
+	white-space: normal;
+}
+
+.title-meta-line .judge-type-with-tolerance:hover .judge-type-tolerance,
+.title-meta-line .judge-type-with-tolerance:focus .judge-type-tolerance {
+	opacity: 1;
+	transform: translateY(0);
+	visibility: visible;
 }
 
 .title-status-row {
@@ -489,6 +517,11 @@ body {
 	top: 12px;
 	transform: translateX(-50%);
 	z-index: 100;
+}
+
+/* 查看提示时，安全验证提醒必须位于提示弹窗的遮罩之上。 */
+body:has(#oj-modal-overlay.visible) .operation-notice-container {
+	z-index: 1001;
 }
 
 .operation-notice {
@@ -812,6 +845,11 @@ th, td {
 .submission-body {
 	border-top: 1px solid var(--vscode-widget-border);
 	padding: 0 12px 12px;
+}
+
+.submission-history-notice {
+	color: var(--vscode-descriptionForeground);
+	margin: 12px 0 0;
 }
 
 .submission-stress-hint {
@@ -1180,7 +1218,7 @@ footer {
 	color: var(--vscode-errorForeground);
 }
 
-form, .progress {
+form:not([hidden]), .progress {
 	align-items: center;
 	display: flex;
 	flex-wrap: wrap;
