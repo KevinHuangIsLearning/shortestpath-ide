@@ -15,20 +15,6 @@ export function shouldRestoreProblemPanel(
 		&& openFilePaths.includes(disposedSourcePath);
 }
 
-export function shouldRestoreProblemPanelAfterEditorial(
-	hiddenSourcePath: string | undefined,
-	currentSourcePath: string | undefined,
-	panelExists: boolean,
-	openFilePaths: readonly string[],
-): boolean {
-	return hiddenSourcePath === undefined || shouldRestoreProblemPanel(
-		hiddenSourcePath,
-		currentSourcePath,
-		panelExists,
-		openFilePaths,
-	);
-}
-
 export function shouldHideProblemPanelWhenSourceInactive(
 	sourcePath: string | undefined,
 	activeSourcePath: string | undefined,
