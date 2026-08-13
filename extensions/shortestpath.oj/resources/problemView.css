@@ -772,6 +772,29 @@ th, td {
 	color: var(--vscode-testing-iconPassed, #73c991);
 }
 
+.submission-status.in-progress {
+	color: var(--vscode-descriptionForeground);
+}
+
+.submission-status.in-progress::before {
+	display: inline-block;
+	width: 0.8em;
+	height: 0.8em;
+	margin-right: 0.35em;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	content: '';
+	vertical-align: -0.08em;
+	animation: shortestpath-submission-spinner 0.8s linear infinite;
+}
+
+@keyframes shortestpath-submission-spinner {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
 .submission-status.compilation-error,
 .submission-status.failed,
 .submission-status.wrong-answer {

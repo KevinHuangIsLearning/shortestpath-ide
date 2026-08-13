@@ -75,6 +75,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/shortestpath.setup/src/toolchainDiagnostics.ts',
 	'!extensions/shortestpath.setup/src/fishMode.ts',
 	'!extensions/shortestpath.oj/**',
+	'!scripts/delete_legacy_release_binaries.py',
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
@@ -113,6 +114,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
 	'!build/darwin/patch-dmg.py',
+	'!scripts/delete_legacy_release_binaries.py',
 	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',
 	'!product.overrides.json',
 	'!src/vs/platform/endpoint/common/licenseAgreement.ts',
@@ -214,6 +216,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.provisionprofile',
 	'!build/**/*.init',
 	'!build/darwin/patch-dmg.py',
+	'!scripts/delete_legacy_release_binaries.py',
 	'!build/linux/libcxx-fetcher.*',
 	'!build/npm/gyp/custom-headers/**',
 	'!resources/linux/snap/snapcraft.yaml',

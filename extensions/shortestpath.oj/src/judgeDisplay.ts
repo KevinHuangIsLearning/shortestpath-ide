@@ -34,10 +34,13 @@ export function describeSubmissionStage(stage: string | undefined, detailState: 
 /**
  * 将常见评测结果映射为主题相关的颜色类名。
  */
-export function describeSubmissionStatus(status: string): 'accepted' | 'compilation-error' | 'failed' | 'wrong-answer' | 'runtime-error' | 'time-limit-exceeded' {
+export function describeSubmissionStatus(status: string): 'accepted' | 'compilation-error' | 'failed' | 'in-progress' | 'wrong-answer' | 'runtime-error' | 'time-limit-exceeded' {
 	const normalized = status.trim().toLowerCase();
 	if (normalized === 'ac' || normalized === 'accepted') {
 		return 'accepted';
+	}
+	if (normalized === 'jg' || normalized === 'na') {
+		return 'in-progress';
 	}
 	if (normalized === 'ce' || normalized === 'compile error' || normalized === 'compilation error') {
 		return 'compilation-error';

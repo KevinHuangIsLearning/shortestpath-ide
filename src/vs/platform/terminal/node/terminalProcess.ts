@@ -207,6 +207,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (firstError) {
 			return firstError;
 		}
+		if (isWindows && hasConptyOption(this._ptyOptions) && !this._ptyOptions.useConpty) {
+			// allow-any-unicode-next-line
+			return { message: localize('conptyUnsupported', '此 Windows 版本不支持 ConPTY，集成终端无法启动。请升级到 Windows 10 1903（内部版本 18309）或更高版本。') };
+		}
 
 		const injection = await getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
 		if (injection.type === 'injection') {

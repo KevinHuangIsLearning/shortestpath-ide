@@ -36,6 +36,8 @@ suite('ShortestPath OJ judge type display', () => {
 	test('maps common submission results to display colors', () => {
 		assert.equal(describeSubmissionStatus('AC'), 'accepted');
 		assert.equal(describeSubmissionStatus('Accepted'), 'accepted');
+		assert.equal(describeSubmissionStatus('JG'), 'in-progress');
+		assert.equal(describeSubmissionStatus('NA'), 'in-progress');
 		assert.equal(describeSubmissionStatus('CE'), 'compilation-error');
 		assert.equal(describeSubmissionStatus('Compile Error'), 'compilation-error');
 		assert.equal(describeSubmissionStatus('WA'), 'wrong-answer');

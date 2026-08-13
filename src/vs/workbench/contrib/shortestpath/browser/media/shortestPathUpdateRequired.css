@@ -38,6 +38,18 @@
 	line-height: 1.6;
 }
 
+.shortestpath-update-required-release-note {
+	max-height: 12rem;
+	overflow: auto;
+	margin-top: -0.5rem !important;
+	padding: 0.75rem;
+	border-radius: 3px;
+	background: var(--vscode-textBlockQuote-background);
+	color: var(--vscode-descriptionForeground);
+	text-align: left;
+	white-space: pre-wrap;
+}
+
 .shortestpath-update-required-network {
 	margin: 0 0 1rem;
 	padding: 0;
