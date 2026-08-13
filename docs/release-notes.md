@@ -1,14 +1,22 @@
 # ShortestPath IDE 下载说明 / Download Guide
 
-## v0.3.3 更新 / What's New
+**下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-- 修复 ShortestPath OJ 网页缺少部分能力信息时无法导入题目的问题；题面会优先打开，无法使用的操作会在页面内说明。
-- 评测记录现在按题目分别保存到 `.shortestpath`，旧版汇总缓存会自动迁移，降低缓存损坏影响范围。
-- 修复评测完成后仍显示 `waiting`，并优化评测结果颜色与显示样式。
+## v0.3.4 更新 / What's New
 
-- Fixed ShortestPath OJ problem import when the website omits part of its capability data. The statement now opens first and unavailable actions report in the webview.
-- Submission history is now stored per problem in `.shortestpath`; legacy aggregate caches migrate automatically to reduce the blast radius of cache corruption.
-- Fixed the lingering `waiting` row after judging and improved verdict colors and presentation.
+- 不再创建、修改或迁移用户全局 clangd 配置；首次配置仍只会在当前工作区创建 `.clangd`。
+- 工具链诊断现在可实测当前 C/C++ 文件的 clangd 系统头文件，并识别 `<bits/stdc++.h>`、`.clangd` 和 `--query-driver` 配置不匹配的问题。
+- 修复 ShortestPath OJ 独立安装包缺少 WebSocket 运行时依赖，以及 Windows 导入题目时异常 CPH 源码路径导致失败的问题；旧缓存中的无效路径会自动清理。
+- 优化 OJ 解题报告与编辑器布局：报告、题面和关联 `.cpp` 文件默认放在同一编辑器组；关闭报告后自动恢复默认分屏，同时尊重手动调整过的布局。
+- 更新提示支持多行显示和稍后提醒；不支持 ConPTY 的旧版 Windows 会明确提示系统版本要求。
+- 优化 OJ 评测状态与结果展示：JG、NA、PD 和 Pending 会显示为评测中，Float Judge 完整显示并可悬停查看允许误差；网站安全验证提示不会再被提示弹窗背景遮罩模糊。
+
+- ShortestPath IDE no longer creates, changes, or migrates global clangd configuration. Initial setup still creates `.clangd` only in the current workspace.
+- Toolchain diagnostics can now probe clangd system headers for the active C/C++ file and detect mismatches involving `<bits/stdc++.h>`, `.clangd`, and `--query-driver`.
+- Fixed missing WebSocket runtime dependencies in the standalone ShortestPath OJ package, and malformed CPH source paths that could break Windows problem imports. Invalid legacy paths are cleaned up automatically.
+- Improved OJ editor layout: editorial, statement, and the related `.cpp` file open in one editor group by default; closing the editorial restores the default split without overriding a layout you changed yourself.
+- Update prompts now support multi-line notes and reminders. Older Windows versions without ConPTY receive a clear system-requirement message.
+- Improved OJ judging and verdict presentation: JG, NA, PD, and Pending are shown as judging; Float Judge is fully displayed with its tolerance on hover; website security-verification notices remain clear above hint dialogs.
 
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。
 >
