@@ -1653,7 +1653,8 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 	const katexStyles = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'resources', 'katex', 'katex.min.css'));
 	const timer = getProblemViewTimer(state);
 	const judgeType = describeJudgeType(problem.judge.checkerType, problem.judge.floatEpsilon);
-	const metadataJudge = judgeType ? `<strong class="judge-type">${escapeHtml(judgeType)}</strong>` : '';
+	const judgeTypeTooltip = judgeType === 'Float Judge' && problem.judge.floatEpsilon !== null ? describeFloatJudgeTolerance(problem.judge.floatEpsilon) : undefined;
+	const metadataJudge = judgeType ? `<strong class="judge-type${judgeTypeTooltip ? ' judge-type-with-tolerance' : ''}"${judgeTypeTooltip ? ' tabindex="0"' : ''}>${escapeHtml(judgeType)}${judgeTypeTooltip ? `<span class="judge-type-tolerance" role="tooltip">${escapeHtml(judgeTypeTooltip)}</span>` : ''}</strong>` : '';
 	const metadataParts = [
 		`<span class="meta-item meta-collapsible">${escapeHtml(problem.topic.title)}</span>`,
 		`<span class="meta-item meta-collapsible">${escapeHtml(problem.judge.mode.toUpperCase())}</span>`,
@@ -1924,6 +1925,7 @@ function renderSubmissions(state: ProblemPanelState): string {
 			const stage = liveSubmission ? describeSubmissionStage(item.stage, item.detailState) : undefined;
 			const statusClass = describeSubmissionStatus(item.status);
 			const status = renderSubmissionStatus(item.status, statusClass);
+			const localHistoryNotice = !liveSubmission ? '<p class="submission-history-notice">此提交来自本地保存的历史记录，未存储具体评测信息，因此没有更多可用信息。</p>' : '';
 			const detailNotice = liveSubmission && item.detailState === 'unavailable' ? `<p class="warning">结果已结束，详情暂不可用：${escapeHtml(item.detailError?.message ?? '')}</p>` : '';
 			const compileError = liveSubmission && item.compileErrorMessage ? `<pre class="error"><code>${escapeHtml(item.compileErrorMessage)}</code></pre>` : '';
 			const details = liveSubmission && item.details.length ? `<table><thead><tr><th>#</th><th>测试点</th><th>状态</th><th>时间</th><th>内存</th></tr></thead><tbody>${item.details.map(detail => {
@@ -1937,7 +1939,7 @@ function renderSubmissions(state: ProblemPanelState): string {
 			const shouldOpen = index === 0;
 			const stagePrefix = stage ? `${escapeHtml(stage)} · ` : '';
 			const summary = `<span class="submission-summary-title">提交 ${escapeHtml(item.submissionId)} · ${status}</span><span class="submission-summary-meta">${stagePrefix}${item.score} 分 · ${item.maxTimeMs} ms · ${item.maxMemoryKB} KB</span>`;
-			const body = `${disconnected}${detailNotice}${compileError}${details}${stressSection}`;
+			const body = `${localHistoryNotice}${disconnected}${detailNotice}${compileError}${details}${stressSection}`;
 			return body ? `<details class="submission" data-persist-key="submission:${escapeAttribute(item.submissionId)}"${shouldOpen ? ' open' : ''}><summary>${summary}</summary><div class="submission-body">${body}</div></details>` : `<article class="submission submission-record">${summary}</article>`;
 		}).join('');
 	return `<section class="submissions"><h2>评测</h2><form id="watch-submission" hidden><input name="submissionId" inputmode="numeric" placeholder="已有提交 ID"><button type="submit"${state.connected ? '' : ' disabled'}>恢复观察</button></form>${items || '<p>暂无评测记录。</p>'}</section>`;

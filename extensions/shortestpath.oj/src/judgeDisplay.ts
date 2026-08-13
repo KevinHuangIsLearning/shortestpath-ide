@@ -20,6 +20,11 @@ export function describeJudgeType(checkerType: string, floatEpsilon: number | nu
 	return floatEpsilon !== null ? 'Float Judge' : 'Special Judge';
 }
 
+export function describeFloatJudgeTolerance(floatEpsilon: number): string {
+	// allow-any-unicode-next-line
+	return `允许的精度误差：${floatEpsilon}`;
+}
+
 /**
  * 返回评测进行中的阶段文本。终态快照不要求网站继续提供 stage，不能将其误显示为 waiting。
  */
@@ -39,7 +44,7 @@ export function describeSubmissionStatus(status: string): 'accepted' | 'compilat
 	if (normalized === 'ac' || normalized === 'accepted') {
 		return 'accepted';
 	}
-	if (normalized === 'jg' || normalized === 'na') {
+	if (normalized === 'jg' || normalized === 'na' || normalized === 'pd' || normalized === 'pending') {
 		return 'in-progress';
 	}
 	if (normalized === 'ce' || normalized === 'compile error' || normalized === 'compilation error') {
