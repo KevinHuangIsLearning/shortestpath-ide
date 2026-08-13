@@ -9,11 +9,12 @@ import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { canRequestEditorial, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
-import { describeJudgeType, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
+import { describeFloatJudgeTolerance, describeJudgeType, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
-import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanelAfterEditorial } from './problemPanelLifecycle';
+import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive } from './problemPanelLifecycle';
 import { ImportAction, OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
 import { mergeSubmissionHistory, sanitizeSubmissionHistoryEntry, SubmissionHistoryEntry, toSubmissionHistoryEntry } from './submissionHistory';
+import { isHeaderSafeSourcePath } from './sourcePath';
 import { formatElapsedTimer } from './timerDisplay';
 import { assertUniqueWorkspaceProblemRecordFileNames, getWorkspaceProblemRecordFileName } from './workspaceProblemCache';
 import { migrateLegacyWorkspaceCache } from './workspaceProblemCacheMigration';
@@ -157,8 +158,7 @@ class ShortestPathOjProblemPanel {
 	private webviewReady = false;
 	private renderedProblemRef: string | undefined;
 	private editorialPanel: vscode.WebviewPanel | undefined;
-	private reopenProblemAfterEditorial = false;
-	private editorialHiddenSourcePath: string | undefined;
+	private editorialAutoGroupedViewColumn: vscode.ViewColumn | undefined;
 	private longRunningOperationNoticeCount = 0;
 	private longRunningOperationNoticeVisible = false;
 	private operationToastMessage: string | undefined;
@@ -179,8 +179,7 @@ class ShortestPathOjProblemPanel {
 			this.longRunningOperationNoticeCount = 0;
 			this.longRunningOperationNoticeVisible = false;
 			this.clearOperationToast();
-			this.reopenProblemAfterEditorial = false;
-			this.editorialHiddenSourcePath = undefined;
+			this.editorialAutoGroupedViewColumn = undefined;
 			this.editorialPanel?.dispose();
 			this.editorialPanel = undefined;
 			const answers = new Map<string, MarkdownContent>();
@@ -320,13 +319,13 @@ class ShortestPathOjProblemPanel {
 	}
 
 	reveal(): void {
-		if (!this.state || this.editorialPanel) {
+		if (!this.state) {
 			return;
 		}
 		const panelCreated = this.ensureProblemPanel();
 		this.render();
 		const panel = this.panel;
-		if (!panelCreated && !this.editorialPanel && panel) {
+		if (!panelCreated && panel) {
 			panel.reveal(panel.viewColumn, false);
 		}
 	}
@@ -347,8 +346,7 @@ class ShortestPathOjProblemPanel {
 		}
 		await this.rememberSplitRatioBeforeClosing();
 		this.state = undefined;
-		this.reopenProblemAfterEditorial = false;
-		this.editorialHiddenSourcePath = undefined;
+		this.editorialAutoGroupedViewColumn = undefined;
 		this.editorialPanel?.dispose();
 		this.panel?.dispose();
 		return true;
@@ -363,8 +361,7 @@ class ShortestPathOjProblemPanel {
 		}
 		await this.rememberSplitRatioBeforeClosing();
 		this.state = undefined;
-		this.reopenProblemAfterEditorial = false;
-		this.editorialHiddenSourcePath = undefined;
+		this.editorialAutoGroupedViewColumn = undefined;
 		this.editorialPanel?.dispose();
 		this.panel?.dispose();
 	}
@@ -495,13 +492,17 @@ class ShortestPathOjProblemPanel {
 		}
 		const title = `解题报告: ${problem.title}`;
 		if (this.editorialPanel) {
-			this.hideProblemWhileEditorialOpen();
 			this.editorialPanel.title = title;
 			this.editorialPanel.webview.html = getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri);
 			this.editorialPanel.reveal(this.editorialPanel.viewColumn, false);
 			return;
 		}
-		const viewColumn = this.findCodeEditorColumn();
+		// Keep the problem and editorial as tabs in the source editor group. This
+		// avoids a forced split while leaving users free to move either tab later.
+		const viewColumn = this.findCppEditorColumn() ?? this.findCodeEditorColumn();
+		if (this.panel && this.panel.viewColumn !== viewColumn) {
+			this.panel.reveal(viewColumn, true);
+		}
 		const panel = vscode.window.createWebviewPanel(
 			'shortestpath.ojEditorial',
 			title,
@@ -512,6 +513,10 @@ class ShortestPathOjProblemPanel {
 				retainContextWhenHidden: true,
 			},
 		);
+		let editorialViewColumn: vscode.ViewColumn | undefined = viewColumn;
+		panel.onDidChangeViewState(() => {
+			editorialViewColumn = panel.viewColumn;
+		});
 		panel.webview.onDidReceiveMessage(async (message) => {
 			if (!this.state) {
 				return;
@@ -537,32 +542,17 @@ class ShortestPathOjProblemPanel {
 		panel.onDidDispose(() => {
 			if (this.editorialPanel === panel) {
 				this.editorialPanel = undefined;
-			}
-			if (this.reopenProblemAfterEditorial) {
-				this.reopenProblemAfterEditorial = false;
-				const hiddenSourcePath = this.editorialHiddenSourcePath;
-				this.editorialHiddenSourcePath = undefined;
-				if (shouldRestoreProblemPanelAfterEditorial(
-					hiddenSourcePath,
-					this.state?.sourcePath,
-					this.panel !== undefined,
-					getOpenFileTabGroups().flatMap(group => group.filePaths),
-				)) {
-					this.reveal();
+				const autoGroupedViewColumn = this.editorialAutoGroupedViewColumn;
+				this.editorialAutoGroupedViewColumn = undefined;
+				if (autoGroupedViewColumn !== undefined
+					&& editorialViewColumn === autoGroupedViewColumn
+					&& this.panel?.viewColumn === autoGroupedViewColumn) {
+					this.panel.reveal(this.getProblemViewColumn(), false);
 				}
 			}
 		});
 		this.editorialPanel = panel;
-		this.hideProblemWhileEditorialOpen();
-	}
-
-	private hideProblemWhileEditorialOpen(): void {
-		if (!this.panel) {
-			return;
-		}
-		this.reopenProblemAfterEditorial = true;
-		this.editorialHiddenSourcePath = this.state?.sourcePath;
-		this.panel.dispose();
+		this.editorialAutoGroupedViewColumn = viewColumn;
 	}
 
 	private ensurePanel(viewColumn: vscode.ViewColumn): boolean {
@@ -1193,8 +1183,10 @@ async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> 
 					continue;
 				}
 				cache.problems[problem.ref] = problem;
-				if (typeof record.sourcePath === 'string') {
+				if (typeof record.sourcePath === 'string' && isHeaderSafeSourcePath(record.sourcePath)) {
 					cache.sourcePaths[problem.ref] = record.sourcePath;
+				} else if (record.sourcePath !== undefined) {
+					needsRewrite = true;
 				}
 				const submissions = sanitizeSubmissionHistory(record.submissions);
 				cache.submissions[problem.ref] = submissions.entries;
@@ -1243,7 +1235,13 @@ async function readLegacyWorkspaceProblemCache(): Promise<WorkspaceProblemCache 
 			}
 		}
 		if (value.sourcePaths && typeof value.sourcePaths === 'object') {
-			Object.assign(sourcePaths, value.sourcePaths);
+			for (const [problemRef, sourcePath] of Object.entries(value.sourcePaths)) {
+				if (typeof sourcePath === 'string' && isHeaderSafeSourcePath(sourcePath)) {
+					sourcePaths[problemRef] = sourcePath;
+				} else {
+					historyWasSanitized = true;
+				}
+			}
 		}
 		if (value.version === 4 && value.submissions && typeof value.submissions === 'object') {
 			for (const [problemRef, entries] of Object.entries(value.submissions)) {
@@ -1487,7 +1485,7 @@ function forwardSamplesToCph(problem: ImportedProblem, sourcePath: string | unde
 			'Content-Length': Buffer.byteLength(payload),
 			'X-ShortestPath-OJ': 'true',
 		};
-		if (sourcePath) {
+		if (sourcePath && isHeaderSafeSourcePath(sourcePath)) {
 			headers['X-ShortestPath-Source-Path'] = sourcePath;
 		}
 		request = http.request({ hostname: '127.0.0.1', port: 27121, method: 'POST', path: '/', headers }, response => {
@@ -1500,7 +1498,7 @@ function forwardSamplesToCph(problem: ImportedProblem, sourcePath: string | unde
 				}
 				try {
 					const result = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { sourcePath?: unknown };
-					finish(typeof result.sourcePath === 'string' ? { succeeded: true, sourcePath: result.sourcePath } : { succeeded: false });
+					finish(typeof result.sourcePath === 'string' && isHeaderSafeSourcePath(result.sourcePath) ? { succeeded: true, sourcePath: result.sourcePath } : { succeeded: false });
 				} catch {
 					finish({ succeeded: false });
 				}
