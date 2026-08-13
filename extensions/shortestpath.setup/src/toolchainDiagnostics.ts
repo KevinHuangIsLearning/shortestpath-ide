@@ -6,19 +6,21 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
+import { diagnoseClangdSystemHeaders } from './clangdSystemHeaders';
 
 type DiagnosticStatus = 'ok' | 'warning' | 'error';
-type DiagnosticItem = { label: string; status: DiagnosticStatus; detail: string; path?: string };
+type DiagnosticItem = { label: string; status: DiagnosticStatus; detail: string; path?: string; repairable?: boolean };
 
 export function registerToolchainDiagnostics(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openToolchainDiagnostics', () => openToolchainDiagnostics(context)));
 }
 
 async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promise<void> {
-	const panel = vscode.window.createWebviewPanel('shortestpath.toolchainDiagnostics', '工具链诊断', vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	const sourcePath = getActiveCppSourcePath();
+	const panel = vscode.window.createWebviewPanel('shortestpath.toolchainDiagnostics', '工具链诊断', { viewColumn: vscode.ViewColumn.Active, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true });
 	const refresh = async () => {
-		const items = await collectDiagnostics();
-		await panel.webview.postMessage({ type: 'state', value: { items, needsRepair: items.some(item => item.status !== 'ok') } });
+		const items = await collectDiagnostics(getActiveCppSourcePath() ?? sourcePath);
+		await panel.webview.postMessage({ type: 'state', value: { items, needsRepair: items.some(item => item.status === 'error' || (item.status === 'warning' && item.repairable !== false)) } });
 	};
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'refresh') {
@@ -49,7 +51,7 @@ async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promi
 	await refresh();
 }
 
-async function collectDiagnostics(): Promise<DiagnosticItem[]> {
+async function collectDiagnostics(sourcePath: string | undefined): Promise<DiagnosticItem[]> {
 	const configuration = vscode.workspace.getConfiguration(undefined, null);
 	const compiler = configuration.get<string>('cph.language.cpp.Command') ?? '';
 	const compileRunCompiler = configuration.get<string>('c-cpp-compile-run.cpp-compiler') ?? '';
@@ -82,6 +84,7 @@ async function collectDiagnostics(): Promise<DiagnosticItem[]> {
 		status: compiler && queryDriver ? 'ok' : 'warning',
 		detail: compiler && queryDriver ? (process.platform === 'darwin' ? '已允许 Homebrew GCC 的所有稳定链接路径。' : `已指向 ${compiler}`) : 'clangd 未配置与当前 C++ 编译器匹配的 --query-driver。'
 	});
+	items.push(await clangdSystemHeadersDiagnostic(clangd, Array.isArray(clangdArguments) ? clangdArguments.filter((argument): argument is string => typeof argument === 'string') : [], sourcePath));
 	for (const extension of [
 		{ id: 'divyanshuagrawal.competitive-programming-helper', label: 'Competitive Programming Helper（CPH）' },
 		{ id: 'danielpinto8zz6.c-cpp-compile-run', label: 'C/C++ Compile Run' },
@@ -91,6 +94,36 @@ async function collectDiagnostics(): Promise<DiagnosticItem[]> {
 		items.push({ label: extension.label, status: installed ? 'ok' : 'error', detail: installed ? `已安装（${installed.packageJSON.version ?? '未知版本'}）。` : '未安装或未随应用打包。' });
 	}
 	return items;
+}
+
+async function clangdSystemHeadersDiagnostic(clangd: string, clangdArguments: string[], sourcePath: string | undefined): Promise<DiagnosticItem> {
+	if (!sourcePath) {
+		return {
+			label: 'clangd 系统头文件',
+			status: 'warning',
+			detail: '请先打开一个 C/C++ 源文件，再重新检测。诊断会使用该文件的工作区 .clangd 与当前 clangd 配置，不会直接读取或修改用户全局 clangd 配置。',
+			repairable: false
+		};
+	}
+	if (!clangd || !fs.existsSync(clangd)) {
+		return { label: 'clangd 系统头文件', status: 'error', detail: 'clangd 未配置或路径不存在，无法检查系统头文件。', path: clangd || undefined };
+	}
+	const argumentsForCheck = clangdArguments.filter(argument => !argument.startsWith('--background-index') && !argument.startsWith('--check=') && !argument.startsWith('--log='));
+	try {
+		const result = await runAllowFailure(clangd, [...argumentsForCheck, `--check=${sourcePath}`, '--log=error']);
+		const diagnostic = diagnoseClangdSystemHeaders(result.output, result.succeeded);
+		return { label: 'clangd 系统头文件', ...diagnostic, path: clangd };
+	} catch (error) {
+		return { label: 'clangd 系统头文件', status: 'error', detail: `无法运行检查：${error instanceof Error ? error.message : String(error)}`, path: clangd };
+	}
+}
+
+function getActiveCppSourcePath(): string | undefined {
+	const document = vscode.window.activeTextEditor?.document;
+	if (!document || document.uri.scheme !== 'file' || !['c', 'cpp', 'cuda-cpp', 'objective-c', 'objective-cpp'].includes(document.languageId)) {
+		return undefined;
+	}
+	return document.uri.fsPath;
 }
 
 async function executableDiagnostic(label: string, executable: string, args: string[]): Promise<DiagnosticItem> {
@@ -109,6 +142,16 @@ async function executableDiagnostic(label: string, executable: string, args: str
 
 function run(executable: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => execFile(executable, args, { timeout: 8000, windowsHide: true }, (error, stdout, stderr) => error ? reject(error) : resolve(`${stdout}\n${stderr}`)));
+}
+
+function runAllowFailure(executable: string, args: string[]): Promise<{ output: string; succeeded: boolean }> {
+	return new Promise((resolve, reject) => execFile(executable, args, { timeout: 10_000, windowsHide: true }, (error, stdout, stderr) => {
+		if (error && !stdout && !stderr) {
+			reject(error);
+			return;
+		}
+		resolve({ output: `${stdout}\n${stderr}${error ? `\n${error.message}` : ''}`, succeeded: !error });
+	}));
 }
 
 function getHtml(): string {

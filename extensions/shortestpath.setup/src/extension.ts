@@ -5,7 +5,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { homedir } from 'os';
 import { createHash } from 'crypto';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
@@ -14,7 +13,7 @@ import { registerRelaxMode } from './relaxMode';
 import { registerCphSettings } from './cphSettings';
 import { registerGettingStarted } from './gettingStarted';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
-import { getPortableDataRoot, isLegacyManagedClangdConfig, managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
+import { getPortableDataRoot, managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
 
 type PlatformPreset = {
 	portableToolchain: boolean;
@@ -103,16 +102,6 @@ Index:
 `;
 }
 
-function clangdUserConfigPath(): string {
-	if (process.platform === 'win32') {
-		return path.join(process.env.LOCALAPPDATA || path.join(homedir(), 'AppData', 'Local'), 'clangd', 'config.yaml');
-	}
-	if (process.platform === 'darwin') {
-		return path.join(homedir(), 'Library', 'Preferences', 'clangd', 'config.yaml');
-	}
-	return path.join(process.env.XDG_CONFIG_HOME || path.join(homedir(), '.config'), 'clangd', 'config.yaml');
-}
-
 function createDefaultClangdConfig(configPath: string, compiler: string, cppStandard: FirstRunSelection['cppStandard']): void {
 	if (fs.existsSync(configPath)) {
 		return;
@@ -125,10 +114,6 @@ function createDefaultClangdConfig(configPath: string, compiler: string, cppStan
 			throw error;
 		}
 	}
-}
-
-function createDefaultClangdUserConfig(compiler: string, cppStandard: FirstRunSelection['cppStandard']): void {
-	createDefaultClangdConfig(clangdUserConfigPath(), compiler, cppStandard);
 }
 
 function createDefaultClangdProjectConfig(workspaceFolder: string, compiler: string, cppStandard: FirstRunSelection['cppStandard']): void {
@@ -418,9 +403,6 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		settings['c-cpp-compile-run.output-location'] = '.';
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
 		settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
-		if (!vscode.env.isAppPortable) {
-			createDefaultClangdUserConfig(compiler, cppStandard);
-		}
 		if (firstRunSelection) {
 			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard);
 		}
@@ -485,7 +467,6 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 	}
 
 	await updateGlobalSettings(settings);
-	await migrateLegacyClangdUserConfig();
 	await enableBundledConptyWhenUnset();
 	if (!compilerExists) {
 		return;
@@ -541,32 +522,6 @@ function getSpaceSafePortableCompilerPath(context: vscode.ExtensionContext, comp
 
 function normalizeWindowsPath(value: string): string {
 	return value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
-}
-
-async function migrateLegacyClangdUserConfig(): Promise<void> {
-	const configPath = clangdUserConfigPath();
-	if (!fs.existsSync(configPath)) {
-		return;
-	}
-	let content: string;
-	try {
-		content = fs.readFileSync(configPath, 'utf8');
-	} catch {
-		return;
-	}
-	if (!isLegacyManagedClangdConfig(content)) {
-		return;
-	}
-	let backupPath = `${configPath}.shortestpath-legacy.bak`;
-	for (let index = 1; fs.existsSync(backupPath); index++) {
-		backupPath = `${configPath}.shortestpath-legacy.${index}.bak`;
-	}
-	try {
-		fs.renameSync(configPath, backupPath);
-		void vscode.window.showInformationMessage('已停用旧版 ShortestPath IDE 生成的 clangd 全局配置，当前便携工具链将不再受它影响。');
-	} catch {
-		// Do not modify the host config when it cannot be safely migrated.
-	}
 }
 
 async function enableBundledConptyWhenUnset(): Promise<void> {
