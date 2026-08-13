@@ -4,6 +4,7 @@
 
 ## v0.3.4 更新 / What's New
 
+- 移除了 Herobrine。
 - 不再创建、修改或迁移用户全局 clangd 配置；首次配置仍只会在当前工作区创建 `.clangd`。
 - 工具链诊断现在可实测当前 C/C++ 文件的 clangd 系统头文件，并识别 `<bits/stdc++.h>`、`.clangd` 和 `--query-driver` 配置不匹配的问题。
 - 修复 ShortestPath OJ 独立安装包缺少 WebSocket 运行时依赖，以及 Windows 导入题目时异常 CPH 源码路径导致失败的问题；旧缓存中的无效路径会自动清理。
@@ -11,6 +12,7 @@
 - 更新提示会展示随版本下发的多行说明，并支持稍后提醒；不支持 ConPTY 的旧版 Windows 会明确提示系统版本要求。
 - 优化 OJ 评测状态与结果展示：JG、NA、PD 和 Pending 会显示为评测中，Float Judge 完整显示并可悬停查看允许误差；网站安全验证提示不会再被提示弹窗背景遮罩模糊。
 
+- Removed Herobrine.
 - ShortestPath IDE no longer creates, changes, or migrates global clangd configuration. Initial setup still creates `.clangd` only in the current workspace.
 - Toolchain diagnostics can now probe clangd system headers for the active C/C++ file and detect mismatches involving `<bits/stdc++.h>`, `.clangd`, and `--query-driver`.
 - Fixed missing WebSocket runtime dependencies in the standalone ShortestPath OJ package, and malformed CPH source paths that could break Windows problem imports. Invalid legacy paths are cleaned up automatically.
