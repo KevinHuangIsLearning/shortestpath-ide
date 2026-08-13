@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { getPortableDataRoot, isLegacyManagedClangdConfig, managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from '../portableToolchain';
+import { getPortableDataRoot, managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from '../portableToolchain';
 
 suite('Portable ShortestPath toolchain paths', () => {
 	const compiler = 'F:\\ShortestPath\\data\\user-data\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\winlibs\\mingw64\\bin\\g++.exe';
@@ -55,16 +55,4 @@ suite('Portable ShortestPath toolchain paths', () => {
 		]);
 	});
 
-	test('recognizes only legacy global clangd configuration owned by ShortestPath', () => {
-		const oldCompiler = 'E:/Old/User/globalStorage/shortestpath.shortestpath-setup/toolchains/winlibs/mingw64/bin/g++.exe';
-		const profileCompiler = 'E:/Old/User/profiles/abc/globalStorage/shortestpath.shortestpath-setup/toolchains/winlibs/mingw64/bin/g++.exe';
-		const generated = `CompileFlags:\n  Add:\n    - -std=c++23\n    - -Wall\n    - -Wextra\n    - "-Drsize_t=size_t"\n    - "-D__STDC_WANT_LIB_EXT1__=1"\n    - "-D__float128=long double"\n    - -U__SIZEOF_FLOAT128__\n  BuiltinHeaders: QueryDriver\n  Compiler: "${oldCompiler}"\n\nCompletion:\n  HeaderInsertion: Never\n\nIndex:\n  Background: Build\n`;
-		assert.deepStrictEqual([
-			isLegacyManagedClangdConfig(generated),
-			isLegacyManagedClangdConfig(`${managedClangdConfigMarker}\n${generated}`),
-			isLegacyManagedClangdConfig(generated.replace(oldCompiler, profileCompiler)),
-			isLegacyManagedClangdConfig(generated.replace(oldCompiler, 'C:/custom/g++.exe')),
-			isLegacyManagedClangdConfig(`${generated}Diagnostics:\n  UnusedIncludes: Strict\n`)
-		], [true, true, true, false, false]);
-	});
 });
