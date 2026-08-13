@@ -61,7 +61,7 @@ class ShortestPathUpdateChecker {
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IOpenerService private readonly openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
@@ -105,18 +105,12 @@ class ShortestPathUpdateChecker {
 			return result;
 		}
 
-		const dialogResult = await this.dialogService.confirm({
-			type: severity.Info,
-			// allow-any-unicode-next-line
-			message: localize('shortestpath.update.available', "ShortestPath IDE {0} 已发布。", release.version),
-			// allow-any-unicode-next-line
-			detail: localize('shortestpath.update.detail', "当前版本：{0}。打开发布页面以选择下载文件。", currentVersion),
-			// allow-any-unicode-next-line
-			primaryButton: localize({ key: 'shortestpath.update.openRelease', comment: ['&& denotes a mnemonic'] }, "&&打开发布页面"),
+		ShortestPathUpdateBlocker.getOrCreate(this.instantiationService, {
+			downloadUrl: target?.downloadUrl ?? release.downloadUrl,
+			isRequired: false,
+			version: release.version,
+			releaseNote: release.releaseNote,
 		});
-		if (dialogResult.confirmed) {
-			await this.openerService.open(URI.parse(target?.downloadUrl ?? release.downloadUrl));
-		}
 
 		return result;
 	}
@@ -144,6 +138,15 @@ class ShortestPathUpdateChecker {
 	}
 }
 
+interface IShortestPathUpdateDialogOptions {
+	readonly downloadUrl: string;
+	readonly isRequired: boolean;
+	readonly version?: string;
+	readonly releaseNote?: string;
+	readonly graceCount?: number;
+	readonly onNetworkGrace?: () => void;
+}
+
 class ShortestPathUpdateBlocker extends Disposable {
 	private static active: ShortestPathUpdateBlocker | undefined;
 
@@ -155,9 +158,9 @@ class ShortestPathUpdateBlocker extends Disposable {
 		return !!this.active;
 	}
 
-	static getOrCreate(instantiationService: IInstantiationService, downloadUrl: string, graceCount: number, onNetworkGrace: () => void): ShortestPathUpdateBlocker {
+	static getOrCreate(instantiationService: IInstantiationService, options: IShortestPathUpdateDialogOptions): ShortestPathUpdateBlocker {
 		if (!this.active) {
-			this.active = instantiationService.createInstance(ShortestPathUpdateBlocker, downloadUrl, graceCount, onNetworkGrace);
+			this.active = instantiationService.createInstance(ShortestPathUpdateBlocker, options);
 			this.active.activate();
 		}
 
@@ -165,20 +168,15 @@ class ShortestPathUpdateBlocker extends Disposable {
 	}
 
 	constructor(
-		downloadUrl: string,
-		private readonly graceCount: number,
-		private readonly onNetworkGrace: () => void,
+		private readonly options: IShortestPathUpdateDialogOptions,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
-		this.downloadUrl = downloadUrl;
 		this._register(lifecycleService.onWillShutdown(() => this.dispose()));
 	}
-
-	private readonly downloadUrl: string;
 
 	activate(): void {
 		// allow-any-unicode-next-line
@@ -198,49 +196,68 @@ class ShortestPathUpdateBlocker extends Disposable {
 		updateOverlayTop();
 		this._register(this.layoutService.onDidChangePartVisibility(updateOverlayTop));
 		// allow-any-unicode-next-line
-		const closeButton = append(dialog, $('button.shortestpath-update-required-close', { type: 'button', title: '更新', 'aria-label': '更新' }, '×'));
+		const closeButton = append(dialog, $('button.shortestpath-update-required-close', { type: 'button', title: this.options.isRequired ? '更新' : '关闭', 'aria-label': this.options.isRequired ? '更新' : '关闭' }, '×'));
 		// allow-any-unicode-next-line
-		append(dialog, $('h1', undefined, '需要升级 ShortestPath IDE'));
+		append(dialog, $('h1', undefined, this.options.isRequired ? '需要升级 ShortestPath IDE' : `ShortestPath IDE ${this.options.version} 已发布`));
 		// allow-any-unicode-next-line
-		append(dialog, $('p', undefined, '此版本已不再受支持。请下载并安装最新版后继续使用。'));
+		append(dialog, $('p', undefined, this.options.isRequired ? '此版本已不再受支持。请下载并安装最新版后继续使用。' : '当前有新版本可用。请下载并安装最新版。'));
+		if (this.options.releaseNote) {
+			// allow-any-unicode-next-line
+			append(dialog, $('p.shortestpath-update-required-release-note', undefined, this.options.releaseNote));
+		}
 		// allow-any-unicode-next-line
-		const networkButton = append(dialog, $('button.shortestpath-update-required-network', { type: 'button' }, '网络不好？'));
+		const networkButton = this.options.isRequired ? append(dialog, $('button.shortestpath-update-required-network', { type: 'button' }, '网络不好？')) : undefined;
 		const actions = append(dialog, $('.shortestpath-update-required-actions'));
 		// allow-any-unicode-next-line
 		const updateButton = append(actions, $('button.shortestpath-update-required-action.primary', { type: 'button' }, '更新'));
 		// allow-any-unicode-next-line
-		const alternateUpdateButton = append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, '或者更新'));
+		const alternateUpdateButton = append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, this.options.isRequired ? '或者更新' : '下次丕定'));
 
-		const openUpdate = () => void this.openerService.open(URI.parse(this.downloadUrl));
-		for (const button of [closeButton, updateButton, alternateUpdateButton]) {
+		const openUpdate = () => void this.openerService.open(URI.parse(this.options.downloadUrl));
+		for (const button of this.options.isRequired ? [closeButton, updateButton, alternateUpdateButton] : [updateButton]) {
 			this._register(addDisposableListener(button, 'click', event => {
 				event.preventDefault();
 				event.stopPropagation();
 				openUpdate();
 			}));
 		}
-		this._register(addDisposableListener(networkButton, 'click', async event => {
-			event.preventDefault();
-			event.stopPropagation();
-			const isPermanent = this.graceCount >= 2;
-			const result = await this.dialogService.confirm({
-				type: severity.Warning,
-				// allow-any-unicode-next-line
-				message: isPermanent ? '已使用两次网络宽限。' : '网络不好时可以暂时继续使用。',
-				// allow-any-unicode-next-line
-				detail: isPermanent ? '选择后将永久不再因最低版本限制锁定。' : '继续使用后，3 小时内不会锁定；到期后仍可再次检查更新。',
-				// allow-any-unicode-next-line
-				primaryButton: isPermanent ? '别他妈烦我' : '继续使用',
-				// allow-any-unicode-next-line
-				cancelButton: '留在更新页面',
-			});
-			if (result.confirmed) {
-				this.onNetworkGrace();
+		if (!this.options.isRequired) {
+			for (const button of [closeButton, alternateUpdateButton]) {
+				this._register(addDisposableListener(button, 'click', event => {
+					event.preventDefault();
+					event.stopPropagation();
+					this.dispose();
+				}));
 			}
-		}));
+		}
+		if (networkButton) {
+			this._register(addDisposableListener(networkButton, 'click', async event => {
+				event.preventDefault();
+				event.stopPropagation();
+				const isPermanent = this.options.graceCount! >= 2;
+				const result = await this.dialogService.confirm({
+					type: severity.Warning,
+					// allow-any-unicode-next-line
+					message: isPermanent ? '已使用两次网络宽限。' : '网络不好时可以暂时继续使用。',
+					// allow-any-unicode-next-line
+					detail: isPermanent ? '选择后将永久不再因最低版本限制锁定。' : '继续使用后，3 小时内不会锁定；到期后仍可再次检查更新。',
+					// allow-any-unicode-next-line
+					primaryButton: isPermanent ? '别他妈烦我' : '继续使用',
+					// allow-any-unicode-next-line
+					cancelButton: '留在更新页面',
+				});
+				if (result.confirmed) {
+					this.options.onNetworkGrace!();
+				}
+			}));
+		}
 		this._register(addDisposableListener(overlay, 'click', event => {
 			if (event.target === overlay) {
-				openUpdate();
+				if (this.options.isRequired) {
+					openUpdate();
+				} else {
+					this.dispose();
+				}
 			}
 		}));
 		this._register(addDisposableListener(overlay, 'keydown', event => {
@@ -321,7 +338,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 			}
 
 			if (!ShortestPathUpdateBlocker.hasActive) {
-				this.showBlocker(instantiationService, result.release.minimumSupportedVersion, result.target?.downloadUrl ?? result.release.downloadUrl, graceState?.graceCount ?? 0);
+				this.showBlocker(instantiationService, result.release.minimumSupportedVersion, result.target?.downloadUrl ?? result.release.downloadUrl, graceState?.graceCount ?? 0, result.release.releaseNote);
 			}
 		} catch (error) {
 			logService.debug('ShortestPath IDE update check failed.', error);
@@ -330,8 +347,14 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 		}
 	}
 
-	private showBlocker(instantiationService: IInstantiationService, minimumSupportedVersion: string, downloadUrl: string, graceCount: number): void {
-		this.blocker = this._register(ShortestPathUpdateBlocker.getOrCreate(instantiationService, downloadUrl, graceCount, () => this.grantNetworkGrace(minimumSupportedVersion, downloadUrl, graceCount)));
+	private showBlocker(instantiationService: IInstantiationService, minimumSupportedVersion: string, downloadUrl: string, graceCount: number, releaseNote?: string): void {
+		this.blocker = this._register(ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
+			downloadUrl,
+			isRequired: true,
+			graceCount,
+			releaseNote,
+			onNetworkGrace: () => this.grantNetworkGrace(minimumSupportedVersion, downloadUrl, graceCount),
+		}));
 	}
 
 	private grantNetworkGrace(minimumSupportedVersion: string, downloadUrl: string, graceCount: number): void {
@@ -524,16 +547,22 @@ registerAction2(class extends Action2 {
 				}
 				const downloadUrl = result.target?.downloadUrl ?? result.release.downloadUrl;
 				const graceCount = graceState?.graceCount ?? 0;
-				const blocker = ShortestPathUpdateBlocker.getOrCreate(instantiationService, downloadUrl, graceCount, () => {
-					const isPermanent = graceCount >= 2;
-					storageService.store(UPDATE_GRACE_STORAGE_KEY, {
-						version: productService.shortestPathVersion!,
-						minimumSupportedVersion: result.release.minimumSupportedVersion!,
-						downloadUrl,
-						graceCount: isPermanent ? graceCount : graceCount + 1,
-						...(isPermanent ? { permanentlyAllowed: true } : { graceUntil: Date.now() + NETWORK_GRACE_DURATION }),
-					}, StorageScope.APPLICATION, StorageTarget.MACHINE);
-					blocker.dispose();
+				const blocker = ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
+					downloadUrl,
+					isRequired: true,
+					graceCount,
+					releaseNote: result.release.releaseNote,
+					onNetworkGrace: () => {
+						const isPermanent = graceCount >= 2;
+						storageService.store(UPDATE_GRACE_STORAGE_KEY, {
+							version: productService.shortestPathVersion!,
+							minimumSupportedVersion: result.release.minimumSupportedVersion!,
+							downloadUrl,
+							graceCount: isPermanent ? graceCount : graceCount + 1,
+							...(isPermanent ? { permanentlyAllowed: true } : { graceUntil: Date.now() + NETWORK_GRACE_DURATION }),
+						}, StorageScope.APPLICATION, StorageTarget.MACHINE);
+						blocker.dispose();
+					},
 				});
 			} else {
 				ShortestPathUpdateBlocker.dismiss();

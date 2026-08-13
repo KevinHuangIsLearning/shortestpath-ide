@@ -7,12 +7,14 @@ export interface IShortestPathUpdate {
 	readonly version: string;
 	readonly downloadUrl: string;
 	readonly minimumSupportedVersion?: string;
+	readonly releaseNote?: string;
 }
 
 export interface IShortestPathUpdateDocument {
 	readonly version?: unknown;
 	readonly downloadUrl?: unknown;
 	readonly minimumSupportedVersion?: unknown;
+	readonly releaseNote?: unknown;
 }
 
 export interface IShortestPathUpdateTarget {
@@ -111,11 +113,16 @@ export function parseShortestPathUpdateDocument(document: IShortestPathUpdateDoc
 	if (minimumSupportedVersion && isShortestPathUpdateAvailable(document.version, minimumSupportedVersion)) {
 		return undefined;
 	}
+	const releaseNote = document.releaseNote;
+	if (releaseNote !== undefined && (typeof releaseNote !== 'string' || !releaseNote.trim() || releaseNote.length > 4000)) {
+		return undefined;
+	}
 
 	return {
 		version: document.version,
 		downloadUrl: downloadUrl.toString(),
 		...(minimumSupportedVersion ? { minimumSupportedVersion } : {}),
+		...(releaseNote ? { releaseNote } : {}),
 	};
 }
 

@@ -1923,12 +1923,12 @@ function renderSubmissions(state: ProblemPanelState): string {
 			const liveSubmission = isLiveSubmission(item);
 			const stage = liveSubmission ? describeSubmissionStage(item.stage, item.detailState) : undefined;
 			const statusClass = describeSubmissionStatus(item.status);
-			const status = `<span class="submission-status${statusClass ? ` ${statusClass}` : ''}">${escapeHtml(item.status)}</span>`;
+			const status = renderSubmissionStatus(item.status, statusClass);
 			const detailNotice = liveSubmission && item.detailState === 'unavailable' ? `<p class="warning">结果已结束，详情暂不可用：${escapeHtml(item.detailError?.message ?? '')}</p>` : '';
 			const compileError = liveSubmission && item.compileErrorMessage ? `<pre class="error"><code>${escapeHtml(item.compileErrorMessage)}</code></pre>` : '';
 			const details = liveSubmission && item.details.length ? `<table><thead><tr><th>#</th><th>测试点</th><th>状态</th><th>时间</th><th>内存</th></tr></thead><tbody>${item.details.map(detail => {
 				const detailStatusClass = describeSubmissionStatus(detail.status);
-				const detailStatus = `<span class="submission-status${detailStatusClass ? ` ${detailStatusClass}` : ''}">${escapeHtml(detail.status)}</span>`;
+				const detailStatus = renderSubmissionStatus(detail.status, detailStatusClass);
 				return `<tr><td>${detail.seq}</td><td>${escapeHtml(detail.caseName)}</td><td>${detailStatus}</td><td>${detail.timeMs} ms</td><td>${detail.memoryKB} KB</td></tr>`;
 			}).join('')}</tbody></table>` : '';
 			const disconnected = liveSubmission && state.disconnectedSubmissions.has(item.submissionId) ? '<p class="warning">评测转发已断开；后端任务状态未知，请重新连接并恢复观察。</p>' : '';
@@ -1941,6 +1941,11 @@ function renderSubmissions(state: ProblemPanelState): string {
 			return body ? `<details class="submission" data-persist-key="submission:${escapeAttribute(item.submissionId)}"${shouldOpen ? ' open' : ''}><summary>${summary}</summary><div class="submission-body">${body}</div></details>` : `<article class="submission submission-record">${summary}</article>`;
 		}).join('');
 	return `<section class="submissions"><h2>评测</h2><form id="watch-submission" hidden><input name="submissionId" inputmode="numeric" placeholder="已有提交 ID"><button type="submit"${state.connected ? '' : ' disabled'}>恢复观察</button></form>${items || '<p>暂无评测记录。</p>'}</section>`;
+}
+
+function renderSubmissionStatus(status: string, statusClass: ReturnType<typeof describeSubmissionStatus>): string {
+	const evaluating = statusClass === 'in-progress';
+	return `<span class="submission-status ${statusClass}"${evaluating ? ' title="测评中" aria-label="测评中"' : ''}>${escapeHtml(status)}</span>`;
 }
 
 function isLiveSubmission(submission: SubmissionSnapshot | SubmissionHistoryEntry): submission is SubmissionSnapshot {

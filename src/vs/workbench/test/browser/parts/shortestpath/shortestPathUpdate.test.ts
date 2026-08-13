@@ -23,6 +23,17 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.2', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1' }), undefined);
 	});
 
+	test('parses a bounded non-empty release note', () => {
+		const update = parseShortestPathUpdateDocument({
+			version: '0.2.1',
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
+			releaseNote: '修复若干问题。\n优化更新体验。',
+		});
+		assert.strictEqual(update?.releaseNote, '修复若干问题。\n优化更新体验。');
+		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', releaseNote: '' }), undefined);
+		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', releaseNote: 'x'.repeat(4001) }), undefined);
+	});
+
 	test('parses a minimum supported version', () => {
 		assert.deepStrictEqual(parseShortestPathUpdateDocument({
 			version: '0.2.1',
