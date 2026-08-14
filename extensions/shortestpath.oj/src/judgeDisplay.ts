@@ -61,3 +61,10 @@ export function describeSubmissionStatus(status: string): 'accepted' | 'compilat
 	}
 	return 'failed';
 }
+
+export function describeSubmissionDetailStatus(status: string): { label: string; statusClass?: ReturnType<typeof describeSubmissionStatus> } {
+	if (status.trim().toLowerCase() === 'na') {
+		return { label: '-' };
+	}
+	return { label: status, statusClass: describeSubmissionStatus(status) };
+}

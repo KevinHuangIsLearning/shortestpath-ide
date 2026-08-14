@@ -9,7 +9,7 @@ import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { canRequestEditorial, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
-import { describeFloatJudgeTolerance, describeJudgeType, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
+import { describeFloatJudgeTolerance, describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
 import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive } from './problemPanelLifecycle';
 import { ImportAction, OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
@@ -1927,9 +1927,9 @@ function renderSubmissions(state: ProblemPanelState): string {
 			const detailNotice = liveSubmission && item.detailState === 'unavailable' ? `<p class="warning">结果已结束，详情暂不可用：${escapeHtml(item.detailError?.message ?? '')}</p>` : '';
 			const compileError = liveSubmission && item.compileErrorMessage ? `<pre class="error"><code>${escapeHtml(item.compileErrorMessage)}</code></pre>` : '';
 			const details = liveSubmission && item.details.length ? `<table><thead><tr><th>#</th><th>测试点</th><th>状态</th><th>时间</th><th>内存</th></tr></thead><tbody>${item.details.map(detail => {
-				const detailStatusClass = describeSubmissionStatus(detail.status);
-				const detailStatus = renderSubmissionStatus(detail.status, detailStatusClass);
-				return `<tr><td>${detail.seq}</td><td>${escapeHtml(detail.caseName)}</td><td>${detailStatus}</td><td>${detail.timeMs} ms</td><td>${detail.memoryKB} KB</td></tr>`;
+				const detailStatus = describeSubmissionDetailStatus(detail.status);
+				const detailStatusHtml = detailStatus.statusClass ? renderSubmissionStatus(detailStatus.label, detailStatus.statusClass) : escapeHtml(detailStatus.label);
+				return `<tr><td>${detail.seq}</td><td>${escapeHtml(detail.caseName)}</td><td>${detailStatusHtml}</td><td>${detail.timeMs} ms</td><td>${detail.memoryKB} KB</td></tr>`;
 			}).join('')}</tbody></table>` : '';
 			const disconnected = liveSubmission && state.disconnectedSubmissions.has(item.submissionId) ? '<p class="warning">评测转发已断开；后端任务状态未知，请重新连接并恢复观察。</p>' : '';
 			const showStressHint = liveSubmission && shouldShowStressHint(state, item);

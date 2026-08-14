@@ -30,11 +30,12 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
+import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
 
 interface IShortestPathUpdateCheckResult {
 	readonly release: IShortestPathUpdate;
 	readonly target: IShortestPathUpdateTarget | undefined;
+	readonly fastDownloadUrl: string | undefined;
 }
 
 const UPDATE_GRACE_STORAGE_KEY = 'shortestpath.update.networkGrace';
@@ -91,7 +92,7 @@ class ShortestPathUpdateChecker {
 			return undefined;
 		}
 		const target = (await this.getUpdateTarget()) ?? { downloadUrl: release.downloadUrl, allowsMinimumVersionLock: false };
-		const result = { release, target };
+		const result = { release, target, fastDownloadUrl: getShortestPathFastDownloadUrl(release.fastDownloadUrls, target) };
 
 		if (release.minimumSupportedVersion && target?.allowsMinimumVersionLock !== false && !isShortestPathVersionSupported(currentVersion, release.minimumSupportedVersion)) {
 			return result;
@@ -107,6 +108,7 @@ class ShortestPathUpdateChecker {
 
 		ShortestPathUpdateBlocker.getOrCreate(this.instantiationService, {
 			downloadUrl: target?.downloadUrl ?? release.downloadUrl,
+			fastDownloadUrl: result.fastDownloadUrl,
 			isRequired: false,
 			version: release.version,
 			releaseNote: release.releaseNote,
@@ -140,6 +142,7 @@ class ShortestPathUpdateChecker {
 
 interface IShortestPathUpdateDialogOptions {
 	readonly downloadUrl: string;
+	readonly fastDownloadUrl?: string;
 	readonly isRequired: boolean;
 	readonly version?: string;
 	readonly releaseNote?: string;
@@ -211,18 +214,26 @@ class ShortestPathUpdateBlocker extends Disposable {
 		// allow-any-unicode-next-line
 		const updateButton = append(actions, $('button.shortestpath-update-required-action.primary', { type: 'button' }, '更新'));
 		// allow-any-unicode-next-line
-		const alternateUpdateButton = append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, this.options.isRequired ? '或者更新' : '下次丕定'));
+		const fastDownloadButton = this.options.fastDownloadUrl ? append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, '网盘快速下载')) : undefined;
+		const alternateUpdateButton = this.options.isRequired ? undefined : append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, '下次丕定'));
 
 		const openUpdate = () => void this.openerService.open(URI.parse(this.options.downloadUrl));
-		for (const button of this.options.isRequired ? [closeButton, updateButton, alternateUpdateButton] : [updateButton]) {
+		for (const button of this.options.isRequired ? [closeButton, updateButton] : [updateButton]) {
 			this._register(addDisposableListener(button, 'click', event => {
 				event.preventDefault();
 				event.stopPropagation();
 				openUpdate();
 			}));
 		}
+		if (fastDownloadButton) {
+			this._register(addDisposableListener(fastDownloadButton, 'click', event => {
+				event.preventDefault();
+				event.stopPropagation();
+				void this.openerService.open(URI.parse(this.options.fastDownloadUrl!));
+			}));
+		}
 		if (!this.options.isRequired) {
-			for (const button of [closeButton, alternateUpdateButton]) {
+			for (const button of [closeButton, alternateUpdateButton!]) {
 				this._register(addDisposableListener(button, 'click', event => {
 					event.preventDefault();
 					event.stopPropagation();
@@ -338,7 +349,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 			}
 
 			if (!ShortestPathUpdateBlocker.hasActive) {
-				this.showBlocker(instantiationService, result.release.minimumSupportedVersion, result.target?.downloadUrl ?? result.release.downloadUrl, graceState?.graceCount ?? 0, result.release.releaseNote);
+				this.showBlocker(instantiationService, result.release.minimumSupportedVersion, result.target?.downloadUrl ?? result.release.downloadUrl, result.fastDownloadUrl, graceState?.graceCount ?? 0, result.release.releaseNote);
 			}
 		} catch (error) {
 			logService.debug('ShortestPath IDE update check failed.', error);
@@ -347,9 +358,10 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 		}
 	}
 
-	private showBlocker(instantiationService: IInstantiationService, minimumSupportedVersion: string, downloadUrl: string, graceCount: number, releaseNote?: string): void {
+	private showBlocker(instantiationService: IInstantiationService, minimumSupportedVersion: string, downloadUrl: string, fastDownloadUrl: string | undefined, graceCount: number, releaseNote?: string): void {
 		this.blocker = this._register(ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
 			downloadUrl,
+			fastDownloadUrl,
 			isRequired: true,
 			graceCount,
 			releaseNote,
@@ -549,6 +561,7 @@ registerAction2(class extends Action2 {
 				const graceCount = graceState?.graceCount ?? 0;
 				const blocker = ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
 					downloadUrl,
+					fastDownloadUrl: result.fastDownloadUrl,
 					isRequired: true,
 					graceCount,
 					releaseNote: result.release.releaseNote,
