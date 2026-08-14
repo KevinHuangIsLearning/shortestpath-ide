@@ -2,5 +2,10 @@
 	"version": "0.3.6",
 	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.6",
 	"minimumSupportedVersion": "0.3.6",
+	"fastDownloadUrls": {
+		"macosArm64": "https://www.icloud.com.cn/iclouddrive/08cF_59Sro2BVBxDWGAUj5UoA",
+		"windowsUserSetup": "https://www.icloud.com.cn/iclouddrive/01fLMfx55zsPx5cbwmEyDNJ8g",
+		"windowsPortable": "https://www.icloud.com.cn/iclouddrive/0843yvpx7xZ3JGv1C4X6uyj6A"
+	},
 	"releaseNote": "- 修复 0.3.5 中标签栏右侧窗口控制按钮未显示的问题：主侧栏、底部面板/终端、辅助侧栏和配置布局按钮现已恢复。\n- 控件改为注册在编辑器标题专用菜单中，不再订阅会造成 Windows 严重卡顿甚至卡死的全局布局菜单。\n- 下载说明新增 Windows 与 macOS 的快速下载地址。\n- 此版本为强制更新，请立即升级到 0.3.6。"
 }
