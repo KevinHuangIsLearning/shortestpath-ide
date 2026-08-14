@@ -39,6 +39,12 @@
 					"scope": "window",
 					"description": "%configuration.pending%"
 				},
+				"shortestpath.setup.repair": {
+					"type": "boolean",
+					"default": false,
+					"scope": "window",
+					"description": "%configuration.repair%"
+				},
 				"shortestpath.executableCleanupDelaySeconds": {
 					"type": "number",
 					"default": 60,

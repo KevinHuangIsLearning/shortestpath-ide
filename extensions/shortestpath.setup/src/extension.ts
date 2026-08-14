@@ -23,6 +23,8 @@ type PlatformPreset = {
 	downloadSources?: DownloadSource[];
 };
 
+type CphDefaultSettings = Record<string, unknown>;
+
 type DownloadSource = { id: string; unavailable?: boolean };
 
 type PlatformInstaller = {
@@ -30,7 +32,7 @@ type PlatformInstaller = {
 	getPortableAssets?(input: { toolchainRoot: string; source?: DownloadSource; stage?: string; locale?: string }): readonly unknown[];
 };
 
-type SetupSelection = 'recommended';
+type SetupSelection = 'recommended' | 'repair';
 
 type FirstRunSelection = {
 	mode: SetupSelection;
@@ -294,9 +296,10 @@ async function ensureShortestPathFileNameTemplateOverride(): Promise<void> {
 	await configuration.update('fileNameTemplateOverrides', { ...globalValue, ShortestPath: '{ojName}/{contestId}/{problemId}.{ext}' }, vscode.ConfigurationTarget.Global);
 }
 
-async function rerunFirstRunSetup(): Promise<void> {
+async function rerunFirstRunSetup(repair = false): Promise<void> {
 	const configuration = vscode.workspace.getConfiguration('shortestpath.setup');
 	await configuration.update('pending', undefined, vscode.ConfigurationTarget.Global);
+	await configuration.update('repair', repair, vscode.ConfigurationTarget.Global);
 	await configuration.update('completed', false, vscode.ConfigurationTarget.Global);
 	const action = await vscode.window.showInformationMessage(
 		'ShortestPath IDE will show the first-run setup after restart.',
@@ -312,6 +315,7 @@ async function repairToolchain(context: vscode.ExtensionContext): Promise<void> 
 	if (preset.portableToolchain) {
 		const configuration = vscode.workspace.getConfiguration('shortestpath.setup');
 		await configuration.update('pending', undefined, vscode.ConfigurationTarget.Global);
+		await configuration.update('repair', true, vscode.ConfigurationTarget.Global);
 		await configuration.update('completed', false, vscode.ConfigurationTarget.Global);
 		await vscode.window.showInformationMessage('正在进入工具链修复。请在开箱页继续，ShortestPath IDE 会重新下载缺失的组件。');
 		await vscode.commands.executeCommand('workbench.action.reloadWindow');
@@ -341,7 +345,7 @@ async function repairToolchain(context: vscode.ExtensionContext): Promise<void> 
 	}
 	// A configured Apple Clang fallback is usable, but "repair" means install
 	// Homebrew GCC rather than treating that fallback as already complete.
-	await offerInstaller(context, preset, !compiler || await isAppleClang(compiler), !clangd);
+	await offerInstaller(context, preset, !compiler || await isAppleClang(compiler), !clangd, true);
 }
 
 async function runSetup(context: vscode.ExtensionContext): Promise<void> {
@@ -356,7 +360,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 
 	if (firstRunSelection) {
 		if (firstRunSelection.installToolchain && (!compiler || !clangd)) {
-			await offerInstaller(context, preset, !compiler, !clangd);
+			await offerInstaller(context, preset, !compiler, !clangd, firstRunSelection.mode === 'repair');
 			installerStarted = true;
 		}
 	} else if (!compiler || !clangd) {
@@ -384,6 +388,9 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	const settings: Record<string, unknown> = {
 		'files.exclude': addMissingShortestPathFileExcludes(getGlobalFileExcludes())
 	};
+	if (firstRunSelection?.mode === 'recommended') {
+		Object.assign(settings, loadCphDefaultSettings(context));
+	}
 	const cppStandard = firstRunSelection?.cppStandard ?? 'c++23';
 	if (compiler) {
 		if (process.platform === 'win32' && vscode.env.isAppPortable) {
@@ -415,6 +422,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	if (firstRunSelection) {
 		const firstRunConfiguration = vscode.workspace.getConfiguration('shortestpath.setup');
 		await firstRunConfiguration.update('pending', undefined, vscode.ConfigurationTarget.Global);
+		await firstRunConfiguration.update('repair', false, vscode.ConfigurationTarget.Global);
 		await firstRunConfiguration.update('completed', true, vscode.ConfigurationTarget.Global);
 	}
 	await context.globalState.update(SETUP_COMPLETE, true);
@@ -537,7 +545,7 @@ function isFirstRunSelection(candidate: unknown): candidate is FirstRunSelection
 		return false;
 	}
 	const value = candidate as Partial<FirstRunSelection>;
-	return value.mode === 'recommended'
+	return (value.mode === 'recommended' || value.mode === 'repair')
 		&& typeof value.installToolchain === 'boolean'
 		&& (value.cppStandard === 'c++11' || value.cppStandard === 'c++14' || value.cppStandard === 'c++17' || value.cppStandard === 'c++20' || value.cppStandard === 'c++23')
 		&& typeof value.workspaceFolder === 'string'
@@ -555,6 +563,11 @@ function loadPreset(context: vscode.ExtensionContext): PlatformPreset {
 	};
 }
 
+function loadCphDefaultSettings(context: vscode.ExtensionContext): CphDefaultSettings {
+	const defaultsPath = path.join(context.extensionPath, 'resources', 'cph-defaults.json');
+	return JSON.parse(fs.readFileSync(defaultsPath, 'utf8')) as CphDefaultSettings;
+}
+
 function getPlatformName(): 'windows' | 'mac' | 'linux' {
 	return process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux';
 }
@@ -565,7 +578,7 @@ function loadPlatformInstaller(context: vscode.ExtensionContext): PlatformInstal
 	return require(path.join(context.extensionPath, 'resources', `${getPlatformName()}.js`)) as PlatformInstaller;
 }
 
-async function offerInstaller(context: vscode.ExtensionContext, preset: PlatformPreset, compilerMissing: boolean, clangdMissing: boolean): Promise<void> {
+async function offerInstaller(context: vscode.ExtensionContext, preset: PlatformPreset, compilerMissing: boolean, clangdMissing: boolean, repair = false): Promise<void> {
 	const missingTools = [
 		compilerMissing ? (process.platform === 'darwin' ? 'Homebrew GCC' : 'g++') : undefined,
 		clangdMissing ? 'clangd' : undefined
@@ -587,7 +600,7 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 				'Restart setup now'
 			);
 			if (restart === 'Restart setup now') {
-				await rerunFirstRunSetup();
+					await rerunFirstRunSetup(repair);
 			}
 			return;
 		}
