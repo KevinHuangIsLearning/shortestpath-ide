@@ -4,15 +4,17 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.3.5 紧急更新 / Critical Update
+## v0.3.6 紧急更新 / Critical Update
 
-- 紧急修复 Windows 下严重卡顿甚至卡死的问题：编辑器标签栏错误订阅全局布局菜单，布局变化时会重复重建菜单和监听器，并大量写入错误日志。
-- 恢复标签栏右侧的窗口控制按钮；它们继续使用编辑器标题栏专用菜单，并会在编辑器组位置变化后正确刷新。
-- 此版本为强制更新，请立即升级到 0.3.5。
+- 修复 0.3.5 中标签栏右侧窗口控制按钮未显示的问题：主侧栏、底部面板/终端、辅助侧栏和配置布局按钮现已恢复。
+- 控件改为注册在编辑器标题专用菜单中，不再订阅会造成 Windows 严重卡顿甚至卡死的全局布局菜单。
+- 下载说明新增 Windows 与 macOS 的快速下载地址。
+- 此版本为强制更新，请立即升级到 0.3.6。
 
-- Critical fix for severe Windows lag and freezes: the editor tab bar incorrectly subscribed to the global layout menu, repeatedly rebuilding menus and listeners during layout changes while writing excessive error logs.
-- Restored the window-control buttons on the right side of the tab bar. They continue to use the editor-title-specific menu and refresh when editor-group placement changes.
-- This is a mandatory update. Please upgrade to 0.3.5 immediately.
+- Fixed the missing window-control buttons on the right side of the tab bar in 0.3.5: primary side bar, bottom panel/terminal, secondary side bar, and Customize Layout are restored.
+- The controls now use the editor-title-specific menu and no longer subscribe to the global layout menu that caused severe Windows lag and freezes.
+- The download guide now includes fast download links for Windows and macOS.
+- This is a mandatory update. Please upgrade to 0.3.6 immediately.
 
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。
 >

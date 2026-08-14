@@ -45,6 +45,11 @@ const panelLeftOffIcon = registerIcon('panel-left-off', Codicon.layoutSidebarLef
 const panelRightIcon = registerIcon('panel-right', Codicon.layoutSidebarRight, localize('panelRight', "Represents side bar in the right position"));
 const panelRightOffIcon = registerIcon('panel-right-off', Codicon.layoutSidebarRightOff, localize('panelRightOff', "Represents side bar in the right position toggled off"));
 const panelIcon = registerIcon('panel-bottom', Codicon.layoutPanel, localize('panelBottom', "Represents the bottom panel"));
+const panelOffIcon = registerIcon('panel-bottom-off', Codicon.layoutPanelOff, localize('panelBottomOff', "Represents the bottom panel toggled off"));
+const auxiliaryBarLeftIcon = registerIcon('editor-title-auxiliarybar-left', Codicon.layoutSidebarLeft, localize('editorTitleAuxiliaryBarLeft', "Represents the secondary side bar in the left position"));
+const auxiliaryBarLeftOffIcon = registerIcon('editor-title-auxiliarybar-left-off', Codicon.layoutSidebarLeftOff, localize('editorTitleAuxiliaryBarLeftOff', "Represents the secondary side bar in the left position toggled off"));
+const auxiliaryBarRightIcon = registerIcon('editor-title-auxiliarybar-right', Codicon.layoutSidebarRight, localize('editorTitleAuxiliaryBarRight', "Represents the secondary side bar in the right position"));
+const auxiliaryBarRightOffIcon = registerIcon('editor-title-auxiliarybar-right-off', Codicon.layoutSidebarRightOff, localize('editorTitleAuxiliaryBarRightOff', "Represents the secondary side bar in the right position toggled off"));
 const statusBarIcon = registerIcon('statusBar', Codicon.layoutStatusbar, localize('statusBarIcon', "Represents the status bar"));
 
 const panelAlignmentLeftIcon = registerIcon('panel-align-left', Codicon.layoutPanelLeft, localize('panelBottomLeft', "Represents the bottom panel alignment set to the left"));
@@ -277,6 +282,112 @@ MenuRegistry.appendMenuItems([
 				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')
 			),
 			order: 2
+		}
+	}
+]);
+
+// ShortestPath IDE places the layout controls in the editor tab bar. Register the
+// individual actions there instead of using LayoutControlMenu as the editor title
+// menu: the latter is a global menu and creates listeners for every empty editor group.
+MenuRegistry.appendMenuItems([
+	{
+		id: MenuId.EditorTitleLayout,
+		item: {
+			group: 'navigation',
+			command: {
+				id: ToggleSidebarVisibilityAction.ID,
+				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
+				icon: panelLeftOffIcon,
+				toggled: { condition: SideBarVisibleContext, icon: panelLeftIcon }
+			},
+			when: ContextKeyExpr.and(
+				IsAuxiliaryWindowContext.negate(),
+				ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')
+			),
+			order: 0
+		}
+	}, {
+		id: MenuId.EditorTitleLayout,
+		item: {
+			group: 'navigation',
+			command: {
+				id: ToggleSidebarVisibilityAction.ID,
+				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
+				icon: panelRightOffIcon,
+				toggled: { condition: SideBarVisibleContext, icon: panelRightIcon }
+			},
+			when: ContextKeyExpr.and(
+				IsAuxiliaryWindowContext.negate(),
+				ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')
+			),
+			order: 0
+		}
+	}, {
+		id: MenuId.EditorTitleLayout,
+		item: {
+			group: 'navigation',
+			command: {
+				id: TogglePanelAction.ID,
+				title: localize('togglePanel', "Toggle Panel"),
+				icon: panelOffIcon,
+				toggled: { condition: PanelVisibleContext, icon: panelIcon }
+			},
+			when: ContextKeyExpr.and(
+				IsAuxiliaryWindowContext.negate(),
+				ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'))
+			),
+			order: 1
+		}
+	}, {
+		id: MenuId.EditorTitleLayout,
+		item: {
+			group: 'navigation',
+			command: {
+				id: ToggleAuxiliaryBarAction.ID,
+				title: localize('toggleSecondarySideBar', "Toggle Secondary Side Bar"),
+				icon: auxiliaryBarRightOffIcon,
+				toggled: { condition: AuxiliaryBarVisibleContext, icon: auxiliaryBarRightIcon }
+			},
+			when: ContextKeyExpr.and(
+				IsAuxiliaryWindowContext.negate(),
+				ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')
+			),
+			order: 2
+		}
+	}, {
+		id: MenuId.EditorTitleLayout,
+		item: {
+			group: 'navigation',
+			command: {
+				id: ToggleAuxiliaryBarAction.ID,
+				title: localize('toggleSecondarySideBar', "Toggle Secondary Side Bar"),
+				icon: auxiliaryBarLeftOffIcon,
+				toggled: { condition: AuxiliaryBarVisibleContext, icon: auxiliaryBarLeftIcon }
+			},
+			when: ContextKeyExpr.and(
+				IsAuxiliaryWindowContext.negate(),
+				ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')
+			),
+			order: 2
+		}
+	}, {
+		id: MenuId.EditorTitleLayout,
+		item: {
+			group: 'navigation',
+			command: {
+				id: 'workbench.action.customizeLayout',
+				title: localize('customizeLayout', "Customize Layout..."),
+				icon: configureLayoutIcon
+			},
+			when: ContextKeyExpr.and(
+				IsAuxiliaryWindowContext.negate(),
+				ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')
+			),
+			order: 3
 		}
 	}
 ]);
