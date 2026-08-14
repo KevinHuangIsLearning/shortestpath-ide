@@ -2,6 +2,7 @@
 	"configuration.title": "ShortestPath IDE 功能",
 	"configuration.completed": "首次配置是否已经完成。",
 	"configuration.pending": "首次配置完成前暂存的配置选择。",
+	"configuration.repair": "下一次配置是否仅修复工具链。",
 	"configuration.executableCleanupDelaySeconds": "生成的可执行文件运行结束后保留的秒数。设为 0 将立即删除。",
 	"configuration.executableCleanupEnabled": "程序运行结束后自动删除生成的可执行文件。",
 	"configuration.newFileDefaultLanguage": "从新建标签页创建文件时使用的默认语言。",

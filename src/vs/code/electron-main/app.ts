@@ -157,7 +157,7 @@ import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetr
 const shortestPathManagedClangdConfigMarker = '# Managed by ShortestPath IDE setup.';
 
 interface IShortestPathSetupRequest {
-	readonly mode: 'recommended';
+	readonly mode: 'recommended' | 'repair';
 	readonly installToolchain: boolean;
 	readonly cppStandard: 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 	readonly workspaceFolder: string;
@@ -215,7 +215,7 @@ function isShortestPathSetupRequest(candidate: unknown): candidate is IShortestP
 		return false;
 	}
 	const value = candidate as Partial<IShortestPathSetupRequest>;
-	return value.mode === 'recommended'
+	return (value.mode === 'recommended' || value.mode === 'repair')
 		&& typeof value.installToolchain === 'boolean'
 		&& (value.cppStandard === 'c++11' || value.cppStandard === 'c++14' || value.cppStandard === 'c++17' || value.cppStandard === 'c++20' || value.cppStandard === 'c++23')
 		&& typeof value.workspaceFolder === 'string'
@@ -858,6 +858,7 @@ export class CodeApplication extends Disposable {
 		if (this.configurationService.getValue<boolean>('shortestpath.setup.completed')) {
 			return undefined;
 		}
+		const repairMode = this.configurationService.getValue<boolean>('shortestpath.setup.repair') === true;
 
 		const preloadPath = join(this.environmentMainService.appRoot, 'resources', 'oi-defaults', 'first-run-preload.js');
 		const onboardingUrl = FileAccess.asBrowserUri('vs/../../resources/oi-defaults/first-run.html').toString(true);
@@ -912,7 +913,9 @@ export class CodeApplication extends Disposable {
 			};
 			const listener = (event: Electron.IpcMainEvent, candidate: unknown) => {
 				if (event.sender !== onboardingWindow.webContents) { return; }
-				void finish(isShortestPathSetupRequest(candidate) ? candidate : undefined);
+				void finish(isShortestPathSetupRequest(candidate)
+					? { ...candidate, mode: repairMode ? 'repair' : candidate.mode }
+					: undefined);
 			};
 			validatedIpcMain.on(channel, listener);
 			validatedIpcMain.handle(installChannel, async (event, sourceId: unknown, stage: unknown) => {
@@ -947,6 +950,7 @@ export class CodeApplication extends Disposable {
 		const clangd = join(toolchainRoot, 'clangd', 'clangd_22.1.6', 'bin', 'clangd.exe');
 		const existingFileExcludes = this.configurationService.getValue<Record<string, boolean>>('files.exclude') ?? {};
 		const settings: Record<string, unknown> = {
+			...(request.mode === 'recommended' ? this.getShortestPathCphDefaultSettings() : {}),
 			'files.exclude': {
 				...existingFileExcludes,
 				'**/.cph': true,
@@ -973,7 +977,13 @@ export class CodeApplication extends Disposable {
 		}
 		await this.createShortestPathClangdConfig(join(request.workspaceFolder, '.clangd'), compiler, request.cppStandard);
 		await this.configurationService.updateValue('shortestpath.setup.pending', undefined, ConfigurationTarget.USER);
+		await this.configurationService.updateValue('shortestpath.setup.repair', false, ConfigurationTarget.USER);
 		await this.configurationService.updateValue('shortestpath.setup.completed', true, ConfigurationTarget.USER);
+	}
+
+	private getShortestPathCphDefaultSettings(): Record<string, unknown> {
+		const defaultsPath = join(this.environmentMainService.appRoot, 'extensions', 'shortestpath.setup', 'resources', 'cph-defaults.json');
+		return JSON.parse(fs.readFileSync(defaultsPath, 'utf8')) as Record<string, unknown>;
 	}
 
 	private async createShortestPathClangdConfig(configPath: string, compiler: string, cppStandard: IShortestPathSetupRequest['cppStandard']): Promise<void> {

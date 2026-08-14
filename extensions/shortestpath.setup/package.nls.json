@@ -2,6 +2,7 @@
 	"configuration.title": "ShortestPath IDE Features",
 	"configuration.completed": "Whether the first-run setup has been completed.",
 	"configuration.pending": "The configuration selected by the first-run setup before it is applied.",
+	"configuration.repair": "Whether the next setup run only repairs the toolchain.",
 	"configuration.executableCleanupDelaySeconds": "Seconds to keep generated executables after they finish running. Set to 0 to delete immediately.",
 	"configuration.executableCleanupEnabled": "Automatically delete generated executables after they finish running.",
 	"configuration.newFileDefaultLanguage": "Default language for files created from the New Tab page.",

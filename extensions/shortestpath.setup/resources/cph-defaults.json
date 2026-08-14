@@ -1,0 +1,154 @@
+{
+	"cph.general.vjudgeUrlSuffix": "",
+	"cph.general.fileNameTemplate": "{ojName}/{contestId}/{problemId}.{ext}",
+	"cph.general.fileNameTemplateOverrides": {
+		"CSES": "{ojName}/{problemId}_{slug}.{ext}",
+		"AT": "{ojName}/{contestId}/{problemId}.{ext}",
+		"CF": "{ojName}/{contestId}/{problemId}.{ext}",
+		"LG": "{ojName}/{problemId}.{ext}",
+		"ShortestPath": "{ojName}/{contestId}/{problemId}.{ext}",
+		"VJ": "{ojName}/{problemId}{slug}.{ext}",
+		"牛客": "NowCoder/{problemId}.{ext}"
+	},
+	"cph.general.vjudgeOjNames": {
+		"CodeForces": {
+			"urlTemplate": "https://codeforces.com/problemset/problem/{contestId}/{problemId}",
+			"problemIdRegex": "^(\\d+)([A-Z]\\d*)$"
+		},
+		"CF": {
+			"urlTemplate": "https://codeforces.com/problemset/problem/{contestId}/{problemId}",
+			"problemIdRegex": "^(\\d+)([A-Z]\\d*)$"
+		},
+		"AtCoder": {
+			"urlTemplate": "https://atcoder.jp/contests/{contestId}/tasks/{contestId}_{problemId}",
+			"problemIdRegex": "^([a-z]+\\d+)_([a-z]\\d*)$"
+		},
+		"Luogu": {
+			"urlTemplate": "https://www.luogu.com.cn/problem/{problemId}"
+		},
+		"洛谷": {
+			"urlTemplate": "https://www.luogu.com.cn/problem/{problemId}"
+		},
+		"SPOJ": {
+			"urlTemplate": "https://www.spoj.com/problems/{problemId}"
+		},
+		"UVA": {
+			"urlTemplate": "https://onlinejudge.org/index.php?option=com_onlinejudge&Itemid=8&page=show_problem&problem={problemId}"
+		},
+		"HDU": {
+			"urlTemplate": "https://acm.hdu.edu.cn/showproblem.php?pid={problemId}"
+		},
+		"POJ": {
+			"urlTemplate": "http://poj.org/problem?id={problemId}"
+		},
+		"Bailian": {
+			"urlTemplate": "http://bailian.openjudge.cn/practice/{problemId}"
+		},
+		"CSES": {
+			"urlTemplate": "https://cses.fi/problemset/task/{problemId}"
+		},
+		"NowCoder": {
+			"urlTemplate": "https://ac.nowcoder.com/acm/problem/{problemId}",
+			"problemIdRegex": "^(\\d+)$"
+		},
+		"牛客": {
+			"urlTemplate": "https://ac.nowcoder.com/acm/problem/{problemId}"
+		}
+	},
+	"cph.general.ojMapping": {
+		"codeforces.com": {
+			"oj": "CF",
+			"ojName": "Codeforces",
+			"contestIdRegex": "(?:contest|gym|problemset\\/problem)\\/(\\d+)",
+			"problemIdRegex": "(?:contest|gym|problemset\\/problem)\\/\\d+\\/(\\w+)"
+		},
+		"atcoder.jp": {
+			"oj": "AT",
+			"ojName": "AtCoder",
+			"contestIdRegex": "contests\\/(\\w+)\\/tasks\\/\\w+_\\w+",
+			"problemIdRegex": "contests\\/\\w+\\/tasks\\/\\w+_(\\w+)"
+		},
+		"luogu.com.cn": {
+			"oj": "LG",
+			"ojName": "Luogu",
+			"problemIdRegex": "problem\\/(\\w+)"
+		},
+		"shortestpath.cn": {
+			"oj": "ShortestPath",
+			"ojName": "ShortestPath",
+			"contestIdRegex": "problem\\/([^\\/]+)\\/[^\\/]+\\/[^\\/]+",
+			"problemIdRegex": "problem\\/[^\\/]+\\/(.+)$"
+		},
+		"open.kattis.com": {
+			"oj": "Kattis",
+			"ojName": "Kattis"
+		},
+		"codechef.com": {
+			"oj": "CC",
+			"ojName": "CodeChef"
+		},
+		"spoj.com": {
+			"oj": "SPOJ",
+			"ojName": "SPOJ"
+		},
+		"hackerrank.com": {
+			"oj": "HR",
+			"ojName": "HackerRank"
+		},
+		"hackerearth.com": {
+			"oj": "HE",
+			"ojName": "HackerEarth"
+		},
+		"leetcode.com": {
+			"oj": "LC",
+			"ojName": "LeetCode"
+		},
+		"acm.timus.ru": {
+			"oj": "Timus",
+			"ojName": "Timus"
+		},
+		"dmoj.ca": {
+			"oj": "DMOJ",
+			"ojName": "DMOJ"
+		},
+		"cses.fi": {
+			"oj": "CSES",
+			"ojName": "CSES",
+			"problemIdRegex": "task\\/(\\d+)"
+		},
+		"usaco.org": {
+			"oj": "USACO",
+			"ojName": "USACO"
+		},
+		"lightoj.com": {
+			"oj": "LOJ",
+			"ojName": "LightOJ"
+		},
+		"eolymp.com": {
+			"oj": "EOlymp",
+			"ojName": "EOlymp"
+		},
+		"acm.hdu.edu.cn": {
+			"oj": "HDU",
+			"ojName": "HDU",
+			"problemIdRegex": "[?&]pid=(\\d+)"
+		},
+		"ac.nowcoder.com": {
+			"oj": "牛客",
+			"ojName": "牛客",
+			"problemIdRegex": "problem\\/(\\d+)"
+		}
+	},
+	"cph.general.saveLocation": "",
+	"cph.general.timeOut": 3000,
+	"cph.general.hideStderrorWhenCompiledOK": false,
+	"cph.general.ignoreSTDERROR": false,
+	"cph.general.defaultOnlineJudge": false,
+	"cph.general.includeProblemIndex": false,
+	"cph.general.autoShowJudge": true,
+	"cph.general.useShortAtCoderName": false,
+	"cph.general.useShortCodeForcesName": false,
+	"cph.general.useShortLuoguName": false,
+	"cph.general.defaultLanguage": "cpp",
+	"cph.general.collectProblemsInRoot": true
+}
