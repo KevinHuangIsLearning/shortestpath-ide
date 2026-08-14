@@ -215,6 +215,7 @@ class ShortestPathUpdateBlocker extends Disposable {
 		const updateButton = append(actions, $('button.shortestpath-update-required-action.primary', { type: 'button' }, '更新'));
 		// allow-any-unicode-next-line
 		const fastDownloadButton = this.options.fastDownloadUrl ? append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, '网盘快速下载')) : undefined;
+		// allow-any-unicode-next-line
 		const alternateUpdateButton = this.options.isRequired ? undefined : append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, '下次丕定'));
 
 		const openUpdate = () => void this.openerService.open(URI.parse(this.options.downloadUrl));
