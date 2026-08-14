@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathUpdateGraceStateForMinimumVersion, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
+import { getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathUpdateGraceStateForMinimumVersion, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
 
 suite('ShortestPath update check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,22 +32,6 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(update?.releaseNote, '修复若干问题。\n优化更新体验。');
 		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', releaseNote: '' }), undefined);
 		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', releaseNote: 'x'.repeat(4001) }), undefined);
-	});
-
-	test('parses only supported fast download URLs', () => {
-		const fastDownloadUrls = {
-			macosArm64: 'https://www.icloud.com.cn/iclouddrive/macos',
-			windowsUserSetup: 'https://www.icloud.com.cn/iclouddrive/user-setup',
-			windowsPortable: 'https://www.icloud.com.cn/iclouddrive/portable',
-		};
-		const update = parseShortestPathUpdateDocument({
-			version: '0.2.1',
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
-			fastDownloadUrls,
-		});
-		assert.deepStrictEqual(update?.fastDownloadUrls, fastDownloadUrls);
-		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', fastDownloadUrls: { macosArm64: 'https://example.com/download' } }), undefined);
-		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', fastDownloadUrls: { windowsSystemSetup: 'https://www.icloud.com.cn/iclouddrive/system' } }), undefined);
 	});
 
 	test('parses a minimum supported version', () => {
@@ -89,7 +73,6 @@ suite('ShortestPath update check', () => {
 		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', 'user'), {
 			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe',
 			allowsMinimumVersionLock: true,
-			fastDownloadType: 'windowsUserSetup',
 		});
 		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', 'system'), {
 			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-Setup.exe',
@@ -98,25 +81,11 @@ suite('ShortestPath update check', () => {
 		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', undefined), {
 			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip',
 			allowsMinimumVersionLock: false,
-			fastDownloadType: 'windowsPortable',
 		});
 		assert.deepStrictEqual(getShortestPathUpdateTarget('darwin', undefined), {
 			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip',
 			allowsMinimumVersionLock: true,
-			fastDownloadType: 'macosArm64',
 		});
-	});
-
-	test('selects a fast download only for supported update targets', () => {
-		const fastDownloadUrls = {
-			macosArm64: 'https://www.icloud.com.cn/iclouddrive/macos',
-			windowsUserSetup: 'https://www.icloud.com.cn/iclouddrive/user-setup',
-			windowsPortable: 'https://www.icloud.com.cn/iclouddrive/portable',
-		};
-		assert.strictEqual(getShortestPathFastDownloadUrl(fastDownloadUrls, getShortestPathUpdateTarget('darwin', undefined)), fastDownloadUrls.macosArm64);
-		assert.strictEqual(getShortestPathFastDownloadUrl(fastDownloadUrls, getShortestPathUpdateTarget('win32', 'user')), fastDownloadUrls.windowsUserSetup);
-		assert.strictEqual(getShortestPathFastDownloadUrl(fastDownloadUrls, getShortestPathUpdateTarget('win32', undefined)), fastDownloadUrls.windowsPortable);
-		assert.strictEqual(getShortestPathFastDownloadUrl(fastDownloadUrls, getShortestPathUpdateTarget('win32', 'system')), undefined);
 	});
 
 	test('accepts only installer modes written by supported installers', () => {

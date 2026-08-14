@@ -8,7 +8,6 @@ export interface IShortestPathUpdate {
 	readonly downloadUrl: string;
 	readonly minimumSupportedVersion?: string;
 	readonly releaseNote?: string;
-	readonly fastDownloadUrls?: IShortestPathFastDownloadUrls;
 }
 
 export interface IShortestPathUpdateDocument {
@@ -16,19 +15,11 @@ export interface IShortestPathUpdateDocument {
 	readonly downloadUrl?: unknown;
 	readonly minimumSupportedVersion?: unknown;
 	readonly releaseNote?: unknown;
-	readonly fastDownloadUrls?: unknown;
-}
-
-export interface IShortestPathFastDownloadUrls {
-	readonly macosArm64?: string;
-	readonly windowsUserSetup?: string;
-	readonly windowsPortable?: string;
 }
 
 export interface IShortestPathUpdateTarget {
 	readonly downloadUrl: string;
 	readonly allowsMinimumVersionLock: boolean;
-	readonly fastDownloadType?: keyof IShortestPathFastDownloadUrls;
 }
 
 export interface IShortestPathUpdateGraceState {
@@ -84,23 +75,19 @@ export function parseShortestPathWindowsInstallMode(value: string): 'user' | 'sy
 export function getShortestPathUpdateTarget(platform: string, installMode: 'user' | 'system' | undefined): IShortestPathUpdateTarget | undefined {
 	const latestDownload = 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/';
 	if (platform === 'darwin') {
-		return { downloadUrl: `${latestDownload}ShortestPath-IDE-macos-arm64.zip`, allowsMinimumVersionLock: true, fastDownloadType: 'macosArm64' };
+		return { downloadUrl: `${latestDownload}ShortestPath-IDE-macos-arm64.zip`, allowsMinimumVersionLock: true };
 	}
 	if (platform !== 'win32') {
 		return undefined;
 	}
 
 	if (installMode === 'user') {
-		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe`, allowsMinimumVersionLock: true, fastDownloadType: 'windowsUserSetup' };
+		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe`, allowsMinimumVersionLock: true };
 	}
 	if (installMode === 'system') {
 		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64-Setup.exe`, allowsMinimumVersionLock: true };
 	}
-	return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip`, allowsMinimumVersionLock: false, fastDownloadType: 'windowsPortable' };
-}
-
-export function getShortestPathFastDownloadUrl(fastDownloadUrls: IShortestPathFastDownloadUrls | undefined, target: IShortestPathUpdateTarget | undefined): string | undefined {
-	return target?.fastDownloadType ? fastDownloadUrls?.[target.fastDownloadType] : undefined;
+	return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip`, allowsMinimumVersionLock: false };
 }
 
 export function parseShortestPathUpdateDocument(document: IShortestPathUpdateDocument): IShortestPathUpdate | undefined {
@@ -130,39 +117,13 @@ export function parseShortestPathUpdateDocument(document: IShortestPathUpdateDoc
 	if (releaseNote !== undefined && (typeof releaseNote !== 'string' || !releaseNote.trim() || releaseNote.length > 4000)) {
 		return undefined;
 	}
-	const fastDownloadUrls = parseShortestPathFastDownloadUrls(document.fastDownloadUrls);
-	if (document.fastDownloadUrls !== undefined && !fastDownloadUrls) {
-		return undefined;
-	}
 
 	return {
 		version: document.version,
 		downloadUrl: downloadUrl.toString(),
 		...(minimumSupportedVersion ? { minimumSupportedVersion } : {}),
 		...(releaseNote ? { releaseNote } : {}),
-		...(fastDownloadUrls ? { fastDownloadUrls } : {}),
 	};
-}
-
-function parseShortestPathFastDownloadUrls(value: unknown): IShortestPathFastDownloadUrls | undefined {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-	const urls = value as Partial<IShortestPathFastDownloadUrls>;
-	const entries = Object.entries(urls);
-	if (!entries.length || entries.some(([key, url]) => (key !== 'macosArm64' && key !== 'windowsUserSetup' && key !== 'windowsPortable') || typeof url !== 'string' || !isShortestPathFastDownloadUrl(url))) {
-		return undefined;
-	}
-	return urls;
-}
-
-function isShortestPathFastDownloadUrl(value: string): boolean {
-	try {
-		const url = new URL(value);
-		return url.protocol === 'https:' && url.hostname === 'www.icloud.com.cn' && url.pathname.startsWith('/iclouddrive/');
-	} catch {
-		return false;
-	}
 }
 
 export function isShortestPathUpdateAvailable(currentVersion: string, availableVersion: string): boolean {
