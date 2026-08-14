@@ -185,10 +185,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
 
+		// These controls are only visible in the top-right group. Defer rebuilding
+		// until after context-key delivery to keep menu lazy-listeners stable.
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([IsTopRightEditorGroupContext.key]))) {
-				// A group topology update can change this key while menu events are being
-				// delivered. Coalesce the refresh to avoid rebuilding the menu reentrantly.
 				this.updateEditorLayoutActionsToolbarScheduler.schedule();
 			}
 		}));
@@ -311,7 +311,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPartTrailing',
-			resetMenu: MenuId.LayoutControlMenu,
+			resetMenu: MenuId.EditorTitleLayout,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			highlightToggledItems: true
 		}));
@@ -374,7 +374,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		this.editorLayoutActionsDisposables.clear();
 
-		const editorActions = this.groupView.createEditorActions(this.editorLayoutActionsDisposables, MenuId.LayoutControlMenu);
+		const editorActions = this.groupView.createEditorActions(this.editorLayoutActionsDisposables, MenuId.EditorTitleLayout);
 		this.editorLayoutActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorLayoutActionsToolbar()));
 
 		const { primary, secondary } = this.prepareEditorLayoutActions(editorActions.actions);
