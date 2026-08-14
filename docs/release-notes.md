@@ -2,23 +2,15 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.3.4 更新 / What's New
+## v0.3.5 紧急更新 / Critical Update
 
-- 移除了 Herobrine。
-- 不再创建、修改或迁移用户全局 clangd 配置；首次配置仍只会在当前工作区创建 `.clangd`。
-- 工具链诊断现在可实测当前 C/C++ 文件的 clangd 系统头文件，并识别 `<bits/stdc++.h>`、`.clangd` 和 `--query-driver` 配置不匹配的问题。
-- 修复 ShortestPath OJ 独立安装包缺少 WebSocket 运行时依赖，以及 Windows 导入题目时异常 CPH 源码路径导致失败的问题；旧缓存中的无效路径会自动清理。
-- 优化 OJ 解题报告与编辑器布局：报告、题面和关联 `.cpp` 文件默认放在同一编辑器组；关闭报告后自动恢复默认分屏，同时尊重手动调整过的布局。
-- 更新提示会展示随版本下发的多行说明，并支持稍后提醒；不支持 ConPTY 的旧版 Windows 会明确提示系统版本要求。
-- 优化 OJ 评测状态与结果展示：JG、NA、PD 和 Pending 会显示为评测中，Float Judge 完整显示并可悬停查看允许误差；网站安全验证提示不会再被提示弹窗背景遮罩模糊。
+- 紧急修复 Windows 下严重卡顿甚至卡死的问题：编辑器标签栏错误订阅全局布局菜单，布局变化时会重复重建菜单和监听器，并大量写入错误日志。
+- 恢复标签栏右侧的窗口控制按钮；它们继续使用编辑器标题栏专用菜单，并会在编辑器组位置变化后正确刷新。
+- 此版本为强制更新，请立即升级到 0.3.5。
 
-- Removed Herobrine.
-- ShortestPath IDE no longer creates, changes, or migrates global clangd configuration. Initial setup still creates `.clangd` only in the current workspace.
-- Toolchain diagnostics can now probe clangd system headers for the active C/C++ file and detect mismatches involving `<bits/stdc++.h>`, `.clangd`, and `--query-driver`.
-- Fixed missing WebSocket runtime dependencies in the standalone ShortestPath OJ package, and malformed CPH source paths that could break Windows problem imports. Invalid legacy paths are cleaned up automatically.
-- Improved OJ editor layout: editorial, statement, and the related `.cpp` file open in one editor group by default; closing the editorial restores the default split without overriding a layout you changed yourself.
-- Update prompts display multi-line release notes supplied with each version and support reminders. Older Windows versions without ConPTY receive a clear system-requirement message.
-- Improved OJ judging and verdict presentation: JG, NA, PD, and Pending are shown as judging; Float Judge is fully displayed with its tolerance on hover; website security-verification notices remain clear above hint dialogs.
+- Critical fix for severe Windows lag and freezes: the editor tab bar incorrectly subscribed to the global layout menu, repeatedly rebuilding menus and listeners during layout changes while writing excessive error logs.
+- Restored the window-control buttons on the right side of the tab bar. They continue to use the editor-title-specific menu and refresh when editor-group placement changes.
+- This is a mandatory update. Please upgrade to 0.3.5 immediately.
 
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。
 >
