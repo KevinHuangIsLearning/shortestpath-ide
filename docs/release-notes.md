@@ -4,17 +4,17 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.3.6 紧急更新 / Critical Update
+## v0.3.7 更新 / What's New
 
-- 修复 0.3.5 中标签栏右侧窗口控制按钮未显示的问题：主侧栏、底部面板/终端、辅助侧栏和配置布局按钮现已恢复。
-- 控件改为注册在编辑器标题专用菜单中，不再订阅会造成 Windows 严重卡顿甚至卡死的全局布局菜单。
-- 下载说明新增 Windows 与 macOS 的快速下载地址。
-- 此版本为强制更新，请立即升级到 0.3.6。
+- 更新弹窗新增“网盘快速下载”：macOS、Windows 用户安装和便携版会自动选择对应下载地址；系统级安装仍使用 GitHub 直链。
+- 更新了 Windows 与 macOS 的网盘下载地址。
+- ShortestPath OJ 未评测的测试点现在显示为 “-”，不再误显示为评测中。
+- 此版本为普通更新，可按需升级。
 
-- Fixed the missing window-control buttons on the right side of the tab bar in 0.3.5: primary side bar, bottom panel/terminal, secondary side bar, and Customize Layout are restored.
-- The controls now use the editor-title-specific menu and no longer subscribe to the global layout menu that caused severe Windows lag and freezes.
-- The download guide now includes fast download links for Windows and macOS.
-- This is a mandatory update. Please upgrade to 0.3.6 immediately.
+- The update dialog now offers “Fast Cloud Download”: macOS, Windows user installations, and portable installations automatically select the matching link; system installations continue to use the GitHub download.
+- Updated the cloud download links for Windows and macOS.
+- Unjudged ShortestPath OJ test points now display as “-” instead of incorrectly appearing to be judging.
+- This is an optional update.
 
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。
 >
