@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { describeFloatJudgeTolerance, describeJudgeType, describeSubmissionStage, describeSubmissionStatus } from '../judgeDisplay';
+import { describeFloatJudgeTolerance, describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from '../judgeDisplay';
 
 suite('ShortestPath OJ judge type display', () => {
 	test('does not label normal token checkers as special judge', () => {
@@ -50,5 +50,11 @@ suite('ShortestPath OJ judge type display', () => {
 		assert.equal(describeSubmissionStatus('TLE'), 'time-limit-exceeded');
 		assert.equal(describeSubmissionStatus('Time Limit Exceeded'), 'time-limit-exceeded');
 		assert.equal(describeSubmissionStatus('Memory Limit Exceeded'), 'failed');
+	});
+
+	test('renders unjudged test points as a dash without a loading indicator', () => {
+		assert.deepEqual(describeSubmissionDetailStatus('NA'), { label: '-' });
+		assert.deepEqual(describeSubmissionDetailStatus('na'), { label: '-' });
+		assert.deepEqual(describeSubmissionDetailStatus('RE'), { label: 'RE', statusClass: 'runtime-error' });
 	});
 });
