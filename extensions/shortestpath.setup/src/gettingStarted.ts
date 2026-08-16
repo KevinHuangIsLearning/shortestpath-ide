@@ -15,6 +15,17 @@ import {
 } from './simpleSettings';
 
 const GETTING_STARTED_VERSION = 'shortestpath.gettingStarted.version';
+const CPH_FILE_NAME_SETTINGS = 'shortestpath.gettingStarted.cphFileNameSettings';
+const DEFAULT_CPH_FILE_NAME_TEMPLATE = '{ojName}/{contestId}/{problemId}.{ext}';
+const DEFAULT_CPH_FILE_NAME_TEMPLATE_OVERRIDES: Record<string, string> = {
+	CSES: '{ojName}/{problemId}_{slug}.{ext}',
+	AT: '{ojName}/{contestId}/{problemId}.{ext}',
+	CF: '{ojName}/{contestId}/{problemId}.{ext}',
+	LG: '{ojName}/{problemId}.{ext}',
+	ShortestPath: '{ojName}/{contestId}/{problemId}.{ext}',
+	VJ: '{ojName}/{problemId}{slug}.{ext}',
+	'牛客': 'NowCoder/{problemId}.{ext}'
+};
 
 let activePanel: vscode.WebviewPanel | undefined;
 
@@ -31,13 +42,24 @@ type GettingStartedState = {
 	executableCleanupEnabled: boolean;
 	executableCleanupDelaySeconds: number;
 	autoSave: string;
+	autoFormat: boolean;
+	cphCustomFileNameEnabled: boolean;
+	cphDefaultLanguage: string;
+	cphFileNameTemplate: string;
+	cphFileNameTemplateOverrides: string;
+	availableOjNames: string[];
 	themes: ThemeOption[];
 };
 
 type SaveMessage = {
 	type: 'save';
-	page: 'font' | 'theme' | 'cpp' | 'clangd' | 'cleanup' | 'autosave';
+	page: 'font' | 'theme' | 'cpp' | 'clangd' | 'cleanup' | 'autosave' | 'autoformat' | 'cphNaming';
 	value: Record<string, unknown>;
+};
+
+type CphFileNameSettings = {
+	fileNameTemplate: string;
+	fileNameTemplateOverrides: Record<string, string>;
 };
 
 export function registerGettingStarted(context: vscode.ExtensionContext): void {
@@ -98,16 +120,20 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 			}
 		}
 	});
-	panel.webview.onDidReceiveMessage(async (message: SaveMessage | { type: 'snippets' } | { type: 'complete' }) => {
+	panel.webview.onDidReceiveMessage(async (message: SaveMessage | { type: 'snippets' } | { type: 'autoFormatSettings' } | { type: 'cphSettings' } | { type: 'complete' }) => {
 		if (message.type === 'save') {
 			isSaving = true;
 			try {
-				await saveState(message.page, message.value);
+				await saveState(context, message.page, message.value);
 			} finally {
 				isSaving = false;
 			}
 		} else if (message.type === 'snippets') {
 			await vscode.commands.executeCommand('shortestpath.configureCppSnippets');
+		} else if (message.type === 'autoFormatSettings') {
+			await vscode.commands.executeCommand('shortestpath.configureAutoFormat');
+		} else if (message.type === 'cphSettings') {
+			await vscode.commands.executeCommand('shortestpath.configureCph');
 		} else if (message.type === 'complete') {
 			panel.dispose();
 		}
@@ -124,7 +150,14 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('editor.inlayHints.enabled')
 			|| event.affectsConfiguration('shortestpath.executableCleanupEnabled')
 			|| event.affectsConfiguration('shortestpath.executableCleanupDelaySeconds')
-			|| event.affectsConfiguration('files.autoSave'))) {
+			|| event.affectsConfiguration('files.autoSave')
+			|| event.affectsConfiguration('editor.formatOnSave')
+			|| event.affectsConfiguration('editor.formatOnPaste')
+			|| event.affectsConfiguration('cph.general.defaultLanguage')
+			|| event.affectsConfiguration('cph.general.fileNameTemplate')
+			|| event.affectsConfiguration('cph.general.fileNameTemplateOverrides')
+			|| event.affectsConfiguration('cph.general.ojMapping')
+			|| event.affectsConfiguration('cph.general.vjudgeOjNames'))) {
 			void panel.webview.postMessage({ type: 'state', value: getState() });
 		}
 	});
@@ -146,6 +179,13 @@ function getState(): GettingStartedState {
 	const compiler = (vscode.workspace.getConfiguration('cph.language.cpp', null).get<string>('Command') ?? '').split(/[\\/]/).pop() || 'g++';
 	const colorTheme = workbench.get<string>('colorTheme') ?? 'One Monokai';
 	const inlayHintsEnabled = editor.get<boolean | string>('inlayHints.enabled') ?? 'on';
+	const cphGeneral = vscode.workspace.getConfiguration('cph.general', null);
+	const ojMapping = cphGeneral.get<Record<string, { oj?: unknown }>>('ojMapping') ?? {};
+	const vjudgeOjNames = cphGeneral.get<Record<string, unknown>>('vjudgeOjNames') ?? {};
+	const availableOjNames = [...new Set([
+		...Object.values(ojMapping).flatMap(mapping => typeof mapping.oj === 'string' ? [mapping.oj] : []),
+		...Object.keys(vjudgeOjNames)
+	])].sort((a, b) => a.localeCompare(b));
 	return {
 		fontFamily: editor.get<string>('fontFamily') ?? '',
 		fontLigatures: editor.get<boolean | string>('fontLigatures') === true || editor.get<boolean | string>('fontLigatures') === 'true',
@@ -159,11 +199,17 @@ function getState(): GettingStartedState {
 		executableCleanupEnabled: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('executableCleanupEnabled') ?? true,
 		executableCleanupDelaySeconds: vscode.workspace.getConfiguration('shortestpath', null).get<number>('executableCleanupDelaySeconds') ?? 60,
 		autoSave: files.get<string>('autoSave') ?? 'off',
+		autoFormat: editor.get<boolean>('formatOnSave') === true && editor.get<boolean>('formatOnPaste') === true,
+		cphCustomFileNameEnabled: Boolean(cphGeneral.get<string>('fileNameTemplate')) || Object.keys(cphGeneral.get<Record<string, string>>('fileNameTemplateOverrides') ?? {}).length > 0,
+		cphDefaultLanguage: cphGeneral.get<string>('defaultLanguage') ?? 'cpp',
+		cphFileNameTemplate: cphGeneral.get<string>('fileNameTemplate') ?? DEFAULT_CPH_FILE_NAME_TEMPLATE,
+		cphFileNameTemplateOverrides: JSON.stringify(cphGeneral.get<Record<string, string>>('fileNameTemplateOverrides') ?? {}, undefined, 2),
+		availableOjNames,
 		themes: getThemeOptions(colorTheme)
 	};
 }
 
-async function saveState(page: SaveMessage['page'], value: Record<string, unknown>): Promise<void> {
+async function saveState(context: vscode.ExtensionContext, page: SaveMessage['page'], value: Record<string, unknown>): Promise<void> {
 	const settings = vscode.workspace.getConfiguration(undefined, null);
 	switch (page) {
 		case 'font':
@@ -206,6 +252,64 @@ async function saveState(page: SaveMessage['page'], value: Record<string, unknow
 		case 'autosave':
 			await settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global);
 			break;
+		case 'autoformat':
+			await Promise.all([
+				settings.update('editor.formatOnSave', value.autoFormat === true, vscode.ConfigurationTarget.Global),
+				settings.update('editor.formatOnPaste', value.autoFormat === true, vscode.ConfigurationTarget.Global)
+			]);
+			break;
+		case 'cphNaming': {
+			const cphGeneral = vscode.workspace.getConfiguration('cph.general', null);
+			const defaultLanguage = typeof value.cphDefaultLanguage === 'string' ? value.cphDefaultLanguage : 'cpp';
+			if (value.cphCustomFileNameEnabled === true) {
+				const saved = context.globalState.get<CphFileNameSettings>(CPH_FILE_NAME_SETTINGS);
+				let fileNameTemplateOverrides: Record<string, string>;
+				let fileNameTemplate: string;
+				if (value.restoreCphFileNameSettings === true && saved) {
+					fileNameTemplate = saved.fileNameTemplate;
+					fileNameTemplateOverrides = saved.fileNameTemplateOverrides;
+				} else {
+					try {
+						const parsed = JSON.parse(typeof value.cphFileNameTemplateOverrides === 'string' ? value.cphFileNameTemplateOverrides : '{}');
+						if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || Object.values(parsed).some(template => typeof template !== 'string')) {
+							throw new Error('invalid file name template overrides');
+						}
+						fileNameTemplateOverrides = parsed as Record<string, string>;
+					} catch {
+						void vscode.window.showWarningMessage('CPH 文件名模板覆盖必须是一个 JSON 对象，OJ 简称为键、模板字符串为值。');
+						return;
+					}
+					fileNameTemplate = typeof value.cphFileNameTemplate === 'string'
+						? value.cphFileNameTemplate.trim()
+						: saved?.fileNameTemplate ?? DEFAULT_CPH_FILE_NAME_TEMPLATE;
+					if (!saved && !fileNameTemplate) {
+						fileNameTemplate = DEFAULT_CPH_FILE_NAME_TEMPLATE;
+						fileNameTemplateOverrides = { ...DEFAULT_CPH_FILE_NAME_TEMPLATE_OVERRIDES };
+					}
+				}
+				await context.globalState.update(CPH_FILE_NAME_SETTINGS, { fileNameTemplate, fileNameTemplateOverrides } satisfies CphFileNameSettings);
+				await Promise.all([
+					settings.update('cph.general.defaultLanguage', defaultLanguage, vscode.ConfigurationTarget.Global),
+					settings.update('cph.general.fileNameTemplate', fileNameTemplate, vscode.ConfigurationTarget.Global),
+					settings.update('cph.general.fileNameTemplateOverrides', fileNameTemplateOverrides, vscode.ConfigurationTarget.Global)
+				]);
+				break;
+			}
+			const fileNameTemplate = cphGeneral.inspect<string>('fileNameTemplate')?.globalValue;
+			const fileNameTemplateOverrides = cphGeneral.inspect<Record<string, string>>('fileNameTemplateOverrides')?.globalValue;
+			if (fileNameTemplate !== undefined || fileNameTemplateOverrides !== undefined) {
+				await context.globalState.update(CPH_FILE_NAME_SETTINGS, {
+					fileNameTemplate: fileNameTemplate ?? '',
+					fileNameTemplateOverrides: fileNameTemplateOverrides ?? {}
+				} satisfies CphFileNameSettings);
+			}
+			await Promise.all([
+				settings.update('cph.general.defaultLanguage', defaultLanguage, vscode.ConfigurationTarget.Global),
+				settings.update('cph.general.fileNameTemplate', undefined, vscode.ConfigurationTarget.Global),
+				settings.update('cph.general.fileNameTemplateOverrides', undefined, vscode.ConfigurationTarget.Global)
+			]);
+			break;
+		}
 	}
 }
 
@@ -305,14 +409,16 @@ button { appearance: none; font: inherit; color: inherit; cursor: pointer; }
 <div class="fade-item" style="--i:5">④ clangd 变量类型提示</div>
 <div class="fade-item" style="--i:6">⑤ 生成文件自动清理</div>
 <div class="fade-item" style="--i:7">⑥ 自动保存</div>
-<div class="fade-item" style="--i:8">⑦ 代码模板</div>
+<div class="fade-item" style="--i:8">⑦ 自动格式化</div>
+<div class="fade-item" style="--i:9">⑧ CPH 题目文件命名</div>
+<div class="fade-item" style="--i:10">⑨ 代码模板</div>
 </div>
 </div>
-<div class="actions"><span></span><button id="welcome-next" class="btn primary fade-item" style="--i:9">开始</button></div>
+<div class="actions"><span></span><button id="welcome-next" class="btn primary fade-item" style="--i:11">开始</button></div>
 </section>
 
 <section class="page" data-page="font">
-<div class="page-head fade-item" style="--i:0"><div class="badge">1 / 7 · 字体</div><h1>代码字体</h1><p class="lead">选择适合长时间阅读的主要等宽字体，并用回退字体补齐缺失字形。</p></div>
+<div class="page-head fade-item" style="--i:0"><div class="badge">1 / 9 · 字体</div><h1>代码字体</h1><p class="lead">选择适合长时间阅读的主要等宽字体，并用回退字体补齐缺失字形。</p></div>
 <div class="page-body">
 <div class="pane card">
 <div class="row"><div class="row-label">主要字体<div class="hint">从检测到的系统等宽字体中选择。</div></div><div><select id="fontFamily" disabled><option>正在读取系统字体…</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div></div></div>
@@ -337,7 +443,7 @@ int main() {
 </section>
 
 <section class="page" data-page="theme">
-<div class="page-head fade-item" style="--i:0"><div class="badge">2 / 7 · 主题</div><h1>界面主题</h1><p class="lead">选择一个你看着顺眼的主题，选择后立即应用到整个 IDE。</p></div>
+<div class="page-head fade-item" style="--i:0"><div class="badge">2 / 9 · 主题</div><h1>界面主题</h1><p class="lead">选择一个你看着顺眼的主题，选择后立即应用到整个 IDE。</p></div>
 <div class="page-body centered">
 <div class="pane card">
 <div class="row"><div class="row-label">主题</div><select id="colorTheme"></select></div>
@@ -348,7 +454,7 @@ int main() {
 </section>
 
 <section class="page" data-page="cpp">
-<div class="page-head fade-item" style="--i:0"><div class="badge">3 / 7 · 编译</div><h1>C++ 语言版本</h1><p class="lead">选择默认编译使用的 C++ 标准，会同步应用到 CPH 与编译运行。</p></div>
+<div class="page-head fade-item" style="--i:0"><div class="badge">3 / 9 · 编译</div><h1>C++ 语言版本</h1><p class="lead">选择默认编译使用的 C++ 标准，会同步应用到 CPH 与编译运行。</p></div>
 <div class="page-body">
 <div class="pane card">
 <div class="row"><div class="row-label">C++ 语言版本</div><select id="cppStandard"><option value="c++11">C++11</option><option value="c++14">C++14</option><option value="c++17">C++17</option><option value="c++20">C++20</option><option value="c++23">C++23</option></select></div>
@@ -360,20 +466,20 @@ int main() {
 </section>
 
 <section class="page" data-page="clangd">
-<div class="page-head fade-item" style="--i:0"><div class="badge">4 / 7 · 智能提示</div><h1>clangd 变量类型提示</h1><p class="lead">在 <span class="code">auto</span> 等推断变量后显示推断出的类型。</p></div>
+<div class="page-head fade-item" style="--i:0"><div class="badge">4 / 9 · 智能提示</div><h1>clangd 变量类型提示</h1><p class="lead">在 <span class="code">auto</span> 等推断变量后显示推断出的类型。</p></div>
 <div class="page-body">
 <div class="pane card">
 <div class="row"><div class="row-label">显示变量类型提示</div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox"><span>启用</span></label></div>
 </div>
 <div class="pane preview"><div class="bar"><span class="light"></span><span class="light"></span><span class="light"></span><span class="bar-title">实时效果</span></div><div class="body code"><span class="syntax-keyword">auto</span> it <span id="hintIt" class="hint-inline">/*: iterator*/</span> = st.lower_bound(x);
 <span class="syntax-keyword">auto</span> sum <span id="hintSum" class="hint-inline">/*: long long*/</span> = accumulate(a.begin(), a.end(), <span class="syntax-number">0LL</span>);
-<span class="syntax-keyword">auto</span> [ok, val <span id="hintVal" class="hint-inline">/*: bool*/</span>] = mp.insert(<span id="hintParamX" class="hint-inline">/*x: </span>{<span id="hintParamK" class="hint-inline">/*&amp;x: </span>k, <span id="hintParamV" class="hint-inline">/*&amp;y: </span>v})</div></div>
+<span class="syntax-keyword">auto</span> [it, ok <span id="hintVal" class="hint-inline">/*: bool*/</span>] = mp.insert(<span id="hintParamX" class="hint-inline">/*x: */</span>{<span id="hintParamK" class="hint-inline">/*&amp;x: */</span>k, <span id="hintParamV" class="hint-inline">/*&amp;y: */</span>v});</div></div>
 </div>
 <div class="actions"><button id="clangd-prev" class="btn ghost">上一步</button><button id="clangd-next" class="btn primary">下一步</button></div>
 </section>
 
 <section class="page" data-page="cleanup">
-<div class="page-head fade-item" style="--i:0"><div class="badge">5 / 7 · 文件</div><h1>生成文件自动清理</h1><p class="lead">程序运行结束后自动删除生成的可执行文件，保持目录干净。</p></div>
+<div class="page-head fade-item" style="--i:0"><div class="badge">5 / 9 · 文件</div><h1>生成文件自动清理</h1><p class="lead">程序运行结束后自动删除生成的可执行文件，保持目录干净。</p></div>
 <div class="page-body">
 <div class="pane card">
 <div class="row"><div class="row-label">自动清理生成文件</div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox"><span>启用</span></label></div>
@@ -390,7 +496,7 @@ int main() {
 </section>
 
 <section class="page" data-page="autosave">
-<div class="page-head fade-item" style="--i:0"><div class="badge">6 / 7 · 保存</div><h1>自动保存</h1><p class="lead">按你的习惯选择保存时机，避免忘记保存。</p></div>
+<div class="page-head fade-item" style="--i:0"><div class="badge">6 / 9 · 保存</div><h1>自动保存</h1><p class="lead">按你的习惯选择保存时机，避免忘记保存。</p></div>
 <div class="page-body">
 <div class="pane card">
 <div class="row"><div class="row-label">自动保存</div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
@@ -405,8 +511,36 @@ int main() {
 <div class="actions"><button id="autosave-prev" class="btn ghost">上一步</button><button id="autosave-next" class="btn primary">下一步</button></div>
 </section>
 
+<section class="page" data-page="autoformat">
+<div class="page-head fade-item" style="--i:0"><div class="badge">7 / 9 · 格式化</div><h1>自动格式化</h1><p class="lead">保存或粘贴代码时自动格式化，保持代码风格一致。</p></div>
+<div class="page-body centered">
+<div class="pane card">
+<div class="row"><div class="row-label">启用自动格式化<div class="hint">同时在保存和粘贴时格式化代码。</div></div><label class="toggle"><input id="autoFormat" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div class="row-label">详细设置<div class="hint">配置 .clang-format 的代码风格与缩进规则。</div></div><button id="openAutoFormatSettings" class="btn secondary">打开详细设置</button></div>
+</div>
+</div>
+<div class="actions"><button id="autoformat-prev" class="btn ghost">上一步</button><button id="autoformat-next" class="btn primary">下一步</button></div>
+</section>
+
+<section class="page" data-page="cphNaming">
+<div class="page-head fade-item" style="--i:0"><div class="badge">8 / 9 · CPH</div><h1>CPH 题目文件命名</h1><p class="lead">导入题目时按在线评测、比赛和题号自动组织文件。</p></div>
+<div class="page-body centered">
+<div class="pane card">
+<div class="row"><div class="row-label">启用自定义文件名<div class="hint">关闭后 CPH 使用其默认命名；开启后使用 ShortestPath IDE 的推荐模板。</div></div><label class="toggle"><input id="cphCustomFileNameEnabled" type="checkbox"><span>启用</span></label></div>
+
+<div class="row"><div class="row-label">新导入题目的默认语言</div><select id="cphDefaultLanguage"><option value="cpp">C++</option><option value="c">C</option><option value="python">Python</option><option value="rust">Rust</option><option value="java">Java</option><option value="js">JavaScript</option><option value="none">不指定</option></select></div>
+<div class="row cph-naming-setting"><div class="row-label">文件名模板<div class="hint">选择预设；仅选择“自定义”后才能手动输入。</div></div><div><select id="cphFileNameTemplatePreset"><option value="{ojName}/{contestId}/{problemId}.{ext}">ShortestPath 推荐：&lt;OJ 名称&gt;/&lt;比赛 ID&gt;/&lt;题目编号&gt;</option><option value="{oj}/{contestId}/{problemId}_{slug}.{ext}">&lt;OJ 简称&gt;/&lt;比赛 ID&gt;/&lt;题目编号&gt;_&lt;题目名&gt;</option><option value="{contestId}_{problemId}_{slug}.{ext}">&lt;比赛 ID&gt;_&lt;题目编号&gt;_&lt;题目名&gt;</option><option value="custom">自定义</option></select><input id="cphFileNameTemplate" placeholder="例如：{oj}/{contestId}/{problemId}_{slug}.{ext}" hidden></div></div>
+<div id="cphFileNameTemplateHelp" class="row cph-naming-setting" hidden><div class="row-label">自定义占位符<div class="hint"><span class="code">{oj}</span> OJ 简称，<span class="code">{ojName}</span> OJ 全称，<span class="code">{contestId}</span> 比赛 ID，<span class="code">{problemId}</span> 题号，<span class="code">{slug}</span> 题名简写，<span class="code">{name}</span> 题名，<span class="code">{index}</span> 导入序号，<span class="code">{group}</span> 分组，<span class="code">{url}</span> 链接，<span class="code">{ext}</span> 扩展名，<span class="code">{lang}</span> 语言。</div></div></div>
+<div class="row cph-naming-setting"><div class="row-label">命名效果示例<div class="hint">以 Codeforces 第 2078 场 A 题、C++ 为例；实时预览上方通用模板。</div></div><div id="cphFileNameTemplateExample" class="terminal"></div></div>
+<div class="row cph-naming-setting"><div class="row-label">文件名模板覆盖<div class="hint">按 OJ 简称设置专用模板；匹配时优先于上方的通用模板。</div></div><div><div class="hint">可用 OJ 简称：${state.availableOjNames.join('、') || '未解析到，请在在线评测映射中添加'}</div><input id="cphFileNameTemplateOverrides" type="hidden"><div id="cphFileNameTemplateOverridesEditor"></div><button id="addCphFileNameTemplateOverride" class="btn secondary" type="button" style="margin-top:8px">添加 OJ 规则</button></div></div>
+<div class="row"><div class="row-label">详细设置<div class="hint">按 OJ 配置文件名模板、覆盖规则及其他 CPH 行为。</div></div><button id="openCphSettings" class="btn secondary">打开 CPH 设置</button></div>
+</div>
+</div>
+<div class="actions"><button id="cphNaming-prev" class="btn ghost">上一步</button><button id="cphNaming-next" class="btn primary">下一步</button></div>
+</section>
+
 <section class="page" data-page="snippets">
-<div class="page-head fade-item" style="--i:0"><div class="badge">7 / 7 · 模板</div><h1>代码模板</h1><p class="lead">配置 C++ 用户代码片段，写题时一键插入常用代码。</p></div>
+<div class="page-head fade-item" style="--i:0"><div class="badge">9 / 9 · 模板</div><h1>代码模板</h1><p class="lead">配置 C++ 用户代码片段，写题时一键插入常用代码。</p></div>
 <div class="page-body">
 <div class="pane card">
 <div class="row"><div class="row-label">代码模板<div class="hint">打开独立的代码模板配置页，可定义多个语言的片段。</div></div><button id="openSnippets" class="btn secondary">配置代码模板</button></div>
@@ -444,6 +578,8 @@ int main() {
 <div class="summary-item fade-item" style="--i:4"><span>④</span><span>变量类型提示：<b id="doneHints">…</b></span></div>
 <div class="summary-item fade-item" style="--i:5"><span>⑤</span><span>自动清理：<b id="doneCleanup">…</b></span></div>
 <div class="summary-item fade-item" style="--i:6"><span>⑥</span><span>自动保存：<b id="doneAutoSave">…</b></span></div>
+<div class="summary-item fade-item" style="--i:7"><span>⑦</span><span>自动格式化：<b id="doneAutoFormat">…</b></span></div>
+<div class="summary-item fade-item" style="--i:8"><span>⑧</span><span>CPH 文件名：<b id="doneCphNaming">…</b></span></div>
 </div>
 </div>
 </div>
@@ -455,7 +591,7 @@ int main() {
 <script>
 const vscode = acquireVsCodeApi();
 const byId = id => document.getElementById(id);
-const PAGES = ['welcome', 'font', 'theme', 'cpp', 'clangd', 'cleanup', 'autosave', 'snippets', 'done'];
+const PAGES = ['welcome', 'font', 'theme', 'cpp', 'clangd', 'cleanup', 'autosave', 'autoformat', 'cphNaming', 'snippets', 'done'];
 let state = ${serializedState};
 let currentIndex = 0;
 let transitioning = false;
@@ -699,6 +835,72 @@ function renderAutoSave() {
     status.textContent = labels[state.autoSave] || labels.afterDelay;
   }
 }
+function renderAutoFormat() {
+  byId('autoFormat').checked = state.autoFormat;
+}
+function getCphFileNameTemplateOverrides() {
+  try {
+    const overrides = JSON.parse(byId('cphFileNameTemplateOverrides').value || '{}');
+    return overrides && typeof overrides === 'object' && !Array.isArray(overrides)
+      ? Object.entries(overrides).filter(([, template]) => typeof template === 'string')
+      : [];
+  } catch (error) {
+    return [];
+  }
+}
+function renderCphFileNameTemplateOverrides() {
+  const editor = byId('cphFileNameTemplateOverridesEditor');
+  editor.replaceChildren();
+  getCphFileNameTemplateOverrides().forEach(([oj, template]) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:8px;margin-top:8px';
+    const ojInput = document.createElement('input');
+    ojInput.className = 'cph-override-oj'; ojInput.value = oj; ojInput.placeholder = 'OJ 简称'; ojInput.setAttribute('aria-label', 'OJ 简称');
+    const templateInput = document.createElement('input');
+    templateInput.className = 'cph-override-template'; templateInput.value = template; templateInput.placeholder = '{ojName}/{contestId}/{problemId}.{ext}'; templateInput.setAttribute('aria-label', '文件名模板');
+    const remove = document.createElement('button');
+    remove.type = 'button'; remove.className = 'btn secondary cph-override-remove'; remove.textContent = '删除';
+    row.append(ojInput, templateInput, remove);
+    editor.append(row);
+  });
+}
+function saveCphFileNameTemplateOverrides(force = false) {
+  const overrides = {};
+  const rows = [...document.querySelectorAll('#cphFileNameTemplateOverridesEditor > div')].map(row => {
+    const oj = row.querySelector('.cph-override-oj').value.trim();
+    const template = row.querySelector('.cph-override-template').value.trim();
+    return { oj, template };
+  });
+  if (!force && rows.some(({ oj, template }) => Boolean(oj) !== Boolean(template))) return;
+  rows.forEach(({ oj, template }) => { if (oj && template) overrides[oj] = template; });
+  byId('cphFileNameTemplateOverrides').value = JSON.stringify(overrides, undefined, 2);
+  saveCphNaming(false, false);
+}
+function renderCphFileNameTemplateExample() {
+  const sampleValues = { oj: 'CF', ojName: 'Codeforces', contestId: '2078', problemId: 'A', slug: 'Sample_Problem', name: 'Sample Problem', index: 'A', group: 'Codeforces Round 2078', url: 'https://codeforces.com/contest/2078/problem/A', ext: 'cpp', lang: 'cpp' };
+  const sampleTemplate = state.cphFileNameTemplate;
+  byId('cphFileNameTemplateExample').textContent = sampleTemplate.replace(/\\{(oj|ojName|contestId|problemId|slug|name|index|group|url|ext|lang)\\}/g, (_, key) => sampleValues[key]);
+}
+function renderCphNaming() {
+  byId('cphCustomFileNameEnabled').checked = state.cphCustomFileNameEnabled;
+  byId('cphDefaultLanguage').value = state.cphDefaultLanguage;
+  byId('cphFileNameTemplate').value = state.cphFileNameTemplate;
+  byId('cphFileNameTemplateOverrides').value = state.cphFileNameTemplateOverrides;
+
+  renderCphFileNameTemplateOverrides();
+  const preset = byId('cphFileNameTemplatePreset');
+  const customTemplate = byId('cphFileNameTemplate');
+  const matched = [...preset.options].some(option => option.value !== 'custom' && option.value === state.cphFileNameTemplate);
+  preset.value = matched ? state.cphFileNameTemplate : 'custom';
+  customTemplate.hidden = matched;
+  customTemplate.disabled = matched || !state.cphCustomFileNameEnabled;
+  byId('cphFileNameTemplateHelp').hidden = matched;
+  renderCphFileNameTemplateExample();
+  preset.disabled = !state.cphCustomFileNameEnabled;
+  byId('cphFileNameTemplateOverrides').disabled = !state.cphCustomFileNameEnabled;
+  document.querySelectorAll('#cphFileNameTemplateOverridesEditor input, #cphFileNameTemplateOverridesEditor button, #addCphFileNameTemplateOverride').forEach(item => item.disabled = !state.cphCustomFileNameEnabled);
+  document.querySelectorAll('.cph-naming-setting').forEach(row => row.classList.toggle('disabled', !state.cphCustomFileNameEnabled));
+}
 function renderDone() {
   byId('doneFont').textContent = state.fontFamily ? state.fontFamily + ' · ' + state.fontSize + 'px' : '编辑器默认 · ' + state.fontSize + 'px';
   byId('doneTheme').textContent = state.themes.find(theme => theme.id === state.colorTheme)?.label || state.colorTheme || '默认';
@@ -708,6 +910,8 @@ function renderDone() {
     ? state.executableCleanupDelaySeconds + ' 秒后删除'
     : '关闭';
   byId('doneAutoSave').textContent = ({ off: '关闭', afterDelay: '延迟后', onFocusChange: '切换焦点时', onWindowChange: '切换窗口时' })[state.autoSave] || '关闭';
+  byId('doneAutoFormat').textContent = state.autoFormat ? '启用' : '关闭';
+  byId('doneCphNaming').textContent = state.cphCustomFileNameEnabled ? '自定义命名' : 'CPH 默认命名';
 }
 function render() {
   renderTheme();
@@ -715,6 +919,8 @@ function render() {
   renderHints();
   renderCleanup();
   renderAutoSave();
+  renderAutoFormat();
+  renderCphNaming();
   renderDone();
   applyFonts();
   byId('fontSize').value = state.fontSize;
@@ -761,7 +967,7 @@ function save(page, value) {
   vscode.postMessage({ type: 'save', page, value });
 }
 const NEXT = {
-  welcome: 'font', font: 'theme', theme: 'cpp', cpp: 'clangd', clangd: 'cleanup', cleanup: 'autosave', autosave: 'snippets', snippets: 'done'
+  welcome: 'font', font: 'theme', theme: 'cpp', cpp: 'clangd', clangd: 'cleanup', cleanup: 'autosave', autosave: 'autoformat', autoformat: 'cphNaming', cphNaming: 'snippets', snippets: 'done'
 };
 function bindNext(nextId) {
   byId(nextId).addEventListener('click', () => {
@@ -772,8 +978,8 @@ function bindNext(nextId) {
 function bindPrev(prevId) {
   byId(prevId).addEventListener('click', () => go(currentIndex - 1, 'prev'));
 }
-['welcome-next', 'font-next', 'theme-next', 'cpp-next', 'clangd-next', 'cleanup-next', 'autosave-next', 'snippets-next'].forEach(bindNext);
-['font-prev', 'theme-prev', 'cpp-prev', 'clangd-prev', 'cleanup-prev', 'autosave-prev', 'snippets-prev', 'done-prev'].forEach(bindPrev);
+['welcome-next', 'font-next', 'theme-next', 'cpp-next', 'clangd-next', 'cleanup-next', 'autosave-next', 'autoformat-next', 'cphNaming-next', 'snippets-next'].forEach(bindNext);
+['font-prev', 'theme-prev', 'cpp-prev', 'clangd-prev', 'cleanup-prev', 'autosave-prev', 'autoformat-prev', 'cphNaming-prev', 'snippets-prev', 'done-prev'].forEach(bindPrev);
 byId('done-finish').addEventListener('click', () => vscode.postMessage({ type: 'complete' }));
 byId('openSnippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));
 byId('fontFamily').addEventListener('change', () => { selectedFonts[0] = byId('fontFamily').value; setFontPreview(); void updateLigatureSupport(); saveFont(); renderFonts(); });
@@ -787,6 +993,18 @@ byId('clangdVariableTypeHints').addEventListener('change', () => { state.clangdV
 byId('executableCleanupEnabled').addEventListener('change', () => { state.executableCleanupEnabled = byId('executableCleanupEnabled').checked; save('cleanup', { executableCleanupEnabled: state.executableCleanupEnabled, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value) || 60 }); renderCleanup(); });
 byId('executableCleanupDelaySeconds').addEventListener('input', () => { const delay = Math.max(1, Math.min(86400, Math.floor(Number(byId('executableCleanupDelaySeconds').value) || 60))); state.executableCleanupDelaySeconds = delay; save('cleanup', { executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: delay }); renderCleanup(); });
 byId('autoSave').addEventListener('change', () => { state.autoSave = byId('autoSave').value; save('autosave', { autoSave: state.autoSave }); renderAutoSave(); });
+byId('autoFormat').addEventListener('change', () => { state.autoFormat = byId('autoFormat').checked; save('autoformat', { autoFormat: state.autoFormat }); renderDone(); });
+function cphNamingValue(restoreCphFileNameSettings) { return { cphCustomFileNameEnabled: byId('cphCustomFileNameEnabled').checked, cphDefaultLanguage: byId('cphDefaultLanguage').value, cphFileNameTemplate: byId('cphFileNameTemplate').value, cphFileNameTemplateOverrides: byId('cphFileNameTemplateOverrides').value, restoreCphFileNameSettings }; }
+function saveCphNaming(restoreCphFileNameSettings = false, renderPage = true) { state.cphCustomFileNameEnabled = byId('cphCustomFileNameEnabled').checked; state.cphDefaultLanguage = byId('cphDefaultLanguage').value; state.cphFileNameTemplate = byId('cphFileNameTemplate').value; state.cphFileNameTemplateOverrides = byId('cphFileNameTemplateOverrides').value; save('cphNaming', cphNamingValue(restoreCphFileNameSettings)); if (renderPage) renderCphNaming(); else renderCphFileNameTemplateExample(); renderDone(); }
+byId('cphCustomFileNameEnabled').addEventListener('change', () => saveCphNaming(state.cphCustomFileNameEnabled === false && byId('cphCustomFileNameEnabled').checked));
+byId('cphDefaultLanguage').addEventListener('change', saveCphNaming);
+byId('cphFileNameTemplatePreset').addEventListener('change', () => { const preset = byId('cphFileNameTemplatePreset'), input = byId('cphFileNameTemplate'), custom = preset.value === 'custom'; input.hidden = !custom; input.disabled = !custom; if (custom) { input.focus(); } else { input.value = preset.value; saveCphNaming(); } });
+byId('cphFileNameTemplate').addEventListener('input', () => saveCphNaming(false, false));
+byId('cphFileNameTemplateOverridesEditor').addEventListener('change', event => { if (event.target.matches('.cph-override-oj, .cph-override-template')) saveCphFileNameTemplateOverrides(); });
+byId('cphFileNameTemplateOverridesEditor').addEventListener('click', event => { if (event.target.matches('.cph-override-remove')) { event.target.closest('div').remove(); saveCphFileNameTemplateOverrides(true); } });
+byId('addCphFileNameTemplateOverride').addEventListener('click', () => { const editor = byId('cphFileNameTemplateOverridesEditor'); const row = document.createElement('div'); row.style.cssText = 'display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:8px;margin-top:8px'; const oj = document.createElement('input'); oj.className = 'cph-override-oj'; oj.placeholder = 'OJ 简称'; oj.setAttribute('aria-label', 'OJ 简称'); const template = document.createElement('input'); template.className = 'cph-override-template'; template.placeholder = '{ojName}/{contestId}/{problemId}.{ext}'; template.setAttribute('aria-label', '文件名模板'); const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn secondary cph-override-remove'; remove.textContent = '删除'; row.append(oj, template, remove); editor.append(row); oj.focus(); });
+byId('openAutoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormatSettings' }));
+byId('openCphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
 window.addEventListener('message', event => {
   const message = event.data;
   if (message?.type === 'systemFonts') {

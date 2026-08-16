@@ -3,10 +3,7 @@
 		{
 			"id": "method",
 			"title": { "en": "ShortestPath IDE", "zh-CN": "ShortestPath IDE" },
-			"text": { "en": "Select what to install and configure: the C++ compiler, the toolchain, and the language version.", "zh-CN": "选择要安装和配置的内容：C++ 编译器、编译环境与语言版本。" },
-			"selections": {
-				"Recommended": { "label": { "en": "Recommended", "zh-CN": "推荐配置" }, "jumpto": 2, "description": { "en": "Use the system g++ compiler, download Portable clangd, then choose the default C++ language version.", "zh-CN": "使用系统中的 g++，下载 Portable clangd，并选择默认 C++ 语言版本。" } }
-			}
+			"text": { "en": "We will detect the system C++ compiler, install clangd when needed, then choose the language version.", "zh-CN": "我们会探测系统 C++ 编译器，必要时安装 clangd，然后选择语言版本。" }
 		},
 		{
 			"id": "toolchain",
