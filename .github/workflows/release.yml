@@ -11,23 +11,9 @@ permissions:
 
 jobs:
   build-windows:
-    name: Build Windows x64 (${{ matrix.label }})
+    name: Build Windows x64
     runs-on: windows-latest
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - id: exclude
-            label: Exclude Compiler
-            artifact: windows-x64-exclude-compiler
-            variant: Exclude-Compiler
-            archive: ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip
-          - id: include
-            label: Include Compiler
-            artifact: windows-x64-include-compiler
-            variant: Include-Compiler
-            archive: ShortestPath-IDE-Windows-Include-Compiler-x64.zip
     env:
       VSCODE_ARCH: x64
       npm_config_arch: x64
@@ -93,16 +79,15 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Build bundled OI extensions
         run: npm run compile-oi-extensions
-      - name: Add bundled WinLibs compiler
-        if: matrix.id == 'include'
+      - name: Add bundled MinGW Lite compiler
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $url = 'https://github.com/brechtsanders/winlibs_mingw/releases/download/16.1.0posix-14.0.0-ucrt-r3/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip'
-          $destination = 'resources\oi-defaults\toolchains\winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip'
+          $url = 'https://github.com/redpanda-cpp/mingw-lite/releases/download/15.2.0-r8/mingw64-ucrt-15.2.0-r8.tar.zst'
+          $destination = 'resources\oi-defaults\toolchains\mingw64-ucrt-15.2.0-r8.tar.zst'
           curl.exe -fL --retry 3 --connect-timeout 30 $url --output $destination
-          if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 100MB) {
-            throw "The bundled WinLibs archive was not downloaded correctly."
+          if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 20MB) {
+            throw "The bundled MinGW Lite archive was not downloaded correctly."
           }
       - name: Build Windows package
         shell: pwsh
@@ -138,12 +123,10 @@ jobs:
           }
           New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
           Move-Item -LiteralPath $source -Destination $destination
-          $includeCompiler = '${{ matrix.id }}' -eq 'include'
           & .\build\azure-pipelines\win32\prepare-shortestpath-portable.ps1 `
             -PackagePath $destination
           & .\build\azure-pipelines\win32\verify-shortestpath-package.ps1 `
             -PackagePath $destination `
-            -IncludeCompiler $includeCompiler `
             -RequirePortableData
           $requiredExtensionEntries = @(
             'resources\app\extensions\divyanshuagrawal.competitive-programming-helper\dist\extension.js',
@@ -167,11 +150,11 @@ jobs:
               $unexpectedLocales.Count -ne 0) {
             throw "Packaged Electron locales must contain only en-US.pak and zh-CN.pak."
           }
-          Compress-Archive -Path "$destination\*" -DestinationPath "${{ matrix.archive }}"
+          Compress-Archive -Path "$destination\*" -DestinationPath 'ShortestPath-IDE-Windows-x64.zip'
 
           $installerOutputs = @(
-            @{ Source = '.build\win32-x64\system-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-${{ matrix.variant }}-x64-Setup.exe' },
-            @{ Source = '.build\win32-x64\user-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-${{ matrix.variant }}-x64-User-Setup.exe' }
+            @{ Source = '.build\win32-x64\system-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-x64-Setup.exe' },
+            @{ Source = '.build\win32-x64\user-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-x64-User-Setup.exe' }
           )
           foreach ($installer in $installerOutputs) {
             if (-not (Test-Path -LiteralPath $installer.Source -PathType Leaf)) {
@@ -184,11 +167,11 @@ jobs:
           }
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact }}
+          name: windows-x64
           path: |
-            ${{ matrix.archive }}
-            ShortestPath-IDE-Windows-${{ matrix.variant }}-x64-Setup.exe
-            ShortestPath-IDE-Windows-${{ matrix.variant }}-x64-User-Setup.exe
+            ShortestPath-IDE-Windows-x64.zip
+            ShortestPath-IDE-Windows-x64-Setup.exe
+            ShortestPath-IDE-Windows-x64-User-Setup.exe
           if-no-files-found: error
 
   build-macos:
@@ -241,7 +224,7 @@ jobs:
               exit 1
             }
           done
-          test ! -e "$app/Contents/Resources/app/resources/oi-defaults/toolchains/winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip"
+          test ! -e "$app/Contents/Resources/app/resources/oi-defaults/toolchains/mingw64-ucrt-15.2.0-r8.tar.zst"
           locale_dir="$app/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources"
           test -f "$locale_dir/en.lproj/locale.pak"
           test -f "$locale_dir/zh_CN.lproj/locale.pak"

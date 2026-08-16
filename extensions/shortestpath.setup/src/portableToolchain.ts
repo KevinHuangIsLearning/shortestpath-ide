@@ -3,9 +3,9 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const managedCompilerSuffix = '/user/globalstorage/shortestpath.shortestpath-setup/toolchains/winlibs/mingw64/bin/g++.exe';
+const managedCompilerSuffix = '/user/globalstorage/shortestpath.shortestpath-setup/toolchains/winlibs/bin/g++.exe';
 const managedClangdSuffix = '/user/globalstorage/shortestpath.shortestpath-setup/toolchains/clangd/clangd_22.1.6/bin/clangd.exe';
-const managedCompilerProfileSuffix = /\/user\/(?:profiles\/[^/]+\/)?globalstorage\/shortestpath\.shortestpath-setup\/toolchains\/winlibs\/mingw64\/bin\/g\+\+\.exe$/;
+const managedCompilerProfileSuffix = /\/user\/(?:profiles\/[^/]+\/)?globalstorage\/shortestpath\.shortestpath-setup\/toolchains\/winlibs\/(?:mingw64\/)?bin\/g\+\+\.exe$/;
 const managedClangdProfileSuffix = /\/user\/(?:profiles\/[^/]+\/)?globalstorage\/shortestpath\.shortestpath-setup\/toolchains\/clangd\/clangd_22\.1\.6\/bin\/clangd\.exe$/;
 
 export const managedClangdConfigMarker = '# Managed by ShortestPath IDE setup.';

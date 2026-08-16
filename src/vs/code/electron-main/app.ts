@@ -208,7 +208,9 @@ interface IShortestPathPortableAsset {
 const nodeRequire = createRequire(import.meta.url);
 const fs: typeof import('fs') = nodeRequire('original-fs');
 const { isAbsolute } = nodeRequire('path') as typeof import('path');
-const { finished } = nodeRequire('stream/promises') as typeof import('stream/promises');
+const { finished, pipeline } = nodeRequire('stream/promises') as typeof import('stream/promises');
+const { createZstdDecompress } = nodeRequire('zlib') as typeof import('zlib');
+const tar: typeof import('tar') = nodeRequire('tar');
 
 function isShortestPathSetupRequest(candidate: unknown): candidate is IShortestPathSetupRequest {
 	if (!candidate || typeof candidate !== 'object') {
@@ -946,7 +948,7 @@ export class CodeApplication extends Disposable {
 
 	private async applyShortestPathWindowsSetup(request: IShortestPathSetupRequest): Promise<void> {
 		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
-		const compiler = join(toolchainRoot, 'winlibs', 'mingw64', 'bin', 'g++.exe');
+		const compiler = join(toolchainRoot, 'winlibs', 'bin', 'g++.exe');
 		const clangd = join(toolchainRoot, 'clangd', 'clangd_22.1.6', 'bin', 'clangd.exe');
 		const existingFileExcludes = this.configurationService.getValue<Record<string, boolean>>('files.exclude') ?? {};
 		const settings: Record<string, unknown> = {
@@ -1115,6 +1117,24 @@ export class CodeApplication extends Disposable {
 	}
 
 	private async extractShortestPathAsset(archivePath: string, targetPath: string, onProgress: (extractedEntries: number, totalEntries: number) => void): Promise<void> {
+		await fs.promises.mkdir(targetPath, { recursive: true });
+		if (archivePath.endsWith('.tar.zst')) {
+			let extractedEntries = 0;
+			await pipeline(
+				fs.createReadStream(archivePath),
+				createZstdDecompress(),
+				tar.x({
+					cwd: targetPath,
+					strict: true,
+					onentry: () => {
+						extractedEntries++;
+						onProgress(extractedEntries, 0);
+					}
+				})
+			);
+			onProgress(extractedEntries, extractedEntries);
+			return;
+		}
 		return extractZip(archivePath, targetPath, { overwrite: true, onProgress }, CancellationToken.None);
 	}
 

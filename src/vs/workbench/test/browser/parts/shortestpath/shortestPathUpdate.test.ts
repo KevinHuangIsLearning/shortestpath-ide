@@ -87,16 +87,16 @@ suite('ShortestPath update check', () => {
 
 	test('selects the matching direct download asset', () => {
 		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', 'user'), {
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe',
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-User-Setup.exe',
 			allowsMinimumVersionLock: true,
 			fastDownloadType: 'windowsUserSetup',
 		});
 		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', 'system'), {
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64-Setup.exe',
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-Setup.exe',
 			allowsMinimumVersionLock: true,
 		});
 		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', undefined), {
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip',
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64.zip',
 			allowsMinimumVersionLock: false,
 			fastDownloadType: 'windowsPortable',
 		});
