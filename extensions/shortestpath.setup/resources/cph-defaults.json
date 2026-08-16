@@ -1,5 +1,7 @@
 {
-	"cph.general.vjudgeUrlSuffix": "",
+	"cph.general.vjudgeOpenInBrowser": true,
+	"cph.general.vjudgeBrowserSplitRatio": 65,
+	"cph.general.vjudgeUrlSuffix": "#author=translator:1281309:zh",
 	"cph.general.fileNameTemplate": "{ojName}/{contestId}/{problemId}.{ext}",
 	"cph.general.fileNameTemplateOverrides": {
 		"CSES": "{ojName}/{problemId}_{slug}.{ext}",
@@ -145,7 +147,7 @@
 	"cph.general.ignoreSTDERROR": false,
 	"cph.general.defaultOnlineJudge": false,
 	"cph.general.includeProblemIndex": false,
-	"cph.general.autoShowJudge": true,
+	"cph.general.autoShowJudge": false,
 	"cph.general.useShortAtCoderName": false,
 	"cph.general.useShortCodeForcesName": false,
 	"cph.general.useShortLuoguName": false,

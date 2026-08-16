@@ -357,6 +357,11 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	let compiler = await findPreferredCompiler(preset.compilerCandidates);
 	let clangd = await findFirstExecutable(preset.clangdCandidates);
 	let installerStarted = false;
+	const configuration = vscode.workspace.getConfiguration(undefined, null);
+	const preservedCompilerFlags = firstRunSelection?.mode === 'repair'
+		? configuration.inspect<string>('cph.language.cpp.Args')?.globalValue
+			?? configuration.inspect<string>('c-cpp-compile-run.cpp-flags')?.globalValue
+		: undefined;
 
 	if (firstRunSelection) {
 		if (firstRunSelection.installToolchain && (!compiler || !clangd)) {
@@ -389,27 +394,29 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		'files.exclude': addMissingShortestPathFileExcludes(getGlobalFileExcludes())
 	};
 	if (firstRunSelection?.mode === 'recommended') {
-		Object.assign(settings, loadCphDefaultSettings(context));
+		Object.assign(settings, loadCphDefaultSettings(context), loadRecommendedSettings(context));
 	}
 	const cppStandard = firstRunSelection?.cppStandard ?? 'c++23';
 	if (compiler) {
 		if (process.platform === 'win32' && vscode.env.isAppPortable) {
 			compiler = getSpaceSafePortableCompilerPath(context, compiler);
 		}
-		const compilerFlags = [
-			`-std=${cppStandard}`,
-			'-O2',
-			'-g',
-			'-Wall',
-			'-Wextra',
-			'-D_GLIBCXX_DEBUG',
-			...(process.platform === 'win32' ? ['-static'] : []),
-		].join(' ');
 		settings['cph.language.cpp.Command'] = compiler;
-		settings['cph.language.cpp.Args'] = compilerFlags;
 		settings['c-cpp-compile-run.output-location'] = '.';
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
-		settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
+		if (firstRunSelection?.mode !== 'repair' || preservedCompilerFlags !== undefined) {
+			const compilerFlags = preservedCompilerFlags ?? [
+				`-std=${cppStandard}`,
+				'-O2',
+				'-g',
+				'-Wall',
+				'-Wextra',
+				'-D_GLIBCXX_DEBUG',
+				...(process.platform === 'win32' ? ['-static'] : []),
+			].join(' ');
+			settings['cph.language.cpp.Args'] = compilerFlags;
+			settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
+		}
 		if (firstRunSelection) {
 			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard);
 		}
@@ -566,6 +573,11 @@ function loadPreset(context: vscode.ExtensionContext): PlatformPreset {
 function loadCphDefaultSettings(context: vscode.ExtensionContext): CphDefaultSettings {
 	const defaultsPath = path.join(context.extensionPath, 'resources', 'cph-defaults.json');
 	return JSON.parse(fs.readFileSync(defaultsPath, 'utf8')) as CphDefaultSettings;
+}
+
+function loadRecommendedSettings(context: vscode.ExtensionContext): Record<string, unknown> {
+	const defaultsPath = path.join(context.extensionPath, 'resources', 'recommended-settings.json');
+	return JSON.parse(fs.readFileSync(defaultsPath, 'utf8')) as Record<string, unknown>;
 }
 
 function getPlatformName(): 'windows' | 'mac' | 'linux' {

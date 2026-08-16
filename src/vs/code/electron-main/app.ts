@@ -21,7 +21,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { FileAccess, Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { dirname, join, posix } from '../../base/common/path.js';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
-import { assertType } from '../../base/common/types.js';
+import { assertType, hasKey } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
 import { generateUuid } from '../../base/common/uuid.js';
 import { registerContextMenuListener } from '../../base/parts/contextmenu/electron-main/contextmenu.js';
@@ -951,24 +951,31 @@ export class CodeApplication extends Disposable {
 		const compiler = join(toolchainRoot, 'winlibs', 'bin', 'g++.exe');
 		const clangd = join(toolchainRoot, 'clangd', 'clangd_22.1.6', 'bin', 'clangd.exe');
 		const existingFileExcludes = this.configurationService.getValue<Record<string, boolean>>('files.exclude') ?? {};
+		const fileExcludes = { ...existingFileExcludes };
+		for (const pattern of ['**/.cph', '**/.clang-format', '**/.clangd', '**/*.exe', '**/*.bin', '**/*.bin.dSYM', '**/*.dSYM', '**/.*']) {
+			if (!hasKey(fileExcludes, { [pattern]: true })) {
+				fileExcludes[pattern] = true;
+			}
+		}
+		const preservedCompilerFlags = request.mode === 'repair'
+			? this.configurationService.inspect<string>('cph.language.cpp.Args').userValue
+			?? this.configurationService.inspect<string>('c-cpp-compile-run.cpp-flags').userValue
+			: undefined;
 		const settings: Record<string, unknown> = {
 			...(request.mode === 'recommended' ? this.getShortestPathCphDefaultSettings() : {}),
-			'files.exclude': {
-				...existingFileExcludes,
-				'**/.cph': true,
-				'**/.clang-format': true,
-				'**/.clangd': true,
-				'**/*.exe': true,
-				'**/.*': true
-			},
+			...(request.mode === 'recommended' ? this.getShortestPathRecommendedSettings() : {}),
+			'files.exclude': fileExcludes,
 			'cph.language.cpp.Command': compiler,
-			'cph.language.cpp.Args': `-std=${request.cppStandard} -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG -static`,
 			'c-cpp-compile-run.output-location': '.',
 			'c-cpp-compile-run.cpp-compiler': compiler,
-			'c-cpp-compile-run.cpp-flags': `-std=${request.cppStandard} -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG -static`,
 			'clangd.path': clangd,
 			'clangd.arguments': ['--background-index', `--query-driver=${compiler}`]
 		};
+		if (request.mode === 'recommended' || preservedCompilerFlags !== undefined) {
+			const compilerFlags = preservedCompilerFlags ?? `-std=${request.cppStandard} -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG -static`;
+			settings['cph.language.cpp.Args'] = compilerFlags;
+			settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
+		}
 
 		for (const [key, value] of Object.entries(settings)) {
 			await this.configurationService.updateValue(key, value, ConfigurationTarget.USER);
@@ -985,6 +992,11 @@ export class CodeApplication extends Disposable {
 
 	private getShortestPathCphDefaultSettings(): Record<string, unknown> {
 		const defaultsPath = join(this.environmentMainService.appRoot, 'extensions', 'shortestpath.setup', 'resources', 'cph-defaults.json');
+		return JSON.parse(fs.readFileSync(defaultsPath, 'utf8')) as Record<string, unknown>;
+	}
+
+	private getShortestPathRecommendedSettings(): Record<string, unknown> {
+		const defaultsPath = join(this.environmentMainService.appRoot, 'extensions', 'shortestpath.setup', 'resources', 'recommended-settings.json');
 		return JSON.parse(fs.readFileSync(defaultsPath, 'utf8')) as Record<string, unknown>;
 	}
 

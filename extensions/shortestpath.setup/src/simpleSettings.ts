@@ -29,6 +29,7 @@ type SimpleSettingsState = {
 	executableCleanupDelaySeconds: number;
 	colorTheme: string;
 	autoDetectColorScheme: boolean;
+	modernUIEnabled: boolean;
 	autoSave: string;
 	newFileDefaultLanguage: string;
 	shortestPathCppSubmissionLanguage: string;
@@ -470,6 +471,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('shortestpath.executableCleanupDelaySeconds')
 			|| event.affectsConfiguration('workbench.colorTheme')
 			|| event.affectsConfiguration('window.autoDetectColorScheme')
+			|| event.affectsConfiguration('workbench.experimental.modernUI')
 			|| event.affectsConfiguration('files.autoSave')
 			|| event.affectsConfiguration('shortestpath.oj.antiFraudReminder'))) {
 			void panel.webview.postMessage({ type: 'state', value: getState() });
@@ -507,6 +509,7 @@ function getState(): SimpleSettingsState {
 		executableCleanupDelaySeconds,
 		colorTheme,
 		autoDetectColorScheme: windowConfiguration.get<boolean>('autoDetectColorScheme') ?? false,
+		modernUIEnabled: workbench.get<boolean>('experimental.modernUI') ?? true,
 		autoSave: files.get<string>('autoSave') ?? 'off',
 		newFileDefaultLanguage: vscode.workspace.getConfiguration('shortestpath.newFile', null).get<string>('defaultLanguage') ?? 'cpp',
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'ask',
@@ -563,6 +566,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' ? value.colorTheme : 'One Monokai', vscode.ConfigurationTarget.Global),
 		settings.update('window.autoDetectColorScheme', value.autoDetectColorScheme === true, vscode.ConfigurationTarget.Global),
 		settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global),
+		settings.update('workbench.experimental.modernUI', value.modernUIEnabled !== false, vscode.ConfigurationTarget.Global),
 		settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.newFile.defaultLanguage', typeof value.newFileDefaultLanguage === 'string' && value.newFileDefaultLanguage ? value.newFileDefaultLanguage : 'cpp', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global),
@@ -628,6 +632,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <section class="card" data-category="appearance">
 <div class="row"><div><label for="colorTheme">主题</label></div><select id="colorTheme"></select></div>
 <div class="row"><div><label for="autoDetectColorScheme">同步系统主题</label></div><label class="toggle"><input id="autoDetectColorScheme" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="modernUIEnabled">现代界面</label><div class="hint">启用 Workbench › Experimental: Modern UI，使用浮动面板和更新后的工作台样式。</div></div><label class="toggle"><input id="modernUIEnabled" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="autoSave">自动保存</label></div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
 </section>
 <section class="card" data-category="tools"><div class="row"><div><label>开始使用</label><div class="hint">分步引导配置字体、主题、语言版本等偏好。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div></section>
@@ -826,12 +831,13 @@ function apply(state) {
   state.themes.forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.label; theme.append(option); });
   theme.value = state.colorTheme;
   byId('autoDetectColorScheme').checked = !!state.autoDetectColorScheme;
+	byId('modernUIEnabled').checked = !!state.modernUIEnabled;
   byId('autoSave').value = state.autoSave;
 	byId('newFileDefaultLanguage').value = state.newFileDefaultLanguage;
 	byId('antiFraudReminder').checked = !!state.antiFraudReminder;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, antiFraudReminder: byId('antiFraudReminder').checked }; }
+function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, modernUIEnabled: byId('modernUIEnabled').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, antiFraudReminder: byId('antiFraudReminder').checked }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#settingsSearch):not(#fontFamily), select:not(#fontFamily)').forEach(control => {

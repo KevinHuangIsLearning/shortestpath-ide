@@ -2,10 +2,7 @@
 	"pages": [
 		{
 			"title": { "en": "ShortestPath IDE", "zh-CN": "ShortestPath IDE" },
-			"text": { "en": "Select what to install and configure: the C++ compiler, the toolchain, and the language version.", "zh-CN": "选择要安装和配置的内容：C++ 编译器、编译环境与语言版本。" },
-			"selections": {
-				"Recommended": { "label": { "en": "Recommended", "zh-CN": "推荐配置" }, "jumpto": 2, "description": { "en": "Download the Portable toolchain, then choose the default C++ language version.", "zh-CN": "下载 Portable 工具链，并选择默认 C++ 语言版本。" } }
-			}
+			"text": { "en": "We will download the Portable C++ toolchain, then choose the language version.", "zh-CN": "我们会下载 Portable C++ 编译环境，然后选择语言版本。" }
 		},
 		{
 			"title": { "en": "Installing Portable Toolchain", "zh-CN": "正在安装 Portable 编译环境" },

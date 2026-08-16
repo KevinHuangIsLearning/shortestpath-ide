@@ -1,0 +1,15 @@
+{
+	"editor.fontLigatures": true,
+	"editor.cursorSmoothCaretAnimation": "on",
+	"editor.smoothScrolling": true,
+	"workbench.list.smoothScrolling": true,
+	"terminal.integrated.smoothScrolling": true,
+	"editor.cursorBlinking": "smooth",
+	"editor.fontSize": 14,
+	"files.autoSave": "onFocusChange",
+	"editor.formatOnSave": true,
+	"editor.formatOnPaste": true,
+	"editor.inlayHints.enabled": "on",
+	"window.systemColorTheme": "auto",
+	"editor.mouseWheelZoom": true
+}

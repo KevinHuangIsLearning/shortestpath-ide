@@ -12,12 +12,7 @@
 		.badge { color: #a8c7ff; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 		h1 { font-size: clamp(42px, 6vw, 72px); margin: 14px 0; letter-spacing: -.04em; }
 		.lead { font-size: 20px; line-height: 1.6; color: #b7bfce; max-width: 680px; }
-		.cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin: 44px 0 26px; }
 		button { appearance: none; font: inherit; color: inherit; cursor: pointer; }
-		.card { text-align: left; min-height: 200px; padding: 28px; border: 1px solid #30394d; border-radius: 18px; background: #171b25; transition: .16s ease; }
-		.card:hover, .card.selected { border-color: #78a9ff; background: #1b2540; transform: translateY(-2px); }
-		.card strong { display: block; font-size: 25px; margin-bottom: 12px; }
-		.card span { color: #b7bfce; line-height: 1.55; }
 		.options { display: none; padding: 22px 0 8px; color: #d9e2f2; }
 		.options.visible { display: grid; gap: 14px; }
 		.source-choice { margin-top: 8px; color: #d9e2f2; }
@@ -52,9 +47,6 @@
 		<div class="badge">ShortestPath IDE</div>
 		<h1 id="choice-title">准备好开始竞赛编程。</h1>
 		<p id="choice-lead" class="lead">我们会探测并安装编译器工具链，并选择 C++ 语言版本，然后打开工作台。</p>
-		<section class="cards">
-			<div class="card selected"><strong id="recommended-label">Recommended</strong><span id="recommended-description">安装并配置 C++ 编译器与编译环境，并选择语言版本。缺少 g++ 或 clangd 时提供对应系统的安装步骤。</span></div>
-		</section>
 		<div id="source-choice" class="source-choice" hidden><label><span id="source-label">下载源</span><select id="download-source"></select></label></div>
 		<div class="actions">
 			<button id="skip" class="skip">稍后配置</button>
@@ -99,12 +91,10 @@
 		const translations = {
 			'en': {
 				choiceTitle: 'Ready for competitive programming.', choiceLead: 'We will detect and install the compiler toolchain and choose the C++ language version before opening the IDE.',
-				recommended: 'Install and configure the C++ compiler and toolchain, and choose the language version.',
 				permission: 'Installation may require confirmation or administrator permission.', skip: 'Configure later', continue: 'Continue', downloadTitle: 'Preparing your toolchain.', configurationTitle: 'Your toolchain is ready.', configurationLead: 'Confirm the ShortestPath IDE preferences to save before opening the workbench.', workspaceTitle: 'Choose your workspace folder.', workspaceLead: 'We will create .clangd in this folder and open it when setup is complete.', workspaceLabel: 'Workspace folder', chooseFolder: 'Choose folder', selectWorkspace: 'Select a workspace folder.', preparing: 'Preparing installation…', completed: 'Download complete. Select Next to continue configuration.', alreadyInstalled: 'Toolchain is already installed. Download skipped.', failed: 'Download failed: {message}'
 			},
 			'zh-CN': {
 				choiceTitle: '准备好开始竞赛编程。', choiceLead: '我们会探测并安装编译器工具链，并选择 C++ 语言版本，然后打开工作台。',
-				recommended: '安装并配置 C++ 编译器与编译环境，并选择语言版本。',
 				permission: '安装需要确认，可能要求管理员权限。', skip: '稍后配置', continue: '继续', downloadTitle: '正在准备编译环境。', configurationTitle: '工具链已准备就绪。', configurationLead: '确认要写入的 ShortestPath IDE 配置，然后进入工作台。', workspaceTitle: '选择工作目录。', workspaceLead: '我们会在此目录创建 .clangd，并在完成后直接打开它。', workspaceLabel: '工作目录', chooseFolder: '选择目录', selectWorkspace: '请选择工作目录。', preparing: '正在准备安装…', completed: '下载完成。点击“下一步”继续配置。', alreadyInstalled: '工具链已安装，已跳过下载。', failed: '下载失败：{message}'
 			}
 		};
@@ -112,7 +102,6 @@
 		document.documentElement.lang = language;
 		document.getElementById('choice-title').textContent = t.choiceTitle;
 		document.getElementById('choice-lead').textContent = t.choiceLead;
-		document.getElementById('recommended-description').textContent = t.recommended;
 		document.getElementById('permission-note').textContent = t.permission;
 		document.getElementById('skip').textContent = t.skip;
 		document.getElementById('continue').textContent = t.continue;
@@ -125,8 +114,6 @@
 		document.getElementById('workspaceFolder-pick').textContent = t.chooseFolder;
 		document.getElementById('choice-title').textContent = localize(pages[0].title);
 		document.getElementById('choice-lead').textContent = localize(pages[0].text);
-		document.getElementById('recommended-description').textContent = localize(pages[0].selections.Recommended.description);
-		document.getElementById('recommended-label').textContent = localize(pages[0].selections.Recommended.label);
 		const pageById = id => pages.find(page => page.id === id);
 		const toolchainPage = pageById('toolchain') ?? pages.find(page => page.controls === undefined && page !== pages[0]);
 		const xcodePage = pageById('xcode');
