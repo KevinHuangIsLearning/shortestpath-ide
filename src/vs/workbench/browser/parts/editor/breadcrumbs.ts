@@ -172,7 +172,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			markdownDescription: localize('showEditorType', "Controls whether the breadcrumbs bar shows a dropdown to switch between the editors that can open the current file (for example the text editor and a custom editor). The dropdown only appears when a more specialized editor is available."),
 			type: 'boolean',
 			default: true,
-			agentsWindow: { default: true },
 			tags: ['experimental']
 		},
 		'breadcrumbs.symbolPathSeparator': {

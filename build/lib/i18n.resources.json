@@ -375,6 +375,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/agentHost",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/authToken",
 			"project": "vscode-workbench"
 		},

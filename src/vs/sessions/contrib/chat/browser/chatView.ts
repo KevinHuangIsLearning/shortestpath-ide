@@ -7,7 +7,8 @@ import './media/chatView.css';
 import './media/voiceChatView.css';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -38,9 +39,9 @@ import { ResponseSelectionSideChatController } from './responseSelectionSideChat
 import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
+import { ISessionsChatViewStateService } from './chatViewStateService.js';
 
 /**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
@@ -94,6 +95,7 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
+
 	override sendQuery(text: string): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.sendQuery(text);
@@ -146,6 +148,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	private readonly _currentChatResourceObs = observableValue<URI | undefined>(this, undefined);
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
@@ -177,6 +180,7 @@ export class ChatView extends AbstractChatView {
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@ISessionChatPillsDebugService private readonly chatPillsDebugService: ISessionChatPillsDebugService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
+		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 	) {
 		super();
 
@@ -237,11 +241,16 @@ export class ChatView extends AbstractChatView {
 			const active = this._isActiveObs.read(reader);
 			const voiceActive = this.voiceSessionController.isConnected.read(reader)
 				|| this.voiceSessionController.isConnecting.read(reader);
-			this._voiceInitiatedHereKey.set(active && voiceActive);
+			const target = this.voiceSessionController.targetSession.read(reader);
+			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			const current = this._currentChatResourceObs.read(reader);
+			const ownsVoice = !hasDraftTarget && (!target || (!!current && isEqual(target, current)));
+			this._voiceInitiatedHereKey.set(active && voiceActive && ownsVoice);
 		}));
 	}
 
 	override dispose(): void {
+		this._saveCurrentViewState();
 		this._loadCts.value?.cancel();
 		super.dispose();
 	}
@@ -264,6 +273,11 @@ export class ChatView extends AbstractChatView {
 	override setChat(chat: IChat, historyKey?: string): void {
 		this.chatPillsDebugService.clear(this._chatPills);
 		const resource = chat.resource;
+		const previousChatResource = this._currentChatResource;
+		const chatChanged = !isEqual(previousChatResource, resource);
+		if (chatChanged) {
+			this._saveCurrentViewState();
+		}
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
 
@@ -281,12 +295,12 @@ export class ChatView extends AbstractChatView {
 		});
 
 		// Skip loading if we're already showing this chat
-		if (isEqual(this._currentChatResource, resource)) {
+		if (!chatChanged) {
 			return;
 		}
 
-		const previousChatResource = this._currentChatResource;
 		this._currentChatResource = resource;
+		this._currentChatResourceObs.set(resource, undefined);
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
@@ -309,6 +323,10 @@ export class ChatView extends AbstractChatView {
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
+			const widgetViewState = this.viewStateService.get(resource);
+			if (widgetViewState) {
+				this._widget.restoreViewState(widgetViewState);
+			}
 			// Expose the bound chat resource on the DOM so test automation
 			// can synchronize with the post-rebind state without polling timeouts.
 			// Set AFTER `setModel` so observers see the attribute only once the
@@ -320,6 +338,7 @@ export class ChatView extends AbstractChatView {
 			}
 			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
+				this._currentChatResourceObs.set(undefined, undefined);
 			}
 		});
 
@@ -327,6 +346,13 @@ export class ChatView extends AbstractChatView {
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
 		this.showProgressWhile(loadPromise, 800);
+	}
+
+	private _saveCurrentViewState(): void {
+		const resource = this._widget.viewModel?.sessionResource;
+		if (resource) {
+			this.viewStateService.set(resource, this._widget.getViewState());
+		}
 	}
 
 	private _clearCurrentChat(): void {
@@ -394,6 +420,11 @@ export class ChatView extends AbstractChatView {
 		if (!inputContainerEl) {
 			return;
 		}
+		const confirmationPending = derived(this, reader => {
+			const current = this._currentChatResourceObs.read(reader);
+			return !!current && this.voiceSessionController.pendingToolConfirmations.read(reader)
+				.some(confirmation => isEqual(confirmation.sessionResource, current));
+		});
 
 		this._register(setupVoiceInputDecorations({
 			voiceSessionController: this.voiceSessionController,
@@ -406,6 +437,7 @@ export class ChatView extends AbstractChatView {
 		}, {
 			inputContainer: inputContainerEl,
 			isActive: this._isActiveObs,
+			confirmationPending,
 			getCurrentResource: () => this._currentChatResource,
 			currentVoiceInputResource: this.newChatVoiceTargetService.currentVoiceInputResource,
 		}));
