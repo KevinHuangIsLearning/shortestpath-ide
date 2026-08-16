@@ -153,6 +153,11 @@ export interface IProductConfiguration {
 
 	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };
 
+	readonly copilotVersions?: {
+		readonly runtime: string;
+		readonly sdk: string;
+	};
+
 	readonly dictationRuntime?: IDictationRuntimeProductConfig;
 
 	readonly mcpGallery?: {

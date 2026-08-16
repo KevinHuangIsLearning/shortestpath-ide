@@ -32,7 +32,6 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import { AgentHostContribution } from '../browser/agentSessions/agentHost/agentHostChatContribution.js';
-import { AgentHostByokLmHandler } from '../browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { AgentHostSessionListContribution } from '../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
 import { AgentHostOpenSessionLinkOpenerContribution } from '../browser/agentSessions/agentHost/openSessionLinkOpener.contribution.js';
 import { AgentHostTerminalContribution } from '../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
@@ -44,7 +43,6 @@ import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsSer
 import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
 import { ChatSessionPosition, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
-import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
 import { type AgentInfo, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatService } from '../common/chatService/chatService.js';
@@ -268,10 +266,6 @@ registerWorkbenchContribution2(AgentHostSessionListContribution.ID, AgentHostSes
 registerWorkbenchContribution2(AgentHostOpenSessionLinkOpenerContribution.ID, AgentHostOpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostCopilotCliSettingsContribution.ID, AgentHostCopilotCliSettingsContribution, WorkbenchPhase.AfterRestored);
-
-// Renderer-side BYOK language-model handler that backs the node agent host's
-// OpenAI proxy. Lazily instantiated when AgentHostClientByokLmChannel resolves it.
-registerSingleton(IAgentHostByokLmHandler, AgentHostByokLmHandler, InstantiationType.Delayed);
 
 // How long to wait for the agent host to surface an AgentInfo before
 // throwing an error. Long enough for normal startup, short enough to avoid

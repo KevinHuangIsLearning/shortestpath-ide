@@ -30,6 +30,8 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 			process.versions['chrome'],
 			process.versions['node'],
 			process.versions['v8'],
+			productService.copilotVersions?.runtime || 'Unknown',
+			productService.copilotVersions?.sdk || 'Unknown',
 			`${osProps.type} ${osProps.arch} ${osProps.release}${isLinuxSnap ? ' snap' : ''}`
 		);
 	};

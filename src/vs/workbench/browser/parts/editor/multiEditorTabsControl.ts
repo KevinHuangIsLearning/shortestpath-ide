@@ -12,9 +12,9 @@ import { computeEditorAriaLabel } from '../../editor.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { toAction } from '../../../../base/common/actions.js';
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from '../../labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -110,8 +110,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		shrink: 80 as const,
 		fit: 120 as const
 	};
-	private static readonly STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH = 28 as const;
-	private static readonly STYLE_OVERRIDE_PINNED_TAB_SPACING = 4 as const;
+	private static readonly MODERN_UI_COMPACT_PINNED_TAB_WIDTH = 28 as const;
 
 	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
 
@@ -157,6 +156,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		groupView: IEditorGroupView,
 		tabsModel: IReadonlyEditorGroupModel,
 		menuIds: IEditorGroupMenuIds | undefined,
+		breadcrumbsInHeader: boolean,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -172,7 +172,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IMenuService menuService: IMenuService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, menuIds, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, menuIds, breadcrumbsInHeader, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -218,7 +218,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// is created and the last tab remains the last child of the tabs
 		// container, which tab layout logic relies on (see #324902).
 		if (this.menuIds?.tabsBarAddTab) {
-			this.createAddTabControl(this.menuIds.tabsBarAddTab);
+			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab);
 		}
 
 		this.createNewTabControl();
@@ -254,11 +254,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		void this.commandService.executeCommand('shortestpath.action.openNewTab');
 	}
 
-	private createAddTabControl(menuId: MenuId): void {
-		const tabsContainer = assertReturnsDefined(this.tabsContainer);
+	protected override createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, trailingSeparator = false): HTMLElement {
 		const container = $('.tabs-bar-add-tab');
-		tabsContainer.appendChild(container);
+		parent.insertBefore(container, before ?? null);
 		this.addTabContainer = container;
+		void trailingSeparator;
 
 		const menu = this._register(this.menuService.createMenu(menuId, this.contextKeyService));
 		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
@@ -279,8 +279,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const updateVisibility = () => this.addTabContainer?.classList.toggle('hidden', getActions().length === 0);
 		updateVisibility();
 		this._register(menu.onDidChange(() => updateVisibility()));
+		return container;
 	}
-
 	private get tabCount(): number {
 		const tabsContainer = assertReturnsDefined(this.tabsContainer);
 		return this.addTabContainer ? tabsContainer.children.length - 1 : tabsContainer.children.length;
@@ -849,6 +849,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar));
 	}
 
+	updateEditorCapabilities(editor: EditorInput): void {
+		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTab(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar));
+	}
+
 	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 		super.updateOptions(oldOptions, newOptions);
 
@@ -943,6 +947,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Gesture Support
 		const gestureDisposable = Gesture.addTarget(tabContainer);
+
+		// Tab Fill (Modern UI pill background). A real element is used because the
+		// tab's ::before/::after pseudo-elements are reserved for drop-target indicators.
+		const tabFillContainer = $('.tab-fill', { 'aria-hidden': true });
+		tabContainer.appendChild(tabFillContainer);
 
 		// Tab Border Top
 		const tabBorderTopContainer = $('.tab-border-top-container');
@@ -1094,7 +1103,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (editor) {
-					if (preventEditorClose(this.tabsModel, editor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
+					if (editor.hasCapability(EditorInputCapabilities.CannotClose) || preventEditorClose(this.tabsModel, editor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
 						return;
 					}
 
@@ -1656,6 +1665,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private redrawTab(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
 		const isTabSticky = this.tabsModel.isSticky(tabIndex);
+		const isCloseable = !editor.hasCapability(EditorInputCapabilities.CannotClose);
 		const options = this.groupsView.partOptions;
 
 		// Label
@@ -1663,7 +1673,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Action
 		const hasUnpinAction = isTabSticky && options.tabActionUnpinVisibility;
-		const hasCloseAction = !hasUnpinAction && options.tabActionCloseVisibility;
+		const hasCloseAction = isCloseable && !hasUnpinAction && options.tabActionCloseVisibility;
 		const hasAction = hasUnpinAction || hasCloseAction;
 
 		let tabAction;
@@ -1684,6 +1694,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && !hasUnpinAction);
 		tabContainer.classList.toggle(`close-action-off`, !hasUnpinAction && !hasCloseAction);
+		tabContainer.classList.toggle('cannot-close', !isCloseable);
 
 		for (const option of ['left', 'right']) {
 			tabContainer.classList.toggle(`tab-actions-${option}`, hasAction && options.tabActionLocation === option);
@@ -2277,14 +2288,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getStickyTabWidth(pinnedTabSizing: IEditorPartOptions['pinnedTabSizing']): number {
-		const hasStyleOverride = Boolean(this.parent.closest('.style-override'));
-		const styleOverrideSpacing = hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_PINNED_TAB_SPACING : 0;
+		const hasModernUITabs = Boolean(this.parent.closest('.modern-ui-tabs'));
 
 		switch (pinnedTabSizing) {
 			case 'compact':
-				return (hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact) + styleOverrideSpacing;
+				return hasModernUITabs ? MultiEditorTabsControl.MODERN_UI_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact;
 			case 'shrink':
-				return MultiEditorTabsControl.TAB_WIDTH.shrink + styleOverrideSpacing;
+				return MultiEditorTabsControl.TAB_WIDTH.shrink;
 			default:
 				return 0;
 		}

@@ -8,6 +8,8 @@ The sessions list is the primary navigation surface in the Agents Window. It occ
 
 The sessions list (`SessionsView` + `SessionsList`) displays every session known to `ISessionsManagementService`. Sessions are aggregated from all registered providers and shown in collapsible **sections**. The user can group, sort, filter, pin, and archive sessions. Selecting a session navigates to it.
 
+When `chat.omni.enabled` is enabled, the Sessions header includes a `Codicon.arrowCircleUpSparkle` action after **New Session** that toggles the floating chat input window.
+
 ### Key Files
 
 | File | Purpose |
@@ -27,7 +29,7 @@ The sessions list (`SessionsView` + `SessionsList`) displays every session known
 
 Each session row displays:
 
-- **Status icon** — animated indicator for InProgress / NeedsInput / Error / Completed / Unread; quick chats never show a PR glyph (they have no GitHub PR association) and no per-row chat icon is shown either (the Chats section header, Pinned section, or custom group already conveys their identity)
+- **Status icon** — animated indicator for InProgress / NeedsInput / Error / Completed / Unread; unread takes precedence over completed-state glyphs such as a pull request, while quick chats never show a PR glyph (they have no GitHub PR association) and no per-row chat icon is shown either (the Chats section header, Pinned section, or custom group already conveys their identity)
 - **Title** — the session's display title (observable)
 - **Type icon** (regular sessions only) — folder/worktree/cloud icon indicating the workspace kind; omitted for quick chats
 - **Workspace badge** — folder/worktree/cloud icon + label (hidden when redundant with section header)
