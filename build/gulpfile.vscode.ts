@@ -135,7 +135,7 @@ const vscodeResources = [
 
 	// ShortestPath IDE first-run onboarding window
 	'resources/oi-defaults/**',
-	'!resources/oi-defaults/toolchains/*.zip',
+	'!resources/oi-defaults/toolchains/*',
 
 	// Excludes
 	'!out-build/vs/code/browser/**',
@@ -323,7 +323,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
 		const shortestPathOnboarding = gulp.src([
 			'resources/oi-defaults/**',
-			...(platform === 'win32' ? [] : ['!resources/oi-defaults/toolchains/clangd-windows-22.1.6.zip'])
+			...(platform === 'win32' ? [] : ['!resources/oi-defaults/toolchains/*'])
 		], { base: '.' });
 
 		const sourceFilterPattern = stripSourceMapsInPackagingTasks

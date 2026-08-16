@@ -2,9 +2,6 @@ param(
 	[Parameter(Mandatory = $true)]
 	[string]$PackagePath,
 
-	[Parameter(Mandatory = $true)]
-	[bool]$IncludeCompiler,
-
 	[switch]$RequirePortableData
 )
 
@@ -38,17 +35,13 @@ foreach ($relativePath in $requiredFiles) {
 	}
 }
 
-$compilerRelativePath = 'resources\app\resources\oi-defaults\toolchains\winlibs-x86_64-posix-seh-gcc-16.1.0-mingw-w64ucrt-14.0.0-r3.zip'
+$compilerRelativePath = 'resources\app\resources\oi-defaults\toolchains\mingw64-ucrt-15.2.0-r8.tar.zst'
 $compilerPath = Join-Path $PackagePath $compilerRelativePath
-if ($IncludeCompiler) {
-	if (-not (Test-Path -LiteralPath $compilerPath -PathType Leaf)) {
-		throw "The Include Compiler package is missing WinLibs: $compilerRelativePath"
-	}
-	if ((Get-Item -LiteralPath $compilerPath).Length -lt 100MB) {
-		throw "The packaged WinLibs archive is unexpectedly small: $compilerRelativePath"
-	}
-} elseif (Test-Path -LiteralPath $compilerPath) {
-	throw "The Exclude Compiler package unexpectedly contains WinLibs: $compilerRelativePath"
+if (-not (Test-Path -LiteralPath $compilerPath -PathType Leaf)) {
+	throw "The Windows package is missing MinGW Lite: $compilerRelativePath"
+}
+if ((Get-Item -LiteralPath $compilerPath).Length -lt 20MB) {
+	throw "The packaged MinGW Lite archive is unexpectedly small: $compilerRelativePath"
 }
 
 if ($RequirePortableData) {
@@ -64,4 +57,4 @@ if ($RequirePortableData) {
 	}
 }
 
-Write-Host "Verified staged Windows package at $PackagePath (IncludeCompiler=$IncludeCompiler, RequirePortableData=$RequirePortableData)"
+Write-Host "Verified staged Windows package at $PackagePath (bundled MinGW Lite, RequirePortableData=$RequirePortableData)"

@@ -91,12 +91,12 @@ export function getShortestPathUpdateTarget(platform: string, installMode: 'user
 	}
 
 	if (installMode === 'user') {
-		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64-User-Setup.exe`, allowsMinimumVersionLock: true, fastDownloadType: 'windowsUserSetup' };
+		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-x64-User-Setup.exe`, allowsMinimumVersionLock: true, fastDownloadType: 'windowsUserSetup' };
 	}
 	if (installMode === 'system') {
-		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64-Setup.exe`, allowsMinimumVersionLock: true };
+		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-x64-Setup.exe`, allowsMinimumVersionLock: true };
 	}
-	return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-Exclude-Compiler-x64.zip`, allowsMinimumVersionLock: false, fastDownloadType: 'windowsPortable' };
+	return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-x64.zip`, allowsMinimumVersionLock: false, fastDownloadType: 'windowsPortable' };
 }
 
 export function getShortestPathFastDownloadUrl(fastDownloadUrls: IShortestPathFastDownloadUrls | undefined, target: IShortestPathUpdateTarget | undefined): string | undefined {
