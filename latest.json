@@ -1,7 +1,7 @@
 {
-	"version": "0.3.9",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.9",
-	"minimumSupportedVersion": "0.3.8",
+	"version": "0.3.7",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.7",
+	"minimumSupportedVersion": "0.3.6",
 	"fastDownloadUrls": {
 		"macosArm64": "https://www.icloud.com.cn/iclouddrive/0f3kbT0fh-fFsy3H11LRnJ1Zw",
 		"windowsUserSetup": "https://www.icloud.com.cn/iclouddrive/02a7HGsEy2k01SjXlNVS-wtmw",
