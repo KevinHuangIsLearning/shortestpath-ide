@@ -958,6 +958,8 @@
 		"--activity-bar-icon-size",
 		"--activity-bar-width",
 		"--agent-sessions-editor-tab-padding",
+		"--shortestpath-custom-titlebar-vertical-inset",
+		"--shortestpath-windows-window-controls-width",
 		"--editor-font-size",
 		"--background-dark",
 		"--background-light",

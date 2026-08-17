@@ -17,8 +17,10 @@
 	position: relative;
 	top: 35px;
 	/* Grid layout writes an inline height on parts. Override it so the bottom
-	 * global actions (including Manage/Settings) stay inside the viewport. */
-	height: calc(100% - 35px) !important;
+	 * global actions (including Manage/Settings) stay inside the viewport. The
+	 * extra inset also includes the floating-card margins, which are outside the
+	 * part's own box and therefore are not included in its percentage height. */
+	height: calc(100% - var(--shortestpath-custom-titlebar-vertical-inset, 35px)) !important;
 	overflow: visible;
 }
 
@@ -71,6 +73,19 @@
 	left: 90px;
 }
 
+/* Modern UI uses the 32px Tab Bar row from the style override. Keep the
+ * sidebar search row on that same vertical center instead of the legacy 35px
+ * part-title height. */
+.monaco-workbench.custom-titlebar-hidden.modern-ui-tabs.mac .part.sidebar.left > .shortestpath-sidebar-command-center-container,
+.monaco-workbench.custom-titlebar-hidden.modern-ui-tabs.windows .part.sidebar > .shortestpath-sidebar-command-center-container {
+	height: 32px;
+}
+
+.monaco-workbench.custom-titlebar-hidden.modern-ui-tabs.mac .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-command-center,
+.monaco-workbench.custom-titlebar-hidden.modern-ui-tabs.windows .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-command-center {
+	height: 32px;
+}
+
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-command-center,
 .monaco-workbench.custom-titlebar-hidden.windows .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-command-center {
 	display: flex;
@@ -83,8 +98,10 @@
 	padding: 0 12px;
 	color: var(--vscode-commandCenter-foreground);
 	background-color: transparent;
-	border: 1px solid var(--vscode-commandCenter-border);
+	border: none !important;
 	border-radius: 6px;
+	outline: none;
+	box-shadow: none;
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
@@ -93,8 +110,9 @@
 
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-command-center:hover,
 .monaco-workbench.custom-titlebar-hidden.windows .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-command-center:hover {
-	color: var(--vscode-commandCenter-activeForeground);
-	background-color: color-mix(in srgb, var(--vscode-commandCenter-activeBackground) 65%, transparent);
+	color: var(--vscode-textLink-foreground);
+	font-weight: 600;
+	background: transparent !important;
 }
 
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-command-center .label,
@@ -116,8 +134,8 @@
 	padding: 0;
 	color: var(--vscode-commandCenter-foreground);
 	background-color: transparent;
-	border: 1px solid transparent;
-	border-radius: 6px;
+	border: 0;
+	border-radius: 0;
 	cursor: pointer;
 	-webkit-app-region: no-drag;
 }
@@ -125,8 +143,7 @@
 .monaco-workbench.custom-titlebar-hidden.mac .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-toggle:hover,
 .monaco-workbench.custom-titlebar-hidden.windows .part.sidebar > .shortestpath-sidebar-command-center-container > .shortestpath-sidebar-toggle:hover {
 	color: var(--vscode-commandCenter-activeForeground);
-	background-color: var(--vscode-commandCenter-activeBackground);
-	border-color: var(--vscode-commandCenter-border);
+	background-color: transparent;
 }
 
 .monaco-workbench:not(.custom-titlebar-hidden) .part.sidebar > .shortestpath-sidebar-command-center-container,
@@ -135,17 +152,16 @@
 	display: none;
 }
 
-/* The local toggle is intentionally removed with the Sidebar. Keep one compact
- * recovery control in the workbench strip so a hidden Sidebar can be restored. */
-.monaco-workbench .shortestpath-global-sidebar-toggle {
+/* Keep the hidden primary Sidebar recovery control at the left edge of the editor Tab Bar. */
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .shortestpath-tabbar-sidebar-toggle {
 	display: none;
 }
 
-.monaco-workbench.custom-titlebar-hidden.nosidebar.mac .shortestpath-global-sidebar-toggle,
-.monaco-workbench.custom-titlebar-hidden.nosidebar.windows .shortestpath-global-sidebar-toggle {
+.monaco-workbench.custom-titlebar-hidden.nosidebar.mac .part.editor > .content .editor-group-container.top-left-editor-group > .title > .shortestpath-tabbar-sidebar-toggle,
+.monaco-workbench.custom-titlebar-hidden.nosidebar.windows .part.editor > .content .editor-group-container.top-left-editor-group > .title > .shortestpath-tabbar-sidebar-toggle {
 	position: absolute;
 	top: 2px;
-	left: calc(env(titlebar-area-x, 0px) + 10px);
+	left: 8px;
 	display: grid;
 	place-items: center;
 	width: 30px;
@@ -153,21 +169,38 @@
 	box-sizing: border-box;
 	padding: 0;
 	color: var(--vscode-commandCenter-foreground);
-	background-color: var(--vscode-commandCenter-background);
-	border: 1px solid var(--vscode-commandCenter-border);
-	border-radius: 6px;
+	background: transparent;
+	border: 0;
+	border-radius: 0;
 	cursor: pointer;
 	-webkit-app-region: no-drag;
 	z-index: 3;
 }
 
-.monaco-workbench.custom-titlebar-hidden.nosidebar.mac .shortestpath-global-sidebar-toggle {
+/* When no Sidebar remains, the editor touches the macOS traffic lights. */
+.monaco-workbench.custom-titlebar-hidden.nosidebar.mac .part.editor > .content .editor-group-container.top-left-editor-group > .title > .shortestpath-tabbar-sidebar-toggle {
 	left: 90px;
 }
 
-.monaco-workbench.custom-titlebar-hidden.nosidebar .shortestpath-global-sidebar-toggle:hover {
+.monaco-workbench.custom-titlebar-hidden.nosidebar.windows .part.editor > .content .editor-group-container.top-left-editor-group.window-controls-overlay-left-host > .title > .shortestpath-tabbar-sidebar-toggle {
+	left: calc(env(titlebar-area-x, 0px) + 10px);
+}
+
+.monaco-workbench.custom-titlebar-hidden.nosidebar .part.editor > .content .editor-group-container.top-left-editor-group > .title.compact-height > .shortestpath-tabbar-sidebar-toggle {
+	height: 18px;
+}
+
+.monaco-workbench.custom-titlebar-hidden.nosidebar.modern-ui-tabs .part.editor > .content .editor-group-container.top-left-editor-group > .title.tabs > .shortestpath-tabbar-sidebar-toggle {
+	height: 28px;
+}
+
+.monaco-workbench.custom-titlebar-hidden.nosidebar.modern-ui-tabs .part.editor > .content .editor-group-container.top-left-editor-group > .title.tabs.compact-height > .shortestpath-tabbar-sidebar-toggle {
+	height: 24px;
+}
+
+.monaco-workbench.custom-titlebar-hidden.nosidebar .part.editor > .content .editor-group-container.top-left-editor-group > .title > .shortestpath-tabbar-sidebar-toggle:hover {
 	color: var(--vscode-commandCenter-activeForeground);
-	background-color: var(--vscode-commandCenter-activeBackground);
+	background: transparent;
 }
 
 .monaco-workbench .part.sidebar .title-actions .actions-container {
