@@ -3,9 +3,9 @@
 	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.8",
 	"minimumSupportedVersion": "0.3.7",
 	"fastDownloadUrls": {
-		"macosArm64": "https://www.icloud.com.cn/iclouddrive/08cF_59Sro2BVBxDWGAUj5UoA",
-		"windowsUserSetup": "https://www.icloud.com.cn/iclouddrive/01fLMfx55zsPx5cbwmEyDNJ8g",
-		"windowsPortable": "https://www.icloud.com.cn/iclouddrive/0843yvpx7xZ3JGv1C4X6uyj6A"
+		"macosArm64": "https://www.icloud.com.cn/iclouddrive/#DataPreparing",
+		"windowsUserSetup": "https://www.icloud.com.cn/iclouddrive/#DataPreparing",
+		"windowsPortable": "https://www.icloud.com.cn/iclouddrive/#DataPreparing"
 	},
 	"releaseNote": "- VS Code 内核升级至 1.133.0。\n- Modern UI 下，侧栏切换按钮移至标签栏左侧，侧栏搜索栏与标签栏高度对齐，macOS 窗口控制按钮位置同步优化。\n- Windows 发布包统一内置 MinGW Lite GCC，首次启动即可使用 OI 工具链。\n- 终端启动失败时保留面板并显示错误信息，避免错误被隐藏。\n- 此版本为普通更新，可按需升级。"
 }
