@@ -89,4 +89,4 @@ See [ThirdPartyNotices.txt](ThirdPartyNotices.txt) for full third-party copyrigh
 
 Please use [Issues](https://github.com/KevinHuangIsLearning/shortestpath-ide/issues) to report bugs or suggest improvements. Before submitting changes, run the compilation or tests relevant to your change.
 
-By using this software you agree to its terms — including the one that says: restart, search, and read the docs before opening an issue. Skip all three and you'll be roasted. The roast is complimentary; consider it a growth experience.
+By using this software you agree to its terms. Before opening an issue, please restart the application, search existing issues, and review the documentation.
