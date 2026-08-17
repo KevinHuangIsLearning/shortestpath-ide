@@ -4,14 +4,14 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.3.9 更新 / What's New
+## v0.3.10 更新 / What's New
 
-- 修复 Windows 内置 MinGW Lite GCC 解压路径识别错误，安装进度不再卡在 0，解压后可以正确找到 `g++.exe`。
-- Windows 窗口控制按钮高度与标签栏一致，背景透明并保留系统控制按钮。
+- 修复 Windows 启动时窗口控制按钮颜色解析失败导致的闪退。
+- Windows 窗口控制按钮继续保持透明背景，并保留系统控制按钮。
 - 此版本为普通更新，可按需升级。
 
-- Fixed Windows bundled MinGW Lite GCC path detection so installation no longer stays at 0 and `g++.exe` is found after extraction.
-- Windows window controls now use the tab bar height and a transparent background while keeping the system controls visible.
+- Fixed a Windows startup crash caused by the window controls overlay rejecting the configured color.
+- Windows window controls keep a transparent background while retaining the system controls.
 - This is an optional update.
 
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。

@@ -441,7 +441,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 
 			const effectiveBackgroundColor = isWindows
-				? 'transparent'
+				? 'rgba(0, 0, 0, 0)'
 				: this.windowControlsDimmed && backgroundColor ? this.dimColor(backgroundColor) : backgroundColor;
 			const effectiveForegroundColor = this.windowControlsDimmed && foregroundColor ? this.dimColor(foregroundColor) : foregroundColor;
 
