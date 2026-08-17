@@ -240,7 +240,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 				options.titleBarOverlay = {
 					height: getWindowControlsOverlayHeight(configurationService),
-					color: isWindows ? 'transparent' : titleBarColor,
+					color: isWindows ? 'rgba(0, 0, 0, 0)' : titleBarColor,
 					symbolColor
 				};
 			}
