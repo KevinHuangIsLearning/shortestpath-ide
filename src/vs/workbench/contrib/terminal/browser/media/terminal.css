@@ -70,6 +70,29 @@
 	display: block;
 	height: 100%;
 	box-sizing: border-box;
+	position: relative;
+}
+
+.monaco-workbench .terminal-launch-failure {
+	position: absolute;
+	inset: 0;
+	z-index: 34;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 16px;
+	box-sizing: border-box;
+	padding: 24px;
+	background: var(--vscode-terminal-background, var(--vscode-panel-background));
+	color: var(--vscode-terminal-foreground, var(--vscode-foreground));
+	text-align: center;
+}
+
+.monaco-workbench .terminal-launch-failure-message {
+	max-width: min(800px, 100%);
+	white-space: pre-wrap;
+	word-break: break-word;
 }
 
 .monaco-workbench .xterm {

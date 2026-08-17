@@ -24,7 +24,7 @@ import { Workspace } from '../../../../../platform/workspace/test/common/testWor
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
-import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { isTerminalLaunchFailure, parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
@@ -429,6 +429,13 @@ suite('Workbench - TerminalInstance', () => {
 		});
 	});
 	suite('parseExitResult', () => {
+		test('should identify errors returned while the process is still launching', () => {
+			strictEqual(isTerminalLaunchFailure(ProcessState.Launching, { message: 'ConPTY is unavailable' }), true);
+			strictEqual(isTerminalLaunchFailure(ProcessState.KilledDuringLaunch, 1), true);
+			strictEqual(isTerminalLaunchFailure(ProcessState.Running, 1), false);
+			strictEqual(isTerminalLaunchFailure(ProcessState.Uninitialized, undefined), false);
+		});
+
 		test('should return no message for exit code = undefined', () => {
 			deepStrictEqual(
 				parseExitResult(undefined, {}, ProcessState.KilledDuringLaunch, undefined),

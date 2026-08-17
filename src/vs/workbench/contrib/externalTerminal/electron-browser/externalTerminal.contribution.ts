@@ -32,7 +32,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
 	when: ContextKeyExpr.and(TerminalContextKeys.notFocus, IsSessionsWindowContext.negate()),
 	weight: KeybindingWeight.WorkbenchContrib,
-	handler: async (accessor) => {
+	handler: async (accessor, cwd?: string) => {
 		const historyService = accessor.get(IHistoryService);
 		// Open external terminal in local workspaces
 		const terminalService = accessor.get(IExternalTerminalService);
@@ -45,21 +45,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		// When there are multiple workspace folders, let the user pick one
 		const folders = workspaceContextService.getWorkspace().folders;
-		let root: URI | undefined;
-		if (folders.length > 1) {
-			const folderPicks: IQuickPickItem[] = folders.map(folder => ({
-				label: folder.name,
-				description: labelService.getUriLabel(folder.uri, { relative: true })
-			}));
-			const pick = await quickInputService.pick(folderPicks, {
-				placeHolder: nls.localize('selectWorkspace', "Select workspace folder")
-			});
-			if (!pick) {
-				return;
+		let root: URI | undefined = typeof cwd === 'string' && cwd.length > 0 ? URI.file(cwd) : undefined;
+		if (!root) {
+			if (folders.length > 1) {
+				const folderPicks: IQuickPickItem[] = folders.map(folder => ({
+					label: folder.name,
+					description: labelService.getUriLabel(folder.uri, { relative: true })
+				}));
+				const pick = await quickInputService.pick(folderPicks, {
+					placeHolder: nls.localize('selectWorkspace', "Select workspace folder")
+				});
+				if (!pick) {
+					return;
+				}
+				root = folders[folderPicks.indexOf(pick)].uri;
+			} else {
+				root = historyService.getLastActiveWorkspaceRoot();
 			}
-			root = folders[folderPicks.indexOf(pick)].uri;
-		} else {
-			root = historyService.getLastActiveWorkspaceRoot();
 		}
 
 		// It's a local workspace, open the root

@@ -94,6 +94,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { hasKey, isNumber, isString } from '../../../../base/common/types.js';
 
+const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
+
 const enum Constants {
 	/**
 	 * The maximum amount of milliseconds to wait for a container before starting to create the
@@ -170,6 +172,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal });
+	private _launchFailureElement: HTMLElement | undefined;
 	get domElement(): HTMLElement { return this._wrapperElement; }
 	private _horizontalScrollbar: DomScrollableElement | undefined;
 	private _terminalFocusContextKey: IContextKey<boolean>;
@@ -1301,6 +1304,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 		this._isDisposing = true;
+		this._launchFailureElement?.remove();
+		this._launchFailureElement = undefined;
 		dispose(this._widgetManager);
 
 		if (this.xterm?.raw.element) {
@@ -1748,7 +1753,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
 		const waitOnExit = this.waitOnExit;
-		if (waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
+		const failedDuringLaunch = isTerminalLaunchFailure(this._processManager.processState, exitCodeOrError);
+		if (waitOnExit && !failedDuringLaunch && this._processManager.processState !== ProcessState.KilledByUser) {
 			this._xtermReadyPromise.then(xterm => {
 				if (!xterm) {
 					return;
@@ -1773,8 +1779,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		} else {
+			if (failedDuringLaunch) {
+				// allow-any-unicode-next-line
+				this._showLaunchFailure(exitMessage ?? nls.localize('terminal.launchFailedUnknown', '终端进程无法启动。'));
+			}
 			if (exitMessage) {
-				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
 				if (failedDuringLaunch || (this._terminalConfigurationService.config.showExitAlert && this.xterm?.lastInputEvent !== /*Ctrl+D*/'\x04')) {
 					this._notificationService.notify({
 						message: exitMessage,
@@ -1787,13 +1796,44 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._logService.warn(exitMessage);
 				}
 			}
-			this.dispose(TerminalExitReason.Process);
+			if (!failedDuringLaunch) {
+				this.dispose(TerminalExitReason.Process);
+			}
 		}
 
 		// Dispose of the onExit event if the terminal will not be reused again
 		if (this.isDisposed) {
 			this._onExit.dispose();
 		}
+	}
+
+	private _showLaunchFailure(message: string): void {
+		this._launchFailureElement?.remove();
+
+		const failureElement = document.createElement('div');
+		failureElement.classList.add('terminal-launch-failure');
+
+		const messageElement = document.createElement('div');
+		messageElement.classList.add('terminal-launch-failure-message');
+		messageElement.textContent = message;
+		failureElement.appendChild(messageElement);
+
+		const button = document.createElement('button');
+		button.classList.add('monaco-button', 'monaco-text-button');
+		button.type = 'button';
+		// allow-any-unicode-next-line
+		button.textContent = nls.localize('terminal.startExternalTerminal', '启动外部终端');
+		button.setAttribute('aria-label', button.textContent);
+		this._register(dom.addDisposableListener(button, 'click', () => {
+			this._commandService.executeCommand(OPEN_NATIVE_CONSOLE_COMMAND_ID, this.hasRemoteAuthority ? undefined : this.cwd).catch(error => {
+				// allow-any-unicode-next-line
+				this._notificationService.error(nls.localize('terminal.startExternalTerminalFailed', '无法启动外部终端：{0}', error instanceof Error ? error.message : String(error)));
+			});
+		}));
+		failureElement.appendChild(button);
+
+		this._launchFailureElement = failureElement;
+		this._wrapperElement.appendChild(failureElement);
 	}
 
 	private _relaunchWithShellIntegrationDisabled(exitMessage: string | undefined): void {
@@ -2912,6 +2952,11 @@ export function parseExitResult(
 	}
 
 	return { code, message };
+}
+
+export function isTerminalLaunchFailure(processState: ProcessState, exitCodeOrError: number | ITerminalLaunchError | undefined): boolean {
+	return processState === ProcessState.KilledDuringLaunch
+		|| ((processState === ProcessState.Launching || processState === ProcessState.Uninitialized) && exitCodeOrError !== undefined);
 }
 
 
