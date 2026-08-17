@@ -363,17 +363,17 @@ export class Workbench extends Layout {
 		}
 
 		const sidebarToggle = this.mainContainer.ownerDocument.createElement('button');
-		sidebarToggle.className = 'shortestpath-global-sidebar-toggle';
+		sidebarToggle.className = 'shortestpath-tabbar-sidebar-toggle';
 		sidebarToggle.type = 'button';
 		// allow-any-unicode-next-line
-		const sidebarToggleLabel = localize('shortestpathGlobalSidebarToggle', '切换主侧栏');
+		const sidebarToggleLabel = localize('shortestpathTabbarSidebarToggle', '切换主侧栏');
 		sidebarToggle.setAttribute('aria-label', sidebarToggleLabel);
 		sidebarToggle.title = sidebarToggleLabel;
 		const sidebarToggleIcon = this.mainContainer.ownerDocument.createElement('span');
 		sidebarToggleIcon.className = 'codicon codicon-layout-sidebar-left';
 		sidebarToggleIcon.ariaHidden = 'true';
 		sidebarToggle.appendChild(sidebarToggleIcon);
-		this.mainContainer.appendChild(sidebarToggle);
+		this.getPart(Parts.EDITOR_PART).getContainer()?.appendChild(sidebarToggle);
 		this._register(addDisposableListener(sidebarToggle, EventType.CLICK, () => instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.toggleSidebarVisibility'))));
 
 		// Notification Handlers

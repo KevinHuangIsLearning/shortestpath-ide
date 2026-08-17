@@ -30,6 +30,11 @@
 	-webkit-app-region: no-drag;
 }
 
+.monaco-workbench.custom-titlebar-hidden.mac .part.editor > .content .editor-group-container > .title .shortestpath-tabbar-sidebar-toggle,
+.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container > .title .shortestpath-tabbar-sidebar-toggle {
+	-webkit-app-region: no-drag;
+}
+
 .monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container > .title .action-label {
 	-webkit-app-region: no-drag;
 }

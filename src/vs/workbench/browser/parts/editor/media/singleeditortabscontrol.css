@@ -48,6 +48,19 @@
 	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
 }
 
+.monaco-workbench.custom-titlebar-hidden.nosidebar .part.editor > .content .editor-group-container.top-left-editor-group > .title > .label-container {
+	padding-left: 48px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench.custom-titlebar-hidden.nosidebar.mac .part.editor > .content .editor-group-container.top-left-editor-group > .title > .label-container {
+	padding-left: 128px;
+}
+
+.monaco-workbench.custom-titlebar-hidden.nosidebar.windows .part.editor > .content .editor-group-container.top-left-editor-group.window-controls-overlay-left-host > .title > .label-container {
+	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
+}
+
 .monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-right-host > .title > .label-container {
 	padding-right: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
 }
