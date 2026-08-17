@@ -101,6 +101,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
+	private sidebarToggle: HTMLElement | undefined;
 
 	//#region Events
 
@@ -1172,6 +1173,14 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 					group.element.classList.toggle('window-controls-overlay-left-host', group === topLeftGroup && !hasLeftSideSurface);
 					group.element.classList.toggle('window-controls-overlay-right-host', group === topRightGroup && !hasRightSideSurface);
 					group.element.classList.toggle('sidebar-recovery-host', group === topLeftGroup && !this.layoutService.isVisible(Parts.SIDEBAR_PART));
+				}
+			}
+
+			this.sidebarToggle ??= this.element.querySelector<HTMLElement>('.shortestpath-tabbar-sidebar-toggle') ?? undefined;
+			if (this.sidebarToggle && topLeftGroup instanceof EditorGroupView) {
+				const tabBar = topLeftGroup.element.querySelector<HTMLElement>(':scope > .title');
+				if (tabBar && this.sidebarToggle.parentElement !== tabBar) {
+					tabBar.appendChild(this.sidebarToggle);
 				}
 			}
 		};

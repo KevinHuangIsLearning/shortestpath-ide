@@ -58,10 +58,12 @@ function code() {
 	# the stock VS Code installation. Callers can still override either path.
 	HAS_USER_DATA_DIR=false
 	HAS_EXTENSIONS_DIR=false
+	HAS_LOCALE=false
 	for arg in "$@"; do
 		case "$arg" in
 			--user-data-dir|--user-data-dir=*) HAS_USER_DATA_DIR=true ;;
 			--extensions-dir|--extensions-dir=*) HAS_EXTENSIONS_DIR=true ;;
+			--locale|--locale=*) HAS_LOCALE=true ;;
 		esac
 	done
 
@@ -81,6 +83,11 @@ function code() {
 			OI_EXTENSIONS_DIR="${VSCODE_OI_EXTENSIONS_DIR:-$HOME/.vscode-oi/extensions}"
 		fi
 		OI_LAUNCH_ARGS+=("--extensions-dir=$OI_EXTENSIONS_DIR")
+	fi
+	# Development builds do not generate the production NLS metadata. Use the
+	# built-in English messages unless a locale was explicitly requested.
+	if [[ "$HAS_LOCALE" == false ]]; then
+		OI_LAUNCH_ARGS+=("--locale=en")
 	fi
 
 	# Launch Code

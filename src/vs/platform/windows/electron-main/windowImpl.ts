@@ -191,11 +191,16 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// Update the window controls immediately based on cached or default values
 		if (useCustomTitleStyle && useWindowControlsOverlay(this.configurationService)) {
-			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
-			if (cachedWindowControlHeight) {
-				this.updateWindowControls({ height: cachedWindowControlHeight });
-			} else {
-				this.updateWindowControls({ height: DEFAULT_CUSTOM_TITLEBAR_HEIGHT });
+			// macOS receives an explicit trafficLightPosition in the BrowserWindow
+			// constructor. Restoring the generic height cache here would immediately
+			// overwrite that position with stale pre-upgrade coordinates.
+			if (!isMacintosh) {
+				const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
+				if (cachedWindowControlHeight) {
+					this.updateWindowControls({ height: cachedWindowControlHeight });
+				} else {
+					this.updateWindowControls({ height: DEFAULT_CUSTOM_TITLEBAR_HEIGHT });
+				}
 			}
 		}
 
@@ -409,7 +414,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private windowControlsDimmed = false;
 	private lastWindowControlColors: { backgroundColor?: string; foregroundColor?: string } | undefined;
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
+	updateWindowControls(options: { height?: number; position?: { x: number; y: number }; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
 		const win = this.win;
 		if (!win) {
 			return;
@@ -447,6 +452,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// macOS: update window controls via setWindowButtonPosition()
 		else if (isMacintosh && options.height !== undefined) {
+			if (options.position) {
+				win.setWindowButtonPosition(options.position);
+				return;
+			}
+
 			// When the position is set, the horizontal margin is offset to ensure
 			// the distance between the traffic lights and the window frame is equal
 			// in both directions.
@@ -455,8 +465,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			if (!offset) {
 				win.setWindowButtonPosition(null);
 			} else {
-				win.setWindowButtonPosition({ x: offset + 1, y: offset });
-			}
+				win.setWindowButtonPosition({
+					x: offset + 1,
+					y: offset
+				});
+		}
 		}
 	}
 

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron, { Display, Rectangle } from 'electron';
+import { release } from 'os';
 import { Color } from '../../../base/common/color.js';
 import { Event } from '../../../base/common/event.js';
 import { join } from '../../../base/common/path.js';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isTahoeOrNewer, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -217,6 +218,17 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		if (useWindowControlsOverlay(configurationService)) {
 			if (isMacintosh) {
 				options.titleBarOverlay = true;
+
+				const isCompactTabBar = configurationService.getValue<'default' | 'compact'>('workbench.editor.tabHeight') === 'compact';
+				const isModernUI = configurationService.getValue<boolean>('workbench.experimental.modernUI');
+				if (isModernUI) {
+					options.trafficLightPosition = { x: 18, y: 18 };
+				} else {
+					const tabBarHeight = isCompactTabBar ? 22 : 35;
+					const buttonHeight = isTahoeOrNewer(release()) ? 14 : 16;
+					const offset = Math.floor((tabBarHeight - buttonHeight) / 2);
+					options.trafficLightPosition = { x: offset + 1, y: offset };
+				}
 			} else {
 
 				// This logic will not perfectly guess the right colors

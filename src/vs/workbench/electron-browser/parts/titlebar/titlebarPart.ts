@@ -17,7 +17,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart } from '../../../browser/parts/titlebar/titlebarPart.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { hasNativeTitlebar, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -60,6 +60,41 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
 	private cachedWindowControlHeight: number | undefined;
 
+	private getHiddenTitlebarTabbarHeight(): number {
+		if (!isMacintosh) {
+			return DEFAULT_CUSTOM_TITLEBAR_HEIGHT;
+		}
+
+		const isCompact = this.configurationService.getValue<'default' | 'compact'>('workbench.editor.tabHeight') === 'compact';
+		const isModernUI = this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI);
+
+		if (isModernUI) {
+			return isCompact ? 28 : 32;
+		}
+
+		return isCompact ? 22 : DEFAULT_CUSTOM_TITLEBAR_HEIGHT;
+	}
+
+	private getWindowControlsPosition(): { x: number; y: number } | undefined {
+		return isMacintosh && this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI)
+			? { x: 18, y: 18 }
+			: undefined;
+	}
+
+	private updateWindowControlsHeight(height: number): void {
+		const isHiddenCustomTitlebar = isMacintosh && !hasNativeTitlebar(this.configurationService) && this.layoutService.mainContainer.classList.contains('custom-titlebar-hidden');
+		const effectiveHeight = isHiddenCustomTitlebar ? this.getHiddenTitlebarTabbarHeight() : (height || this.getHiddenTitlebarTabbarHeight());
+		const newHeight = Math.round(effectiveHeight * getZoomFactor(getWindow(this.element)));
+		if (newHeight !== this.cachedWindowControlHeight) {
+			this.cachedWindowControlHeight = newHeight;
+			this.nativeHostService.updateWindowControls({
+				targetWindowId: getWindowId(getWindow(this.element)),
+				height: newHeight,
+				position: this.getWindowControlsPosition()
+			});
+		}
+	}
+
 	constructor(
 		id: string,
 		targetWindow: CodeWindow,
@@ -81,7 +116,6 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		@IActionViewItemService actionViewItemService: IActionViewItemService
 	) {
 		super(id, targetWindow, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorService, menuService, keybindingService, actionViewItemService);
-
 		this.tahoeOrNewer = isTahoeOrNewer(environmentService.os.release);
 
 		this.handleWindowsAlwaysOnTop(targetWindow.vscodeWindowId);
@@ -121,6 +155,14 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			if (this.appIcon) {
 				this.onUpdateAppIconDragBehavior();
 			}
+		}
+
+		if (useWindowControlsOverlay(this.configurationService) && (
+			event.affectsConfiguration(LayoutSettings.MODERN_UI) ||
+			event.affectsConfiguration('workbench.editor.tabHeight')
+		)) {
+			this.cachedWindowControlHeight = undefined;
+			this.updateWindowControlsHeight(this.dimension?.height ?? 0);
 		}
 	}
 
@@ -274,17 +316,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		super.layout(width, height);
 
 		if (useWindowControlsOverlay(this.configurationService)) {
-			// When the custom titlebar is hidden, the window controls move into the
-			// workbench's first row. Keep the native overlay aligned to that row instead
-			// of resetting macOS traffic lights to their default position.
-			const newHeight = Math.round((height || DEFAULT_CUSTOM_TITLEBAR_HEIGHT) * getZoomFactor(getWindow(this.element)));
-			if (newHeight !== this.cachedWindowControlHeight) {
-				this.cachedWindowControlHeight = newHeight;
-				this.nativeHostService.updateWindowControls({
-					targetWindowId: getWindowId(getWindow(this.element)),
-					height: newHeight
-				});
-			}
+			this.updateWindowControlsHeight(height);
 		}
 	}
 }
