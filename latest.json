@@ -3,9 +3,9 @@
 	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.10",
 	"minimumSupportedVersion": "0.3.8",
 	"fastDownloadUrls": {
-		"macosArm64": "https://www.icloud.com.cn/iclouddrive/0f3kbT0fh-fFsy3H11LRnJ1Zw",
-		"windowsUserSetup": "https://www.icloud.com.cn/iclouddrive/02a7HGsEy2k01SjXlNVS-wtmw",
-		"windowsPortable": "https://www.icloud.com.cn/iclouddrive/0471o0j9IvTegpC-ljMVGLNtw"
+		"macosArm64": "",
+		"windowsUserSetup": "https://www.icloud.com.cn/iclouddrive/0ceFhZSka2nrMiEOVgybsa4QA",
+		"windowsPortable": ""
 	},
 	"releaseNote": "- 修复 Windows 启动时窗口控制按钮颜色解析失败导致的闪退。\n- Windows 窗口控制按钮继续保持透明背景，并保留系统控制按钮。\n- 此版本为普通更新，可按需升级。"
 }
