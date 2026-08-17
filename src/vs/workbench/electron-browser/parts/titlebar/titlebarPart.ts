@@ -19,7 +19,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { hasNativeTitlebar, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, hasNativeMenu } from '../../../../platform/window/common/window.js';
+import { getWindowControlsOverlayHeight, hasNativeTitlebar, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -61,18 +61,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	private cachedWindowControlHeight: number | undefined;
 
 	private getHiddenTitlebarTabbarHeight(): number {
-		if (!isMacintosh) {
-			return DEFAULT_CUSTOM_TITLEBAR_HEIGHT;
-		}
-
-		const isCompact = this.configurationService.getValue<'default' | 'compact'>('workbench.editor.tabHeight') === 'compact';
-		const isModernUI = this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI);
-
-		if (isModernUI) {
-			return isCompact ? 28 : 32;
-		}
-
-		return isCompact ? 22 : DEFAULT_CUSTOM_TITLEBAR_HEIGHT;
+		return getWindowControlsOverlayHeight(this.configurationService);
 	}
 
 	private getWindowControlsPosition(): { x: number; y: number } | undefined {
@@ -82,7 +71,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	}
 
 	private updateWindowControlsHeight(height: number): void {
-		const isHiddenCustomTitlebar = isMacintosh && !hasNativeTitlebar(this.configurationService) && this.layoutService.mainContainer.classList.contains('custom-titlebar-hidden');
+		const isHiddenCustomTitlebar = (isMacintosh || isWindows) && !hasNativeTitlebar(this.configurationService) && this.layoutService.mainContainer.classList.contains('custom-titlebar-hidden');
 		const effectiveHeight = isHiddenCustomTitlebar ? this.getHiddenTitlebarTabbarHeight() : (height || this.getHiddenTitlebarTabbarHeight());
 		const newHeight = Math.round(effectiveHeight * getZoomFactor(getWindow(this.element)));
 		if (newHeight !== this.cachedWindowControlHeight) {

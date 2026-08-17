@@ -329,6 +329,16 @@ export function getWindowControlsStyle(configurationService: IConfigurationServi
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
+/** Return the height used by the editor tab row when it hosts window controls. */
+export function getWindowControlsOverlayHeight(configurationService: IConfigurationService): number {
+	const isCompactTabBar = configurationService.getValue<'default' | 'compact'>('workbench.editor.tabHeight') === 'compact';
+	const isModernUI = configurationService.getValue<boolean>('workbench.experimental.modernUI');
+	if (isModernUI) {
+		return isCompactTabBar ? 28 : 32;
+	}
+	return isCompactTabBar ? 22 : DEFAULT_CUSTOM_TITLEBAR_HEIGHT;
+}
+
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (isWeb) {
 		return false; // only supported on desktop instances
