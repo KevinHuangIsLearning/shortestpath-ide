@@ -4,16 +4,18 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.3.7 更新 / What's New
+## v0.3.8 更新 / What's New
 
-- 更新弹窗新增“网盘快速下载”：macOS、Windows 用户安装和便携版会自动选择对应下载地址；系统级安装仍使用 GitHub 直链。
-- 更新了 Windows 与 macOS 的网盘下载地址。
-- ShortestPath OJ 未评测的测试点现在显示为 “-”，不再误显示为评测中。
+- VS Code 内核升级至 1.133.0。
+- Modern UI 下，侧栏切换按钮移至标签栏左侧，侧栏搜索栏与标签栏高度对齐，macOS 窗口控制按钮位置同步优化。
+- Windows 发布包统一内置 MinGW Lite GCC，首次启动即可使用 OI 工具链。
+- 终端启动失败时保留面板并显示错误信息，避免错误被隐藏。
 - 此版本为普通更新，可按需升级。
 
-- The update dialog now offers “Fast Cloud Download”: macOS, Windows user installations, and portable installations automatically select the matching link; system installations continue to use the GitHub download.
-- Updated the cloud download links for Windows and macOS.
-- Unjudged ShortestPath OJ test points now display as “-” instead of incorrectly appearing to be judging.
+- The VS Code core has been upgraded to 1.133.0.
+- In Modern UI, the sidebar toggle now sits at the left of the tab bar; the sidebar search aligns with the tab bar height, and macOS window controls are positioned consistently.
+- Windows packages now bundle MinGW Lite GCC so the OI toolchain is available on first launch.
+- When terminal startup fails, the panel remains visible and shows the actual error instead of being hidden.
 - This is an optional update.
 
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。
