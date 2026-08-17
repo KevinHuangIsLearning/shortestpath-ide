@@ -25,7 +25,7 @@
 		{ "id": "github", "label": { "en": "GitHub Release", "zh-CN": "GitHub Release" } },
 		{ "id": "ghfast", "label": { "en": "GH mirror (may be unstable)", "zh-CN": "GH 镜像（可能不稳定）" } }
 	],
-	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\winlibs\\bin\\g++.exe"],
+	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\winlibs\\mingw64-ucrt-15\\bin\\g++.exe"],
 	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\clangd\\clangd_22.1.6\\bin\\clangd.exe"],
 	"installDescription": "Extract bundled clangd and MinGW Lite GCC into ShortestPath IDE data"
 }

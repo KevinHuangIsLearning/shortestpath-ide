@@ -27,6 +27,6 @@ exports.getPortableAssets = ({ source }) => [
 		archiveName: mingwArchiveName,
 		bundledArchivePath: `resources/oi-defaults/toolchains/${mingwArchiveName}`,
 		targetDirectory: 'winlibs',
-		requiredFile: 'bin/g++.exe'
+		requiredFile: 'mingw64-ucrt-15/bin/g++.exe'
 	}
 ];

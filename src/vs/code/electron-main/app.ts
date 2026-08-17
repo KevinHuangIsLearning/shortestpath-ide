@@ -952,7 +952,7 @@ export class CodeApplication extends Disposable {
 
 	private async applyShortestPathWindowsSetup(request: IShortestPathSetupRequest): Promise<void> {
 		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
-		const compiler = join(toolchainRoot, 'winlibs', 'bin', 'g++.exe');
+		const compiler = join(toolchainRoot, 'winlibs', 'mingw64-ucrt-15', 'bin', 'g++.exe');
 		const clangd = join(toolchainRoot, 'clangd', 'clangd_22.1.6', 'bin', 'clangd.exe');
 		const existingFileExcludes = this.configurationService.getValue<Record<string, boolean>>('files.exclude') ?? {};
 		const fileExcludes: Record<string, boolean> = { ...existingFileExcludes };
@@ -1111,11 +1111,10 @@ export class CodeApplication extends Disposable {
 				}
 				let lastReportedPercent = -1;
 				reportProgress(`Extracting ${asset.id}… 0%`);
-				await this.extractShortestPathAsset(archivePath, targetPath, (extractedEntries, totalEntries) => {
-					const percent = totalEntries > 0 ? Math.floor(extractedEntries * 100 / totalEntries) : 0;
+				await this.extractShortestPathAsset(archivePath, targetPath, (percent, detail) => {
 					if (percent === 100 || percent - lastReportedPercent >= 2) {
 						lastReportedPercent = percent;
-						reportProgress(`Extracting ${asset.id}… ${percent}% (${extractedEntries}/${totalEntries} files)`);
+						reportProgress(`Extracting ${asset.id}… ${percent}%${detail ? ` (${detail})` : ''}`);
 					}
 				});
 				if (!useBundledArchive) {
@@ -1132,26 +1131,32 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private async extractShortestPathAsset(archivePath: string, targetPath: string, onProgress: (extractedEntries: number, totalEntries: number) => void): Promise<void> {
+	private async extractShortestPathAsset(archivePath: string, targetPath: string, onProgress: (percent: number, detail?: string) => void): Promise<void> {
 		await fs.promises.mkdir(targetPath, { recursive: true });
 		if (archivePath.endsWith('.tar.zst')) {
-			let extractedEntries = 0;
+			const totalBytes = (await fs.promises.stat(archivePath)).size;
+			let receivedBytes = 0;
+			const input = fs.createReadStream(archivePath);
+			input.on('data', (chunk: string | Buffer) => {
+				receivedBytes += Buffer.byteLength(chunk);
+				const percent = totalBytes > 0 ? Math.floor(receivedBytes * 100 / totalBytes) : 0;
+				onProgress(percent, `${this.formatShortestPathBytes(receivedBytes)} / ${this.formatShortestPathBytes(totalBytes)}`);
+			});
 			await pipeline(
-				fs.createReadStream(archivePath),
+				input,
 				createZstdDecompress(),
-				tar.x({
-					cwd: targetPath,
-					strict: true,
-					onentry: () => {
-						extractedEntries++;
-						onProgress(extractedEntries, 0);
-					}
-				})
+				tar.x({ cwd: targetPath, strict: true })
 			);
-			onProgress(extractedEntries, extractedEntries);
+			onProgress(100, `${this.formatShortestPathBytes(totalBytes)} / ${this.formatShortestPathBytes(totalBytes)}`);
 			return;
 		}
-		return extractZip(archivePath, targetPath, { overwrite: true, onProgress }, CancellationToken.None);
+		return extractZip(archivePath, targetPath, {
+			overwrite: true,
+			onProgress: (extractedEntries, totalEntries) => onProgress(
+				totalEntries > 0 ? Math.floor(extractedEntries * 100 / totalEntries) : 0,
+				`${extractedEntries}/${totalEntries} files`
+			)
+		}, CancellationToken.None);
 	}
 
 	private async downloadShortestPathAsset(urls: readonly string[], targetPath: string, label: string, reportProgress: (message: string) => void): Promise<void> {

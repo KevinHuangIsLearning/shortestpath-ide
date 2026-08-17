@@ -8,16 +8,17 @@ import { suite, test } from 'node:test';
 import { getPortableDataRoot, managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from '../portableToolchain';
 
 suite('Portable ShortestPath toolchain paths', () => {
-	const compiler = 'F:\\ShortestPath\\data\\user-data\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\winlibs\\bin\\g++.exe';
+	const compiler = 'F:\\ShortestPath\\data\\user-data\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\winlibs\\mingw64-ucrt-15\\bin\\g++.exe';
 	const clangd = 'F:\\ShortestPath\\data\\user-data\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\clangd\\clangd_22.1.6\\bin\\clangd.exe';
 
 	test('rebases managed compiler and clangd paths after a drive-letter change', () => {
 		assert.deepStrictEqual([
 			rebaseManagedToolchainPath('E:\\Old\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\winlibs\\bin\\g++.exe', compiler, clangd),
 			rebaseManagedToolchainPath('E:\\Old\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\winlibs\\mingw64\\bin\\g++.exe', compiler, clangd),
+			rebaseManagedToolchainPath('E:\\Old\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\winlibs\\mingw64-ucrt-15\\bin\\g++.exe', compiler, clangd),
 			rebaseManagedToolchainPath('E:\\Old\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\clangd\\clangd_22.1.6\\bin\\clangd.exe', compiler, clangd),
 			rebaseManagedToolchainPath('C:\\MySDK\\toolchains\\winlibs\\bin\\g++.exe', compiler, clangd)
-		], [compiler, compiler, clangd, undefined]);
+		], [compiler, compiler, compiler, clangd, undefined]);
 	});
 
 	test('finds the common portable data root for default and named profiles', () => {
