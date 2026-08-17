@@ -89,4 +89,4 @@ ShortestPath IDE 的仓库许可证为 [GPL-3.0-or-later](LICENSE)。本项目�
 
 请通过 [Issues](https://github.com/KevinHuangIsLearning/shortestpath-ide/issues) 报告问题或提出建议。提交改动前，请运行与改动相符的编译或测试命令。
 
-使用本软件即代表你同意本软件的一切设定。开 Issue 前：先重启、先搜索、先读文档；三步全跳过的人会被叼，被叼是本项目对伸手党的成长型关怀。
+使用本软件即代表你同意本软件的相关条款。开 Issue 前，请先重启应用、搜索已有问题并查阅文档。
