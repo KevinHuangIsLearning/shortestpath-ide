@@ -16,7 +16,7 @@ import { ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
+import { addDisposableListener, append, EventType, getWindow, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -269,6 +269,7 @@ export class ActivitybarPart extends Part {
 		// same reduced height as its visual container. Otherwise the bottom
 		// Manage/Settings action would be laid out beyond the window edge.
 		const titlebarInset = this.isShiftedBelowHiddenTitlebar() ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 0;
+		this.updateCustomTitlebarVerticalInset(titlebarInset);
 		super.layout(width, height, 0, 0);
 
 		if (!this.content) {
@@ -307,6 +308,18 @@ export class ActivitybarPart extends Part {
 		}
 
 		return isWindows || (isMacintosh && this.element.classList.contains('left'));
+	}
+
+	private updateCustomTitlebarVerticalInset(titlebarInset: number): void {
+		if (titlebarInset === 0) {
+			this.element.style.removeProperty('--shortestpath-custom-titlebar-vertical-inset');
+			return;
+		}
+
+		const computedStyle = getWindow(this.element).getComputedStyle(this.element);
+		const marginTop = Number.parseFloat(computedStyle.marginTop) || 0;
+		const marginBottom = Number.parseFloat(computedStyle.marginBottom) || 0;
+		this.element.style.setProperty('--shortestpath-custom-titlebar-vertical-inset', `${titlebarInset + marginTop + marginBottom}px`);
 	}
 
 	toJSON(): object {

@@ -34,7 +34,7 @@ import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
-import { addDisposableListener, Dimension, EventType } from '../../../../base/browser/dom.js';
+import { addDisposableListener, Dimension, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -176,8 +176,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	override layout(width: number, height: number, top: number, left: number): void {
 		// CSS moves this side surface below the Tabbar. Give its pane composite the
 		// same reduced height so views do not render into the area below the window.
+		const titlebarInset = this.getHiddenTitlebarInset();
+		this.updateCustomTitlebarVerticalInset(titlebarInset);
 		this.titlebarLayoutDimension = new Dimension(width, height);
-		super.layout(width, Math.max(0, height - this.getHiddenTitlebarInset()), top, left);
+		super.layout(width, Math.max(0, height - titlebarInset), top, left);
 	}
 
 	protected override getRelayoutDimension(): Dimension | undefined {
@@ -190,6 +192,18 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}
 
 		return isWindows || (isMacintosh && this.element.classList.contains('left')) ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 0;
+	}
+
+	private updateCustomTitlebarVerticalInset(titlebarInset: number): void {
+		if (titlebarInset === 0) {
+			this.element.style.removeProperty('--shortestpath-custom-titlebar-vertical-inset');
+			return;
+		}
+
+		const computedStyle = getWindow(this.element).getComputedStyle(this.element);
+		const marginTop = Number.parseFloat(computedStyle.marginTop) || 0;
+		const marginBottom = Number.parseFloat(computedStyle.marginBottom) || 0;
+		this.element.style.setProperty('--shortestpath-custom-titlebar-vertical-inset', `${titlebarInset + marginTop + marginBottom}px`);
 	}
 
 	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {
