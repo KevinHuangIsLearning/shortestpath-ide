@@ -46,7 +46,7 @@
 		<section id="choice-page">
 		<div class="badge">ShortestPath IDE</div>
 		<h1 id="choice-title">准备好开始竞赛编程。</h1>
-		<p id="choice-lead" class="lead">我们会探测并安装编译器工具链，并选择 C++ 语言版本，然后打开工作台。</p>
+		<p id="choice-lead" class="lead">我们会准备编译环境，并选择 C++ 语言版本，然后打开工作台。</p>
 		<div id="source-choice" class="source-choice" hidden><label><span id="source-label">下载源</span><select id="download-source"></select></label></div>
 		<div class="actions">
 			<button id="skip" class="skip">稍后配置</button>
@@ -59,9 +59,9 @@
 			<p id="download-status" class="status">正在连接下载源…</p>
 			<div id="progress" class="progress-panel" role="progressbar" aria-label="安装进度" aria-valuetext="正在准备">
 				<div class="progress-track"><div class="progress-bar"></div></div>
-				<p id="progress-description" class="progress-description" aria-live="polite">正在准备安装…</p>
+				<p id="progress-description" class="progress-description" aria-live="polite">正在准备编译环境…</p>
 			</div>
-			<div class="actions"><span class="note">请保持此窗口打开。下载完成后可继续配置。</span><span><button id="retry" class="primary" hidden>重试</button><button id="download-next" class="primary" hidden>下一步</button></span></div>
+			<div class="actions"><span class="note">请保持此窗口打开。准备完成后可继续配置。</span><span><button id="retry" class="primary" hidden>重试</button><button id="download-next" class="primary" hidden>下一步</button></span></div>
 		</section>
 		<section id="configure-page" hidden>
 			<div class="badge">Configuration</div>
@@ -90,12 +90,12 @@
 		const sources = Array.isArray(script.downloadSources) ? script.downloadSources : [];
 		const translations = {
 			'en': {
-				choiceTitle: 'Ready for competitive programming.', choiceLead: 'We will detect and install the compiler toolchain and choose the C++ language version before opening the IDE.',
-				permission: 'Installation may require confirmation or administrator permission.', skip: 'Configure later', continue: 'Continue', downloadTitle: 'Preparing your toolchain.', configurationTitle: 'Your toolchain is ready.', configurationLead: 'Confirm the ShortestPath IDE preferences to save before opening the workbench.', workspaceTitle: 'Choose your workspace folder.', workspaceLead: 'We will create .clangd in this folder and open it when setup is complete.', workspaceLabel: 'Workspace folder', chooseFolder: 'Choose folder', selectWorkspace: 'Select a workspace folder.', preparing: 'Preparing installation…', completed: 'Download complete. Select Next to continue configuration.', alreadyInstalled: 'Toolchain is already installed. Download skipped.', failed: 'Download failed: {message}'
+				choiceTitle: 'Ready for competitive programming.', choiceLead: 'We will prepare the compiler environment and choose the C++ language version before opening the IDE.',
+				permission: 'Preparation may require confirmation or administrator permission.', skip: 'Configure later', continue: 'Continue', downloadTitle: 'Preparing your build environment.', configurationTitle: 'Your toolchain is ready.', configurationLead: 'Confirm the ShortestPath IDE preferences to save before opening the workbench.', workspaceTitle: 'Choose your workspace folder.', workspaceLead: 'We will create .clangd in this folder and open it when setup is complete.', workspaceLabel: 'Workspace folder', chooseFolder: 'Choose folder', selectWorkspace: 'Select a workspace folder.', preparing: 'Preparing the build environment…', completed: 'Build environment ready. Select Next to continue configuration.', alreadyInstalled: 'Build environment is already ready. Preparation skipped.', failed: 'Build environment preparation failed: {message}'
 			},
 			'zh-CN': {
-				choiceTitle: '准备好开始竞赛编程。', choiceLead: '我们会探测并安装编译器工具链，并选择 C++ 语言版本，然后打开工作台。',
-				permission: '安装需要确认，可能要求管理员权限。', skip: '稍后配置', continue: '继续', downloadTitle: '正在准备编译环境。', configurationTitle: '工具链已准备就绪。', configurationLead: '确认要写入的 ShortestPath IDE 配置，然后进入工作台。', workspaceTitle: '选择工作目录。', workspaceLead: '我们会在此目录创建 .clangd，并在完成后直接打开它。', workspaceLabel: '工作目录', chooseFolder: '选择目录', selectWorkspace: '请选择工作目录。', preparing: '正在准备安装…', completed: '下载完成。点击“下一步”继续配置。', alreadyInstalled: '工具链已安装，已跳过下载。', failed: '下载失败：{message}'
+				choiceTitle: '准备好开始竞赛编程。', choiceLead: '我们会准备编译环境，并选择 C++ 语言版本，然后打开工作台。',
+				permission: '准备环境需要确认，可能要求管理员权限。', skip: '稍后配置', continue: '继续', downloadTitle: '正在准备编译环境。', configurationTitle: '工具链已准备就绪。', configurationLead: '确认要写入的 ShortestPath IDE 配置，然后进入工作台。', workspaceTitle: '选择工作目录。', workspaceLead: '我们会在此目录创建 .clangd，并在完成后直接打开它。', workspaceLabel: '工作目录', chooseFolder: '选择目录', selectWorkspace: '请选择工作目录。', preparing: '正在准备编译环境…', completed: '编译环境已准备就绪。点击“下一步”继续配置。', alreadyInstalled: '编译环境已就绪，已跳过重复准备。', failed: '编译环境准备失败：{message}'
 			}
 		};
 		const t = translations[language];
