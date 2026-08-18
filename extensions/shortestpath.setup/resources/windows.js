@@ -5,9 +5,9 @@
 
 'use strict';
 
-// The Electron main process extracts bundled clangd and downloads one MinGW
-// GCC archive into the IDE data folder. No shell, PowerShell, or system-wide
-// PATH changes are involved.
+// The Electron main process prepares bundled clangd and MinGW GCC archives in
+// the IDE data folder, falling back to the selected source when an archive is
+// unavailable. No shell, PowerShell, or system-wide PATH changes are involved.
 const mingwArchiveName = 'mingw64-ucrt-15.2.0-r8.tar.zst';
 const mingwOfficialUrl = `https://github.com/redpanda-cpp/mingw-lite/releases/download/15.2.0-r8/${mingwArchiveName}`;
 const mingwGhfastUrl = `https://ghfast.top/${mingwOfficialUrl}`;

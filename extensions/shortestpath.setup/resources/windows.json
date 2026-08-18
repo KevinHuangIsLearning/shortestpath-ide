@@ -2,30 +2,30 @@
 	"pages": [
 		{
 			"title": { "en": "ShortestPath IDE", "zh-CN": "ShortestPath IDE" },
-			"text": { "en": "We will download the Portable C++ toolchain, then choose the language version.", "zh-CN": "我们会下载 Portable C++ 编译环境，然后选择语言版本。" }
+			"text": { "en": "We will prepare the bundled Portable C++ build environment, then choose the language version.", "zh-CN": "我们会准备内置的 Portable C++ 编译环境，然后选择语言版本。" }
 		},
 		{
-			"title": { "en": "Installing Portable Toolchain", "zh-CN": "正在安装 Portable 编译环境" },
-			"text": { "en": "Downloading GCC and clangd into ShortestPath IDE data…", "zh-CN": "正在下载 GCC 与 clangd 到 ShortestPath IDE 数据目录…" },
+			"title": { "en": "Preparing Portable Toolchain", "zh-CN": "正在准备 Portable 编译环境" },
+			"text": { "en": "Preparing the bundled GCC and clangd in ShortestPath IDE data…", "zh-CN": "正在准备 ShortestPath IDE 数据目录中的内置 GCC 与 clangd…" },
 			"jumpto": 3
 		},
 		{
 			"title": { "en": "Configuration", "zh-CN": "配置" },
 			"text": { "en": "Choose the default C++ language version.", "zh-CN": "选择默认的 C++ 语言版本。" },
 			"controls": [
-				{ "key": "installToolchain", "type": "boolean", "default": true, "label": { "en": "Install g++ and clangd when missing", "zh-CN": "缺少时下载 g++ 与 clangd" } },
+				{ "key": "installToolchain", "type": "boolean", "default": true, "label": { "en": "Prepare g++ and clangd when missing", "zh-CN": "缺少时准备 g++ 与 clangd" } },
 				{ "key": "cppStandard", "type": "select", "default": "c++23", "label": { "en": "Default C++ language version", "zh-CN": "默认 C++ 语言版本" }, "options": [{ "value": "c++11", "label": "C++11" }, { "value": "c++14", "label": "C++14" }, { "value": "c++17", "label": "C++17" }, { "value": "c++20", "label": "C++20" }, { "value": "c++23", "label": "C++23" }] },
 				{ "key": "workspaceFolder", "type": "folder", "label": { "en": "Workspace folder", "zh-CN": "工作目录" }, "placeholder": { "en": "Select a folder for your OI projects", "zh-CN": "选择存放 OI 项目的目录" }, "buttonLabel": { "en": "Choose folder", "zh-CN": "选择目录" } }
 			]
 		}
 	],
 	"portableToolchain": true,
-	"downloadSourceLabel": { "en": "GCC download source", "zh-CN": "GCC 下载源" },
+	"downloadSourceLabel": { "en": "Compiler environment source", "zh-CN": "编译环境来源" },
 	"downloadSources": [
 		{ "id": "github", "label": { "en": "GitHub Release", "zh-CN": "GitHub Release" } },
 		{ "id": "ghfast", "label": { "en": "GH mirror (may be unstable)", "zh-CN": "GH 镜像（可能不稳定）" } }
 	],
 	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\winlibs\\mingw64-ucrt-15\\bin\\g++.exe"],
 	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\clangd\\clangd_22.1.6\\bin\\clangd.exe"],
-	"installDescription": "Extract bundled clangd and MinGW Lite GCC into ShortestPath IDE data"
+	"installDescription": "Prepare bundled clangd and MinGW Lite GCC in ShortestPath IDE data"
 }
