@@ -11,7 +11,7 @@ import * as vscode from 'vscode';
 import { canViewEditorial, describeEditorialLockReason, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
 import { describeFloatJudgeTolerance, describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
-import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive } from './problemPanelLifecycle';
+import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanel } from './problemPanelLifecycle';
 import { ImportAction, OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
 import { mergeSubmissionHistory, sanitizeSubmissionHistoryEntry, SubmissionHistoryEntry, toSubmissionHistoryEntry } from './submissionHistory';
 import { isHeaderSafeSourcePath } from './sourcePath';
@@ -156,6 +156,7 @@ type ProblemPanelActions = {
 
 class ShortestPathOjProblemPanel {
 	private panel: vscode.WebviewPanel | undefined;
+	private sourceEditorLabel: { sourcePath: string; label: string } | undefined;
 	private state: ProblemPanelState | undefined;
 	private sentSections: ProblemViewSections | undefined;
 	private sentTimerJson = '';
@@ -164,7 +165,7 @@ class ShortestPathOjProblemPanel {
 	private webviewReady = false;
 	private renderedProblemRef: string | undefined;
 	private editorialPanel: vscode.WebviewPanel | undefined;
-	private editorialAutoGroupedViewColumn: vscode.ViewColumn | undefined;
+	private editorialPanelOpening = false;
 	private longRunningOperationNoticeCount = 0;
 	private longRunningOperationNoticeVisible = false;
 	private operationToastMessage: string | undefined;
@@ -187,7 +188,6 @@ class ShortestPathOjProblemPanel {
 			this.longRunningOperationNoticeCount = 0;
 			this.longRunningOperationNoticeVisible = false;
 			this.clearOperationToast();
-			this.editorialAutoGroupedViewColumn = undefined;
 			this.editorialPanel?.dispose();
 			this.editorialPanel = undefined;
 			this.editorialRequestInFlight = false;
@@ -255,6 +255,7 @@ class ShortestPathOjProblemPanel {
 			}
 			this.refreshEditorial();
 		}
+		this.updateProblemPanelTitle();
 		if (this.editorialPanel) {
 			return;
 		}
@@ -354,13 +355,51 @@ class ShortestPathOjProblemPanel {
 		}
 	}
 
+	clearSourceEditorLabel(): void {
+		if (!this.sourceEditorLabel) {
+			return;
+		}
+		void vscode.commands.executeCommand('_shortestpath.oj.setTransientEditorLabel', vscode.Uri.file(this.sourceEditorLabel.sourcePath), undefined);
+		this.sourceEditorLabel = undefined;
+	}
+
+	updateSourceEditorLabel(): void {
+		const state = this.state;
+		const sourcePath = state?.sourcePath;
+		const label = state && !this.panel && sourcePath
+			? `${path.basename(sourcePath)} & ShortestPath OJ 上的 ${state.problem.title}`
+			: undefined;
+
+		const currentLabel = this.sourceEditorLabel;
+		if (currentLabel !== undefined && currentLabel.sourcePath === sourcePath && currentLabel.label === label) {
+			return;
+		}
+		this.clearSourceEditorLabel();
+		if (sourcePath && label) {
+			void vscode.commands.executeCommand('_shortestpath.oj.setTransientEditorLabel', vscode.Uri.file(sourcePath), label);
+			this.sourceEditorLabel = { sourcePath, label };
+		}
+	}
+
 	hideProblemWhenSourceInactive(): boolean {
-		// Problem, CPH, and terminal views can temporarily clear activeTextEditor.
-		// That must not be mistaken for switching to another source file.
 		if (this.panel?.active || !this.state || !shouldHideProblemPanelWhenSourceInactive(this.state.sourcePath, getActiveEditorPath())) {
 			return false;
 		}
 		void this.closeProblemPanelAfterRemembering();
+		return true;
+	}
+
+	restoreProblemWhenSourceActive(): boolean {
+		if (this.editorialPanelOpening || !this.state || !shouldRestoreProblemPanel(
+			this.state.sourcePath,
+			getActiveEditorPath(),
+			this.panel !== undefined,
+			getOpenFileTabGroups().flatMap(group => group.filePaths),
+		)) {
+			return false;
+		}
+		this.ensureProblemPanel();
+		this.render();
 		return true;
 	}
 
@@ -370,8 +409,7 @@ class ShortestPathOjProblemPanel {
 		}
 		await this.rememberSplitRatioBeforeClosing();
 		this.state = undefined;
-		this.editorialAutoGroupedViewColumn = undefined;
-		this.editorialPanel?.dispose();
+		this.updateSourceEditorLabel();
 		this.panel?.dispose();
 		return true;
 	}
@@ -385,8 +423,7 @@ class ShortestPathOjProblemPanel {
 		}
 		await this.rememberSplitRatioBeforeClosing();
 		this.state = undefined;
-		this.editorialAutoGroupedViewColumn = undefined;
-		this.editorialPanel?.dispose();
+		this.updateSourceEditorLabel();
 		this.panel?.dispose();
 	}
 
@@ -485,9 +522,9 @@ class ShortestPathOjProblemPanel {
 	}
 
 	private getProblemViewColumn(): vscode.ViewColumn {
-		const cppColumn = this.findCppEditorColumn();
-		if (cppColumn !== undefined) {
-			const existingRightGroup = vscode.window.tabGroups.all.find(group => group.viewColumn === cppColumn + 1);
+		const sourceColumn = this.findBoundSourceEditorColumn();
+		if (sourceColumn !== undefined) {
+			const existingRightGroup = vscode.window.tabGroups.all.find(group => group.viewColumn === sourceColumn + 1);
 			return existingRightGroup?.viewColumn ?? vscode.ViewColumn.Beside;
 		}
 		const activeViewColumn = vscode.window.tabGroups.activeTabGroup.viewColumn;
@@ -495,7 +532,7 @@ class ShortestPathOjProblemPanel {
 		return existingRightGroup?.viewColumn ?? vscode.ViewColumn.Beside;
 	}
 
-	private findCppEditorColumn(): vscode.ViewColumn | undefined {
+	private findBoundSourceEditorColumn(): vscode.ViewColumn | undefined {
 		const sourcePath = this.state?.sourcePath;
 		if (!sourcePath) {
 			return undefined;
@@ -514,75 +551,68 @@ class ShortestPathOjProblemPanel {
 		return problemColumn === vscode.ViewColumn.One ? vscode.ViewColumn.Two : vscode.ViewColumn.One;
 	}
 
-	private showEditorialPanel(editorial: EditorialResult, problem: ImportedProblem, canLike = this.state?.connected ?? false): void {
+	private async showEditorialPanel(editorial: EditorialResult, problem: ImportedProblem, canLike = this.state?.connected ?? false): Promise<void> {
 		if (editorial.state !== 'available') {
 			return;
 		}
-		const title = `解题报告: ${problem.title}`;
-		if (this.editorialPanel) {
-			this.editorialPanel.title = title;
-			this.editorialPanel.webview.html = getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri, canLike);
-			this.editorialPanel.reveal(this.editorialPanel.viewColumn, false);
-			return;
-		}
-		// Keep the problem and editorial as tabs in the source editor group. This
-		// avoids a forced split while leaving users free to move either tab later.
-		const viewColumn = this.findCppEditorColumn() ?? this.findCodeEditorColumn();
-		if (this.panel && this.panel.viewColumn !== viewColumn) {
-			this.panel.reveal(viewColumn, true);
-		}
-		const panel = vscode.window.createWebviewPanel(
-			'shortestpath.ojEditorial',
-			title,
-			{ viewColumn, preserveFocus: false },
-			{
-				enableScripts: true,
-				localResourceRoots: [this.extensionUri],
-				retainContextWhenHidden: true,
-			},
-		);
-		let editorialViewColumn: vscode.ViewColumn | undefined = viewColumn;
-		panel.onDidChangeViewState(() => {
-			editorialViewColumn = panel.viewColumn;
-		});
-		panel.webview.onDidReceiveMessage(async (message) => {
-			if (!this.state) {
+		this.editorialPanelOpening = true;
+		try {
+			if (this.panel) {
+				await this.closeProblemPanelAfterRemembering();
+			}
+			const title = `解题报告: ${problem.title}`;
+			if (this.editorialPanel) {
+				this.editorialPanel.title = title;
+				this.editorialPanel.webview.html = getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri, canLike);
+				this.editorialPanel.reveal(this.editorialPanel.viewColumn, false);
 				return;
 			}
-			if (typeof message !== 'object' || message === null) {
-				return;
-			}
-			const value = message as { command?: unknown; hintId?: unknown; target?: unknown; liked?: unknown };
-			if (value.command === 'like' && typeof value.hintId === 'string' && (value.target === 'question' || value.target === 'answer') && typeof value.liked === 'boolean') {
-				try {
-					const result = await this.actions.like(this.state.problem, value.hintId, value.target, value.liked);
-					this.state.problem = applyLikeResult(this.state.problem, result);
-					if (this.state.editorial) {
-						this.state.editorial = applyEditorialLikeResult(this.state.editorial, result);
-						this.state.cachedEditorial = this.state.editorial;
-						void this.actions.saveEditorial(this.state.problem, this.state.editorial).catch(error => console.error('Failed to save ShortestPath OJ editorial likes.', error));
+			// Keep the problem and editorial as tabs in the source editor group. This
+			// avoids a forced split while leaving users free to move either tab later.
+			const viewColumn = this.findBoundSourceEditorColumn() ?? this.findCodeEditorColumn();
+			const panel = vscode.window.createWebviewPanel(
+				'shortestpath.ojEditorial',
+				title,
+				{ viewColumn, preserveFocus: false },
+				{
+					enableScripts: true,
+					localResourceRoots: [this.extensionUri],
+					retainContextWhenHidden: true,
+				},
+			);
+			this.editorialPanel = panel;
+			panel.webview.onDidReceiveMessage(async (message) => {
+				if (!this.state) {
+					return;
+				}
+				if (typeof message !== 'object' || message === null) {
+					return;
+				}
+				const value = message as { command?: unknown; hintId?: unknown; target?: unknown; liked?: unknown };
+				if (value.command === 'like' && typeof value.hintId === 'string' && (value.target === 'question' || value.target === 'answer') && typeof value.liked === 'boolean') {
+					try {
+						const result = await this.actions.like(this.state.problem, value.hintId, value.target, value.liked);
+						this.state.problem = applyLikeResult(this.state.problem, result);
+						if (this.state.editorial) {
+							this.state.editorial = applyEditorialLikeResult(this.state.editorial, result);
+							this.state.cachedEditorial = this.state.editorial;
+							void this.actions.saveEditorial(this.state.problem, this.state.editorial).catch(error => console.error('Failed to save ShortestPath OJ editorial likes.', error));
+						}
+						this.refreshEditorialLike(value.hintId);
+					} catch (error) {
+						console.error('Failed to update ShortestPath OJ editorial like.', error);
 					}
-					this.refreshEditorialLike(value.hintId);
-				} catch (error) {
-					console.error('Failed to update ShortestPath OJ editorial like.', error);
 				}
-			}
-		});
-		panel.webview.html = getEditorialPanelHtml(editorial, problem, panel.webview, this.extensionUri, canLike);
-		panel.onDidDispose(() => {
-			if (this.editorialPanel === panel) {
-				this.editorialPanel = undefined;
-				const autoGroupedViewColumn = this.editorialAutoGroupedViewColumn;
-				this.editorialAutoGroupedViewColumn = undefined;
-				if (autoGroupedViewColumn !== undefined
-					&& editorialViewColumn === autoGroupedViewColumn
-					&& this.panel?.viewColumn === autoGroupedViewColumn) {
-					this.panel.reveal(this.getProblemViewColumn(), false);
+			});
+			panel.webview.html = getEditorialPanelHtml(editorial, problem, panel.webview, this.extensionUri, canLike);
+			panel.onDidDispose(() => {
+				if (this.editorialPanel === panel) {
+					this.editorialPanel = undefined;
 				}
-			}
-		});
-		this.editorialPanel = panel;
-		this.editorialAutoGroupedViewColumn = viewColumn;
+			});
+		} finally {
+			setTimeout(() => this.editorialPanelOpening = false, 0);
+		}
 	}
 
 	private ensurePanel(viewColumn: vscode.ViewColumn): boolean {
@@ -591,7 +621,7 @@ class ShortestPathOjProblemPanel {
 		}
 		const panel = vscode.window.createWebviewPanel(
 			'shortestpath.ojProblem',
-			'ShortestPath OJ',
+			this.getProblemPanelTitle(),
 			{ viewColumn, preserveFocus: true },
 			{
 				enableScripts: true,
@@ -607,13 +637,26 @@ class ShortestPathOjProblemPanel {
 				this.pendingTimer = undefined;
 				this.sentTimerJson = '';
 				this.webviewReady = false;
+				this.updateSourceEditorLabel();
 			}
 		});
 		panel.webview.onDidReceiveMessage(message => {
 			void this.handleMessage(message);
 		});
 		this.panel = panel;
+		this.updateSourceEditorLabel();
 		return true;
+	}
+
+	private getProblemPanelTitle(): string {
+		return this.state ? `${this.state.problem.title}题面` : 'ShortestPath OJ';
+	}
+
+	private updateProblemPanelTitle(): void {
+		if (this.panel) {
+			this.panel.title = this.getProblemPanelTitle();
+		}
+		this.updateSourceEditorLabel();
 	}
 
 	private ensureProblemPanel(): boolean {
@@ -736,7 +779,7 @@ class ShortestPathOjProblemPanel {
 					{
 						if (state.cachedEditorial?.state === 'available') {
 							state.editorial = state.cachedEditorial;
-							this.showEditorialPanel(state.cachedEditorial, state.problem, state.connected);
+							await this.showEditorialPanel(state.cachedEditorial, state.problem, state.connected);
 							return;
 						}
 						if (!state.connected) {
@@ -762,7 +805,7 @@ class ShortestPathOjProblemPanel {
 							if (result.state === 'available') {
 								state.cachedEditorial = result;
 								if (this.state === state && state.problem.ref === problemRef) {
-									this.showEditorialPanel(result, state.problem, state.connected);
+									await this.showEditorialPanel(result, state.problem, state.connected);
 								}
 								void this.actions.saveEditorial(state.problem, result).catch(error => {
 									console.error('Failed to save ShortestPath OJ editorial.', error);
@@ -794,6 +837,9 @@ class ShortestPathOjProblemPanel {
 					state.disconnectedSubmissions.delete(value.submissionId);
 					break;
 				case 'loadStress':
+					if (!state.problem.capabilities.stress.supported) {
+						return;
+					}
 					state.stressContext = await this.actions.loadStress(state.problem);
 					for (const task of state.stressContext.tasks) {
 						state.stressTasks.set(task.taskId, task);
@@ -804,6 +850,9 @@ class ShortestPathOjProblemPanel {
 					}
 					break;
 				case 'startStress':
+					if (!state.problem.capabilities.stress.supported) {
+						return;
+					}
 					if (typeof value.submissionId !== 'string' || typeof value.rounds !== 'number' || !Number.isInteger(value.rounds) || value.rounds <= 0) {
 						throw new Error('请选择可用提交并填写正整数轮数。');
 					}
@@ -1110,12 +1159,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		},
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblem', () => panel.reveal()));
-	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => {
-		setTimeout(() => panel.hideProblemWhenSourceInactive(), 0);
-	}));
-	context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(() => {
-		setTimeout(() => panel.hideProblemWhenSourceCloses(), 0);
-	}));
+	const syncProblemPanelWithActiveTab = async (): Promise<void> => {
+		if (await panel.hideProblemWhenSourceCloses()) {
+			return;
+		}
+		if (!panel.hideProblemWhenSourceInactive()) {
+			panel.restoreProblemWhenSourceActive();
+		}
+		panel.updateSourceEditorLabel();
+	};
+	const scheduleProblemPanelSync = () => {
+		setTimeout(() => {
+			void syncProblemPanelWithActiveTab();
+		}, 0);
+	};
+	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(scheduleProblemPanelSync));
+	context.subscriptions.push(new vscode.Disposable(() => panel.clearSourceEditorLabel()));
+	context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(scheduleProblemPanelSync));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowser', async () => {
 		await vscode.window.openBrowserTab('https://shortestpath.cn/topics', { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
 	}));
@@ -1871,18 +1931,23 @@ function renderHints(state: ProblemPanelState): string {
 	}
 	const items = state.problem.state.hints.map(hint => {
 		// While online, only the website state determines whether an answer was
-		// viewed. The locally cached body is a fallback for an offline panel.
-		const viewed = hint.viewed || (!state.connected && state.answers.has(hint.id));
+		// viewed. The locally cached body is a fallback for an offline panel. Once
+		// accepted, every hint is available, so viewed hints no longer need a
+		// distinct visual marker (including hints viewed before acceptance).
+		const viewed = !state.problem.state.timer.accepted
+			&& (hint.viewed || (!state.connected && state.answers.has(hint.id)));
 		const unlocked = hint.unlocked || state.problem.state.timer.accepted;
 		const locked = !viewed && !unlocked;
-		const statusText = viewed ? '已查看答案' : unlocked ? '已解锁' : '提示尚未解锁';
+		const statusText = state.problem.state.timer.accepted ? '' : viewed ? '已查看答案' : unlocked ? '已解锁' : '提示尚未解锁';
 		const remainingAttr = !unlocked && hint.remainingMs > 0 ? ` data-remaining-ms="${hint.remainingMs}"` : '';
 		const viewedClass = viewed ? ' viewed' : '';
 		const countdown = locked && hint.remainingMs > 0 ? `<span class="hint-countdown">剩余 ${formatDuration(hint.remainingMs)}</span>` : '';
+		const status = statusText || countdown ? `<span class="hint-list-status"><span class="hint-lock-label">${escapeHtml(statusText)}</span>${countdown}</span>` : '';
+		const itemTag = unlocked ? 'button' : 'div';
 		const interaction = unlocked
-			? ` data-command="openHintModal" data-hint-id="${escapeAttribute(hint.id)}" role="button" tabindex="0"`
+			? ` type="button" data-command="openHintModal" data-hint-id="${escapeAttribute(hint.id)}"`
 			: ' aria-disabled="true"';
-		return `<div class="hint-list-item${unlocked ? '' : ' locked'}${viewedClass}"${interaction} aria-label="提示 ${hint.seq}，${escapeAttribute(statusText)}"${remainingAttr}><span class="hint-list-num">提示 ${hint.seq}</span><span class="hint-list-status"><span class="hint-lock-label">${escapeHtml(statusText)}</span>${countdown}</span></div>`;
+		return `<${itemTag} class="hint-list-item${unlocked ? '' : ' locked'}${viewedClass}"${interaction} aria-label="提示 ${hint.seq}${statusText ? `，${escapeAttribute(statusText)}` : ''}"${remainingAttr}><span class="hint-list-num">提示 ${hint.seq}</span>${status}</${itemTag}>`;
 	}).join('');
 	return `<section class="hints"><h2>提示</h2><div class="hint-list">${items}</div></section>`;
 }
@@ -1962,10 +2027,58 @@ function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProb
 <section class="editorial-section"><h2>简化题解</h2><div data-render-math>${renderMarkdownContent(editorial.simpleContent, baseUrl)}</div></section>
 <section class="editorial-section"><h2>详细题解</h2><div data-render-math>${renderMarkdownContent(editorial.content, baseUrl)}</div></section>
 </div>
+<div class="editorial-resizer" role="separator" aria-label="调整题解和参考代码宽度" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="80" tabindex="0"></div>
 <div class="editorial-code"><h2>参考代码</h2>${codeHtml}</div>
 </div>
 <script>
 const vscode = acquireVsCodeApi();
+const editorialContainer = document.querySelector('.editorial-container');
+const editorialResizer = document.querySelector('.editorial-resizer');
+const savedLayout = vscode.getState() || {};
+let editorialCodeWidth = typeof savedLayout.editorialCodeWidth === 'number' ? Math.min(80, Math.max(0, savedLayout.editorialCodeWidth)) : 45;
+const saveEditorialLayout = () => vscode.setState({ editorialCodeWidth });
+const updateEditorialLayout = () => {
+	editorialContainer.classList.toggle('editorial-code-hidden', editorialCodeWidth <= 4);
+	editorialContainer.style.setProperty('--editorial-code-width', editorialCodeWidth + '%');
+	editorialResizer.setAttribute('aria-valuenow', String(editorialCodeWidth));
+};
+const setEditorialCodeWidth = (width) => {
+	editorialCodeWidth = Math.min(80, Math.max(0, Math.round(width)));
+	updateEditorialLayout();
+	saveEditorialLayout();
+};
+editorialResizer.addEventListener('pointerdown', (event) => {
+	event.preventDefault();
+	editorialResizer.setPointerCapture(event.pointerId);
+	const resize = (pointerEvent) => {
+		const bounds = editorialContainer.getBoundingClientRect();
+		setEditorialCodeWidth((bounds.right - pointerEvent.clientX) / bounds.width * 100);
+	};
+	const stopResize = () => {
+		editorialResizer.removeEventListener('pointermove', resize);
+		editorialResizer.removeEventListener('pointerup', stopResize);
+		editorialResizer.removeEventListener('pointercancel', stopResize);
+	};
+	editorialResizer.addEventListener('pointermove', resize);
+	editorialResizer.addEventListener('pointerup', stopResize);
+	editorialResizer.addEventListener('pointercancel', stopResize);
+});
+editorialResizer.addEventListener('keydown', (event) => {
+	if (event.key === 'ArrowLeft') {
+		event.preventDefault();
+		setEditorialCodeWidth(editorialCodeWidth + 2);
+	} else if (event.key === 'ArrowRight') {
+		event.preventDefault();
+		setEditorialCodeWidth(editorialCodeWidth - 2);
+	} else if (event.key === 'Home') {
+		event.preventDefault();
+		setEditorialCodeWidth(80);
+	} else if (event.key === 'End') {
+		event.preventDefault();
+		setEditorialCodeWidth(0);
+	}
+});
+updateEditorialLayout();
 window.addEventListener('message', (event) => {
 	const message = event.data;
 	if (!message || message.type !== 'editorialLike' || typeof message.hintId !== 'string') {
@@ -2074,6 +2187,9 @@ function compareSubmissionIdDescending(left: string, right: string): number {
 }
 
 function shouldShowStressHint(state: ProblemPanelState, submission: SubmissionSnapshot): boolean {
+	if (!state.problem.capabilities.stress.supported) {
+		return false;
+	}
 	if ([...state.stressTasks.values()].some(task => task.submissionId === submission.submissionId)) {
 		return true;
 	}
@@ -2125,8 +2241,11 @@ function getOpenFileTabGroups(): OpenFileTabGroup[] {
 }
 
 function getActiveEditorPath(): string | undefined {
-	const activeEditor = vscode.window.activeTextEditor;
-	return activeEditor?.document.uri.scheme === 'file' ? activeEditor.document.fileName : undefined;
+	const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+	if (!(activeTab?.input instanceof vscode.TabInputText) || activeTab.input.uri.scheme !== 'file') {
+		return undefined;
+	}
+	return activeTab.input.uri.fsPath;
 }
 
 function isAddressInUseError(error: Error): boolean {

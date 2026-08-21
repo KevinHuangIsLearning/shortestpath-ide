@@ -70,7 +70,6 @@ test('shows a complete problem when auxiliary website data is incompatible', () 
 			stressSupported: false,
 			warnings: [
 				'网页提供的题目状态不兼容，已关闭计时、提示和题解等辅助功能。',
-				'网页未提供对拍功能，提交等其他功能仍可使用。',
 			],
 		},
 	);

@@ -48,10 +48,10 @@ suite('ShortestPath OJ problem panel lifecycle', () => {
 		]), 2);
 	});
 
-	test('hides the problem panel only after switching to another source file', () => {
+	test('hides the problem panel when the bound source is no longer active', () => {
 		assert.equal(shouldHideProblemPanelWhenSourceInactive('/workspace/a.cpp', '/workspace/a.cpp'), false);
 		assert.equal(shouldHideProblemPanelWhenSourceInactive('/workspace/a.cpp', '/workspace/b.cpp'), true);
-		assert.equal(shouldHideProblemPanelWhenSourceInactive('/workspace/a.cpp', undefined), false);
+		assert.equal(shouldHideProblemPanelWhenSourceInactive('/workspace/a.cpp', undefined), true);
 		assert.equal(shouldHideProblemPanelWhenSourceInactive(undefined, undefined), false);
 	});
 
