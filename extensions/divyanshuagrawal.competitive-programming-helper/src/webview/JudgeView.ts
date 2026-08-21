@@ -161,6 +161,31 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                         break;
                     }
 
+                    case 'import-large-sample-directory': {
+                        try {
+                            const uri = message.pathOrUri.startsWith('file:')
+                                ? vscode.Uri.parse(message.pathOrUri)
+                                : vscode.Uri.file(message.pathOrUri);
+                            const stat = await vscode.workspace.fs.stat(uri);
+                            if (!(stat.type & vscode.FileType.Directory)) {
+                                throw new Error('The dropped item is not a folder.');
+                            }
+                            this.extensionToJudgeViewMessage({
+                                command: 'large-sample-directory-selected',
+                                path: uri.fsPath,
+                            });
+                        } catch (error) {
+                            globalThis.logger.error(
+                                'Failed to import large sample directory',
+                                error,
+                            );
+                            void vscode.window.showErrorMessage(
+                                'Drop a readable large sample folder.',
+                            );
+                        }
+                        break;
+                    }
+
                     case 'pick-large-sample-checker': {
                         const selected = await vscode.window.showOpenDialog({
                             canSelectFiles: true,
@@ -662,6 +687,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                             outputPath,
                             reason,
                             time,
+                            execution,
                         ) => {
                             this.extensionToJudgeViewMessage({
                                 command: 'large-sample-case-result',
@@ -673,6 +699,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                                 outputPath,
                                 reason,
                                 time,
+                                execution,
                             });
                         },
                     },

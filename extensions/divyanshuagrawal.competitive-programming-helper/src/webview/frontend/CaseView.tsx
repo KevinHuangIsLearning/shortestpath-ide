@@ -1,5 +1,6 @@
 import {
     Case,
+    ExecutionFailureSummary,
     LargeSampleCase,
     VSToWebViewMessage,
     DiffResult,
@@ -45,6 +46,7 @@ export default function CaseView(props: {
         outputPath?: string;
         reason?: string;
         time?: number;
+        execution?: ExecutionFailureSummary;
         openFile: (path: string) => void;
         rerun: () => void;
         toggleSkip: () => void;
@@ -236,13 +238,25 @@ export default function CaseView(props: {
             ? t('timedOut')
             : `${result.time}ms`
           : undefined;
+    const executionFailure = fileCase?.execution || result;
+    const failureText = executionFailure?.signal
+        ? executionFailure.signal
+        : executionFailure?.timeOut
+          ? t('timedOut')
+          : executionFailure?.outputLimitExceeded
+            ? 'Output limit exceeded'
+            : executionFailure?.code !== null &&
+                executionFailure?.code !== undefined &&
+                executionFailure.code !== 0
+              ? `Exit code ${executionFailure.code}`
+              : fileCase?.reason;
 
     return (
         <TestCaseCard
             title={fileCase ? `Large TC ${props.num}` : `TC ${props.num}`}
             state={cardState}
             time={cardTime}
-            failureText={fileCase?.reason}
+            failureText={failureText}
             minimized={minimized}
             toggle={toggle}
             run={rerun}

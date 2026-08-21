@@ -150,6 +150,11 @@ export type Run = {
     outputLimitExceeded?: boolean;
 };
 
+export type ExecutionFailureSummary = Pick<
+    Run,
+    'code' | 'signal' | 'timeOut' | 'outputLimitExceeded'
+>;
+
 export type CustomCheckerRun = {
     command: string;
 } & Run;
@@ -227,6 +232,10 @@ export type CopyTextCommand = {
 
 export type PickLargeSampleDirectoryCommand = {
     command: 'pick-large-sample-directory';
+};
+export type ImportLargeSampleDirectoryCommand = {
+    command: 'import-large-sample-directory';
+    pathOrUri: string;
 };
 export type PickLargeSampleCheckerCommand = {
     command: 'pick-large-sample-checker';
@@ -354,6 +363,7 @@ export type WebviewToVSEvent =
     | PickStressFileCommand
     | CopyTextCommand
     | PickLargeSampleDirectoryCommand
+    | ImportLargeSampleDirectoryCommand
     | PickLargeSampleCheckerCommand
     | ScanLargeSampleCommand
     | LargeSampleStartCommand
@@ -498,6 +508,7 @@ export type LargeSampleCaseResultCommand = {
     outputPath: string;
     reason?: string;
     time?: number;
+    execution?: ExecutionFailureSummary;
 };
 export type LargeSampleFailureCommand = {
     command: 'large-sample-failure';

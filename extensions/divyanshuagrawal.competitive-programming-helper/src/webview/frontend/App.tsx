@@ -213,6 +213,7 @@ function Judge(props: {
                 outputPath?: string;
                 reason?: string;
                 time?: number;
+                execution?: LargeSampleCaseResultCommand['execution'];
             }
         >
     >({});
@@ -510,6 +511,7 @@ function Judge(props: {
                             outputPath: result.outputPath,
                             reason: result.reason,
                             time: result.time,
+                            execution: result.execution,
                         },
                     }));
                     break;
@@ -837,20 +839,23 @@ function Judge(props: {
         event: React.DragEvent<HTMLDivElement>,
     ) => {
         event.preventDefault();
-        const droppedPath =
-            (event.dataTransfer.files[0] as (File & { path?: string }) | undefined)
-                ?.path ||
-            event.dataTransfer
-                .getData('text/uri-list')
-                .split('\n')
-                .map((value) => value.trim())
-                .find(Boolean)
-                ?.replace(/^file:\/\//, '')
-                .replace(/%20/g, ' ');
-        if (droppedPath) {
-            setLargeSampleDirectory(droppedPath);
-            updateLargeSampleConfig({ largeSampleDirectory: droppedPath });
-            scanLargeSamples(droppedPath);
+        const uriList = event.dataTransfer.getData('text/uri-list');
+        const text = event.dataTransfer.getData('text/plain');
+        const droppedPath = (
+            event.dataTransfer.files[0] as (File & { path?: string }) | undefined
+        )?.path;
+        const droppedUri = uriList
+            .split(/\r?\n/)
+            .map((value) => value.trim())
+            .find((value) => value && !value.startsWith('#'));
+        const pathOrUri = droppedPath || droppedUri || text.trim();
+        if (pathOrUri) {
+            sendMessageToVSCode({
+                command: 'import-large-sample-directory',
+                pathOrUri,
+            });
+        } else {
+            notify(t('largeSampleDropDirectory'));
         }
     };
 
@@ -1783,6 +1788,7 @@ function Judge(props: {
                                 outputPath: result?.outputPath,
                                 reason: result?.reason,
                                 time: result?.time,
+                                execution: result?.execution,
                                 openFile: openLargeSampleFile,
                                 rerun: () => runLargeSample(testcase.name),
                                 toggleSkip: () =>
