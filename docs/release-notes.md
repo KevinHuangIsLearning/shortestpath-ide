@@ -4,14 +4,16 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.3.10 更新 / What's New
+## v0.3.11 更新 / What's New
 
-- 修复 Windows 启动时窗口控制按钮颜色解析失败导致的闪退。
-- Windows 窗口控制按钮继续保持透明背景，并保留系统控制按钮。
+- CPH Plus 新增对拍：支持选择生成器和标准程序，发现反例后可手动添加为普通样例。
+- 新增大样例测试：拖入或选择文件夹即可导入，支持与普通样例统一运行、跳过和结果展示。
+- 修复大样例状态、失败信号和拖入导入等交互问题。
 - 此版本为普通更新，可按需升级。
 
-- Fixed a Windows startup crash caused by the window controls overlay rejecting the configured color.
-- Windows window controls keep a transparent background while retaining the system controls.
+- CPH Plus now supports stress testing with a selected generator and standard program; counterexamples can be explicitly added as ordinary test cases.
+- Large sample testing now imports a folder by drag and drop or selection, and shares running, skipping, and result presentation with ordinary test cases.
+- Fixed large-sample status, failure-signal, and folder-drop interactions.
 - This is an optional update.
 
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。
