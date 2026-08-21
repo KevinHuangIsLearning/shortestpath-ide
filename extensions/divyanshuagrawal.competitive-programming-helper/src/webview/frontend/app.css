@@ -1142,6 +1142,19 @@ body {
     border-left-color: var(--vscode-testing-iconFailed, #f85149) !important;
 }
 
+.case.skipped {
+    border-left-color: var(--vscode-disabledForeground, #858585) !important;
+    color: var(--vscode-disabledForeground, #858585);
+    opacity: 0.6;
+}
+
+.skipped-text {
+    color: var(--vscode-disabledForeground, #858585);
+    padding-right: 5px;
+    padding-left: 5px;
+    font-size: 1.15em;
+}
+
 .case.running {
     border-left-color: var(--vscode-testing-iconQueued, #cca700) !important;
 }
@@ -1565,5 +1578,367 @@ body {
         min-width: 28px;
         min-height: 26px;
         padding: 2px 3px;
+    }
+}
+.stress-hint {
+    color: var(--vscode-descriptionForeground);
+    font-size: 0.9em;
+}
+
+.stress-open-button {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 8px;
+}
+
+.test-tools-row {
+    display: flex;
+    gap: 8px;
+}
+
+.stress-dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1005;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.stress-dialog {
+    width: min(620px, 100%);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    padding: 16px;
+    border: 1px solid var(--cph-border);
+    border-radius: 12px;
+    background: var(--vscode-panel-background);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.stress-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.stress-dialog-header h3 {
+    margin: 0;
+}
+
+.stress-dialog-close {
+    padding: 4px 8px;
+    color: var(--vscode-foreground);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}
+
+.stress-instructions {
+    margin: 10px 0;
+    padding: 8px 10px;
+    border: 1px solid var(--cph-border);
+    border-radius: 8px;
+    background: var(--cph-surface);
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.stress-instructions summary {
+    cursor: pointer;
+    color: var(--vscode-textLink-foreground);
+}
+
+.stress-copy-button {
+    margin-top: 8px;
+}
+
+.stress-example-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.stress-instructions ul {
+    margin: 8px 0 0 18px;
+    padding: 0;
+}
+
+.stress-instructions li + li {
+    margin-top: 5px;
+}
+
+.stress-example-title {
+    margin: 10px 0 5px;
+    font-weight: 600;
+}
+
+.stress-example {
+    max-height: 240px;
+    margin: 0;
+    padding: 8px;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 0.85em;
+    background: var(--vscode-textCodeBlock-background);
+}
+
+.stress-actions,
+.stress-file-picker {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.stress-file-picker input {
+    flex: 1;
+    min-width: 0;
+}
+
+.stress-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0 0;
+    color: var(--vscode-foreground);
+    font-weight: 600;
+}
+
+.stress-spinner {
+    display: inline-flex;
+    color: var(--vscode-textLink-foreground);
+}
+
+.stress-spinner .codicon {
+    animation: stress-spin 0.9s linear infinite;
+}
+
+.stress-progress-track {
+    height: 4px;
+    margin-top: 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--vscode-progressBar-background);
+}
+
+.stress-progress-bar {
+    height: 100%;
+    min-width: 2px;
+    border-radius: inherit;
+    background: var(--vscode-textLink-activeForeground);
+    transition: width 180ms ease-out;
+}
+
+@keyframes stress-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.stress-counterexample {
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px solid var(--vscode-testing-iconFailed);
+    border-radius: 6px;
+}
+
+.stress-counterexample .stress-status {
+    margin-top: 0;
+    margin-bottom: 8px;
+    color: var(--vscode-testing-iconFailed);
+}
+
+.stress-counterexample-field {
+    margin-top: 8px;
+}
+
+.stress-counterexample-field label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 0.9em;
+}
+
+.stress-counterexample-field textarea {
+    display: block;
+    width: 100%;
+    min-height: 70px;
+    resize: vertical;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 0.85em;
+}
+
+.large-sample-field {
+    margin-top: 10px;
+}
+
+.large-sample-field > label,
+.large-sample-options label {
+    color: var(--vscode-descriptionForeground);
+    font-size: 0.9em;
+}
+
+.large-sample-picker {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.large-sample-picker input {
+    flex: 1;
+    min-width: 0;
+    min-height: 28px;
+    box-sizing: border-box;
+    color: var(--vscode-input-foreground);
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border, var(--cph-border));
+    border-radius: 4px;
+}
+
+.large-sample-picker input:focus,
+.large-sample-options select:focus,
+.large-sample-config select:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+.large-sample-config {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border: 1px solid var(--cph-border);
+    border-radius: 7px;
+}
+
+.large-sample-config summary {
+    cursor: pointer;
+    color: var(--vscode-textLink-foreground);
+}
+
+.large-sample-config-body {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin-top: 10px;
+}
+
+.large-sample-config-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.large-sample-case-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.large-sample-options select,
+.large-sample-config select {
+    min-height: 28px;
+    padding: 3px 7px;
+    color: var(--vscode-dropdown-foreground);
+    background: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border, var(--cph-border));
+    border-radius: 4px;
+}
+
+.large-sample-inline-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 8px 10px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.large-sample-inline-status span {
+    flex: 1;
+    min-width: 120px;
+}
+
+.large-sample-summary {
+    margin-top: 10px;
+    color: var(--vscode-textLink-foreground);
+}
+
+.large-sample-diagnostics {
+    max-height: 110px;
+    margin-top: 8px;
+    padding: 7px;
+    overflow: auto;
+    color: var(--vscode-testing-iconFailed);
+    background: var(--vscode-textCodeBlock-background);
+    font-size: 0.85em;
+}
+
+.large-sample-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.large-sample-checks {
+    flex-direction: column;
+    gap: 5px;
+}
+
+.large-sample-actions,
+.large-sample-file-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.large-sample-failure {
+    margin-top: 12px;
+    padding: 9px;
+    border: 1px solid var(--vscode-testing-iconFailed);
+    border-radius: 6px;
+}
+
+.large-sample-failure p {
+    margin: 6px 0;
+}
+
+.large-sample-failure-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+    margin-bottom: 8px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.large-sample-output-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.large-sample-output-grid textarea,
+.large-sample-failure pre {
+    width: 100%;
+    min-height: 90px;
+    box-sizing: border-box;
+    resize: vertical;
+    overflow: auto;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 0.82em;
+    white-space: pre-wrap;
+}
+
+@media (max-width: 560px) {
+    .large-sample-output-grid {
+        grid-template-columns: 1fr;
     }
 }

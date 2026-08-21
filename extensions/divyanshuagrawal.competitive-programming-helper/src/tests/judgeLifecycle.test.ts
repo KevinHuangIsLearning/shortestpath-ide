@@ -12,25 +12,25 @@ const source = (fileName: string): JudgeDocument => ({
 });
 
 describe('Judge editor lifecycle', () => {
-    test('clears the current problem for browser, terminal, and Output tabs', () => {
+    test('retains the current problem for browser, terminal, and Output tabs', () => {
         const current = { srcPath: '/workspace/A.cpp' };
         const getProblem = jest.fn();
 
-        expect(getInitialJudgeProblem(undefined, current, getProblem)).toBeUndefined();
+        expect(getInitialJudgeProblem(undefined, current, getProblem)).toBe(current);
         expect(
             getInitialJudgeProblem(
                 { fileName: 'Output', uri: { scheme: 'output' } },
                 current,
                 getProblem,
             ),
-        ).toBeUndefined();
+        ).toBe(current);
         expect(
             getInitialJudgeProblem(
                 { fileName: 'Browser', uri: { scheme: 'vscode-webview' } },
                 current,
                 getProblem,
             ),
-        ).toBeUndefined();
+        ).toBe(current);
         expect(getProblem).not.toHaveBeenCalled();
 		expect(shouldClearJudgeForActiveDocument(undefined)).toBe(true);
 		expect(shouldClearJudgeForActiveDocument({ fileName: 'Output', uri: { scheme: 'output' } })).toBe(true);

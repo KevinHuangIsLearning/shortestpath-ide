@@ -5,12 +5,19 @@ import config from './config';
 import { getTimeOutPref } from './preferences';
 import * as vscode from 'vscode';
 import path from 'path';
-import { onlineJudgeEnv } from './compiler';
+import { onlineJudgeEnv, runningCompilers } from './compiler';
 import telmetry from './telmetry';
 import localize from './i18n';
 import { executeCustomChecker } from './utils/customChecker';
 
 export const runningBinaries: ChildProcessWithoutNullStreams[] = [];
+let killRequested = false;
+
+export const clearKillRequested = () => {
+    killRequested = false;
+};
+
+export const wasKillRequested = () => killRequested;
 
 /**
  * Run a custom checker script for a testcase.
@@ -33,8 +40,17 @@ export const runTestCase = (
     language: Language,
     binPath: string,
     input: string,
+    options: {
+        includeLanguageArgs?: boolean;
+        logInput?: boolean;
+        maxOutputSize?: number;
+    } = {},
 ): Promise<Run> => {
-    globalThis.logger.log('Running testcase', language, binPath, input);
+    if (options.logInput === false) {
+        globalThis.logger.log('Running testcase', language, binPath);
+    } else {
+        globalThis.logger.log('Running testcase', language, binPath, input);
+    }
     const result: Run = {
         stdout: '',
         stderr: '',
@@ -43,6 +59,7 @@ export const runTestCase = (
         time: 0,
         timeOut: false,
     };
+    const maxOutputSize = options.maxOutputSize;
     const spawnOpts = {
         timeout: config.timeout,
         env: {
@@ -69,7 +86,12 @@ export const runTestCase = (
         case 'python': {
             process = spawn(
                 language.compiler, // 'python3' or 'python' TBD
-                [binPath, ...language.args],
+                [
+                    binPath,
+                    ...(options.includeLanguageArgs === false
+                        ? []
+                        : language.args),
+                ],
                 spawnOpts,
             );
             break;
@@ -77,7 +99,12 @@ export const runTestCase = (
         case 'ruby': {
             process = spawn(
                 language.compiler,
-                [binPath, ...language.args],
+                [
+                    binPath,
+                    ...(options.includeLanguageArgs === false
+                        ? []
+                        : language.args),
+                ],
                 spawnOpts,
             );
             break;
@@ -85,7 +112,12 @@ export const runTestCase = (
         case 'js': {
             process = spawn(
                 language.compiler,
-                [binPath, ...language.args],
+                [
+                    binPath,
+                    ...(options.includeLanguageArgs === false
+                        ? []
+                        : language.args),
+                ],
                 spawnOpts,
             );
             break;
@@ -159,10 +191,33 @@ export const runTestCase = (
             resolve(result);
         });
 
-        process.stdout.on('data', (data) => {
-            result.stdout += data;
+        const appendOutput = (key: 'stdout' | 'stderr', data: Buffer) => {
+            const text = data.toString();
+            if (maxOutputSize === undefined) {
+                result[key] += text;
+                return;
+            }
+
+            const remaining = maxOutputSize - result[key].length;
+            if (remaining <= 0) {
+                result.outputLimitExceeded = true;
+                return;
+            }
+            if (text.length > remaining) {
+                result[key] += text.slice(0, remaining);
+                result.outputLimitExceeded = true;
+                process.kill();
+                return;
+            }
+            result[key] += text;
+        };
+
+        process.stdout.on('data', (data: Buffer) => {
+            appendOutput('stdout', data);
         });
-        process.stderr.on('data', (data) => (result.stderr += data));
+        process.stderr.on('data', (data: Buffer) => {
+            appendOutput('stderr', data);
+        });
 
         process.on('error', (err) => {
             clearTimeout(killer);
@@ -230,5 +285,7 @@ export const deleteBinary = (language: Language, binPath: string) => {
 export const killRunning = () => {
     globalThis.reporter.sendTelemetryEvent(telmetry.KILL_RUNNING);
     globalThis.logger.log('Killling binaries');
+    killRequested = true;
     runningBinaries.forEach((process) => process.kill());
+    runningCompilers.forEach((process) => process.kill());
 };

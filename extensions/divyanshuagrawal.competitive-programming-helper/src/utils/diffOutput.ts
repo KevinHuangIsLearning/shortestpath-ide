@@ -26,6 +26,10 @@ function tokenize(raw: string): string[] {
 function lcsTokenDiff(expected: string[], received: string[]): TokenDiff[] {
     const m = expected.length;
     const n = received.length;
+    const maxCells = 1_000_000;
+    if (m > 0 && n > maxCells / m) {
+        return [];
+    }
 
     // Build DP table
     const dp: number[][] = Array.from({ length: m + 1 }, () =>
@@ -71,6 +75,17 @@ function lcsTokenDiff(expected: string[], received: string[]): TokenDiff[] {
  * @param received - The actual stdout from the program run
  */
 export function diffOutput(expected: string, received: string): DiffResult {
+    // LCS uses O(m*n) memory. Avoid letting a large output take down the
+    // extension host or the webview; the raw output is still shown separately.
+    if (expected.length + received.length > 200_000) {
+        return {
+            isMatch: false,
+            lines: [],
+            summary: 'Output is too large to diff safely.',
+            tokenDiff: [],
+        };
+    }
+
     // Line-level diff (for summary counts)
     const expLines = normalizeLines(expected);
     const recLines = normalizeLines(received);

@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { checkUnsupported, randomId } from './utils';
 import { Problem } from './types';
 import { getProblem, saveProblem } from './parser';
-import runAllAndSave from './webview/processRunAll';
 import path from 'path';
 import { getJudgeViewProvider } from './extension';
 import telmetry from './telmetry';
@@ -40,7 +39,7 @@ export default async () => {
         command: 'new-problem',
         problem: problem,
     });
-    runAllAndSave(problem);
+    void getJudgeViewProvider().runAllIncludingLargeSamples(problem);
     vscode.window.showTextDocument(editor.document, {
         viewColumn: vscode.ViewColumn.One,
         preview: false,
