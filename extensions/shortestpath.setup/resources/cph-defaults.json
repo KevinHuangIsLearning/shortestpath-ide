@@ -147,7 +147,7 @@
 	"cph.general.ignoreSTDERROR": false,
 	"cph.general.defaultOnlineJudge": false,
 	"cph.general.includeProblemIndex": false,
-	"cph.general.autoShowJudge": false,
+	"cph.general.autoShowJudge": true,
 	"cph.general.useShortAtCoderName": false,
 	"cph.general.useShortCodeForcesName": false,
 	"cph.general.useShortLuoguName": false,

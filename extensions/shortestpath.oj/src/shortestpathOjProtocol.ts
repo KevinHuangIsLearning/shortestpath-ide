@@ -318,9 +318,6 @@ export function parseProblemBindData(value: unknown): ImportedProblem {
 	}
 	try {
 		capabilities = parseCapabilities(data.capabilities);
-		if (isStressCapabilityUnavailable(data.capabilities)) {
-			compatibilityWarnings.push('网页未提供对拍功能，提交等其他功能仍可使用。');
-		}
 	} catch {
 		capabilities = unavailableProblemCapabilities();
 		compatibilityWarnings.push('网页提供的功能信息不兼容，已关闭提交、对拍等增强功能。');
@@ -722,11 +719,6 @@ function disableStateDependentCapabilities(capabilities: ProblemCapabilities): P
 		hintLike: false,
 		editorial: false,
 	};
-}
-
-function isStressCapabilityUnavailable(value: unknown): boolean {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
-		&& ((value as Record<string, unknown>).stress === undefined || (value as Record<string, unknown>).stress === null);
 }
 
 function problemRefSegmentsFromUrl(url: string): string[] {

@@ -19,7 +19,7 @@ export function shouldHideProblemPanelWhenSourceInactive(
 	sourcePath: string | undefined,
 	activeSourcePath: string | undefined,
 ): boolean {
-	return sourcePath !== undefined && activeSourcePath !== undefined && sourcePath !== activeSourcePath;
+	return sourcePath !== undefined && sourcePath !== activeSourcePath;
 }
 
 export function shouldHideProblemPanelWhenSourceCloses(
