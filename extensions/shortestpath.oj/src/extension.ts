@@ -8,7 +8,7 @@ import { promises as fs } from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { canRequestEditorial, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
+import { canViewEditorial, describeEditorialLockReason, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
 import { describeFloatJudgeTolerance, describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
 import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive } from './problemPanelLifecycle';
@@ -37,6 +37,7 @@ import {
 	StressTask,
 	SubmissionLanguage,
 	SubmissionSnapshot,
+	parseEditorialResult,
 	restoreCachedProblemCompatibilityWarnings,
 	bridgePort,
 } from './shortestpathOjProtocol';
@@ -54,6 +55,7 @@ type WorkspaceProblemCache = {
 	problems: Record<string, ImportedProblem>;
 	sourcePaths: Record<string, string>;
 	submissions: Record<string, SubmissionHistoryEntry[]>;
+	editorials: Record<string, EditorialResult>;
 };
 
 type CphImportResult = { succeeded: boolean; sourcePath?: string };
@@ -65,6 +67,7 @@ type WorkspaceProblemRecord = {
 	problem: ImportedProblem;
 	sourcePath?: string;
 	submissions: SubmissionHistoryEntry[];
+	editorial?: EditorialResult;
 };
 
 function isWrongAnswerStatus(status: string): boolean {
@@ -122,6 +125,7 @@ type ProblemPanelState = {
 	answers: Map<string, MarkdownContent>;
 	hintMessages: Map<string, string>;
 	editorial?: EditorialResult;
+	cachedEditorial?: EditorialResult;
 	submissions: Map<string, SubmissionSnapshot | SubmissionHistoryEntry>;
 	finishedSubmissions: Set<string>;
 	disconnectedSubmissions: Set<string>;
@@ -146,6 +150,8 @@ type ProblemPanelActions = {
 	addStressCounterExample(problem: ImportedProblem, task: StressTask): Promise<void>;
 	loadSubmissionHistory(problem: ImportedProblem): Promise<SubmissionHistoryEntry[]>;
 	saveSubmissionHistory(problem: ImportedProblem, submission: SubmissionHistoryEntry): Promise<void>;
+	loadEditorial(problem: ImportedProblem): Promise<EditorialResult | undefined>;
+	saveEditorial(problem: ImportedProblem, editorial: EditorialResult): Promise<void>;
 };
 
 class ShortestPathOjProblemPanel {
@@ -163,6 +169,8 @@ class ShortestPathOjProblemPanel {
 	private longRunningOperationNoticeVisible = false;
 	private operationToastMessage: string | undefined;
 	private operationToastTimer: ReturnType<typeof setTimeout> | undefined;
+	private editorialRequestInFlight = false;
+	private editorialRequestToken = 0;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -182,6 +190,8 @@ class ShortestPathOjProblemPanel {
 			this.editorialAutoGroupedViewColumn = undefined;
 			this.editorialPanel?.dispose();
 			this.editorialPanel = undefined;
+			this.editorialRequestInFlight = false;
+			this.editorialRequestToken++;
 			const answers = new Map<string, MarkdownContent>();
 			for (const hint of problem.state.hints) {
 				const cached = hintAnswerCache.get(hintAnswerCacheKey(problem.ref, hint.id));
@@ -208,7 +218,10 @@ class ShortestPathOjProblemPanel {
 				sourcePath,
 			};
 			const state = this.state;
-			void this.actions.loadSubmissionHistory(problem).then(submissions => {
+			void Promise.all([
+				this.actions.loadSubmissionHistory(problem),
+				this.actions.loadEditorial(problem),
+			]).then(([submissions, editorial]) => {
 				if (this.state !== state || state.problem.ref !== problem.ref) {
 					return;
 				}
@@ -219,8 +232,17 @@ class ShortestPathOjProblemPanel {
 					}
 					state.finishedSubmissions.add(submission.submissionId);
 				}
+				// A user can request a fresh report before this asynchronous cache
+				// load completes. Keep that newer result instead of replacing it
+				// with the older cached copy.
+				if (state.cachedEditorial === undefined) {
+					state.cachedEditorial = editorial;
+				}
+				if (state.editorial === undefined) {
+					state.editorial = editorial;
+				}
 				this.render();
-			}).catch(error => console.error('Failed to load ShortestPath OJ submission history.', error));
+			}).catch(error => console.error('Failed to load ShortestPath OJ cached content.', error));
 		} else {
 			this.state.problem = problem;
 			this.state.connected = connected;
@@ -231,6 +253,7 @@ class ShortestPathOjProblemPanel {
 			if (sourcePath) {
 				this.state.sourcePath = sourcePath;
 			}
+			this.refreshEditorial();
 		}
 		if (this.editorialPanel) {
 			return;
@@ -315,6 +338,7 @@ class ShortestPathOjProblemPanel {
 				this.state.disconnectedStressTasks.add(taskId);
 			}
 		}
+		this.refreshEditorial();
 		this.render();
 	}
 
@@ -397,7 +421,7 @@ class ShortestPathOjProblemPanel {
 		if (!this.editorialPanel || !this.state?.editorial) {
 			return;
 		}
-		this.editorialPanel.webview.html = getEditorialPanelHtml(this.state.editorial, this.state.problem, this.editorialPanel.webview, this.extensionUri);
+		this.editorialPanel.webview.html = getEditorialPanelHtml(this.state.editorial, this.state.problem, this.editorialPanel.webview, this.extensionUri, this.state.connected);
 	}
 
 	private refreshEditorialLike(hintId: string): void {
@@ -442,10 +466,14 @@ class ShortestPathOjProblemPanel {
 		void this.panel?.webview.postMessage({ type: 'showHintModal', html: modalHtml });
 	}
 
-	private showLockedEditorialNotice(remainingMs: number): void {
+	private showLockedEditorialNotice(remainingMs: number, reason = ''): void {
+		const reasonText = describeEditorialLockReason(reason);
+		const detail = remainingMs > 0
+			? `${reasonText}剩余 ${formatDuration(remainingMs)}`
+			: reasonText;
 		void this.panel?.webview.postMessage({
 			type: 'showHintModal',
-			html: `<div class="modal-header"><h3>解题报告</h3><button type="button" class="modal-close" data-command="closeModal" aria-label="关闭">×</button></div><div class="modal-body"><p class="hint-feedback" data-remaining-ms="${remainingMs}">${escapeHtml('解题报告尚未解锁，')}<span class="editorial-countdown">${escapeHtml(`剩余 ${formatDuration(remainingMs)}`)}</span></p></div>`,
+			html: `<div class="modal-header"><h3>解题报告</h3><button type="button" class="modal-close" data-command="closeModal" aria-label="关闭">×</button></div><div class="modal-body"><p class="hint-feedback" data-remaining-ms="${remainingMs}">${escapeHtml(detail)}</p></div>`,
 		});
 	}
 
@@ -486,14 +514,14 @@ class ShortestPathOjProblemPanel {
 		return problemColumn === vscode.ViewColumn.One ? vscode.ViewColumn.Two : vscode.ViewColumn.One;
 	}
 
-	private showEditorialPanel(editorial: EditorialResult, problem: ImportedProblem): void {
+	private showEditorialPanel(editorial: EditorialResult, problem: ImportedProblem, canLike = this.state?.connected ?? false): void {
 		if (editorial.state !== 'available') {
 			return;
 		}
 		const title = `解题报告: ${problem.title}`;
 		if (this.editorialPanel) {
 			this.editorialPanel.title = title;
-			this.editorialPanel.webview.html = getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri);
+			this.editorialPanel.webview.html = getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri, canLike);
 			this.editorialPanel.reveal(this.editorialPanel.viewColumn, false);
 			return;
 		}
@@ -531,6 +559,8 @@ class ShortestPathOjProblemPanel {
 					this.state.problem = applyLikeResult(this.state.problem, result);
 					if (this.state.editorial) {
 						this.state.editorial = applyEditorialLikeResult(this.state.editorial, result);
+						this.state.cachedEditorial = this.state.editorial;
+						void this.actions.saveEditorial(this.state.problem, this.state.editorial).catch(error => console.error('Failed to save ShortestPath OJ editorial likes.', error));
 					}
 					this.refreshEditorialLike(value.hintId);
 				} catch (error) {
@@ -538,7 +568,7 @@ class ShortestPathOjProblemPanel {
 				}
 			}
 		});
-		panel.webview.html = getEditorialPanelHtml(editorial, problem, panel.webview, this.extensionUri);
+		panel.webview.html = getEditorialPanelHtml(editorial, problem, panel.webview, this.extensionUri, canLike);
 		panel.onDidDispose(() => {
 			if (this.editorialPanel === panel) {
 				this.editorialPanel = undefined;
@@ -617,6 +647,7 @@ class ShortestPathOjProblemPanel {
 		if (!state || typeof message !== 'object' || message === null) {
 			return;
 		}
+		const problemRef = state.problem.ref;
 		const value = message as {
 			command?: unknown;
 			hintId?: unknown;
@@ -703,19 +734,49 @@ class ShortestPathOjProblemPanel {
 					break;
 				case 'editorial':
 					{
+						if (state.cachedEditorial?.state === 'available') {
+							state.editorial = state.cachedEditorial;
+							this.showEditorialPanel(state.cachedEditorial, state.problem, state.connected);
+							return;
+						}
+						if (!state.connected) {
+							return;
+						}
+						if (this.editorialRequestInFlight) {
+							return;
+						}
 						const remainingMs = this.getCurrentEditorialRemainingMs(state);
 						if (!state.problem.state.timer.accepted && remainingMs > 0) {
 							this.showLockedEditorialNotice(remainingMs);
 							return;
 						}
-						const result = await this.actions.editorial(state.problem);
-						if (result) {
+						this.editorialRequestInFlight = true;
+						const editorialRequestToken = ++this.editorialRequestToken;
+						this.render();
+						try {
+							const result = await this.actions.editorial(state.problem);
+							if (!result) {
+								return;
+							}
 							state.editorial = result;
 							if (result.state === 'available') {
-								this.showEditorialPanel(result, state.problem);
-							} else {
+								state.cachedEditorial = result;
+								if (this.state === state && state.problem.ref === problemRef) {
+									this.showEditorialPanel(result, state.problem, state.connected);
+								}
+								void this.actions.saveEditorial(state.problem, result).catch(error => {
+									console.error('Failed to save ShortestPath OJ editorial.', error);
+									void vscode.window.showWarningMessage('解题报告已打开，但未能保存到本地缓存；请稍后重新打开。');
+								});
+							} else if (this.state === state && state.problem.ref === problemRef) {
 								state.problem = applyEditorialLockRemaining(state.problem, result.remainingMs);
 								state.editorialRemainingReceivedAtMs = Date.now();
+								this.showLockedEditorialNotice(result.remainingMs, result.unlockReason || '');
+							}
+						} finally {
+							if (this.editorialRequestToken === editorialRequestToken) {
+								this.editorialRequestInFlight = false;
+								this.render();
 							}
 						}
 					}
@@ -868,6 +929,7 @@ class ShortestPathOjProblemPanel {
 			this.state,
 			this.longRunningOperationNoticeVisible,
 			this.operationToastMessage,
+			this.editorialRequestInFlight,
 		);
 		const timer = getProblemViewTimer(this.state);
 		if (!this.sentSections || this.renderedProblemRef !== this.state.problem.ref) {
@@ -954,6 +1016,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		loadSubmissionHistory: problem => mutateWorkspaceProblemCache(cache => cache.submissions[problem.ref] ?? [], false),
 		saveSubmissionHistory: (problem, submission) => mutateWorkspaceProblemCache(cache => {
 			cache.submissions[problem.ref] = mergeSubmissionHistory(cache.submissions[problem.ref] ?? [], submission);
+		}, true),
+		loadEditorial: problem => mutateWorkspaceProblemCache(cache => cache.editorials[problem.ref], false),
+		saveEditorial: (problem, editorial) => mutateWorkspaceProblemCache(cache => {
+			if (editorial.state === 'available') {
+				cache.editorials[problem.ref] = editorial;
+			}
 		}, true),
 	}, unknownStressStarts);
 	// Loading Shiki can take long enough for the page's first WebSocket connection after a
@@ -1101,6 +1169,7 @@ function createEmptyWorkspaceProblemCache(): WorkspaceProblemCache {
 		problems: Object.create(null) as Record<string, ImportedProblem>,
 		sourcePaths: Object.create(null) as Record<string, string>,
 		submissions: Object.create(null) as Record<string, SubmissionHistoryEntry[]>,
+		editorials: Object.create(null) as Record<string, EditorialResult>,
 	};
 }
 
@@ -1190,6 +1259,17 @@ async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> 
 				}
 				const submissions = sanitizeSubmissionHistory(record.submissions);
 				cache.submissions[problem.ref] = submissions.entries;
+				if (record.editorial !== undefined) {
+					try {
+						const editorial = parseEditorialResult(record.editorial);
+						if (editorial.state === 'available') {
+							cache.editorials[problem.ref] = editorial;
+						}
+					} catch (error) {
+						console.warn(`Ignoring invalid cached ShortestPath OJ editorial: ${name}`, error);
+						needsRewrite = true;
+					}
+				}
 				needsRewrite ||= problem !== record.problem || submissions.changed;
 			} catch (error) {
 				console.warn(`Ignoring unreadable ShortestPath OJ cache record: ${name}`, error);
@@ -1221,6 +1301,7 @@ async function readLegacyWorkspaceProblemCache(): Promise<WorkspaceProblemCache 
 		const problems = Object.create(null) as Record<string, ImportedProblem>;
 		const sourcePaths = Object.create(null) as Record<string, string>;
 		const submissions = Object.create(null) as Record<string, SubmissionHistoryEntry[]>;
+		const editorials = Object.create(null) as Record<string, EditorialResult>;
 		let historyWasSanitized = false;
 		if (value.problems && typeof value.problems === 'object') {
 			for (const [problemRef, cachedProblem] of Object.entries(value.problems)) {
@@ -1261,6 +1342,7 @@ async function readLegacyWorkspaceProblemCache(): Promise<WorkspaceProblemCache 
 			problems,
 			sourcePaths,
 			submissions,
+			editorials,
 		};
 		if (historyWasSanitized) {
 			workspaceCachesNeedingRewrite.add(cache);
@@ -1294,6 +1376,7 @@ async function writeWorkspaceProblemCache(cache: WorkspaceProblemCache): Promise
 			problem,
 			sourcePath: cache.sourcePaths[problemRef],
 			submissions: cache.submissions[problemRef] ?? [],
+			editorial: cache.editorials[problemRef],
 		};
 		await vscode.workspace.fs.writeFile(getWorkspaceProblemRecordUri(problemRef), new TextEncoder().encode(`${JSON.stringify(record, undefined, '\t')}\n`));
 	}));
@@ -1623,6 +1706,7 @@ function renderProblemViewSections(
 	state: ProblemPanelState,
 	showLongRunningOperationNotice: boolean,
 	operationToastMessage: string | undefined,
+	editorialRequestInFlight: boolean,
 ): ProblemViewSections {
 	const { problem } = state;
 	return {
@@ -1636,7 +1720,7 @@ function renderProblemViewSections(
 		information: renderInformation(problem),
 		statement: renderStatement(problem),
 		hints: renderHints(state),
-		editorialAction: renderEditorialAction(problem, state.connected),
+		editorialAction: renderEditorialAction(problem, state.connected, state.cachedEditorial?.state === 'available', editorialRequestInFlight),
 		submissions: renderSubmissions(state),
 		compatibilityWarning: state.compatibilityWarningDismissed || problem.compatibilityWarnings.length === 0
 			? ''
@@ -1828,14 +1912,20 @@ function renderHintModal(state: ProblemPanelState, hint: ProblemHint): string {
 	return `<div class="modal-header"><h3>提示 ${hint.seq}</h3><button type="button" class="modal-close" data-command="closeModal" aria-label="关闭提示">×</button></div><div class="modal-body">${feedback ? `<p class="hint-feedback" role="status">${escapeHtml(feedback)}</p>` : ''}<div class="modal-columns"><div class="modal-column"><div class="hint-section-heading"><h4>问题</h4>${questionLike}</div>${questionContent}</div><div class="modal-column"><div class="hint-section-heading"><h4>答案</h4>${answerLike}</div>${answerContent}</div></div></div>`;
 }
 
-function renderEditorialAction(problem: ImportedProblem, connected: boolean): string {
+function renderEditorialAction(problem: ImportedProblem, connected: boolean, hasCachedEditorial: boolean, requestInFlight: boolean): string {
+	if (requestInFlight) {
+		return '<button type="button" class="editorial-loading" data-command="editorial" disabled>正在加载解题报告…</button>';
+	}
+	if (hasCachedEditorial) {
+		return '<button type="button" data-command="editorial">查看解题报告</button>';
+	}
 	if (!problem.state.timer.accepted && problem.state.editorial.remainingMs > 0) {
 		return '<button type="button" class="editorial-locked" data-command="editorial">查看解题报告</button>';
 	}
-	return `<button type="button" data-command="editorial"${canRequestEditorial(connected) ? '' : ' disabled'}>查看解题报告</button>`;
+	return `<button type="button" data-command="editorial"${canViewEditorial(connected, hasCachedEditorial) ? '' : ' disabled'}>查看解题报告</button>`;
 }
 
-function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProblem, webview: vscode.Webview, extensionUri: vscode.Uri): string {
+function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProblem, webview: vscode.Webview, extensionUri: vscode.Uri, canLike: boolean): string {
 	if (editorial.state !== 'available') {
 		return '';
 	}
@@ -1843,8 +1933,8 @@ function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProb
 	const katexStyles = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'resources', 'katex', 'katex.min.css'));
 	const baseUrl = problem.url;
 	const hintsHtml = editorial.hints.map(hint => {
-		const qLike = renderLikeButton(hint.hintId, 'question', { liked: hint.questionLiked, count: hint.questionLikeCount }, true);
-		const aLike = renderLikeButton(hint.hintId, 'answer', { liked: hint.answerLiked, count: hint.answerLikeCount }, true);
+		const qLike = renderLikeButton(hint.hintId, 'question', { liked: hint.questionLiked, count: hint.questionLikeCount }, canLike);
+		const aLike = renderLikeButton(hint.hintId, 'answer', { liked: hint.answerLiked, count: hint.answerLikeCount }, canLike);
 		return `<article class="editorial-hint">
 <div class="editorial-hint-header"><span class="editorial-hint-title">提示 ${hint.seq}</span></div>
 <div class="editorial-hint-body">

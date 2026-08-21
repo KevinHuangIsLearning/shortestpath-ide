@@ -688,6 +688,19 @@ button:disabled {
 	opacity: 0.65;
 }
 
+.problem-actions button.editorial-loading::before {
+	display: inline-block;
+	width: 0.8em;
+	height: 0.8em;
+	margin-right: 0.35em;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	content: '';
+	vertical-align: -0.08em;
+	animation: shortestpath-submission-spinner 0.8s linear infinite;
+}
+
 .problem-actions button:hover, .solution-actions button:hover {
 	background: var(--vscode-button-hoverBackground);
 }
