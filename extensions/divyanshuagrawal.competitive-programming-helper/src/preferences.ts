@@ -22,7 +22,7 @@ export const updatePreference = (
 };
 
 export const getAutoShowJudgePref = (): boolean =>
-    getPreference('general.autoShowJudge');
+    getPreference('general.autoShowJudge') ?? true;
 
 export const getSaveLocationPref = (): string => {
     const pref = getPreference('general.saveLocation');

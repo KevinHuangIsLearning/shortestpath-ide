@@ -2,9 +2,10 @@ import { Problem, RunResult } from '../types';
 import { getLanguage } from '../utils';
 import { getBinSaveLocation, compileFile } from '../compiler';
 import { saveProblem } from '../parser';
-import { runTestCase, deleteBinary, runCustomChecker } from '../executions';
+import { deleteBinary } from '../executions';
 import { isResultCorrect } from '../judge';
 import { diffOutput } from '../utils/diffOutput';
+import { executeAndJudgeTestCase } from '../testCaseExecution';
 import * as vscode from 'vscode';
 import { getJudgeViewProvider } from '../extension';
 import { getIgnoreSTDERRORPref } from '../preferences';
@@ -49,50 +50,11 @@ export const runSingleAndSave = async (
         }
     }
 
-    const run = await runTestCase(language, binPath, testCase.input);
-
-    if (!skipCompile) {
-        deleteBinary(language, binPath);
-    }
-
-    const stderrorFailure = getIgnoreSTDERRORPref() ? false : run.stderr !== '';
-
-    const didError =
-        (run.code !== null && run.code !== 0) ||
-        run.signal !== null ||
-        stderrorFailure;
-
-    let pass: boolean | null = null;
-    let checkerRun: any = undefined;
-
-    if (run.signal === 'SIGTERM' || run.signal === 'SIGKILL') {
-        pass = false;
-    } else if (didError) {
-        pass = false;
-    } else if (
-        problem.customCheckerPath &&
-        problem.customCheckerPath.trim() !== ''
-    ) {
-        const checkerPath = problem.customCheckerPath.trim();
-        if (fs.existsSync(checkerPath)) {
-            getJudgeViewProvider().extensionToJudgeViewMessage({
-                command: 'checking',
-                id,
-                problem,
-            });
-            checkerRun = await runCustomChecker(
-                checkerPath,
-                testCase.input,
-                run.stdout,
-            );
-            pass = checkerRun.code === 0;
-            if (
-                checkerRun.signal === 'SIGTERM' ||
-                checkerRun.signal === 'SIGKILL'
-            ) {
-                run.signal = checkerRun.signal; // Propagate signal to main run object so processRunAll can stop
-            }
-        } else {
+    let checkerPath: string | undefined;
+    let invalidCheckerPath = false;
+    if (problem.customCheckerPath?.trim()) {
+        checkerPath = problem.customCheckerPath.trim();
+        if (!fs.existsSync(checkerPath)) {
             vscode.window.showErrorMessage(
                 localize(
                     'cph.processRunSingle.invalidChecker',
@@ -100,26 +62,31 @@ export const runSingleAndSave = async (
                     checkerPath,
                 ),
             );
-            pass = false;
+            checkerPath = undefined;
+            invalidCheckerPath = true;
         }
-    } else {
-        pass = isResultCorrect(testCase, run.stdout);
     }
-
-    const result: RunResult = {
-        ...run,
-        pass,
-        checkerRun,
-        diff:
-            didError ||
-            (problem.customCheckerPath &&
-                problem.customCheckerPath.trim() !== '') ||
-            run.signal === 'SIGTERM' ||
-            run.signal === 'SIGKILL'
-                ? undefined
-                : diffOutput(testCase.output, run.stdout),
+    const result = await executeAndJudgeTestCase(language, binPath, {
         id,
-    };
+        input: testCase.input,
+        expectedOutput: testCase.output,
+        checkerPath,
+        failOnStderr: !getIgnoreSTDERRORPref(),
+        judgeOutput: (_expectedOutput, stdout) =>
+            !invalidCheckerPath && isResultCorrect(testCase, stdout),
+        onChecking: () =>
+            getJudgeViewProvider().extensionToJudgeViewMessage({
+                command: 'checking',
+                id,
+                problem,
+            }),
+    });
+
+    if (!skipCompile) deleteBinary(language, binPath);
+    result.diff =
+        result.checkerRun || invalidCheckerPath || result.pass !== false
+            ? undefined
+            : diffOutput(testCase.output, result.stdout);
 
     globalThis.logger.log('Testcase judging complete. Result:', result);
     getJudgeViewProvider().extensionToJudgeViewMessage({

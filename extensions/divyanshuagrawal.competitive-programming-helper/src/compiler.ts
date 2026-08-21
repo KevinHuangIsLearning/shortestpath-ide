@@ -1,6 +1,11 @@
 import { getLanguage, ocHide, ocShow, ocWrite } from './utils';
 import { Language } from './types';
-import { spawn, SpawnOptionsWithoutStdio } from 'child_process';
+import {
+    ChildProcess,
+    ChildProcessWithoutNullStreams,
+    spawn,
+    SpawnOptionsWithoutStdio,
+} from 'child_process';
 import { platform } from 'os';
 import path from 'path';
 import {
@@ -15,6 +20,14 @@ import { getJudgeViewProvider } from './extension';
 import { toAsciiFilename } from './utilsPure';
 import localize from './i18n';
 export let onlineJudgeEnv = getDefaultOnlineJudge();
+export const runningCompilers: ChildProcess[] = [];
+
+const removeRunningCompiler = (compiler: ChildProcess) => {
+    const index = runningCompilers.indexOf(compiler);
+    if (index !== -1) {
+        runningCompilers.splice(index, 1);
+    }
+};
 
 export const setOnlineJudgeEnv = (value: boolean) => {
     onlineJudgeEnv = value;
@@ -67,7 +80,13 @@ export const getBinSaveLocation = (srcPath: string): string => {
  * @param language The Language object for the source code
  * @param srcPath location of the source code
  */
-const getFlags = (language: Language, srcPath: string): string[] => {
+const getFlags = (
+    language: Language,
+    srcPath: string,
+    outputPath?: string,
+    projectDirectory?: string,
+): string[] => {
+    const binPath = outputPath || getBinSaveLocation(srcPath);
     // The language.args are fetched from user saved preferences, if any.
     let args = language.args;
     if (args[0] === '') args = [];
@@ -79,7 +98,7 @@ const getFlags = (language: Language, srcPath: string): string[] => {
             ret = [
                 srcPath,
                 getCppOutputArgPref(),
-                getBinSaveLocation(srcPath),
+                binPath,
                 ...args,
                 '-D',
                 'DEBUG',
@@ -94,12 +113,7 @@ const getFlags = (language: Language, srcPath: string): string[] => {
         }
         case 'c': {
             {
-                ret = [
-                    srcPath,
-                    getCOutputArgPref(),
-                    getBinSaveLocation(srcPath),
-                    ...args,
-                ];
+                ret = [srcPath, getCOutputArgPref(), binPath, ...args];
                 if (onlineJudgeEnv) {
                     ret.push('-D');
                     ret.push('ONLINE_JUDGE');
@@ -108,21 +122,15 @@ const getFlags = (language: Language, srcPath: string): string[] => {
             }
         }
         case 'rust': {
-            ret = [srcPath, '-o', getBinSaveLocation(srcPath), ...args];
+            ret = [srcPath, '-o', binPath, ...args];
             break;
         }
         case 'go': {
-            ret = [
-                'build',
-                '-o',
-                getBinSaveLocation(srcPath),
-                srcPath,
-                ...args,
-            ];
+            ret = ['build', '-o', binPath, srcPath, ...args];
             break;
         }
         case 'java': {
-            const binDir = path.dirname(getBinSaveLocation(srcPath));
+            const binDir = path.dirname(binPath);
             ret = [srcPath, '-d', binDir, ...args];
             break;
         }
@@ -130,7 +138,7 @@ const getFlags = (language: Language, srcPath: string): string[] => {
             ret = [
                 srcPath,
                 '-o',
-                getBinSaveLocation(srcPath),
+                binPath,
                 '-no-keep-hi-files',
                 '-no-keep-o-files',
                 ...args,
@@ -138,9 +146,11 @@ const getFlags = (language: Language, srcPath: string): string[] => {
             break;
         }
         case 'csharp': {
-            const projDir = getDotnetProjectLocation(language, srcPath);
-            const binPath = getBinSaveLocation(srcPath);
-
+            const projDir = getDotnetProjectLocation(
+                language,
+                srcPath,
+                projectDirectory,
+            );
             if (language.compiler.includes('dotnet')) {
                 ret = [
                     'build',
@@ -173,7 +183,7 @@ const getFlags = (language: Language, srcPath: string): string[] => {
             break;
         }
         case 'cangjie': {
-            ret = [srcPath, '-o', getBinSaveLocation(srcPath), ...args];
+            ret = [srcPath, '-o', binPath, ...args];
             break;
         }
         default: {
@@ -194,14 +204,15 @@ const getFlags = (language: Language, srcPath: string): string[] => {
 const getDotnetProjectLocation = (
     language: Language,
     srcPath: string,
+    projectDirectory?: string,
 ): string => {
     if (!language.compiler.includes('dotnet')) {
         return srcPath;
     }
 
     const projName = '.cphcsrun';
-    const srcDir = path.dirname(srcPath);
-    const projDir = path.join(srcDir, projName);
+    const projDir =
+        projectDirectory || path.join(path.dirname(srcPath), projName);
     return path.join(projDir, projName + '.csproj');
 };
 
@@ -215,15 +226,20 @@ const getDotnetProjectLocation = (
 const createDotnetProject = async (
     language: Language,
     srcPath: string,
+    silent = false,
+    projectDirectory?: string,
 ): Promise<boolean> => {
     const result = new Promise<boolean>((resolve) => {
         const projDir = path.dirname(
-            getDotnetProjectLocation(language, srcPath),
+            getDotnetProjectLocation(language, srcPath, projectDirectory),
         );
 
-        globalThis.logger.log('Creating new .NET project');
+        if (!silent) {
+            globalThis.logger.log('Creating new .NET project');
+        }
         const args = ['new', 'console', '--force', '-o', projDir];
         const newProj = spawn(language.compiler, args);
+        runningCompilers.push(newProj);
 
         let error = '';
 
@@ -232,20 +248,23 @@ const createDotnetProject = async (
         });
 
         newProj.on('exit', (exitcode) => {
-            const exitCode = exitcode || 0;
+            removeRunningCompiler(newProj);
+            const exitCode = exitcode ?? 0;
             const hideWarningsWhenCompiledOK = getHideStderrorWhenCompiledOK();
 
-            if (exitCode !== 0) {
-                ocWrite(
-                    `Exit code: ${exitCode} Errors while creating new .NET project:\n` +
-                        error,
-                );
-                ocShow();
+            if (exitcode === null || exitCode !== 0) {
+                if (!silent) {
+                    ocWrite(
+                        `Exit code: ${exitCode} Errors while creating new .NET project:\n` +
+                            error,
+                    );
+                    ocShow();
+                }
                 resolve(false);
                 return;
             }
 
-            if (!hideWarningsWhenCompiledOK && error.trim() !== '') {
+            if (!silent && !hideWarningsWhenCompiledOK && error.trim() !== '') {
                 ocWrite(
                     `Exit code: ${exitCode} Warnings while creating new .NET project:\n ` +
                         error,
@@ -254,38 +273,74 @@ const createDotnetProject = async (
             }
 
             const destPath = path.join(projDir, 'Program.cs');
-            globalThis.logger.log(
-                'Copying source code to the project',
-                srcPath,
-                destPath,
-            );
+            if (!silent) {
+                globalThis.logger.log(
+                    'Copying source code to the project',
+                    srcPath,
+                    destPath,
+                );
+            }
             try {
                 const isLinux = platform() == 'linux';
+                let copyProcess: ChildProcess;
 
                 if (isLinux) {
-                    spawn('cp', ['-f', srcPath, destPath]);
+                    copyProcess = spawn('cp', ['-f', srcPath, destPath]);
                 } else {
                     const wrpSrcPath = '"' + srcPath + '"';
                     const wrpDestPath = '"' + destPath + '"';
-                    spawn(
+                    copyProcess = spawn(
                         'cmd.exe',
                         ['/c', 'copy', '/y', wrpSrcPath, wrpDestPath],
                         { windowsVerbatimArguments: true },
                     );
                 }
-                resolve(true);
+                runningCompilers.push(copyProcess);
+                copyProcess.on('error', (err) => {
+                    removeRunningCompiler(copyProcess);
+                    globalThis.logger.error(
+                        'Error while copying source code',
+                        err,
+                    );
+                    if (!silent) {
+                        ocWrite(
+                            'Errors while creating new .NET project:\n' + err,
+                        );
+                        ocShow();
+                    }
+                    resolve(false);
+                });
+                copyProcess.on('exit', (exitCode) => {
+                    removeRunningCompiler(copyProcess);
+                    if (exitCode !== 0) {
+                        if (!silent) {
+                            ocWrite(
+                                `Exit code: ${exitCode} Errors while copying source code.`,
+                            );
+                            ocShow();
+                        }
+                        resolve(false);
+                        return;
+                    }
+                    resolve(true);
+                });
             } catch (err) {
                 globalThis.logger.error('Error while copying source code', err);
-                ocWrite('Errors while creating new .NET project:\n' + err);
-                ocShow();
+                if (!silent) {
+                    ocWrite('Errors while creating new .NET project:\n' + err);
+                    ocShow();
+                }
                 resolve(false);
             }
         });
 
         newProj.on('error', (err) => {
-            globalThis.logger.log(err);
-            ocWrite('Errors while creating new .NET project:\n' + err);
-            ocShow();
+            removeRunningCompiler(newProj);
+            if (!silent) {
+                globalThis.logger.log(err);
+                ocWrite('Errors while creating new .NET project:\n' + err);
+                ocShow();
+            }
             resolve(false);
         });
     });
@@ -303,10 +358,20 @@ const createDotnetProject = async (
  *
  * @param srcPath location of the source code
  */
-export const compileFile = async (srcPath: string): Promise<boolean> => {
+export const compileFile = async (
+    srcPath: string,
+    options: {
+        silent?: boolean;
+        outputPath?: string;
+        projectDirectory?: string;
+    } = {},
+): Promise<boolean> => {
+    const silent = options.silent === true;
     globalThis.logger.log('Compilation Started');
     await vscode.workspace.openTextDocument(srcPath).then((doc) => doc.save());
-    ocHide();
+    if (!silent) {
+        ocHide();
+    }
     const language: Language = getLanguage(srcPath);
     if (language.skipCompile) {
         return Promise.resolve(true);
@@ -319,14 +384,21 @@ export const compileFile = async (srcPath: string): Promise<boolean> => {
 
     if (language.name === 'csharp') {
         if (language.compiler.includes('dotnet')) {
-            const projResult = await createDotnetProject(language, srcPath);
+            const projResult = await createDotnetProject(
+                language,
+                srcPath,
+                silent,
+                options.projectDirectory,
+            );
             if (!projResult) {
-                getJudgeViewProvider().extensionToJudgeViewMessage({
-                    command: 'compiling-stop',
-                });
-                getJudgeViewProvider().extensionToJudgeViewMessage({
-                    command: 'not-running',
-                });
+                if (!silent) {
+                    getJudgeViewProvider().extensionToJudgeViewMessage({
+                        command: 'compiling-stop',
+                    });
+                    getJudgeViewProvider().extensionToJudgeViewMessage({
+                        command: 'not-running',
+                    });
+                }
                 return Promise.resolve(false);
             }
         } else {
@@ -338,23 +410,33 @@ export const compileFile = async (srcPath: string): Promise<boolean> => {
         }
     }
 
-    getJudgeViewProvider().extensionToJudgeViewMessage({
-        command: 'compiling-start',
-    });
-    const flags: string[] = getFlags(language, srcPath);
+    if (!silent) {
+        getJudgeViewProvider().extensionToJudgeViewMessage({
+            command: 'compiling-start',
+        });
+    }
+    const flags: string[] = getFlags(
+        language,
+        srcPath,
+        options.outputPath,
+        options.projectDirectory,
+    );
     globalThis.logger.log('Compiling with flags', flags);
     const result = new Promise<boolean>((resolve) => {
-        let compiler;
+        let compiler: ChildProcessWithoutNullStreams;
         try {
             compiler = spawn(language.compiler, flags, spawnOpts);
+            runningCompilers.push(compiler);
         } catch (err) {
-            vscode.window.showErrorMessage(
-                localize(
-                    'cph.compiler.launchError',
-                    'Could not launch the compiler {0}. Is it installed?',
-                    language.compiler,
-                ),
-            );
+            if (!silent) {
+                vscode.window.showErrorMessage(
+                    localize(
+                        'cph.compiler.launchError',
+                        'Could not launch the compiler {0}. Is it installed?',
+                        language.compiler,
+                    ),
+                );
+            }
             throw err;
         }
         let error = '';
@@ -364,46 +446,55 @@ export const compileFile = async (srcPath: string): Promise<boolean> => {
         });
 
         compiler.on('error', (err) => {
+            removeRunningCompiler(compiler);
             globalThis.logger.error(err);
-            ocWrite(
-                localize(
-                    'cph.compiler.compilationError',
-                    'Errors while compiling:\n{0}\n\nHint: Is the compiler {1} installed? Check the compiler command in cph settings for the current language.',
-                    err.message,
-                    language.compiler,
-                ),
-            );
-            getJudgeViewProvider().extensionToJudgeViewMessage({
-                command: 'compiling-stop',
-            });
-            getJudgeViewProvider().extensionToJudgeViewMessage({
-                command: 'not-running',
-            });
-            ocShow();
-            resolve(false);
-        });
-
-        compiler.on('exit', (exitcode) => {
-            const exitCode = exitcode || 0;
-            const hideWarningsWhenCompiledOK = getHideStderrorWhenCompiledOK();
-
-            if (exitCode !== 0) {
+            if (!silent) {
                 ocWrite(
-                    `Exit code: ${exitCode} Errors while compiling:\n` + error,
+                    localize(
+                        'cph.compiler.compilationError',
+                        'Errors while compiling:\n{0}\n\nHint: Is the compiler {1} installed? Check the compiler command in cph settings for the current language.',
+                        err.message,
+                        language.compiler,
+                    ),
                 );
-                ocShow();
-                globalThis.logger.error('Compilation failed');
                 getJudgeViewProvider().extensionToJudgeViewMessage({
                     command: 'compiling-stop',
                 });
                 getJudgeViewProvider().extensionToJudgeViewMessage({
                     command: 'not-running',
                 });
+                ocShow();
+            }
+            resolve(false);
+        });
+
+        compiler.on('exit', (exitcode) => {
+            removeRunningCompiler(compiler);
+            const exitCode = exitcode ?? 0;
+            const hideWarningsWhenCompiledOK = getHideStderrorWhenCompiledOK();
+
+            if (exitcode === null || exitCode !== 0) {
+                if (!silent) {
+                    ocWrite(
+                        `Exit code: ${exitCode} Errors while compiling:\n` +
+                            error,
+                    );
+                    ocShow();
+                }
+                globalThis.logger.error('Compilation failed');
+                if (!silent) {
+                    getJudgeViewProvider().extensionToJudgeViewMessage({
+                        command: 'compiling-stop',
+                    });
+                    getJudgeViewProvider().extensionToJudgeViewMessage({
+                        command: 'not-running',
+                    });
+                }
                 resolve(false);
                 return;
             }
 
-            if (!hideWarningsWhenCompiledOK && error.trim() !== '') {
+            if (!silent && !hideWarningsWhenCompiledOK && error.trim() !== '') {
                 ocWrite(
                     `Exit code: ${exitCode} Warnings while compiling:\n ` +
                         error,
@@ -414,9 +505,11 @@ export const compileFile = async (srcPath: string): Promise<boolean> => {
             }
 
             globalThis.logger.log('Compilation passed');
-            getJudgeViewProvider().extensionToJudgeViewMessage({
-                command: 'compiling-stop',
-            });
+            if (!silent) {
+                getJudgeViewProvider().extensionToJudgeViewMessage({
+                    command: 'compiling-stop',
+                });
+            }
             resolve(true);
             return;
         });

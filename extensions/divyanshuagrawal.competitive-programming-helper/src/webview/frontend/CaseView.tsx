@@ -1,6 +1,13 @@
-import { Case, VSToWebViewMessage, DiffResult, TokenDiff } from '../../types';
-import { useState, createRef, useEffect } from 'react';
+import {
+    Case,
+    LargeSampleCase,
+    VSToWebViewMessage,
+    DiffResult,
+    TokenDiff,
+} from '../../types';
+import { useState, createRef, useEffect, useRef } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
+import TestCaseCard, { TestCaseCardState } from './TestCaseCard';
 
 import React from 'react';
 
@@ -12,6 +19,13 @@ declare const window: CustomWindow;
 const t = (key: string): string => {
     return window.translations[key] || key;
 };
+
+export type LargeSampleCaseState =
+    | 'pending'
+    | 'running'
+    | 'passed'
+    | 'failed'
+    | 'skipped';
 
 export default function CaseView(props: {
     num: number;
@@ -25,14 +39,28 @@ export default function CaseView(props: {
     forceChecking: boolean;
     customCheckerPath?: string;
     stop: () => void;
+    fileCase?: {
+        testcase: LargeSampleCase;
+        state: LargeSampleCaseState;
+        outputPath?: string;
+        reason?: string;
+        time?: number;
+        openFile: (path: string) => void;
+        rerun: () => void;
+        toggleSkip: () => void;
+    };
 }) {
     const { id, result } = props.case;
+    const fileCase = props.fileCase;
 
     const [input, setInput] = useState<string>(props.case.testcase.input);
     const [output, setOutput] = useState<string>(props.case.testcase.output);
     const [running, setRunning] = useState<boolean>(false);
     const [checking, setChecking] = useState<boolean>(false);
     const [deleteArmed, setDeleteArmed] = useState<boolean>(false);
+    const deleteArmedTimer = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
     const [minimized, setMinimized] = useState<boolean>(
         props.case.result?.pass === true,
     );
@@ -75,17 +103,44 @@ export default function CaseView(props: {
     };
 
     const rerun = () => {
+        if (fileCase) {
+            fileCase.rerun();
+            return;
+        }
         setRunning(true);
         props.rerun(id, input, output);
     };
 
     const remove = () => {
+        if (fileCase) {
+            fileCase.toggleSkip();
+            return;
+        }
         if (!deleteArmed) {
             setDeleteArmed(true);
+            if (deleteArmedTimer.current) {
+                clearTimeout(deleteArmedTimer.current);
+            }
+            deleteArmedTimer.current = setTimeout(() => {
+                setDeleteArmed(false);
+                deleteArmedTimer.current = null;
+            }, 3000);
             return;
+        }
+        if (deleteArmedTimer.current) {
+            clearTimeout(deleteArmedTimer.current);
+            deleteArmedTimer.current = null;
         }
         props.remove(id);
     };
+
+    useEffect(() => {
+        return () => {
+            if (deleteArmedTimer.current) {
+                clearTimeout(deleteArmedTimer.current);
+            }
+        };
+    }, []);
 
     const expand = () => {
         setMinimized(false);
@@ -109,6 +164,15 @@ export default function CaseView(props: {
             props.case.result.pass ? setMinimized(true) : setMinimized(false);
         }
     }, [props.case.result]);
+
+    useEffect(() => {
+        if (!fileCase) return;
+        if (fileCase.state === 'passed') {
+            setMinimized(true);
+        } else if (fileCase.state === 'failed') {
+            setMinimized(false);
+        }
+    }, [fileCase?.state]);
 
     useEffect(() => {
         if (running || checking) {
@@ -152,106 +216,73 @@ export default function CaseView(props: {
     if (running || checking) {
         resultText = '...';
     }
-    const passFailText = result
-        ? result.pass
-            ? t('passed')
-            : t('failed')
-        : '';
-    const caseClassName =
-        'case case-enter ' + (running || checking ? 'running' : passFailText);
-    const timeText = result?.timeOut ? t('timedOut') : result?.time + 'ms';
+    const cardState: TestCaseCardState = fileCase
+        ? fileCase.state
+        : running
+          ? 'running'
+          : checking
+            ? 'checking'
+            : result
+              ? result.pass
+                ? 'passed'
+                : 'failed'
+              : 'pending';
+    const cardTime = fileCase
+        ? fileCase.time === undefined
+            ? undefined
+            : `${fileCase.time}ms`
+        : result
+          ? result.timeOut
+            ? t('timedOut')
+            : `${result.time}ms`
+          : undefined;
 
     return (
-        <div className={caseClassName}>
-            <div className="case-metadata">
-                <div className="toggle-minimize" onClick={toggle}>
-                    <span className="case-number case-title">
-                        {minimized && (
-                            <span onClick={expand} title={t('expand')}>
-                                <span className="icon">
-                                    <i className="codicon codicon-chevron-down"></i>
-                                </span>
-                            </span>
-                        )}
-                        {!minimized && (
-                            <span onClick={minimize} title={t('minimize')}>
-                                <span className="icon">
-                                    <i className="codicon codicon-chevron-up"></i>
-                                </span>
-                            </span>
-                        )}
-                        &nbsp;TC {props.num}
-                    </span>
-                    {(running || checking) && (
-                        <span className="running-text">
-                            {running ? t('running') : t('checking')}
-                        </span>
-                    )}
-                    {result && !running && !checking && (
-                        <span
-                            className={`case-result-summary ${
-                                result.pass ? 'result-pass' : 'result-fail'
-                            }`}
-                        >
-                            {result.pass ? (
-                                <i
-                                    className="codicon codicon-check"
-                                    aria-label={t('Passed')}
-                                    title={t('Passed')}
-                                ></i>
-                            ) : (
-                                t('Failed')
+        <TestCaseCard
+            title={fileCase ? `Large TC ${props.num}` : `TC ${props.num}`}
+            state={cardState}
+            time={cardTime}
+            failureText={fileCase?.reason}
+            minimized={minimized}
+            toggle={toggle}
+            run={rerun}
+            stop={props.stop}
+            secondaryAction={remove}
+            secondaryKind={fileCase ? 'skip' : 'delete'}
+            secondaryArmed={fileCase ? false : deleteArmed}
+        >
+                <div className={`case-details-inner ${fileCase ? 'large-sample-case-actions' : ''}`}>
+                    {fileCase ? (
+                        <>
+                            <button
+                                className="btn btn-black"
+                                onClick={() =>
+                                    fileCase.openFile(fileCase.testcase.inputPath)
+                                }
+                            >
+                                {t('largeSampleViewInput')}
+                            </button>
+                            <button
+                                className="btn btn-black"
+                                onClick={() =>
+                                    fileCase.openFile(fileCase.testcase.answerPath)
+                                }
+                            >
+                                {t('largeSampleViewAnswer')}
+                            </button>
+                            {fileCase.outputPath && (
+                                <button
+                                    className="btn btn-black"
+                                    onClick={() =>
+                                        fileCase.openFile(fileCase.outputPath!)
+                                    }
+                                >
+                                    {t('largeSampleViewOutput')}
+                                </button>
                             )}
-                            <span className="exec-time">{timeText}</span>
-                        </span>
-                    )}
-                </div>
-                <div className="time">
-                    {running || checking ? (
-                        <button
-                            className="btn btn-orange"
-                            title={t('stop')}
-                            onClick={props.stop}
-                        >
-                            <span className="icon">
-                                <i className="codicon codicon-circle-slash"></i>
-                            </span>{' '}
-                        </button>
+                        </>
                     ) : (
-                        <button
-                            className="btn btn-green"
-                            title={t('runAgain')}
-                            onClick={rerun}
-                        >
-                            <span className="icon">
-                                <i className="codicon codicon-play"></i>
-                            </span>{' '}
-                        </button>
-                    )}
-                    <button
-                        className={`btn btn-red delete-case-btn ${
-                            deleteArmed ? 'is-confirming' : ''
-                        }`}
-                        title={deleteArmed ? t('confirm') : t('deleteTestcase')}
-                        onClick={remove}
-                    >
-                        {deleteArmed ? (
-                            t('confirm')
-                        ) : (
-                            <span className="icon">
-                                <i className="codicon codicon-trash"></i>
-                            </span>
-                        )}
-                    </button>
-                </div>
-            </div>
-            <div
-                className={`case-details ${
-                    minimized ? 'is-collapsed' : 'is-expanded'
-                }`}
-                aria-hidden={minimized}
-            >
-                <div className="case-details-inner">
+                        <>
                     <div className="textarea-container">
                         {t('inputLabel')}
                         <div
@@ -425,9 +456,10 @@ export default function CaseView(props: {
                             />
                         </div>
                     )}
+                        </>
+                    )}
                 </div>
-            </div>
-        </div>
+        </TestCaseCard>
     );
 }
 

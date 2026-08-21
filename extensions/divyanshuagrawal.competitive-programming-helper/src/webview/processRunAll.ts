@@ -9,11 +9,11 @@ import { getJudgeViewProvider } from '../extension';
  * Run every testcase in a problem one by one. Waits for the first to complete
  * before running next. `runSingleAndSave` takes care of saving.
  **/
-export default async (problem: Problem) => {
+export default async (problem: Problem, retainBinary = false) => {
     globalThis.logger.log('Run all started', problem);
     const didCompile = await compileFile(problem.srcPath);
     if (!didCompile) {
-        return;
+        return false;
     }
     for (const testCase of problem.tests) {
         getJudgeViewProvider().extensionToJudgeViewMessage({
@@ -24,8 +24,11 @@ export default async (problem: Problem) => {
         await runSingleAndSave(problem, testCase.id, true, true);
     }
     globalThis.logger.log('Run all finished');
-    deleteBinary(
-        getLanguage(problem.srcPath),
-        getBinSaveLocation(problem.srcPath),
-    );
+    if (!retainBinary) {
+        deleteBinary(
+            getLanguage(problem.srcPath),
+            getBinSaveLocation(problem.srcPath),
+        );
+    }
+    return true;
 };
