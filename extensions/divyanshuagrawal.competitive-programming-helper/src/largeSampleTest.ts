@@ -7,6 +7,7 @@ import { diffOutput } from './utils/diffOutput';
 import { executeAndJudgeTestCase } from './testCaseExecution';
 import {
     CustomCheckerRun,
+    ExecutionFailureSummary,
     LargeSampleCase,
     LargeSampleComparisonOptions,
     LargeSampleDiagnostic,
@@ -65,6 +66,7 @@ export type LargeSampleCallbacks = {
         outputPath: string,
         reason?: string,
         time?: number,
+        execution?: ExecutionFailureSummary,
     ) => void | Promise<void>;
 };
 
@@ -326,6 +328,7 @@ export const runLargeSampleTest = async (
                     outputPath,
                     undefined,
                     result.time,
+                    result,
                 );
                 continue;
             }
@@ -338,6 +341,7 @@ export const runLargeSampleTest = async (
                 outputPath,
                 reason,
                 result.time,
+                result,
             );
             await options.callbacks.onFailure(
                 {
