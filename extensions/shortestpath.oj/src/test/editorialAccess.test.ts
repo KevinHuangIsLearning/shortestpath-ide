@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { canRequestEditorial, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from '../editorialAccess';
+import { canRequestEditorial, canViewEditorial, describeEditorialLockReason, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from '../editorialAccess';
 import { parseProblemBindData } from '../shortestpathOjProtocol';
 import { bindPayload } from './fixtures';
 
@@ -15,6 +15,12 @@ suite('ShortestPath OJ editorial access', () => {
 	test('only blocks an editorial request while the webpage is disconnected', () => {
 		assert.equal(canRequestEditorial(false), false);
 		assert.equal(canRequestEditorial(true), true);
+	});
+
+	test('allows a cached editorial to open while the webpage is disconnected', () => {
+		assert.equal(canViewEditorial(false, false), false);
+		assert.equal(canViewEditorial(false, true), true);
+		assert.equal(canViewEditorial(true, false), true);
 	});
 
 	test('does not request confirmation after the problem is accepted', () => {
@@ -32,5 +38,10 @@ suite('ShortestPath OJ editorial access', () => {
 		assert.equal(getCurrentEditorialRemainingMs(90_000, 10_000, 40_000), 60_000);
 		assert.equal(getCurrentEditorialRemainingMs(90_000, 10_000, 120_000), 0);
 		assert.equal(getCurrentEditorialRemainingMs(90_000, 10_000, 5_000), 90_000);
+	});
+
+	test('localizes website editorial lock reasons', () => {
+		assert.equal(describeEditorialLockReason('state_wait'), '解题报告尚未解锁，');
+		assert.equal(describeEditorialLockReason('wait_after_hints'), '查看提示后仍需等待，');
 	});
 });
