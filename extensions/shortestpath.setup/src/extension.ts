@@ -217,6 +217,13 @@ async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext):
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	const updateExtensionMarketplaceVisibility = () => vscode.commands.executeCommand('setContext', 'shortestpath.extensionMarketplaceEnabled', vscode.workspace.getConfiguration('shortestpath').get<boolean>('useExtensionMarketplace') === true);
+	await updateExtensionMarketplaceVisibility();
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+		if (event.affectsConfiguration('shortestpath.useExtensionMarketplace')) {
+			void updateExtensionMarketplaceVisibility();
+		}
+	}));
 	registerSimpleSettings(context);
 	registerRelaxMode(context);
 	registerCphSettings(context);
