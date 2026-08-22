@@ -85,11 +85,6 @@
         "title": "%shortestpath.008%"
       },
       {
-        "command": "extension.Debug",
-        "title": "%shortestpath.009%",
-        "icon": "$(bug)"
-      },
-      {
         "command": "extension.CustomCompile",
         "title": "%shortestpath.010%"
       },
@@ -114,21 +109,6 @@
           "command": "extension.CompileRun",
           "when": "editorLangId == cc",
           "group": "navigation@0"
-        },
-        {
-          "command": "extension.Debug",
-          "when": "editorLangId == c",
-          "group": "navigation@1"
-        },
-        {
-          "command": "extension.Debug",
-          "when": "editorLangId == cpp",
-          "group": "navigation@1"
-        },
-        {
-          "command": "extension.Debug",
-          "when": "editorLangId == cc",
-          "group": "navigation@1"
         }
       ],
       "commandPalette": [
@@ -249,14 +229,6 @@
         "linux": "f7",
         "key": "f7",
         "command": "extension.CustomCompileRun",
-        "when": "editorLangId == c || editorLangId == cpp || editorLangId == cc"
-      },
-      {
-        "mac": "f5",
-        "win": "f5",
-        "linux": "f5",
-        "key": "f5",
-        "command": "extension.Debug",
         "when": "editorLangId == c || editorLangId == cpp || editorLangId == cc"
       }
     ],
