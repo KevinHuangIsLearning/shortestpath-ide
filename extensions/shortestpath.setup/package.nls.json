@@ -6,6 +6,7 @@
 	"configuration.executableCleanupDelaySeconds": "Seconds to keep generated executables after they finish running. Set to 0 to delete immediately.",
 	"configuration.executableCleanupEnabled": "Automatically delete generated executables after they finish running.",
 	"configuration.newFileDefaultLanguage": "Default language for files created from the New Tab page.",
+	"configuration.useExtensionMarketplace": "Show the Extensions entry and allow browsing the Open VSX Registry.",
 	"displayName": "ShortestPath IDE Features",
 	"description": "Competitive programming features, settings, and first-run setup for ShortestPath IDE.",
 	"command.initializeOiWorkspace": "ShortestPath IDE: Initialize OI Workspace Configuration",

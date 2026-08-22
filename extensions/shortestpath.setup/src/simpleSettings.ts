@@ -32,6 +32,7 @@ type SimpleSettingsState = {
 	modernUIEnabled: boolean;
 	autoSave: string;
 	newFileDefaultLanguage: string;
+	useExtensionMarketplace: boolean;
 	shortestPathCppSubmissionLanguage: string;
 	antiFraudReminder: boolean;
 	themes: ThemeOption[];
@@ -439,6 +440,22 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			} finally {
 				isSaving = false;
 			}
+		} else if (message?.type === 'toggleExtensionMarketplace' && typeof message.enabled === 'boolean') {
+			if (message.enabled) {
+				const action = await vscode.window.showWarningMessage(
+					'Open VSX 是独立的第三方插件市场。其内容不由 ShortestPath IDE 审核、担保或提供支持；安装第三方扩展可能执行代码并访问你的工作区数据。',
+					{
+						modal: true,
+						detail: '启用后，你需要自行判断扩展的来源、权限、安全性与许可证，并承担相应风险。'
+					},
+					'我已了解并启用'
+				);
+				if (action !== '我已了解并启用') {
+					await panel.webview.postMessage({ type: 'state', value: getState() });
+					return;
+				}
+			}
+			await vscode.workspace.getConfiguration(undefined, null).update('shortestpath.useExtensionMarketplace', message.enabled, vscode.ConfigurationTarget.Global);
 		} else if (message?.type === 'advanced') {
 			await vscode.commands.executeCommand('workbench.action.openSettings2');
 		} else if (message?.type === 'snippets') {
@@ -473,6 +490,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('window.autoDetectColorScheme')
 			|| event.affectsConfiguration('workbench.experimental.modernUI')
 			|| event.affectsConfiguration('files.autoSave')
+			|| event.affectsConfiguration('shortestpath.useExtensionMarketplace')
 			|| event.affectsConfiguration('shortestpath.oj.antiFraudReminder'))) {
 			void panel.webview.postMessage({ type: 'state', value: getState() });
 		}
@@ -512,6 +530,7 @@ function getState(): SimpleSettingsState {
 		modernUIEnabled: workbench.get<boolean>('experimental.modernUI') ?? true,
 		autoSave: files.get<string>('autoSave') ?? 'off',
 		newFileDefaultLanguage: vscode.workspace.getConfiguration('shortestpath.newFile', null).get<string>('defaultLanguage') ?? 'cpp',
+		useExtensionMarketplace: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('useExtensionMarketplace') ?? false,
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'ask',
 		antiFraudReminder: vscode.workspace.getConfiguration('shortestpath.oj', null).get<boolean>('antiFraudReminder') ?? false,
 		themes: getThemeOptions(colorTheme)
@@ -569,6 +588,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('workbench.experimental.modernUI', value.modernUIEnabled !== false, vscode.ConfigurationTarget.Global),
 		settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.newFile.defaultLanguage', typeof value.newFileDefaultLanguage === 'string' && value.newFileDefaultLanguage ? value.newFileDefaultLanguage : 'cpp', vscode.ConfigurationTarget.Global),
+		settings.update('shortestpath.useExtensionMarketplace', value.useExtensionMarketplace === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.antiFraudReminder', value.antiFraudReminder === true, vscode.ConfigurationTarget.Global)
 	]);
@@ -635,6 +655,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <div class="row"><div><label for="modernUIEnabled">现代界面</label><div class="hint">启用 Workbench › Experimental: Modern UI，使用浮动面板和更新后的工作台样式。</div></div><label class="toggle"><input id="modernUIEnabled" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="autoSave">自动保存</label></div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
 </section>
+<section class="card" data-category="tools"><div class="row"><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>开始使用</label><div class="hint">分步引导配置字体、主题、语言版本等偏好。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div></section>
@@ -834,17 +855,19 @@ function apply(state) {
 	byId('modernUIEnabled').checked = !!state.modernUIEnabled;
   byId('autoSave').value = state.autoSave;
 	byId('newFileDefaultLanguage').value = state.newFileDefaultLanguage;
+	byId('useExtensionMarketplace').checked = !!state.useExtensionMarketplace;
 	byId('antiFraudReminder').checked = !!state.antiFraudReminder;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, modernUIEnabled: byId('modernUIEnabled').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, antiFraudReminder: byId('antiFraudReminder').checked }; }
+function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, modernUIEnabled: byId('modernUIEnabled').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, antiFraudReminder: byId('antiFraudReminder').checked }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
-document.querySelectorAll('input:not(#settingsSearch):not(#fontFamily), select:not(#fontFamily)').forEach(control => {
+document.querySelectorAll('input:not(#settingsSearch):not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily)').forEach(control => {
   const immediate = control.type === 'checkbox' || control.tagName === 'SELECT';
   control.addEventListener('input', () => save(immediate ? 0 : 250));
   control.addEventListener('change', () => save(0));
 });
+byId('useExtensionMarketplace').addEventListener('change', () => vscode.postMessage({ type: 'toggleExtensionMarketplace', enabled: byId('useExtensionMarketplace').checked }));
 byId('fontFamily').addEventListener('change', async () => { selectedFonts[0] = byId('fontFamily').value; setPreview(); await updateLigatureSupport(); save(0); });
 byId('fontLigatures').addEventListener('change', () => setPreview());
 byId('addFallback').addEventListener('click', () => { if (systemFonts.length) { selectedFonts.push(systemFonts[0]); renderFonts(); setPreview(); save(0); } });

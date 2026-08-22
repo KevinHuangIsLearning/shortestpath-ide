@@ -6,6 +6,7 @@
 	"configuration.executableCleanupDelaySeconds": "生成的可执行文件运行结束后保留的秒数。设为 0 将立即删除。",
 	"configuration.executableCleanupEnabled": "程序运行结束后自动删除生成的可执行文件。",
 	"configuration.newFileDefaultLanguage": "从新建标签页创建文件时使用的默认语言。",
+	"configuration.useExtensionMarketplace": "显示扩展入口，并允许浏览 Open VSX 插件市场。",
 	"displayName": "ShortestPath IDE 功能",
 	"description": "为 ShortestPath IDE 提供竞赛编程功能、设置和首次环境配置。",
 	"command.initializeOiWorkspace": "ShortestPath IDE：初始化 OI 项目配置",

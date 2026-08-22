@@ -118,8 +118,8 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const productJson = es.through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
-		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
+		if (product.extensionsGallery?.serviceUrl !== undefined && product.extensionsGallery.serviceUrl !== 'https://open-vsx.org/vscode/gallery') {
+			console.error(`product.json: Only the Open VSX extension gallery is allowed`);
 			errorCount++;
 		}
 

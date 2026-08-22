@@ -89,6 +89,8 @@ export class PaneCompositeBar extends Disposable {
 
 	private static readonly shortestPathActivityBarMigrationKey = 'workbench.activity.shortestpathMinimalDefaultsApplied.v4';
 	private static readonly activityBarPinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
+	private static readonly extensionMarketplaceContextKey = 'shortestpath.extensionMarketplaceEnabled';
+	private static readonly extensionsViewContainerId = 'workbench.view.extensions';
 
 	private static readonly shortestPathDefaultActivityContainers = new Set([
 		'workbench.view.explorer',
@@ -236,6 +238,21 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private registerListeners(): void {
+		this._register(this.contextKeyService.onDidChangeContext(event => {
+			if (!event.affectsSome(new Set([PaneCompositeBar.extensionMarketplaceContextKey]))) {
+				return;
+			}
+			const viewContainer = this.viewDescriptorService.getViewContainerById(PaneCompositeBar.extensionsViewContainerId);
+			if (!viewContainer || this.viewDescriptorService.getViewContainerLocation(viewContainer) !== this.location) {
+				return;
+			}
+			if (this.contextKeyService.getContextKeyValue(PaneCompositeBar.extensionMarketplaceContextKey) === true) {
+				this.compositeBar.pin(viewContainer.id);
+			} else {
+				this.compositeBar.unpin(viewContainer.id);
+			}
+			this.showOrHideViewContainer(viewContainer);
+		}));
 
 		// View Container Changes
 		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeViewContainers(added, removed)));
@@ -483,6 +500,9 @@ export class PaneCompositeBar extends Disposable {
 		// hide its activity-bar icon on a brand-new profile.
 		if (this.isShortestPathActivityBar && PaneCompositeBar.shortestPathDefaultActivityContainers.has(viewContainerId)) {
 			return false;
+		}
+		if (this.isShortestPathActivityBar && viewContainerId === PaneCompositeBar.extensionsViewContainerId) {
+			return this.contextKeyService.getContextKeyValue(PaneCompositeBar.extensionMarketplaceContextKey) !== true;
 		}
 
 		if (viewContainer) {
