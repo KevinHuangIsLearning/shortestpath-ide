@@ -16,7 +16,6 @@ function initializeExtension(context: ExtensionContext) {
 
     register("extension.Compile", () => compileRunManager.compile());
     register("extension.Run", () => compileRunManager.run(false, Configuration.runInExternalTerminal()));
-    register("extension.Debug", () => compileRunManager.debug());
     register("extension.CompileRun", () => compileRunManager.compileRun(false, false, Configuration.runInExternalTerminal()));
     register("extension.CustomCompile", () => compileRunManager.compile(true));
     register("extension.CustomRun", () => compileRunManager.run(true, Configuration.runInExternalTerminal()));

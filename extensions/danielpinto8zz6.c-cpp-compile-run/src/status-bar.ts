@@ -6,8 +6,7 @@ export class StatusBar {
     constructor(context: ExtensionContext) {
         this.statusBarItems = [
             this.createStatusBarItem("$(play) Compile & Run", "extension.CompileRun", 0),
-            this.createStatusBarItem("$(gear) Compile", "extension.Compile", 1),
-            this.createStatusBarItem("$(bug) Debug", "extension.Debug", 2)
+            this.createStatusBarItem("$(gear) Compile", "extension.Compile", 1)
         ];
         this.statusBarItems.forEach(item => context.subscriptions.push(item));
     }
