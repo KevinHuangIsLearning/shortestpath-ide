@@ -1,0 +1,173 @@
+# Release pipeline for Flintmark — the ONLY supported way to cut a release.
+#
+# Triggered by pushing a version tag (vX.Y.Z). Releasing from a clean checkout
+# (never `vsce package` on a laptop, where a test-polluted out/ bloats the VSIX)
+# guarantees the package contains only compiled runtime, and ties the release to
+# a specific commit + this run.
+#
+#   git tag v0.28.0 && git push origin v0.28.0
+#
+# Flow: re-verify the fast gate -> package a clean VSIX -> assert it is
+# well-formed (runtime present, no dev/test artifacts) -> create/update the
+# GitHub Release -> publish to the VS Code Marketplace when a PAT is available.
+#
+# The `marketplace` GitHub Environment limits access to the PAT to `main` and
+# version tags. See .github/RELEASING.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: # manual re-run; releases the current package.json version
+
+# Never cancel a release mid-flight (a half-published version is worse than a
+# queued one).
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  verify:
+    name: Verify (lint · types · unit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit -p .
+      - run: npm run test:unit
+      - run: npm run test:perf
+
+  release:
+    name: Package · GitHub Release · Marketplace (optional)
+    runs-on: ubuntu-latest
+    needs: verify
+    timeout-minutes: 15
+    environment: marketplace
+    permissions:
+      contents: write # create/update the GitHub Release
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Resolve version + assert tag matches package.json
+        id: ver
+        run: |
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_REF}" != "${GITHUB_REF#refs/tags/}" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v${PKG}"
+          fi
+          if [ "$TAG" != "v${PKG}" ]; then
+            echo "::error::tag ${TAG} does not match package.json version v${PKG}"
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${PKG}" >> "$GITHUB_OUTPUT"
+          echo "Releasing ${TAG}"
+
+      - name: Package VSIX (clean build via vscode:prepublish)
+        run: npx @vscode/vsce package
+
+      - name: Assert VSIX is well-formed
+        run: |
+          VSIX="$(ls flintmark-*.vsix)"
+          echo "Packaged: ${VSIX} ($(du -h "$VSIX" | cut -f1))"
+          # Positive: the compiled runtime MUST be present (else math/diagrams break).
+          for f in out/extension.js out/webview.js out/webview.css out/mermaid.js; do
+            unzip -l "$VSIX" | grep -qF "extension/${f}" \
+              || { echo "::error::VSIX missing runtime file: ${f}"; exit 1; }
+          done
+          # Negative: dev/test artifacts MUST NOT leak (the local-package bloat bug).
+          if unzip -l "$VSIX" | grep -Eq 'extension/out/(test|coverage|metrics|mutation|stryker)|extension/scripts/|extension/\.github/|\.cjs$'; then
+            echo "::error::dev/test artifacts leaked into the VSIX:"
+            unzip -l "$VSIX" | grep -E 'extension/out/(test|coverage|metrics|mutation|stryker)|extension/scripts/|extension/\.github/|\.cjs$'
+            exit 1
+          fi
+
+      - name: Extract release notes from CHANGELOG
+        run: |
+          awk -v v="${{ steps.ver.outputs.version }}" '
+            $0 ~ "^## " v "([ ]|$)" { grab=1; next }
+            grab && /^## / { exit }
+            grab { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "Flintmark ${{ steps.ver.outputs.version }}" > RELEASE_NOTES.md
+          fi
+          echo "---- release notes ----"; cat RELEASE_NOTES.md
+
+      - name: Create / update GitHub Release
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          TITLE="Flintmark ${{ steps.ver.outputs.version }}"
+          VSIX="flintmark-${{ steps.ver.outputs.version }}.vsix"
+          git fetch --force --tags origin "$TAG"
+          TARGET="$(git rev-list -n 1 "$TAG")"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TITLE" --notes-file RELEASE_NOTES.md
+          else
+            CREATE_OUTPUT="$(gh release create "$TAG" --title "$TITLE" --notes-file RELEASE_NOTES.md --verify-tag 2>&1)"
+            echo "$CREATE_OUTPUT"
+            CREATED_TAG="$(printf '%s\n' "$CREATE_OUTPUT" | sed -n 's#.*releases/tag/\([^/?[:space:]]*\).*#\1#p' | tail -n 1)"
+            if printf '%s' "$CREATED_TAG" | grep -q '^untagged-'; then
+              gh release edit "$CREATED_TAG" --tag "$TAG" --target "$TARGET" --verify-tag \
+                --title "$TITLE" --notes-file RELEASE_NOTES.md --draft=false
+            fi
+          fi
+          gh release edit "$TAG" --draft=false --latest
+          gh release upload "$TAG" "$VSIX" --clobber
+          gh release edit "$TAG" --draft=false --latest
+          ACTUAL_TAG="$(gh release view "$TAG" --json tagName --jq '.tagName')"
+          if [ "$ACTUAL_TAG" != "$TAG" ]; then
+            echo "::error::GitHub Release tag mismatch: expected ${TAG}, got ${ACTUAL_TAG}"
+            exit 1
+          fi
+          gh release view "$TAG" --json assets \
+            --jq ".assets[].name" | grep -qxF "$VSIX" \
+            || { echo "::error::GitHub Release missing asset ${VSIX}"; exit 1; }
+          PUBLIC_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${VSIX}"
+          for _ in 1 2 3 4 5 6; do
+            curl -fsIL "$PUBLIC_URL" >/dev/null && exit 0
+            sleep 5
+          done
+          echo "::error::GitHub Release asset is not publicly downloadable: ${PUBLIC_URL}"
+          exit 1
+
+      - name: Check Marketplace publisher access
+        id: marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::VSCE_PAT is unavailable; GitHub Release completed and Marketplace publishing is intentionally skipped"
+            exit 0
+          fi
+          npx @vscode/vsce verify-pat quboliu
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to VS Code Marketplace
+        if: steps.marketplace.outputs.available == 'true'
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: >-
+          npx @vscode/vsce publish
+          --skip-duplicate
+          --packagePath "$(ls flintmark-*.vsix)"

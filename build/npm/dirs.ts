@@ -47,6 +47,7 @@ export const dirs = [
 	'extensions/json-language-features',
 	'extensions/json-language-features/server',
 	'extensions/llvm-vs-code-extensions.vscode-clangd',
+	'extensions/quboliu.flintmark',
 	'extensions/markdown-language-features',
 	'extensions/markdown-math',
 	'extensions/media-preview',

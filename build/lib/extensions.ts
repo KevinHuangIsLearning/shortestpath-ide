@@ -55,6 +55,7 @@ export const prebuiltOIDistributionExtensions = new Set([
 	'jeff-hykin.better-cpp-syntax',
 	'llvm-vs-code-extensions.vscode-clangd',
 	'mathematic.pdf',
+	'quboliu.flintmark',
 ]);
 
 function minifyExtensionResources(input: Stream): Stream {

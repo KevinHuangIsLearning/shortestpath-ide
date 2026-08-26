@@ -1,0 +1,32 @@
+name: Marketplace auth check
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  verify:
+    name: Verify PAT publisher access
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: marketplace
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Verify Marketplace publisher access
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::error::missing marketplace Environment secret: VSCE_PAT"
+            exit 1
+          fi
+          npx @vscode/vsce verify-pat quboliu
