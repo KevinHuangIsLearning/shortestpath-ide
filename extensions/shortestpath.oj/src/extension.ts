@@ -8,6 +8,7 @@ import { promises as fs } from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { localize, localizeFormat, localizeWebviewHtml } from './localization';
 import { canViewEditorial, describeEditorialLockReason, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
 import { describeFloatJudgeTolerance, describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
@@ -458,7 +459,7 @@ class ShortestPathOjProblemPanel {
 		if (!this.editorialPanel || !this.state?.editorial) {
 			return;
 		}
-		this.editorialPanel.webview.html = getEditorialPanelHtml(this.state.editorial, this.state.problem, this.editorialPanel.webview, this.extensionUri, this.state.connected);
+			this.editorialPanel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(this.state.editorial, this.state.problem, this.editorialPanel.webview, this.extensionUri, this.state.connected));
 	}
 
 	private refreshEditorialLike(hintId: string): void {
@@ -560,10 +561,10 @@ class ShortestPathOjProblemPanel {
 			if (this.panel) {
 				await this.closeProblemPanelAfterRemembering();
 			}
-			const title = `解题报告: ${problem.title}`;
+			const title = `${localize('解题报告')}: ${problem.title}`;
 			if (this.editorialPanel) {
 				this.editorialPanel.title = title;
-				this.editorialPanel.webview.html = getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri, canLike);
+				this.editorialPanel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri, canLike));
 				this.editorialPanel.reveal(this.editorialPanel.viewColumn, false);
 				return;
 			}
@@ -604,7 +605,7 @@ class ShortestPathOjProblemPanel {
 					}
 				}
 			});
-			panel.webview.html = getEditorialPanelHtml(editorial, problem, panel.webview, this.extensionUri, canLike);
+			panel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(editorial, problem, panel.webview, this.extensionUri, canLike));
 			panel.onDidDispose(() => {
 				if (this.editorialPanel === panel) {
 					this.editorialPanel = undefined;
@@ -809,7 +810,7 @@ class ShortestPathOjProblemPanel {
 								}
 								void this.actions.saveEditorial(state.problem, result).catch(error => {
 									console.error('Failed to save ShortestPath OJ editorial.', error);
-									void vscode.window.showWarningMessage('解题报告已打开，但未能保存到本地缓存；请稍后重新打开。');
+									void vscode.window.showWarningMessage(localize('解题报告已打开，但未能保存到本地缓存；请稍后重新打开。'));
 								});
 							} else if (this.state === state && state.problem.ref === problemRef) {
 								state.problem = applyEditorialLockRemaining(state.problem, result.remainingMs);
@@ -984,7 +985,7 @@ class ShortestPathOjProblemPanel {
 		if (!this.sentSections || this.renderedProblemRef !== this.state.problem.ref) {
 			// Full re-render: the webview reloads and must signal readiness before
 			// incremental updates can be delivered.
-			this.panel.webview.html = getProblemWebviewHtml(this.state, sections, this.template, this.panel.webview, this.extensionUri);
+			this.panel.webview.html = localizeWebviewHtml(getProblemWebviewHtml(this.state, sections, this.template, this.panel.webview, this.extensionUri));
 			this.sentSections = sections;
 			this.sentTimerJson = JSON.stringify(timer);
 			this.pendingSections = undefined;
@@ -1146,7 +1147,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	bridge.onError(error => {
 		log(`WebSocket bridge error: ${error.message}`);
 		if (isAddressInUseError(error)) {
-			void vscode.window.showErrorMessage(`ShortestPath OJ 集成无法启动：端口 ${bridgePort} 已被占用。请关闭占用该端口的程序后重启 ShortestPath IDE。`);
+			void vscode.window.showErrorMessage(localizeFormat('ShortestPath OJ 集成无法启动：端口 {0} 已被占用。请关闭占用该端口的程序后重启 ShortestPath IDE。', String(bridgePort)));
 		}
 	});
 	context.subscriptions.push(new vscode.Disposable(() => { void bridge.close(); }));
@@ -1773,10 +1774,10 @@ function renderProblemViewSections(
 		operationNotice: operationToastMessage
 			? `<div class="operation-notice error" role="alert">${escapeHtml(operationToastMessage)}</div>`
 			: showLongRunningOperationNotice
-				? '<div class="operation-notice" role="status">操作长时间没有响应，可能是因为触发了安全验证，请到浏览器处理。</div>'
+				? `<div class="operation-notice" role="status">${localize('操作长时间没有响应，可能是因为触发了安全验证，请到浏览器处理。')}</div>`
 				: '',
 		status: `<div class="connection ${state.connected ? 'connected' : 'disconnected'}">${escapeHtml(state.statusMessage)}</div>`,
-		submissionButton: `<button type="button" data-command="submit"${state.connected ? '' : ' disabled'}>提交代码</button>`,
+		submissionButton: `<button type="button" data-command="submit"${state.connected ? '' : ' disabled'}>${localize('提交代码')}</button>`,
 		information: renderInformation(problem),
 		statement: renderStatement(problem),
 		hints: renderHints(state),
@@ -1784,7 +1785,7 @@ function renderProblemViewSections(
 		submissions: renderSubmissions(state),
 		compatibilityWarning: state.compatibilityWarningDismissed || problem.compatibilityWarnings.length === 0
 			? ''
-			: `<div class="compatibility-warning" role="status"><span>${escapeHtml(problem.compatibilityWarnings.join(' '))}</span><button type="button" data-command="dismissCompatibilityWarning" aria-label="关闭兼容性提示">关闭</button></div>`,
+			: `<div class="compatibility-warning" role="status"><span>${escapeHtml(problem.compatibilityWarnings.join(' '))}</span><button type="button" data-command="dismissCompatibilityWarning" aria-label="${localize('关闭兼容性提示')}">${localize('关闭')}</button></div>`,
 	};
 }
 
@@ -1867,7 +1868,7 @@ function renderInformation(problem: ImportedProblem): string {
 	const renderTagGroup = (label: string, tags: string[]): string => tags.length > 0
 		? `<div class="tag-group"><div class="tag-group-label">${label}</div><div class="tag-group-items">${tags.join('')}</div></div>`
 		: '';
-	const allTags = [renderTagGroup('核心算法', coreTags), renderTagGroup('辅助算法', auxiliaryTags)].filter(Boolean).join('') || '<span class="empty-tags">暂无标签</span>';
+	const allTags = [renderTagGroup(localize('核心算法'), coreTags), renderTagGroup(localize('辅助算法'), auxiliaryTags)].filter(Boolean).join('') || `<span class="empty-tags">${localize('暂无标签')}</span>`;
 	const summaryCount = (problem.metadata.coreAlgorithm ? 1 : 0) + problem.metadata.auxiliaryAlgorithms.length;
 	const difficulty = difficultyTagMap[problem.metadata.difficulty] ?? defaultDifficultyTag;
 	const difficultyTagClasses = [difficulty.backgroundClass, difficulty.borderClass, difficulty.textClass]
@@ -1876,11 +1877,11 @@ function renderInformation(problem: ImportedProblem): string {
 		.join(' ');
 	const difficultyTag = `<span class="tag difficulty-tag ${difficultyTagClasses}" style="--difficulty-background: ${escapeAttribute(difficulty.backgroundHex)}; --difficulty-foreground: ${escapeAttribute(difficulty.textColor)};">${escapeHtml(difficulty.label)}</span>`;
 	return `<div class="info-grid">
-				<div class="info-cell"><span class="info-label">时间限制</span><span class="info-value">${problem.limits.timeMs} ms</span></div>
-				<div class="info-cell"><span class="info-label">内存限制</span><span class="info-value">${problem.limits.memoryMB} MB</span></div>
-				<div class="info-cell"><span class="info-label">题目难度</span><span class="info-value">${difficultyTag}</span></div>
+				<div class="info-cell"><span class="info-label">${localize('时间限制')}</span><span class="info-value">${problem.limits.timeMs} ms</span></div>
+				<div class="info-cell"><span class="info-label">${localize('内存限制')}</span><span class="info-value">${problem.limits.memoryMB} MB</span></div>
+				<div class="info-cell"><span class="info-label">${localize('题目难度')}</span><span class="info-value">${difficultyTag}</span></div>
 				<div class="info-cell info-action tag-popover-anchor">
-					<span class="info-label">题目标签</span>
+					<span class="info-label">${localize('题目标签')}</span>
 					<span class="info-value tag-summary" aria-label="${summaryCount} 个标签">${summaryCount > 0 ? `${summaryCount}` : '0'} <span class="tag-arrow" aria-hidden="true"></span></span>
 					<div class="tag-popover">
 						<div class="tag-popover-arrow"></div>
@@ -1892,14 +1893,14 @@ function renderInformation(problem: ImportedProblem): string {
 
 function renderStatement(problem: ImportedProblem): string {
 	const sections: Array<[string, MarkdownContent | undefined]> = [
-		['题目描述', problem.statement.description],
-		['输入格式', problem.statement.inputFormat],
-		['输出格式', problem.statement.outputFormat],
-		['数据范围', problem.statement.constraints],
+		[localize('题目描述'), problem.statement.description],
+		[localize('输入格式'), problem.statement.inputFormat],
+		[localize('输出格式'), problem.statement.outputFormat],
+		[localize('数据范围'), problem.statement.constraints],
 	];
 	const statement = sections
 		.filter((entry): entry is [string, MarkdownContent] => entry[1] !== undefined)
-		.map(([title, content]) => `<section><h2>${title}</h2>${renderMarkdownContent(content, problem.url)}</section>`)
+		.map(([title, content]) => `<section><h2>${title}</h2><div data-i18n-ignore>${renderMarkdownContent(content, problem.url)}</div></section>`)
 		.join('');
 	const samples = problem.samples
 		.map((sample, index) => {
@@ -1917,7 +1918,7 @@ function renderStatement(problem: ImportedProblem): string {
 				</div>
 			</article>`;
 			const explanation = sample.explanation.trim()
-				? `<div class="sample-explanation" data-render-math>${renderProblemMarkdown(sample.explanation, problem.url)}</div>`
+				? `<div class="sample-explanation" data-render-math data-i18n-ignore>${renderProblemMarkdown(sample.explanation, problem.url)}</div>`
 				: '';
 			return `${io}${explanation}`;
 		})
@@ -1962,7 +1963,7 @@ function renderLikeButton(hintId: string, target: 'question' | 'answer', likes: 
 
 function renderHintModal(state: ProblemPanelState, hint: ProblemHint): string {
 	const questionContent = hint.question
-		? `<div data-render-math>${renderMarkdownContent(hint.question, state.problem.url)}</div>`
+		? `<div data-render-math data-i18n-ignore>${renderMarkdownContent(hint.question, state.problem.url)}</div>`
 		: '<p>提示问题尚未解锁。</p>';
 	const questionLike = renderLikeButton(hint.id, 'question', hint.likes.question, state.connected && Boolean(hint.question));
 	const answer = state.answers.get(hint.id);
@@ -1971,7 +1972,7 @@ function renderHintModal(state: ProblemPanelState, hint: ProblemHint): string {
 	const canRequestAnswer = state.connected;
 	const canShowAnswer = unlocked && canRequestAnswer;
 	const answerContent = answer
-		? `<div data-render-math>${renderMarkdownContent(answer, state.problem.url)}</div>`
+		? `<div data-render-math data-i18n-ignore>${renderMarkdownContent(answer, state.problem.url)}</div>`
 		: `<button type="button" data-command="answer" data-hint-id="${escapeAttribute(hint.id)}" data-can-request="${canRequestAnswer}"${canShowAnswer ? '' : ' disabled'}${!unlocked && hint.remainingMs > 0 ? ` data-remaining-ms="${hint.remainingMs}"` : ''}>${unlocked ? '显示答案' : `<span class="hint-countdown">剩余 ${formatDuration(hint.remainingMs)}</span>`}</button>`;
 	const feedback = state.hintMessages.get(hint.id);
 	return `<div class="modal-header"><h3>提示 ${hint.seq}</h3><button type="button" class="modal-close" data-command="closeModal" aria-label="关闭提示">×</button></div><div class="modal-body">${feedback ? `<p class="hint-feedback" role="status">${escapeHtml(feedback)}</p>` : ''}<div class="modal-columns"><div class="modal-column"><div class="hint-section-heading"><h4>问题</h4>${questionLike}</div>${questionContent}</div><div class="modal-column"><div class="hint-section-heading"><h4>答案</h4>${answerLike}</div>${answerContent}</div></div></div>`;
@@ -2003,8 +2004,8 @@ function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProb
 		return `<article class="editorial-hint">
 <div class="editorial-hint-header"><span class="editorial-hint-title">提示 ${hint.seq}</span></div>
 <div class="editorial-hint-body">
-<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label">问题</span><div class="like-row">${qLike}</div></div><div class="editorial-hint-content" data-render-math>${renderMarkdownContent(hint.question, baseUrl)}</div></div>
-<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label">答案</span><div class="like-row">${aLike}</div></div><div class="editorial-hint-content" data-render-math>${renderMarkdownContent(hint.answer, baseUrl)}</div></div>
+<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label">问题</span><div class="like-row">${qLike}</div></div><div class="editorial-hint-content" data-render-math data-i18n-ignore>${renderMarkdownContent(hint.question, baseUrl)}</div></div>
+<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label">答案</span><div class="like-row">${aLike}</div></div><div class="editorial-hint-content" data-render-math data-i18n-ignore>${renderMarkdownContent(hint.answer, baseUrl)}</div></div>
 </div>
 </article>`;
 	}).join('');
@@ -2024,8 +2025,8 @@ function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProb
 <div class="editorial-container">
 <div class="editorial-text">
 <section class="editorial-section"><h2>提示回顾</h2>${hintsHtml}</section>
-<section class="editorial-section"><h2>简化题解</h2><div data-render-math>${renderMarkdownContent(editorial.simpleContent, baseUrl)}</div></section>
-<section class="editorial-section"><h2>详细题解</h2><div data-render-math>${renderMarkdownContent(editorial.content, baseUrl)}</div></section>
+<section class="editorial-section"><h2>简化题解</h2><div data-render-math data-i18n-ignore>${renderMarkdownContent(editorial.simpleContent, baseUrl)}</div></section>
+<section class="editorial-section"><h2>详细题解</h2><div data-render-math data-i18n-ignore>${renderMarkdownContent(editorial.content, baseUrl)}</div></section>
 </div>
 <div class="editorial-resizer" role="separator" aria-label="调整题解和参考代码宽度" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="80" tabindex="0"></div>
 <div class="editorial-code"><h2>参考代码</h2>${codeHtml}</div>
