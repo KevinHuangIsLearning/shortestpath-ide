@@ -53,6 +53,16 @@ License text: extensions/llvm-vs-code-extensions.vscode-clangd/LICENSE
 
 ---------------------------------------------------------
 
+PDF Viewer 0.1.11
+https://github.com/mathematic-inc/vscode-pdf
+
+Apache License 2.0
+Copyright (c) Mathematic Inc
+License text: extensions/mathematic.pdf/LICENSE
+Additional notices: extensions/mathematic.pdf/assets/pdf.js/LICENSE
+
+---------------------------------------------------------
+
 CodeSnap 1.3.4
 https://github.com/kufii/CodeSnap
 
