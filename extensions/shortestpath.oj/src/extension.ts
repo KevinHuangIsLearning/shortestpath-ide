@@ -22,6 +22,7 @@ import { migrateLegacyWorkspaceCache } from './workspaceProblemCacheMigration';
 import {
 	applyEditorialLikeResult,
 	applyEditorialLockRemaining,
+	applyAcceptedSubmission,
 	applyHintLockRemaining,
 	applyLikeResult,
 	applyProblemState,
@@ -310,6 +311,7 @@ class ShortestPathOjProblemPanel {
 				state.finishedSubmissions.add(snapshot.submissionId);
 				void this.actions.saveSubmissionHistory(state.problem, toSubmissionHistoryEntry(snapshot)).catch(error => console.error('Failed to save ShortestPath OJ submission history.', error));
 			}
+			state.problem = applyAcceptedSubmission(state.problem, snapshot.status, snapshot.userStatus?.status);
 		} else {
 			const task = event.data.task;
 			if (event.type === 'stress.progress' && state.finishedStressTasks.has(task.taskId)) {
