@@ -1,0 +1,167 @@
+# CI gate for Flintmark. Public repo on standard GitHub-hosted runners =
+# free, unlimited minutes (the 2026 pricing changes keep public repos free),
+# so cost is not the constraint — being a good citizen is. We keep it lean:
+#   • paths-ignore: pure-docs commits don't spend a runner
+#   • concurrency: a new push cancels the previous in-flight run on the same ref
+#   • two-stage: the fast deterministic gate must pass before the heavy GUI job
+#   • report: a final job aggregates per-layer metrics into the run's job summary
+# Deep fuzzing + mutation testing are NOT here (they'd run on every push) — see
+# chaos-nightly.yml (weekly + on demand).
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "README.zh-CN.md"
+      - "CHANGELOG.md"
+      - "THIRD-PARTY-NOTICES.md"
+      - "LICENSE"
+      - "docs/**"
+      - "media/shots/**"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "README.zh-CN.md"
+      - "CHANGELOG.md"
+      - "THIRD-PARTY-NOTICES.md"
+      - "LICENSE"
+      - "docs/**"
+      - "media/shots/**"
+  workflow_dispatch:
+
+# One active run per ref; superseded pushes are cancelled (faster feedback, less
+# wasted compute).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Lint · Types · Unit + Chaos + Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck (tsc --noEmit)
+        run: npx tsc --noEmit -p .
+      - name: Unit + chaos + coverage (L1)
+        run: npm run test:coverage
+      - name: Performance regression guard
+        run: npm run test:perf
+      - name: Upload gate metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-gate
+          path: |
+            out/metrics
+            out/coverage/coverage-summary.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e:
+    name: Webview E2E (L2 + L3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: gate # don't spin up the heavy GUI job if the fast gate already failed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install xvfb + VSCodium (host for the real CM6 webview)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          # Authenticate the API call: the unauthenticated 60/hr limit can flake on
+          # shared runner IPs (this step failed that way once).
+          TAG=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/VSCodium/vscodium/releases/latest \
+            | grep -oP '"tag_name":\s*"\K[^"]+')
+          echo "Using VSCodium $TAG"
+          url="https://github.com/VSCodium/vscodium/releases/download/${TAG}/VSCodium-linux-x64-${TAG}.tar.gz"
+          for attempt in 1 2 3; do
+            curl -fsSL -o /tmp/codium.tar.gz "$url" && break
+            echo "download attempt $attempt failed; retrying in 5s"; sleep 5
+          done
+          mkdir -p "$HOME/codium"
+          tar -xzf /tmp/codium.tar.gz -C "$HOME/codium"
+          echo "VSCODE_BIN=$HOME/codium/codium" >> "$GITHUB_ENV"
+      - name: Integration (L2 — extension activates in a real editor)
+        run: npm run test:integration
+      - name: E2E (L3 — drives the CM6 webview under xvfb)
+        run: |
+          set +e
+          npm run test:e2e
+          first_exit=$?
+          set -e
+          if [ "$first_exit" -eq 0 ]; then
+            exit 0
+          fi
+
+          echo "::warning title=E2E first run failed::Retrying once; a passing retry will be reported as flaky-pass."
+          set +e
+          npm run test:e2e
+          retry_exit=$?
+          set -e
+          if [ "$retry_exit" -eq 0 ]; then
+            {
+              echo "## ⚠️ E2E flaky-pass"
+              echo "The first E2E run failed and the retry passed. Investigate the uploaded metrics and screenshots."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "## ❌ E2E failed twice"
+            echo "Both the first run and retry failed."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$retry_exit"
+        # NOTE: visual regression is intentionally NOT run in CI — pixel baselines
+        # are font/environment-specific and would flake on a hosted runner. It's a
+        # local pre-release gate (npm run test:visual). See test/e2e/visual.e2e.mjs.
+      - name: Upload e2e metrics + screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-e2e
+          path: |
+            out/metrics
+            out/*.png
+          retention-days: 14
+          if-no-files-found: ignore
+
+  report:
+    name: 📋 Test report
+    runs-on: ubuntu-latest
+    needs: [gate, e2e]
+    if: ${{ always() }} # report even when a layer failed (so the failure is visible)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Download all metrics
+        uses: actions/download-artifact@v4
+        with:
+          pattern: metrics-*
+          merge-multiple: true
+          path: out
+      - name: Build consolidated report → job summary
+        run: node scripts/test-report.mjs

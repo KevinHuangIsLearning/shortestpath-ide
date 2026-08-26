@@ -53,6 +53,16 @@ License text: extensions/llvm-vs-code-extensions.vscode-clangd/LICENSE
 
 ---------------------------------------------------------
 
+Flintmark 0.32.13
+https://github.com/quboliu/flintmark
+
+MIT License
+Copyright (c) quboliu
+License text: extensions/quboliu.flintmark/LICENSE
+Additional notices: extensions/quboliu.flintmark/THIRD-PARTY-NOTICES.md
+
+---------------------------------------------------------
+
 PDF Viewer 0.1.11
 https://github.com/mathematic-inc/vscode-pdf
 
