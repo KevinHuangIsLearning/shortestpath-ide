@@ -522,6 +522,24 @@ export function applyEditorialLockRemaining(problem: ImportedProblem, remainingM
 	};
 }
 
+/** Applies an accepted submission event to the local state until the next authoritative sync. */
+export function applyAcceptedSubmission(problem: ImportedProblem, status: string, userStatus?: string): ImportedProblem {
+	const normalizedStatus = status.trim().toLowerCase();
+	const normalizedUserStatus = userStatus?.trim().toLowerCase();
+	if (normalizedStatus !== 'ac' && normalizedStatus !== 'accepted' && normalizedUserStatus !== 'ac' && normalizedUserStatus !== 'accepted') {
+		return problem;
+	}
+	return {
+		...problem,
+		state: {
+			...problem.state,
+			timer: { ...problem.state.timer, running: false, accepted: true },
+			progress: { ...problem.state.progress, status: 'accepted' },
+			editorial: { ...problem.state.editorial, remainingMs: 0 },
+		},
+	};
+}
+
 export function applyLikeResult(problem: ImportedProblem, result: LikeResult): ImportedProblem {
 	return {
 		...problem,

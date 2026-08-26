@@ -8,6 +8,7 @@ import test from 'node:test';
 import {
 	applyEditorialLikeResult,
 	applyEditorialLockRemaining,
+	applyAcceptedSubmission,
 	applyHintLockRemaining,
 	applyLikeResult,
 	parseHintAnswerResult,
@@ -139,6 +140,27 @@ test('uses wait times returned by the website for hints and editorials', () => {
 			editorial: { ...problem.state.editorial, remainingMs: 90_000 },
 		},
 	);
+});
+
+test('unlocks the editorial immediately after an accepted submission event', () => {
+	const problem = parseProblemBindData({
+		...bindPayload,
+		state: {
+			...statePayload,
+			editorial: { ...statePayload.editorial, remainingMs: 15 * 60 * 1000 },
+		},
+	});
+	const accepted = applyAcceptedSubmission(problem, 'AC');
+	assert.equal(accepted.state.timer.accepted, true);
+	assert.equal(accepted.state.timer.running, false);
+	assert.equal(accepted.state.editorial.remainingMs, 0);
+	assert.equal(accepted.state.progress.status, 'accepted');
+});
+
+test('does not unlock the editorial for a non-accepted submission', () => {
+	const problem = parseProblemBindData(bindPayload);
+	const unchanged = applyAcceptedSubmission(problem, 'WA');
+	assert.strictEqual(unchanged, problem);
 });
 
 test('applies final like counts to an available editorial', () => {
