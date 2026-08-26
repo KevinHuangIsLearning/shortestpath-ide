@@ -535,7 +535,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'shortestpath.action.checkForUpdates',
 			// allow-any-unicode-next-line
-			title: localize2('shortestpath.checkForUpdates', '检查 ShortestPath IDE 更新'),
+			title: localize2('shortestpath.checkForUpdates', 'Check for ShortestPath IDE Updates'),
 			f1: true,
 			menu: [{ id: MenuId.MenubarHelpMenu, group: '1_welcome', order: 4 }],
 		});

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { localize, localizeWebviewHtml } from './localization';
 import { unlockRelaxMode } from './relaxMode';
 import { getSystemFonts } from './systemFonts';
 
@@ -31,6 +32,7 @@ type SimpleSettingsState = {
 	autoDetectColorScheme: boolean;
 	modernUIEnabled: boolean;
 	autoSave: string;
+	displayLanguage: string;
 	newFileDefaultLanguage: string;
 	useExtensionMarketplace: boolean;
 	shortestPathCppSubmissionLanguage: string;
@@ -203,13 +205,13 @@ async function openCppSnippets(context: vscode.ExtensionContext): Promise<void> 
 	const supportedLanguages = new Set(languages.map(language => language.id));
 	const initialLanguage = supportedLanguages.has('cpp') ? 'cpp' : languages[0]?.id;
 	if (!initialLanguage) {
-		void vscode.window.showWarningMessage('未找到可配置代码片段的语言。');
+		void vscode.window.showWarningMessage(localize('未找到可配置代码片段的语言。'));
 		return;
 	}
 	const getState = async (language: string): Promise<SnippetsState> => ({ language, languages, entries: await readSnippets(context, language) });
 	const isSupportedLanguage = (candidate: unknown): candidate is string => typeof candidate === 'string' && supportedLanguages.has(candidate);
-	const panel = vscode.window.createWebviewPanel('shortestpath.cppSnippets', '代码模板', vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
-	panel.webview.html = getCppSnippetsHtml(await getState(initialLanguage));
+	const panel = vscode.window.createWebviewPanel('shortestpath.cppSnippets', localize('代码模板'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	panel.webview.html = localizeWebviewHtml(getCppSnippetsHtml(await getState(initialLanguage)));
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'save' && isSupportedLanguage(message.language) && Array.isArray(message.entries)) {
 			await writeSnippets(context, message.language, message.entries as SnippetEntry[]);
@@ -388,11 +390,11 @@ Standard: ${state.standard}
 async function openAutoFormatSettings(): Promise<void> {
 	const workspaceFolder = getAutoFormatWorkspaceFolder();
 	if (!workspaceFolder) {
-		void vscode.window.showWarningMessage('请先打开一个工作目录，再配置自动格式化。');
+		void vscode.window.showWarningMessage(localize('请先打开一个工作目录，再配置自动格式化。'));
 		return;
 	}
-	const panel = vscode.window.createWebviewPanel('shortestpath.autoFormat', '自动格式化', vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
-	panel.webview.html = getAutoFormatHtml(await readAutoFormatState(workspaceFolder), workspaceFolder.fsPath);
+	const panel = vscode.window.createWebviewPanel('shortestpath.autoFormat', localize('自动格式化'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	panel.webview.html = localizeWebviewHtml(getAutoFormatHtml(await readAutoFormatState(workspaceFolder), workspaceFolder.fsPath));
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'save') {
 			const state = normalizeAutoFormatState(message.value ?? {});
@@ -412,11 +414,11 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 	let isDisposed = false;
 	const panel = vscode.window.createWebviewPanel(
 		'shortestpath.settings',
-		'ShortestPath IDE 设置',
+		localize('ShortestPath IDE 设置'),
 		vscode.ViewColumn.Active,
 		{ enableScripts: true, retainContextWhenHidden: true }
 	);
-	panel.webview.html = getHtml(getState());
+	panel.webview.html = localizeWebviewHtml(getHtml(getState()));
 	void getSystemFonts().then(async result => {
 		if (isDisposed) {
 			return;
@@ -458,6 +460,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.workspace.getConfiguration(undefined, null).update('shortestpath.useExtensionMarketplace', message.enabled, vscode.ConfigurationTarget.Global);
 		} else if (message?.type === 'advanced') {
 			await vscode.commands.executeCommand('workbench.action.openSettings2');
+		} else if (message?.type === 'configureLocale') {
+			await vscode.commands.executeCommand('workbench.action.configureLocale');
 		} else if (message?.type === 'snippets') {
 			await vscode.commands.executeCommand('shortestpath.configureCppSnippets');
 		} else if (message?.type === 'gettingStarted') {
@@ -529,6 +533,7 @@ function getState(): SimpleSettingsState {
 		autoDetectColorScheme: windowConfiguration.get<boolean>('autoDetectColorScheme') ?? false,
 		modernUIEnabled: workbench.get<boolean>('experimental.modernUI') ?? true,
 		autoSave: files.get<string>('autoSave') ?? 'off',
+		displayLanguage: vscode.env.language,
 		newFileDefaultLanguage: vscode.workspace.getConfiguration('shortestpath.newFile', null).get<string>('defaultLanguage') ?? 'cpp',
 		useExtensionMarketplace: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('useExtensionMarketplace') ?? false,
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'ask',
@@ -651,6 +656,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 </section>
 <section class="card" data-category="appearance">
 <div class="row"><div><label for="colorTheme">主题</label></div><select id="colorTheme"></select></div>
+<div class="row"><div><label>显示语言</label><div class="hint">当前：<span id="displayLanguage"></span>。选择后将按 VS Code 的正常流程确认并重启。</div></div><button id="configureLocale" class="secondary">切换显示语言</button></div>
 <div class="row"><div><label for="autoDetectColorScheme">同步系统主题</label></div><label class="toggle"><input id="autoDetectColorScheme" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="modernUIEnabled">现代界面</label><div class="hint">启用 Workbench › Experimental: Modern UI，使用浮动面板和更新后的工作台样式。</div></div><label class="toggle"><input id="modernUIEnabled" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="autoSave">自动保存</label></div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
@@ -851,6 +857,7 @@ function apply(state) {
   const theme = byId('colorTheme'); theme.replaceChildren();
   state.themes.forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.label; theme.append(option); });
   theme.value = state.colorTheme;
+	byId('displayLanguage').textContent = state.displayLanguage === 'zh-cn' ? '中文（简体）' : state.displayLanguage === 'en' ? 'English' : state.displayLanguage;
   byId('autoDetectColorScheme').checked = !!state.autoDetectColorScheme;
 	byId('modernUIEnabled').checked = !!state.modernUIEnabled;
   byId('autoSave').value = state.autoSave;
@@ -884,6 +891,7 @@ byId('settingsSearch').addEventListener('input', () => {
   updateSettingsFilter();
 });
 byId('advanced').addEventListener('click', () => vscode.postMessage({ type: 'advanced' }));
+byId('configureLocale').addEventListener('click', () => vscode.postMessage({ type: 'configureLocale' }));
 byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));
 byId('gettingStarted').addEventListener('click', () => vscode.postMessage({ type: 'gettingStarted' }));
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));

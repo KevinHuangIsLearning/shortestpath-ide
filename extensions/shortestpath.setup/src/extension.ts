@@ -13,6 +13,7 @@ import { registerRelaxMode } from './relaxMode';
 import { registerCphSettings } from './cphSettings';
 import { registerGettingStarted } from './gettingStarted';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
+import { localize, localizeFormat } from './localization';
 import { getPortableDataRoot, managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
 
 type PlatformPreset = {
@@ -186,7 +187,7 @@ function hasOiWorkspaceConfig(workspaceFolder: vscode.WorkspaceFolder): boolean 
 async function initializeOiWorkspace(context: vscode.ExtensionContext): Promise<void> {
 	const workspaceFolder = getSingleLocalWorkspaceFolder();
 	if (!workspaceFolder) {
-		void vscode.window.showInformationMessage('请先打开一个本地文件夹，再初始化 OI 项目配置。');
+		void vscode.window.showInformationMessage(localize('请先打开一个本地文件夹，再初始化 OI 项目配置。'));
 		return;
 	}
 
@@ -195,7 +196,7 @@ async function initializeOiWorkspace(context: vscode.ExtensionContext): Promise<
 	createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, 'c++23');
 	createDefaultClangFormatConfig(workspaceFolder.uri.fsPath);
 	await context.workspaceState.update(OI_WORKSPACE_INITIALIZATION_DISMISSED, undefined);
-	void vscode.window.showInformationMessage(`已在“${workspaceFolder.name}”中创建 .clangd 和 .clang-format。`);
+	void vscode.window.showInformationMessage(localizeFormat('已在“{0}”中创建 .clangd 和 .clang-format。', workspaceFolder.name));
 }
 
 async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext): Promise<void> {
@@ -205,11 +206,11 @@ async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext):
 	}
 
 	const action = await vscode.window.showInformationMessage(
-		`“${workspaceFolder.name}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？`,
-		'初始化 OI 配置',
-		'暂不初始化'
+		localizeFormat('“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？', workspaceFolder.name),
+		localize('初始化 OI 配置'),
+		localize('暂不初始化')
 	);
-	if (action === '初始化 OI 配置') {
+	if (action === localize('初始化 OI 配置')) {
 		await initializeOiWorkspace(context);
 	} else {
 		await context.workspaceState.update(OI_WORKSPACE_INITIALIZATION_DISMISSED, true);
@@ -278,7 +279,7 @@ function warnAboutPortablePathWithSpaces(): void {
 	if (process.platform !== 'win32' || !vscode.env.isAppPortable || !/\s/.test(vscode.env.appRoot)) {
 		return;
 	}
-	void vscode.window.showWarningMessage('ShortestPath 所处运行路径包含空格，可能出现意外错误，开发者不会处理因包含空格而导致的 bug。');
+	void vscode.window.showWarningMessage(localize('ShortestPath 所处运行路径包含空格，可能出现意外错误，开发者不会处理因包含空格而导致的 bug。'));
 }
 
 async function ensureShortestPathOjMapping(): Promise<void> {
@@ -309,10 +310,10 @@ async function rerunFirstRunSetup(repair = false): Promise<void> {
 	await configuration.update('repair', repair, vscode.ConfigurationTarget.Global);
 	await configuration.update('completed', false, vscode.ConfigurationTarget.Global);
 	const action = await vscode.window.showInformationMessage(
-		'ShortestPath IDE will show the first-run setup after restart.',
-		'Restart Now'
+		localize('ShortestPath IDE will show the first-run setup after restart.'),
+		localize('Restart Now')
 	);
-	if (action === 'Restart Now') {
+	if (action === localize('Restart Now')) {
 		await vscode.commands.executeCommand('workbench.action.reloadWindow');
 	}
 }
@@ -324,7 +325,7 @@ async function repairToolchain(context: vscode.ExtensionContext): Promise<void> 
 		await configuration.update('pending', undefined, vscode.ConfigurationTarget.Global);
 		await configuration.update('repair', true, vscode.ConfigurationTarget.Global);
 		await configuration.update('completed', false, vscode.ConfigurationTarget.Global);
-		await vscode.window.showInformationMessage('正在进入工具链修复。请在开箱页继续，ShortestPath IDE 会重新下载缺失的组件。');
+		await vscode.window.showInformationMessage(localize('正在进入工具链修复。请在开箱页继续，ShortestPath IDE 会重新下载缺失的组件。'));
 		await vscode.commands.executeCommand('workbench.action.reloadWindow');
 		return;
 	}
@@ -390,11 +391,11 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	}
 	if (compiler && await isAppleClang(compiler)) {
 		await vscode.window.showWarningMessage(
-			'未检测到 Homebrew GCC，当前将使用 Apple Clang（g++ 兼容包装器）。它可以编译代码，但为保持竞赛环境一致，建议执行“修复工具链”安装 Homebrew GCC。',
+			localize('未检测到 Homebrew GCC，当前将使用 Apple Clang（g++ 兼容包装器）。它可以编译代码，但为保持竞赛环境一致，建议执行“修复工具链”安装 Homebrew GCC。'),
 			{ modal: true },
-			'修复工具链',
-			'继续使用 Apple Clang'
-		).then(action => action === '修复工具链' ? repairToolchain(context) : undefined);
+			localize('修复工具链'),
+			localize('继续使用 Apple Clang')
+		).then(action => action === localize('修复工具链') ? repairToolchain(context) : undefined);
 	}
 
 	const settings: Record<string, unknown> = {
@@ -603,12 +604,12 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 		clangdMissing ? 'clangd' : undefined
 	].filter((tool): tool is string => !!tool);
 	const choice = await vscode.window.showWarningMessage(
-		`未检测到 ${missingTools.join(' 和 ')}。${preset.installDescription}。安装命令会在集成终端中运行，可能需要管理员权限。`,
+		localizeFormat('未检测到 {0}。{1}。安装命令会在集成终端中运行，可能需要管理员权限。', missingTools.join(` ${localize('和')} `), localize(preset.installDescription)),
 		{ modal: true },
-		'安装并修复',
-		'暂不处理'
+		localize('安装并修复'),
+		localize('暂不处理')
 	);
-	if (choice === '安装并修复') {
+	if (choice === localize('安装并修复')) {
 		const toolchainRoot = path.join(context.globalStorageUri.fsPath, 'toolchains');
 		const source = preset.downloadSources?.find(candidate => candidate.id === 'tuna' && !candidate.unavailable)
 			?? preset.downloadSources?.find(candidate => !candidate.unavailable);

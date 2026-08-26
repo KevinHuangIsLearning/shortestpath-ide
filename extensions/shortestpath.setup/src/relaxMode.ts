@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { localize, localizeWebviewHtml } from './localization';
 
 type RelaxSource = {
 	id: string;
@@ -195,12 +196,12 @@ function openRelaxSettings(context: vscode.ExtensionContext): void {
 	}
 	const panel = vscode.window.createWebviewPanel(
 		'shortestpath.relaxSettings',
-		'放松模式设置',
+		localize('放松模式设置'),
 		vscode.ViewColumn.Active,
 		{ enableScripts: true, retainContextWhenHidden: true }
 	);
 	settingsPanel = panel;
-	panel.webview.html = getSettingsHtml(getState(context));
+	panel.webview.html = localizeWebviewHtml(getSettingsHtml(getState(context)));
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'openMain') {
 			await startRelaxMode(context);
@@ -226,12 +227,12 @@ function openRelaxMode(context: vscode.ExtensionContext): void {
 	}
 	const panel = vscode.window.createWebviewPanel(
 		'shortestpath.relaxMode',
-		'放松模式',
+		localize('放松模式'),
 		vscode.ViewColumn.Active,
 		{ enableScripts: true, retainContextWhenHidden: true }
 	);
 	modePanel = panel;
-	panel.webview.html = getModeHtml(getState(context));
+	panel.webview.html = localizeWebviewHtml(getModeHtml(getState(context)));
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'openSource') {
 			await openSource(context, message.id);

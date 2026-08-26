@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
+import { localize, localizeFormat, localizeWebviewHtml } from './localization';
 import { diagnoseClangdSystemHeaders } from './clangdSystemHeaders';
 
 type DiagnosticStatus = 'ok' | 'warning' | 'error';
@@ -17,7 +18,7 @@ export function registerToolchainDiagnostics(context: vscode.ExtensionContext): 
 
 async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promise<void> {
 	const sourcePath = getActiveCppSourcePath();
-	const panel = vscode.window.createWebviewPanel('shortestpath.toolchainDiagnostics', '工具链诊断', { viewColumn: vscode.ViewColumn.Active, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true });
+	const panel = vscode.window.createWebviewPanel('shortestpath.toolchainDiagnostics', localize('工具链诊断'), { viewColumn: vscode.ViewColumn.Active, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true });
 	const refresh = async () => {
 		const items = await collectDiagnostics(getActiveCppSourcePath() ?? sourcePath);
 		await panel.webview.postMessage({ type: 'state', value: { items, needsRepair: items.some(item => item.status === 'error' || (item.status === 'warning' && item.repairable !== false)) } });
@@ -47,7 +48,7 @@ async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promi
 		}
 	});
 	panel.onDidDispose(() => configurationListener.dispose());
-	panel.webview.html = getHtml();
+	panel.webview.html = localizeWebviewHtml(getHtml());
 	await refresh();
 }
 
@@ -60,18 +61,18 @@ async function collectDiagnostics(sourcePath: string | undefined): Promise<Diagn
 	const cphFlags = configuration.get<string>('cph.language.cpp.Args') ?? '';
 	const compileRunFlags = configuration.get<string>('c-cpp-compile-run.cpp-flags') ?? '';
 	const items: DiagnosticItem[] = [];
-	items.push(await executableDiagnostic('C++ 编译器（CPH）', compiler, ['--version']));
+	items.push(await executableDiagnostic(localize('C++ 编译器（CPH）'), compiler, ['--version']));
 	items.push(await executableDiagnostic('clangd', clangd, ['--version']));
 	items.push({
-		label: 'C/C++ Compile Run 编译器',
+		label: localize('C/C++ Compile Run 编译器'),
 		status: compileRunCompiler === compiler && !!compiler ? 'ok' : 'warning',
-		detail: compileRunCompiler === compiler && !!compiler ? '与 CPH 使用相同编译器。' : `当前：${compileRunCompiler || '未配置'}${compiler ? `；CPH：${compiler}` : ''}`,
+		detail: compileRunCompiler === compiler && !!compiler ? localize('与 CPH 使用相同编译器。') : localizeFormat('当前：{0}{1}', compileRunCompiler || localize('未配置'), compiler ? localizeFormat('；CPH：{0}', compiler) : ''),
 		path: compileRunCompiler || undefined
 	});
 	items.push({
-		label: '编译选项',
+		label: localize('编译选项'),
 		status: cphFlags === compileRunFlags && !!cphFlags ? 'ok' : 'warning',
-		detail: cphFlags === compileRunFlags && !!cphFlags ? `CPH 与 Compile Run 一致：${cphFlags}` : `CPH：${cphFlags || '未配置'}；Compile Run：${compileRunFlags || '未配置'}`
+		detail: cphFlags === compileRunFlags && !!cphFlags ? localizeFormat('CPH 与 Compile Run 一致：{0}', cphFlags) : localizeFormat('CPH：{0}；Compile Run：{1}', cphFlags || localize('未配置'), compileRunFlags || localize('未配置'))
 	});
 	const queryDriver = Array.isArray(clangdArguments) && clangdArguments.some(argument =>
 		typeof argument === 'string' && (
@@ -82,7 +83,7 @@ async function collectDiagnostics(sourcePath: string | undefined): Promise<Diagn
 	items.push({
 		label: 'clangd Query Driver',
 		status: compiler && queryDriver ? 'ok' : 'warning',
-		detail: compiler && queryDriver ? (process.platform === 'darwin' ? '已允许 Homebrew GCC 的所有稳定链接路径。' : `已指向 ${compiler}`) : 'clangd 未配置与当前 C++ 编译器匹配的 --query-driver。'
+		detail: compiler && queryDriver ? (process.platform === 'darwin' ? localize('已允许 Homebrew GCC 的所有稳定链接路径。') : localizeFormat('已指向 {0}', compiler)) : localize('clangd 未配置与当前 C++ 编译器匹配的 --query-driver。')
 	});
 	items.push(await clangdSystemHeadersDiagnostic(clangd, Array.isArray(clangdArguments) ? clangdArguments.filter((argument): argument is string => typeof argument === 'string') : [], sourcePath));
 	for (const extension of [
@@ -99,14 +100,14 @@ async function collectDiagnostics(sourcePath: string | undefined): Promise<Diagn
 async function clangdSystemHeadersDiagnostic(clangd: string, clangdArguments: string[], sourcePath: string | undefined): Promise<DiagnosticItem> {
 	if (!sourcePath) {
 		return {
-			label: 'clangd 系统头文件',
+			label: localize('clangd 系统头文件'),
 			status: 'warning',
-			detail: '请先打开一个 C/C++ 源文件，再重新检测。诊断会使用该文件的工作区 .clangd 与当前 clangd 配置，不会直接读取或修改用户全局 clangd 配置。',
+			detail: localize('请先打开一个 C/C++ 源文件，再重新检测。诊断会使用该文件的工作区 .clangd 与当前 clangd 配置，不会直接读取或修改用户全局 clangd 配置。'),
 			repairable: false
 		};
 	}
 	if (!clangd || !fs.existsSync(clangd)) {
-		return { label: 'clangd 系统头文件', status: 'error', detail: 'clangd 未配置或路径不存在，无法检查系统头文件。', path: clangd || undefined };
+		return { label: localize('clangd 系统头文件'), status: 'error', detail: localize('clangd 未配置或路径不存在，无法检查系统头文件。'), path: clangd || undefined };
 	}
 	const argumentsForCheck = clangdArguments.filter(argument => !argument.startsWith('--background-index') && !argument.startsWith('--check=') && !argument.startsWith('--log='));
 	try {
@@ -114,7 +115,7 @@ async function clangdSystemHeadersDiagnostic(clangd: string, clangdArguments: st
 		const diagnostic = diagnoseClangdSystemHeaders(result.output, result.succeeded);
 		return { label: 'clangd 系统头文件', ...diagnostic, path: clangd };
 	} catch (error) {
-		return { label: 'clangd 系统头文件', status: 'error', detail: `无法运行检查：${error instanceof Error ? error.message : String(error)}`, path: clangd };
+		return { label: localize('clangd 系统头文件'), status: 'error', detail: localizeFormat('无法运行检查：{0}', error instanceof Error ? error.message : String(error)), path: clangd };
 	}
 }
 
@@ -127,16 +128,16 @@ function getActiveCppSourcePath(): string | undefined {
 }
 
 async function executableDiagnostic(label: string, executable: string, args: string[]): Promise<DiagnosticItem> {
-	if (!executable) { return { label, status: 'error', detail: '未配置路径。' }; }
-	if (!fs.existsSync(executable)) { return { label, status: 'error', detail: `找不到文件：${executable}`, path: executable }; }
+	if (!executable) { return { label, status: 'error', detail: localize('未配置路径。') }; }
+	if (!fs.existsSync(executable)) { return { label, status: 'error', detail: localizeFormat('找不到文件：{0}', executable), path: executable }; }
 	try {
 		const output = await run(executable, args);
 		if (process.platform === 'darwin' && label.startsWith('C++ 编译器') && /apple clang/i.test(output)) {
-			return { label, status: 'warning', detail: '检测到 Apple Clang 的 g++ 兼容包装器；可以使用，但推荐安装 Homebrew GCC 以保持竞赛环境一致。', path: executable };
+			return { label, status: 'warning', detail: localize('检测到 Apple Clang 的 g++ 兼容包装器；可以使用，但推荐安装 Homebrew GCC 以保持竞赛环境一致。'), path: executable };
 		}
-		return { label, status: 'ok', detail: output.split(/\r?\n/).find(Boolean)?.trim() || '可执行文件可正常启动。', path: executable };
+		return { label, status: 'ok', detail: output.split(/\r?\n/).find(Boolean)?.trim() || localize('可执行文件可正常启动。'), path: executable };
 	} catch (error) {
-		return { label, status: 'error', detail: `无法运行：${error instanceof Error ? error.message : String(error)}`, path: executable };
+		return { label, status: 'error', detail: localizeFormat('无法运行：{0}', error instanceof Error ? error.message : String(error)), path: executable };
 	}
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { localize, localizeWebviewHtml } from './localization';
 import { getSystemFonts } from './systemFonts';
 import {
 	applyCppStandard,
@@ -101,10 +102,10 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 	}
 	let isSaving = false;
 	let isDisposed = false;
-	const panel = vscode.window.createWebviewPanel('shortestpath.gettingStarted', '开始使用', vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	const panel = vscode.window.createWebviewPanel('shortestpath.gettingStarted', localize('开始使用'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
 	activePanel = panel;
 	void context.globalState.update(GETTING_STARTED_VERSION, currentExtensionVersion());
-	panel.webview.html = getHtml(getState());
+	panel.webview.html = localizeWebviewHtml(getHtml(getState()));
 	void getSystemFonts().then(async result => {
 		if (isDisposed) {
 			return;
