@@ -54,6 +54,7 @@ export const prebuiltOIDistributionExtensions = new Set([
 	'usernamehw.errorlens',
 	'jeff-hykin.better-cpp-syntax',
 	'llvm-vs-code-extensions.vscode-clangd',
+	'mathematic.pdf',
 ]);
 
 function minifyExtensionResources(input: Stream): Stream {
