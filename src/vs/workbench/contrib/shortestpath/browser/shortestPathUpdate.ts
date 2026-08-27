@@ -150,7 +150,7 @@ function parseShortestPathFastDownloadUrls(value: unknown): IShortestPathFastDow
 	}
 	const urls = value as Partial<IShortestPathFastDownloadUrls>;
 	const entries = Object.entries(urls);
-	if (!entries.length || entries.some(([key, url]) => (key !== 'macosArm64' && key !== 'windowsUserSetup' && key !== 'windowsPortable') || typeof url !== 'string' || !isShortestPathFastDownloadUrl(url))) {
+	if (!entries.length || entries.some(([key, url]) => (key !== 'macosArm64' && key !== 'windowsUserSetup' && key !== 'windowsPortable') || typeof url !== 'string' || (url !== '' && !isShortestPathFastDownloadUrl(url)))) {
 		return undefined;
 	}
 	return urls;

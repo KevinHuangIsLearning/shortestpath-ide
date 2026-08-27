@@ -475,9 +475,16 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 		} else if (message?.type === 'checkForUpdates') {
 			await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status: 'checking' });
 			try {
-				const outcome = await vscode.commands.executeCommand<{ status: 'latest' | 'available' | 'failed'; version?: string }>('shortestpath.action.checkForUpdates', true);
-				if (!outcome || outcome.status === 'failed') {
-					throw new Error('Update check failed.');
+				const outcome = await vscode.commands.executeCommand<{ status: 'latest' | 'available' | 'failed'; version?: string; reason?: string }>('shortestpath.action.checkForUpdates', true);
+				if (!outcome) {
+					throw new Error(localize('更新检查命令未返回结果，可能是扩展尚未激活。'));
+				}
+				if (outcome.status === 'failed') {
+					const message = localizeFormat('检查更新失败：{0}', outcome.reason ?? localize('未返回具体原因。'));
+					console.error(message);
+					void vscode.window.showErrorMessage(message);
+					await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status: 'failed', message });
+					return;
 				}
 				const status = outcome.status;
 				void vscode.window.showInformationMessage(outcome.status === 'latest'
@@ -486,8 +493,10 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 				await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status });
 			} catch (error) {
 				console.error('Failed to check for ShortestPath IDE updates.', error);
-				void vscode.window.showErrorMessage(localize('检查更新失败，请稍后重试。'));
-				await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status: 'failed' });
+				const reason = error instanceof Error ? error.message : String(error);
+				const message = localizeFormat('检查更新失败：{0}', reason);
+				void vscode.window.showErrorMessage(message);
+				await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status: 'failed', message });
 			}
 		} else if (message?.type === 'unlockRelaxMode') {
 			await unlockRelaxMode(context);
@@ -919,7 +928,7 @@ window.addEventListener('message', event => {
     const status = event.data.status;
     checkForUpdatesButton.disabled = status === 'checking';
     checkForUpdatesButton.textContent = status === 'checking' ? '正在检查更新…' : '检查更新';
-    checkForUpdatesStatus.textContent = updateCheckLabels[status] || '';
+    checkForUpdatesStatus.textContent = event.data.message || updateCheckLabels[status] || '';
   }
 });
 checkForUpdatesButton.addEventListener('click', () => vscode.postMessage({ type: 'checkForUpdates' }));

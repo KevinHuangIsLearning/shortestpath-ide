@@ -114,4 +114,25 @@ describe('problem display target', () => {
             ),
         ).toBeUndefined();
     });
+
+    test('does not display a page when an OJ disables problem display', () => {
+        expect(
+            getProblemDisplayTarget(
+                true,
+                'none',
+                'https://shortestpath.cn/problem/contest/a/b',
+                undefined,
+            ),
+        ).toBeUndefined();
+    });
+
+    test('always disables the built-in ShortestPath OJ problem display', () => {
+        expect(
+            getProblemSourceForUrl(
+                'https://shortestpath.cn/problem/contest/a/b',
+                { 'shortestpath.cn': { oj: 'ShortestPath', problemSource: 'original' } },
+                'vjudge',
+            ),
+        ).toBe('none');
+    });
 });

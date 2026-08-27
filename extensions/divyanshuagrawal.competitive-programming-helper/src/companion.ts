@@ -263,9 +263,13 @@ const detectOj = (urlStr: string): OjInfo => {
             result.ojName = entry.ojName || '';
             result.problemSource =
                 entry.problemSource === 'original' ||
-                entry.problemSource === 'vjudge'
+                entry.problemSource === 'vjudge' ||
+                entry.problemSource === 'none'
                     ? entry.problemSource
                     : undefined;
+            if (result.oj === 'ShortestPath') {
+                result.problemSource = 'none';
+            }
             if (entry.contestIdRegex) {
                 const m = urlStr.match(entry.contestIdRegex);
                 if (m) result.contestId = m[1];

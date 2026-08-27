@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export type ProblemSource = 'vjudge' | 'original';
+export type ProblemSource = 'vjudge' | 'original' | 'none';
 
 export type ProblemDisplayTarget = {
     source: ProblemSource;
@@ -21,7 +21,7 @@ export const getProblemDisplayTarget = (
     originalUrl: string,
     vjudgeUrl: string | undefined,
 ): ProblemDisplayTarget | undefined => {
-    if (!openInBrowser) {
+    if (!openInBrowser || preferredSource === 'none') {
         return undefined;
     }
     if (preferredSource === 'vjudge' && vjudgeUrl) {
@@ -32,7 +32,7 @@ export const getProblemDisplayTarget = (
 
 export const getProblemSourceForUrl = (
     urlStr: string,
-    mapping: Record<string, { problemSource?: unknown }> | null,
+    mapping: Record<string, { oj?: unknown; problemSource?: unknown }> | null,
     defaultSource: ProblemSource,
 ): ProblemSource => {
     if (!mapping) {
@@ -44,7 +44,10 @@ export const getProblemSourceForUrl = (
             if (!hostname.includes(pattern) && !pattern.includes(hostname)) {
                 continue;
             }
-            if (entry.problemSource === 'original' || entry.problemSource === 'vjudge') {
+            if (entry.oj === 'ShortestPath') {
+                return 'none';
+            }
+            if (entry.problemSource === 'original' || entry.problemSource === 'vjudge' || entry.problemSource === 'none') {
                 return entry.problemSource;
             }
             return defaultSource;

@@ -79,6 +79,7 @@
 		"shortestpath.cn": {
 			"oj": "ShortestPath",
 			"ojName": "ShortestPath",
+			"problemSource": "none",
 			"contestIdRegex": "problem\\/([^\\/]+)\\/[^\\/]+\\/[^\\/]+",
 			"problemIdRegex": "problem\\/[^\\/]+\\/(.+)$"
 		},
