@@ -842,11 +842,23 @@
                                 "problemIdRegex": {
                                     "type": "string",
                                     "description": "Optional regex to extract problemId from URL. First capture group is used."
+                                },
+                                "problemSource": {
+                                    "type": "string",
+                                    "enum": ["vjudge", "original"],
+                                    "description": "Optional problem page source for this OJ. Falls back to Default Problem Source."
                                 }
                             }
                         }
                     },
                     "description": "%cph.general.ojMapping.description%"
+                },
+                "cph.general.defaultProblemSource": {
+                    "type": "string",
+                    "default": "vjudge",
+                    "enum": ["vjudge", "original"],
+                    "enumDescriptions": ["VJudge", "Original OJ"],
+                    "description": "%cph.general.defaultProblemSource.description%"
                 },
                 "cph.general.vjudgeOjNames": {
                     "type": "object",

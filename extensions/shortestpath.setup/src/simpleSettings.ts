@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { localize, localizeWebviewHtml } from './localization';
+import { localize, localizeFormat, localizeWebviewHtml } from './localization';
 import { unlockRelaxMode } from './relaxMode';
 import { getSystemFonts } from './systemFonts';
 
@@ -473,7 +473,22 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 		} else if (message?.type === 'cphSettings') {
 			await vscode.commands.executeCommand('shortestpath.configureCph');
 		} else if (message?.type === 'checkForUpdates') {
-			await vscode.commands.executeCommand('shortestpath.action.checkForUpdates');
+			await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status: 'checking' });
+			try {
+				const outcome = await vscode.commands.executeCommand<{ status: 'latest' | 'available' | 'failed'; version?: string }>('shortestpath.action.checkForUpdates', true);
+				if (!outcome || outcome.status === 'failed') {
+					throw new Error('Update check failed.');
+				}
+				const status = outcome.status;
+				void vscode.window.showInformationMessage(outcome.status === 'latest'
+					? localizeFormat('当前已是 ShortestPath IDE 最新版本（{0}）。', outcome.version ?? 'Unknown')
+					: localizeFormat('发现 ShortestPath IDE 新版本（{0}），请查看更新窗口。', outcome.version ?? 'Unknown'));
+				await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status });
+			} catch (error) {
+				console.error('Failed to check for ShortestPath IDE updates.', error);
+				void vscode.window.showErrorMessage(localize('检查更新失败，请稍后重试。'));
+				await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status: 'failed' });
+			}
 		} else if (message?.type === 'unlockRelaxMode') {
 			await unlockRelaxMode(context);
 		}
@@ -623,7 +638,7 @@ h1 { font-size: 28px; margin: 0 0 8px; } p { color: var(--vscode-descriptionFore
 input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); padding: 7px 9px; border-radius: 3px; font: inherit; }
 input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { display: flex; align-items: center; gap: 10px; }
 .font-preview { color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; font-size: 16px; line-height: 1.65; margin: -4px 0 14px 208px; padding: 10px 12px; white-space: pre; }
-.row.disabled { opacity: .6; } .row.disabled input, .row.disabled select { cursor: not-allowed; }
+.row.disabled { opacity: .6; } .row.disabled input, .row.disabled select { cursor: not-allowed; } .update-actions { display: block; } .inline-status { display: block; margin-top: 8px; color: var(--vscode-descriptionForeground); font-size: 12px; }
 .fallback-list { display: grid; gap: 7px; }.fallback-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; }.fallback-row .icon { min-width: 28px; padding: 5px; }.add-fallback { margin-top: 8px; }
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); } button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } #saved { color: var(--vscode-testing-iconPassed); }
 section.card[hidden], .row[hidden] { display: none; } .no-results { color: var(--vscode-descriptionForeground); margin: 28px 0; } @media (max-width: 720px) { body { height: auto; overflow: auto; } main { display: block; height: auto; padding: 24px 18px 48px; }.sidebar { position: static; margin-bottom: 22px; }.settings-content { overflow: visible; padding-right: 0; }.categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }.row { grid-template-columns: 1fr; gap: 8px; }.font-preview { margin-left: 0; } }
@@ -665,7 +680,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <section class="card" data-category="tools"><div class="row"><div><label>开始使用</label><div class="hint">分步引导配置字体、主题、语言版本等偏好。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><button id="checkForUpdates" class="secondary">检查更新</button></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="antiFraudReminder">防诈骗提醒</label><div class="hint">打开题目时显示防诈骗提醒。</div></div><label class="toggle"><input id="antiFraudReminder" type="checkbox"><span>启用</span></label></div></section>
@@ -896,7 +911,18 @@ byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'sni
 byId('gettingStarted').addEventListener('click', () => vscode.postMessage({ type: 'gettingStarted' }));
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
 byId('cphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
-byId('checkForUpdates').addEventListener('click', () => vscode.postMessage({ type: 'checkForUpdates' }));
+const checkForUpdatesButton = byId('checkForUpdates');
+const checkForUpdatesStatus = byId('checkForUpdatesStatus');
+const updateCheckLabels = { checking: '正在检查更新…', latest: '当前已是最新版本。', available: '发现新版本，请查看更新窗口。', failed: '检查更新失败，请稍后重试。' };
+window.addEventListener('message', event => {
+  if (event.data?.type === 'checkForUpdatesStatus') {
+    const status = event.data.status;
+    checkForUpdatesButton.disabled = status === 'checking';
+    checkForUpdatesButton.textContent = status === 'checking' ? '正在检查更新…' : '检查更新';
+    checkForUpdatesStatus.textContent = updateCheckLabels[status] || '';
+  }
+});
+checkForUpdatesButton.addEventListener('click', () => vscode.postMessage({ type: 'checkForUpdates' }));
 byId('toolchainDiagnostics').addEventListener('click', () => vscode.postMessage({ type: 'toolchainDiagnostics' }));
 window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); if (event.data?.type === 'systemFonts') void applySystemFonts(event.data.value); });
 apply(${serializedState});

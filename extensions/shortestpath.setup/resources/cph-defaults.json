@@ -1,5 +1,6 @@
 {
 	"cph.general.vjudgeOpenInBrowser": true,
+	"cph.general.defaultProblemSource": "vjudge",
 	"cph.general.vjudgeBrowserSplitRatio": 65,
 	"cph.general.vjudgeUrlSuffix": "#author=translator:1281309:zh",
 	"cph.general.fileNameTemplate": "{ojName}/{contestId}/{problemId}.{ext}",
