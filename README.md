@@ -81,6 +81,8 @@ ShortestPath IDE is licensed under [GPL-3.0-or-later](LICENSE). Open-source comp
 | [vscode-clangd](https://github.com/clangd/vscode-clangd) | clangd editor integration | MIT |
 | [CodeSnap](https://github.com/kufii/CodeSnap) | Source-code screenshots | MIT |
 | [Better C++ Syntax](https://github.com/jeff-hykin/better-cpp-syntax) | C++ syntax highlighting | MIT |
+| [PDF Viewer](https://github.com/mathematic-inc/vscode-pdf) | PDF problem viewer | Apache-2.0 |
+| [Flintmark](https://github.com/quboliu/flintmark) | Live-preview Markdown editor | MIT |
 | [VS Code Simplified Chinese Language Pack](https://github.com/Microsoft/vscode-loc) | Simplified Chinese UI localization | MIT |
 
 See [ThirdPartyNotices.txt](ThirdPartyNotices.txt) for full third-party copyright and license notices. Preserve the license files included with individual extensions as well. This notice is not legal advice.

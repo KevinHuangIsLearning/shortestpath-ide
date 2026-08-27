@@ -81,6 +81,8 @@ ShortestPath IDE 的仓库许可证为 [GPL-3.0-or-later](LICENSE)。本项目�
 | [vscode-clangd](https://github.com/clangd/vscode-clangd) | clangd 编辑器集成 | MIT |
 | [CodeSnap](https://github.com/kufii/CodeSnap) | 代码截图 | MIT |
 | [Better C++ Syntax](https://github.com/jeff-hykin/better-cpp-syntax) | C++ 语法高亮 | MIT |
+| [PDF Viewer](https://github.com/mathematic-inc/vscode-pdf) | PDF 题目查看 | Apache-2.0 |
+| [Flintmark](https://github.com/quboliu/flintmark) | 所见即所得 Markdown 编辑器 | MIT |
 | [VS Code 简体中文语言包](https://github.com/Microsoft/vscode-loc) | 简体中文界面本地化 | MIT |
 
 完整的第三方版权和许可证声明见 [ThirdPartyNotices.txt](ThirdPartyNotices.txt)，并请同时保留各扩展目录中附带的许可证文件。本说明不构成法律意见。
