@@ -47,6 +47,11 @@ suite('ShortestPath update check', () => {
 		});
 		assert.deepStrictEqual(update?.fastDownloadUrls, fastDownloadUrls);
 		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', fastDownloadUrls: { macosArm64: 'https://example.com/download' } }), undefined);
+		assert.deepStrictEqual(parseShortestPathUpdateDocument({
+			version: '0.2.1',
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
+			fastDownloadUrls: { macosArm64: '', windowsUserSetup: '', windowsPortable: '' },
+		})?.fastDownloadUrls, { macosArm64: '', windowsUserSetup: '', windowsPortable: '' });
 		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', fastDownloadUrls: { windowsSystemSetup: 'https://www.icloud.com.cn/iclouddrive/system' } }), undefined);
 	});
 

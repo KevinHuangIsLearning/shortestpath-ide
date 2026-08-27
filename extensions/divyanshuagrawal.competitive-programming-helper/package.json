@@ -845,7 +845,7 @@
                                 },
                                 "problemSource": {
                                     "type": "string",
-                                    "enum": ["vjudge", "original"],
+                                    "enum": ["vjudge", "original", "none"],
                                     "description": "Optional problem page source for this OJ. Falls back to Default Problem Source."
                                 }
                             }

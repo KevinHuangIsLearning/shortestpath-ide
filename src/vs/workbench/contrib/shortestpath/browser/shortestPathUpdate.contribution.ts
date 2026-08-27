@@ -7,6 +7,7 @@ import './media/shortestPathUpdateRequired.css';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { $, addDisposableListener, append, isHTMLElement } from '../../../../base/browser/dom.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -39,7 +40,7 @@ interface IShortestPathUpdateCheckResult {
 	readonly fastDownloadUrl: string | undefined;
 }
 
-type ShortestPathUpdateCheckOutcome = { status: 'latest' | 'available' | 'failed'; version?: string };
+type ShortestPathUpdateCheckOutcome = { status: 'latest' | 'available' | 'failed'; version?: string; reason?: string };
 
 const UPDATE_GRACE_STORAGE_KEY = 'shortestpath.update.networkGrace';
 const RELEASE_NOTES_VERSION_STORAGE_KEY = 'shortestpath.releaseNotes.shownVersion';
@@ -91,7 +92,7 @@ class ShortestPathUpdateChecker {
 		const updateDocument = await asJson<IShortestPathUpdateDocument>(response);
 		const release = updateDocument ? parseShortestPathUpdateDocument(updateDocument) : undefined;
 		if (!release) {
-			return undefined;
+			throw new Error('更新清单格式无效。');
 		}
 		const target = (await this.getUpdateTarget()) ?? { downloadUrl: release.downloadUrl, allowsMinimumVersionLock: false };
 		const result = { release, target, fastDownloadUrl: getShortestPathFastDownloadUrl(release.fastDownloadUrls, target) };
@@ -549,10 +550,13 @@ registerAction2(class extends Action2 {
 			const result = await checker.check();
 			if (!result) {
 				ShortestPathUpdateBlocker.dismiss();
+				const reason = !productService.shortestPathVersion
+					? '当前产品未配置版本号。'
+					: '当前产品未配置更新地址。';
 				if (!fromSetup) {
-					notificationService.error(localize('shortestpath.update.unconfigured', "无法检查 ShortestPath IDE 更新：当前产品未配置更新地址。"));
+					notificationService.error(localize('shortestpath.update.unconfigured', "无法检查 ShortestPath IDE 更新：{0}", reason));
 				}
-				return { status: 'failed' };
+				return { status: 'failed', reason };
 			}
 			if (!fromSetup && !isShortestPathUpdateAvailable(productService.shortestPathVersion ?? '', result.release.version)) {
 				notificationService.info(localize('shortestpath.update.latest', "当前已是 ShortestPath IDE 最新版本（{0}）。", productService.shortestPathVersion ?? 'Unknown'));
@@ -595,14 +599,14 @@ registerAction2(class extends Action2 {
 				}
 			}
 			return { status: 'available', version: result.release.version };
-		} catch {
+		} catch (error) {
 			ShortestPathUpdateBlocker.dismiss();
+			const reason = getErrorMessage(error);
 			// allow-any-unicode-next-line
 			if (!fromSetup) {
-				notificationService.error(localize('shortestpath.update.failed', "无法检查 ShortestPath IDE 更新，请稍后重试。"));
-				return { status: 'failed' };
+				notificationService.error(localize('shortestpath.update.failed', "无法检查 ShortestPath IDE 更新：{0}", reason));
 			}
-			throw new Error('Failed to check for ShortestPath IDE updates.');
+			return { status: 'failed', reason };
 		}
 	}
 });
