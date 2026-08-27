@@ -28,6 +28,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
@@ -37,6 +38,8 @@ interface IShortestPathUpdateCheckResult {
 	readonly target: IShortestPathUpdateTarget | undefined;
 	readonly fastDownloadUrl: string | undefined;
 }
+
+type ShortestPathUpdateCheckOutcome = { status: 'latest' | 'available' | 'failed'; version?: string };
 
 const UPDATE_GRACE_STORAGE_KEY = 'shortestpath.update.networkGrace';
 const RELEASE_NOTES_VERSION_STORAGE_KEY = 'shortestpath.releaseNotes.shownVersion';
@@ -61,14 +64,13 @@ class ShortestPathUpdateChecker {
 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 	) { }
 
-	async check(explicit: boolean): Promise<IShortestPathUpdateCheckResult | undefined> {
+	async check(): Promise<IShortestPathUpdateCheckResult | undefined> {
 		const currentVersion = this.productService.shortestPathVersion;
 		const updateUrl = this.productService.shortestPathUpdateUrl;
 		if (!currentVersion || !updateUrl) {
@@ -99,10 +101,6 @@ class ShortestPathUpdateChecker {
 		}
 
 		if (!isShortestPathUpdateAvailable(currentVersion, release.version)) {
-			if (explicit) {
-				// allow-any-unicode-next-line
-				await this.dialogService.info(localize('shortestpath.update.latest', "当前已是 ShortestPath IDE 最新版本（{0}）。", currentVersion));
-			}
 			return result;
 		}
 
@@ -327,7 +325,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 
 	private async checkForUpdates(instantiationService: IInstantiationService, logService: ILogService): Promise<void> {
 		try {
-			const result = await instantiationService.createInstance(ShortestPathUpdateChecker).check(false);
+			const result = await instantiationService.createInstance(ShortestPathUpdateChecker).check();
 			if (!result) {
 				this.unlockAfterFailedCheck();
 				this.checkScheduler.schedule(ShortestPathUpdateContribution.RETRY_INTERVAL);
@@ -541,22 +539,31 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const dialogService = accessor.get(IDialogService);
+	async run(accessor: ServicesAccessor, fromSetup = false): Promise<ShortestPathUpdateCheckOutcome> {
+		const notificationService = accessor.get(INotificationService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const productService = accessor.get(IProductService);
 		const storageService = accessor.get(IStorageService);
 		const checker = instantiationService.createInstance(ShortestPathUpdateChecker);
 		try {
-			const result = await checker.check(true);
+			const result = await checker.check();
 			if (!result) {
 				ShortestPathUpdateBlocker.dismiss();
-				return;
+				if (!fromSetup) {
+					notificationService.error(localize('shortestpath.update.unconfigured', "无法检查 ShortestPath IDE 更新：当前产品未配置更新地址。"));
+				}
+				return { status: 'failed' };
+			}
+			if (!fromSetup && !isShortestPathUpdateAvailable(productService.shortestPathVersion ?? '', result.release.version)) {
+				notificationService.info(localize('shortestpath.update.latest', "当前已是 ShortestPath IDE 最新版本（{0}）。", productService.shortestPathVersion ?? 'Unknown'));
+			}
+			if (!isShortestPathUpdateAvailable(productService.shortestPathVersion ?? '', result.release.version)) {
+				return { status: 'latest', version: result.release.version };
 			}
 			const graceState = productService.shortestPathVersion ? getShortestPathUpdateGraceStateForCurrentMinimumVersion(storageService, productService.shortestPathVersion, result.release.minimumSupportedVersion) : undefined;
 			if (result.release.minimumSupportedVersion && result.target?.allowsMinimumVersionLock !== false && productService.shortestPathVersion && !isShortestPathVersionSupported(productService.shortestPathVersion, result.release.minimumSupportedVersion)) {
 				if (graceState?.permanentlyAllowed || (graceState?.graceUntil && graceState.graceUntil > Date.now())) {
-					return;
+					return { status: 'available', version: result.release.version };
 				}
 				const downloadUrl = result.target?.downloadUrl ?? result.release.downloadUrl;
 				const graceCount = graceState?.graceCount ?? 0;
@@ -587,10 +594,15 @@ registerAction2(class extends Action2 {
 					}
 				}
 			}
+			return { status: 'available', version: result.release.version };
 		} catch {
 			ShortestPathUpdateBlocker.dismiss();
 			// allow-any-unicode-next-line
-			await dialogService.error(localize('shortestpath.update.failed', "无法检查 ShortestPath IDE 更新，请稍后重试。"));
+			if (!fromSetup) {
+				notificationService.error(localize('shortestpath.update.failed', "无法检查 ShortestPath IDE 更新，请稍后重试。"));
+				return { status: 'failed' };
+			}
+			throw new Error('Failed to check for ShortestPath IDE updates.');
 		}
 	}
 });
