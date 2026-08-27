@@ -1,7 +1,5 @@
 # ShortestPath IDE 下载说明 / Download Guide
 
-## 如果你网络不畅，请使用快速下载选项。
-
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
 ## v0.3.12 更新 / What's New
@@ -12,6 +10,9 @@
 - 更新简体中文语言包，移除状态栏 Copilot 项并修复关于窗口排版。
 - 内置 Flintmark Markdown 编辑器和 PDF Viewer，并设为相应文件的默认编辑器。
 - “检查更新”现在会明确显示最新版本、可用更新版本或失败状态。
+- CPH Plus 现可按 OJ 选择通过 VJudge、原 OJ 或不显示题面；ShortestPath OJ 直接使用内置题面，不会重复打开浏览器题面。
+- 修复检查更新对空镜像地址的误判；失败时会显示具体原因。
+- 修复简体中文“关于”窗口的版本信息错位，现分别显示 ShortestPath IDE 与 VS Code 版本及完整运行时信息。
 - 此版本不是可选更新，请及时升级。后续更新频率将降低。
 
 - Built-in components were streamlined by removing the non-competitive-programming PDF preview and LaTeX, YAML, Shell, Makefile, dotenv, and Prompt language support; Python support remains.
@@ -20,6 +21,9 @@
 - Updated the bundled Simplified Chinese language pack, removed the Copilot status-bar item, and fixed About-window layout.
 - Bundled Flintmark for Markdown and PDF Viewer, with each set as the default editor for its corresponding files.
 - Update checks now clearly report the latest version, an available update, or a failed check.
+- CPH Plus can now choose VJudge, the original OJ, or no problem page per OJ. ShortestPath OJ uses its built-in problem page without opening a duplicate browser page.
+- Fixed update checks rejecting empty mirror URLs, and failures now show the specific reason.
+- Fixed misaligned version fields in the Simplified Chinese About dialog; it now shows the ShortestPath IDE and VS Code versions along with complete runtime information.
 - This is not an optional update; please upgrade promptly. Future updates will be less frequent and will focus mainly on necessary fixes and important features.
 
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。
@@ -39,7 +43,7 @@ The English version follows the Chinese version.
 | Windows x64（大多数人） | [`ShortestPath-IDE-Windows-x64-User-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-User-Setup.exe) | 当前用户安装，**内置 MinGW Lite GCC**，无需管理员权限，装完即用、离线可用 |
 | Windows x64，要 U 盘便携版（推荐） | [`ShortestPath-IDE-Windows-x64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64.zip) | 解压即用，**内置 MinGW Lite GCC**；设置、插件和工具链保存在安装目录的 `data` 中，可随 U 盘移动 |
 | Windows x64，系统级安装 | [`ShortestPath-IDE-Windows-x64-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-Setup.exe) | 系统级安装（需管理员），**内置 MinGW Lite GCC**，给这台机器所有用户用 |
-| macOS（Apple Silicon，M 系列）| [`ShortestPath-IDE-macos-arm64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip) 或快速下载 <https://www.icloud.com.cn/iclouddrive/08cF_59Sro2BVBxDWGAUj5UoA> | 唯一选择；解压后拖入「应用程序」，首次打开被拦截请看下方指南 |
+| macOS（Apple Silicon，M 系列）| [`ShortestPath-IDE-macos-arm64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip) | 唯一选择；解压后拖入「应用程序」，首次打开被拦截请看下方指南 |
 | Linux | — | 暂不提供发布包，请自行从源码构建 |
 
 ### Windows（x64）
