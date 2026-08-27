@@ -2,6 +2,14 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
+## v0.3.13 更新 / What's New
+
+- 修复简体中文“关于”窗口中的运行时信息显示。
+- 此版本不是可选更新，请及时升级。
+
+- Fixed runtime information display in the Simplified Chinese About dialog.
+- This is not an optional update; please upgrade promptly.
+
 ## v0.3.12 更新 / What's New
 
 - 精简内置组件：移除不面向竞赛编程的 PDF 预览，以及 LaTeX、YAML、Shell、Makefile、dotenv 和 Prompt 文件语言支持；Python 支持保留。
