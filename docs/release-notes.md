@@ -4,17 +4,23 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.3.11 更新 / What's New
+## v0.3.12 更新 / What's New
 
-- CPH Plus 新增对拍：支持选择生成器和标准程序，发现反例后可手动添加为普通样例。
-- 新增大样例测试：拖入或选择文件夹即可导入，支持与普通样例统一运行、跳过和结果展示。
-- 修复大样例状态、失败信号和拖入导入等交互问题。
-- 此版本为普通更新，可按需升级。
+- 精简内置组件：移除不面向竞赛编程的 PDF 预览，以及 LaTeX、YAML、Shell、Makefile、dotenv 和 Prompt 文件语言支持；Python 支持保留。
+- 简化设置新增插件市场和显示语言选项，并修复插件市场首次查询问题。
+- 首次使用向导、竞赛编程设置、CPH 配置、工具链诊断与 ShortestPath OJ 界面现会跟随显示语言，题目原文不会被翻译或改写。
+- 更新简体中文语言包，移除状态栏 Copilot 项并修复关于窗口排版。
+- 内置 Flintmark Markdown 编辑器和 PDF Viewer，并设为相应文件的默认编辑器。
+- “检查更新”现在会明确显示最新版本、可用更新版本或失败状态。
+- 此版本不是可选更新，请及时升级。后续更新频率将降低。
 
-- CPH Plus now supports stress testing with a selected generator and standard program; counterexamples can be explicitly added as ordinary test cases.
-- Large sample testing now imports a folder by drag and drop or selection, and shares running, skipping, and result presentation with ordinary test cases.
-- Fixed large-sample status, failure-signal, and folder-drop interactions.
-- This is an optional update.
+- Built-in components were streamlined by removing the non-competitive-programming PDF preview and LaTeX, YAML, Shell, Makefile, dotenv, and Prompt language support; Python support remains.
+- Simplified Settings now includes extension marketplace and display-language options, and the first marketplace query issue was fixed.
+- The first-run wizard, competitive-programming settings, CPH configuration, toolchain diagnostics, and ShortestPath OJ interface now follow the display language; problem source text is not translated or rewritten.
+- Updated the bundled Simplified Chinese language pack, removed the Copilot status-bar item, and fixed About-window layout.
+- Bundled Flintmark for Markdown and PDF Viewer, with each set as the default editor for its corresponding files.
+- Update checks now clearly report the latest version, an available update, or a failed check.
+- This is not an optional update; please upgrade promptly. Future updates will be less frequent and will focus mainly on necessary fixes and important features.
 
 > 不知道怎么选？看这张表就够了。不知道怎么选时，**默认选第一行**。
 >
