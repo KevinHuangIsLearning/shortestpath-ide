@@ -1,11 +1,11 @@
 {
 	"version": "0.3.12",
 	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.12",
-	"minimumSupportedVersion": "0.3.8",
+	"minimumSupportedVersion": "0.3.12",
 	"fastDownloadUrls": {
 		"macosArm64": "",
 		"windowsUserSetup": "",
 		"windowsPortable": ""
 	},
-	"releaseNote": "- 精简内置组件：移除不面向竞赛编程的 PDF 预览，以及 LaTeX、YAML、Shell、Makefile、dotenv 和 Prompt 文件语言支持；Python 支持保留。\n- 简化设置新增插件市场和显示语言选项，并修复插件市场首次查询问题。\n- 首次使用向导、竞赛编程设置、CPH 配置、工具链诊断与 ShortestPath OJ 界面现会跟随显示语言，题目原文不会被翻译或改写。\n- 更新简体中文语言包，移除状态栏 Copilot 项并修复关于窗口排版。\n- 内置 Flintmark Markdown 编辑器和 PDF Viewer，并设为相应文件的默认编辑器。\n- “检查更新”现在会明确显示最新版本、可用更新版本或失败状态。\n- 此版本不是可选更新，请及时升级。后续更新频率将降低。"
+	"releaseNote": "- 精简内置组件：移除不面向竞赛编程的 PDF 预览，以及 LaTeX、YAML、Shell、Makefile、dotenv 和 Prompt 文件语言支持；Python 支持保留。\n- 简化设置新增插件市场和显示语言选项，并修复插件市场首次查询问题。\n- 首次使用向导、竞赛编程设置、CPH 配置、工具链诊断与 ShortestPath OJ 界面现会跟随显示语言，题目原文不会被翻译或改写。\n- 更新简体中文语言包，移除状态栏 Copilot 项并修复关于窗口排版。\n- 内置 Flintmark Markdown 编辑器和 PDF Viewer，并设为相应文件的默认编辑器。\n- CPH Plus 可按 OJ 选择通过 VJudge、原 OJ 或不显示题面；ShortestPath OJ 直接使用内置题面。\n- 修复检查更新对空镜像地址的误判；失败时会显示具体原因。\n- 修复简体中文“关于”窗口的版本信息错位。\n- 此版本不是可选更新，请及时升级。后续更新频率将降低。"
 }
