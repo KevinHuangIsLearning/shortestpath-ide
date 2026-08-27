@@ -63,6 +63,7 @@ export type prefSection =
     | 'general.hideOutputDifference'
     | 'general.collectProblemsInRoot'
     | 'general.ojMapping'
+    | 'general.defaultProblemSource'
     | 'general.vjudgeOjNames'
     | 'general.vjudgeOpenInBrowser'
     | 'general.vjudgeUrlSuffix'
@@ -568,6 +569,7 @@ export type OjMappingEntry = {
     ojName: string;
     contestIdRegex?: string;
     problemIdRegex?: string;
+    problemSource?: import('./problemDisplay').ProblemSource;
 };
 
 export type CphEmptyResponse = {

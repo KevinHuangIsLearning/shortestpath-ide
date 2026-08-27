@@ -95,11 +95,12 @@
     "cph.utils.unsupported": "Unsupported file extension. Only these types are valid: {0}",
     "cph.utils.noActiveEditor": "No active editor found.",
     "cph.general.collectProblemsInRoot.description": "Save all problem metadata (.cph) in the workspace root directory instead of alongside each source file. Keeps subdirectories clean when using filename templates with paths.",
-    "cph.general.ojMapping.description": "Custom OJ hostname to metadata mapping. Keys are hostnames (e.g. 'www.luogu.com.cn'), values are objects with {oj, ojName, contestIdRegex?, problemIdRegex?}. Matched URLs override built-in detection. Example: { \"my.oj.cn\": { \"oj\": \"MYOJ\", \"ojName\": \"My OJ\" } }",
+    "cph.general.ojMapping.description": "Custom OJ hostname to metadata mapping. Keys are hostnames (e.g. 'www.luogu.com.cn'), values are objects with {oj, ojName, contestIdRegex?, problemIdRegex?, problemSource?}. problemSource is 'vjudge' or 'original' and overrides Default Problem Source for this OJ. Matched URLs override built-in detection. Example: { \"my.oj.cn\": { \"oj\": \"MYOJ\", \"ojName\": \"My OJ\", \"problemSource\": \"original\" } }",
+    "cph.general.defaultProblemSource.description": "Problem page source used when an OJ mapping does not specify one. Select VJudge or Original OJ.",
     "cph.general.vjudgeOjNames.description": "VJudge OJ name to original URL mapping. Keys are OJ names as they appear in VJudge URLs (e.g. 'CodeForces', '51Nod'), values are {urlTemplate, problemIdRegex?, compositeFormat?, vjudgeUrlKey?}. Used to reconstruct original OJ URLs for filename templates and submission. compositeFormat controls how to rebuild the composite problem ID (default: '{contestId}{problemId}'). vjudgeUrlKey overrides the OJ name used when constructing VJudge URLs from other sources (e.g. 'CF' → 'CodeForces'). Example: { \"51Nod\": { \"urlTemplate\": \"https://www.51nod.com/Challenge/Problem.html#problemId={problemId}\" } }",
-    "cph.general.vjudgeOpenInBrowser.description": "Automatically open the VJudge problem page in the integrated browser when receiving a problem (from VJudge or other OJs).",
-    "cph.general.vjudgeUrlSuffix.description": "Optional suffix to append to the URL opened in the browser. Useful for adding URL parameters or hash fragments (e.g. '#author=translator:1281309:zh').",
-    "cph.general.vjudgeBrowserSplitRatio.description": "Split ratio (10-90) between code editor and browser when opening VJudge problem page. Default 50 means 50:50.",
+    "cph.general.vjudgeOpenInBrowser.description": "Automatically open the selected problem page in the integrated browser when receiving a problem.",
+    "cph.general.vjudgeUrlSuffix.description": "Optional suffix to append only to VJudge pages. Useful for adding URL parameters or hash fragments (e.g. '#author=translator:1281309:zh').",
+    "cph.general.vjudgeBrowserSplitRatio.description": "Split ratio (10-90) between code editor and browser when opening a problem page. Default 50 means 50:50.",
     "cph.preferences.invalidSaveLocation": "Invalid save location, reverting to default. path not exists: {0}",
     "cph.processRunSingle.invalidChecker": "Custom checker script not found at '{0}'"
 }

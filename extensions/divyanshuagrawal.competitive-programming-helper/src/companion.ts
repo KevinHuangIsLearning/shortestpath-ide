@@ -21,11 +21,19 @@ import {
     getFileNameTemplate,
     getFileNameTemplateOverrides,
     getOjMapping,
+    getDefaultProblemSource,
     getVjudgeOjNames,
     getVjudgeOpenInBrowser,
     getVjudgeUrlSuffix,
     getVjudgeBrowserSplitRatio,
 } from './preferences';
+import {
+    appendVjudgeUrlSuffix,
+    getProblemDisplayTarget,
+    getProblemSourceForUrl,
+    restoreOriginalProblemUrl,
+    type ProblemSource,
+} from './problemDisplay';
 import { getProblemName } from './submit';
 import { spawn } from 'child_process';
 import { getJudgeViewProvider } from './extension';
@@ -234,6 +242,7 @@ interface OjInfo {
     ojName: string;
     contestId: string;
     problemId: string;
+    problemSource?: ProblemSource;
 }
 
 /** Detect OJ metadata from a problem URL. All detection is driven by cph.general.ojMapping configuration. */
@@ -252,6 +261,11 @@ const detectOj = (urlStr: string): OjInfo => {
                 continue;
             result.oj = entry.oj || '';
             result.ojName = entry.ojName || '';
+            result.problemSource =
+                entry.problemSource === 'original' ||
+                entry.problemSource === 'vjudge'
+                    ? entry.problemSource
+                    : undefined;
             if (entry.contestIdRegex) {
                 const m = urlStr.match(entry.contestIdRegex);
                 if (m) result.contestId = m[1];
@@ -426,13 +440,18 @@ const handleNewProblem = async (problem: Problem, preferredSourcePath?: string):
         const splitUrl = problem.url.split('/');
         problem.name = splitUrl[splitUrl.length - 1];
     }
-    // Determine VJudge URL to open in browser
+    const receivedProblemUrl = problem.url;
+
+    problem.url = restoreOriginalProblemUrl(problem.url, getVjudgeOjNames());
+
+    // Determine the VJudge URL to open. For a VJudge import retain the exact
+    // received URL; otherwise derive it from the restored original OJ URL.
     let vjudgeUrlToOpen: string | undefined;
     if (getVjudgeOpenInBrowser()) {
         try {
-            const urlObj = new URL(problem.url);
+            const urlObj = new URL(receivedProblemUrl);
             if (urlObj.hostname.endsWith('vjudge.net')) {
-                vjudgeUrlToOpen = problem.url;
+                vjudgeUrlToOpen = receivedProblemUrl;
             } else {
                 const ojInfo = detectOj(problem.url);
                 if (ojInfo.oj && ojInfo.problemId) {
@@ -468,51 +487,21 @@ const handleNewProblem = async (problem: Problem, preferredSourcePath?: string):
         }
     }
 
-    // Reconstruct VJudge URL to original OJ URL before filename generation
-    try {
-        const urlObj = new URL(problem.url);
-        if (urlObj.hostname.endsWith('vjudge.net')) {
-            const decodedPath = decodeURIComponent(urlObj.pathname);
-            const vjMatch = decodedPath.match(/\/problem\/(.+?)-(.+)/);
-            if (vjMatch) {
-                const innerOj = vjMatch[1];
-                const rawPid = vjMatch[2].replace(/[?#].*$/, '');
-                const vjudgeMapping = getVjudgeOjNames();
-                let urlTemplate: string | undefined;
-                let problemIdRegex: string | undefined;
-                if (vjudgeMapping) {
-                    for (const [key, entry] of Object.entries(vjudgeMapping)) {
-                        if (innerOj.toLowerCase() === key.toLowerCase()) {
-                            urlTemplate = entry.urlTemplate;
-                            problemIdRegex = entry.problemIdRegex;
-                            break;
-                        }
-                    }
-                }
-                if (urlTemplate) {
-                    let contestId = '';
-                    let problemId = rawPid;
-                    if (problemIdRegex) {
-                        const pm = rawPid.match(problemIdRegex);
-                        if (pm) {
-                            contestId = pm[1];
-                            problemId = pm[2];
-                        }
-                    }
-                    problem.url = replaceFileNamePlaceholders(urlTemplate, {
-                        contestId,
-                        problemId,
-                    });
-                }
-            }
-        }
-    } catch (err) {
-        globalThis.logger.error('Failed to restore VJudge source URL:', err);
-    }
-
-    if (vjudgeUrlToOpen) {
-        const suffix = getVjudgeUrlSuffix();
-        const targetUrl = suffix ? vjudgeUrlToOpen + suffix : vjudgeUrlToOpen;
+    const originalOj = detectOj(problem.url);
+    const displayTarget = getProblemDisplayTarget(
+        getVjudgeOpenInBrowser(),
+        getProblemSourceForUrl(
+            problem.url,
+            getOjMapping(),
+            originalOj.problemSource ?? getDefaultProblemSource(),
+        ),
+        problem.url,
+        vjudgeUrlToOpen,
+    );
+    if (displayTarget) {
+        const suffix =
+            displayTarget.source === 'vjudge' ? getVjudgeUrlSuffix() : '';
+        const targetUrl = appendVjudgeUrlSuffix(displayTarget.url, suffix);
         const ratio = getVjudgeBrowserSplitRatio();
         const left = ratio / 100;
         const right = (100 - ratio) / 100;

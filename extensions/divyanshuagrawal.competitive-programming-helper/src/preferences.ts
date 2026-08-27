@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import * as vscode from 'vscode';
 import localize from './i18n';
+import type { ProblemSource } from './problemDisplay';
 
 const getPreference = (section: prefSection): any => {
     const ret = workspace.getConfiguration('cph').get(section);
@@ -121,6 +122,11 @@ export const getOjMapping = (): Record<
     }
     return pref;
 };
+
+export const getDefaultProblemSource = (): ProblemSource =>
+    getPreference('general.defaultProblemSource') === 'original'
+        ? 'original'
+        : 'vjudge';
 
 export const getVjudgeOjNames = (): Record<
     string,
