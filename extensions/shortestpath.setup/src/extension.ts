@@ -443,11 +443,11 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	await context.globalState.update(SETUP_COMPLETE, true);
 
 	if (installerStarted && preset.portableToolchain) {
-		void vscode.window.showInformationMessage('ShortestPath IDE is configured for its Portable toolchain. The download continues in the setup terminal without changing your system PATH.');
+		void vscode.window.showInformationMessage(localize('ShortestPath IDE 已配置为使用便携工具链。下载将在设置终端中继续，不会修改系统 PATH。'));
 	} else if (!compiler || !clangd) {
-		void vscode.window.showWarningMessage('The preset was saved, but one or more compilers are not installed yet. Finish the terminal installer, then run “ShortestPath IDE: Configure Competitive Programming Environment” again to detect their actual paths.');
+		void vscode.window.showWarningMessage(localize('预设已保存，但一个或多个编译器尚未安装。请完成终端安装，然后再次运行“ShortestPath IDE: Configure Competitive Programming Environment”以检测其实际路径。'));
 	} else {
-		void vscode.window.showInformationMessage(`ShortestPath IDE is ready. Using g++ at ${compiler}.`);
+		void vscode.window.showInformationMessage(localizeFormat('ShortestPath IDE 已就绪。正在使用 {0}。', compiler));
 	}
 }
 
@@ -615,12 +615,13 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 			?? preset.downloadSources?.find(candidate => !candidate.unavailable);
 		const installer = loadPlatformInstaller(context);
 		if (installer.getPortableAssets || !installer.createCommand) {
+			const restartLabel = localize('立即重新启动设置');
 			const restart = await vscode.window.showInformationMessage(
-				'Portable toolchains are downloaded by the first-run setup window. Restart setup to download them.',
-				'Restart setup now'
+				localize('便携工具链由首次启动设置窗口下载。请重新启动设置以完成下载。'),
+				restartLabel
 			);
-			if (restart === 'Restart setup now') {
-					await rerunFirstRunSetup(repair);
+			if (restart === restartLabel) {
+				await rerunFirstRunSetup(repair);
 			}
 			return;
 		}

@@ -92,7 +92,7 @@ async function collectDiagnostics(sourcePath: string | undefined): Promise<Diagn
 		{ id: 'llvm-vs-code-extensions.vscode-clangd', label: 'clangd 扩展' }
 	]) {
 		const installed = vscode.extensions.getExtension(extension.id);
-		items.push({ label: extension.label, status: installed ? 'ok' : 'error', detail: installed ? `已安装（${installed.packageJSON.version ?? '未知版本'}）。` : '未安装或未随应用打包。' });
+		items.push({ label: extension.label, status: installed ? 'ok' : 'error', detail: installed ? localizeFormat('已安装（{0}）。', installed.packageJSON.version ?? localize('未知版本')) : localize('未安装或未随应用打包。') });
 	}
 	return items;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { localize, localizeWebviewHtml } from './localization';
+import { localize, localizeFormat, localizeWebviewHtml } from './localization';
 
 type RelaxSource = {
 	id: string;
@@ -279,7 +279,7 @@ async function openRelaxBrowser(context: vscode.ExtensionContext, url: string | 
 		await saveState(context, state);
 		await rememberRelaxBrowser(context, tab);
 	} catch (error) {
-		void vscode.window.showErrorMessage(`无法打开放松源：${error instanceof Error ? error.message : String(error)}`);
+		void vscode.window.showErrorMessage(localizeFormat('无法打开放松源：{0}', error instanceof Error ? error.message : String(error)));
 	}
 }
 
