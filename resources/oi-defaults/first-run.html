@@ -61,29 +61,27 @@
 				<div class="progress-track"><div class="progress-bar"></div></div>
 				<p id="progress-description" class="progress-description" aria-live="polite">正在准备编译环境…</p>
 			</div>
-			<div class="actions"><span class="note">请保持此窗口打开。准备完成后可继续配置。</span><span><button id="retry" class="primary" hidden>重试</button><button id="download-next" class="primary" hidden>下一步</button></span></div>
+			<div class="actions"><span id="download-note" class="note">请保持此窗口打开。准备完成后可继续配置。</span><span><button id="retry" class="primary" hidden>重试</button><button id="download-next" class="primary" hidden>下一步</button></span></div>
 		</section>
 		<section id="configure-page" hidden>
 			<div class="badge">Configuration</div>
 			<h1 id="configuration-title">工具链已准备就绪。</h1>
 			<p id="configuration-lead" class="lead">确认要写入的 ShortestPath IDE 配置，然后进入工作台。</p>
 			<div id="final-options" class="options visible"></div>
-			<div class="actions"><span class="note">设置写入个人配置，不影响其他编辑器。</span><button id="finish" class="primary">下一步</button></div>
+			<div class="actions"><span id="configuration-note" class="note">设置写入个人配置，不影响其他编辑器。</span><button id="finish" class="primary">下一步</button></div>
 		</section>
 		<section id="workspace-page" hidden>
 			<div class="badge">Workspace</div>
 			<h1 id="workspace-title">选择工作目录。</h1>
 			<p id="workspace-lead" class="lead">我们会在此目录创建 .clangd，并在完成后直接打开它。</p>
 			<div class="options visible"><label><span id="workspace-label">工作目录</span><input id="workspaceFolder" type="text" readonly><button id="workspaceFolder-pick" type="button">选择目录</button></label></div>
-			<div class="actions"><span class="note">已有 .clangd 不会被覆盖。</span><button id="workspace-finish" class="primary">应用配置并打开工作目录</button></div>
+			<div class="actions"><span id="workspace-note" class="note">已有 .clangd 不会被覆盖。</span><button id="workspace-finish" class="primary">应用配置并打开工作目录</button></div>
 		</section>
 	</main>
 	<script>
 	(async () => {
-		// ShortestPath IDE is Chinese-first. Do not derive this page's language
-		// from Electron's OS locale, which can be English even when the IDE itself
-		// defaults to zh-cn.
-		const language = 'zh-CN';
+		const locale = await window.shortestPathSetup.getLocale();
+		const language = typeof locale === 'string' && locale.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
 		const script = await window.shortestPathSetup.getScript();
 		const localize = value => typeof value === 'string' ? value : value[language] ?? value.en ?? value['zh-CN'];
 		const pages = script.pages;
@@ -91,11 +89,11 @@
 		const translations = {
 			'en': {
 				choiceTitle: 'Ready for competitive programming.', choiceLead: 'We will prepare the compiler environment and choose the C++ language version before opening the IDE.',
-				permission: 'Preparation may require confirmation or administrator permission.', skip: 'Configure later', continue: 'Continue', downloadTitle: 'Preparing your build environment.', configurationTitle: 'Your toolchain is ready.', configurationLead: 'Confirm the ShortestPath IDE preferences to save before opening the workbench.', workspaceTitle: 'Choose your workspace folder.', workspaceLead: 'We will create .clangd in this folder and open it when setup is complete.', workspaceLabel: 'Workspace folder', chooseFolder: 'Choose folder', selectWorkspace: 'Select a workspace folder.', preparing: 'Preparing the build environment…', completed: 'Build environment ready. Select Next to continue configuration.', alreadyInstalled: 'Build environment is already ready. Preparation skipped.', failed: 'Build environment preparation failed: {message}'
+				permission: 'Preparation may require confirmation or administrator permission.', skip: 'Configure later', continue: 'Continue', downloadTitle: 'Preparing your build environment.', downloadNote: 'Keep this window open. You can continue when preparation finishes.', retry: 'Retry', next: 'Next', progressLabel: 'Installation progress', configurationTitle: 'Your toolchain is ready.', configurationLead: 'Confirm the ShortestPath IDE preferences to save before opening the workbench.', configurationNote: 'Settings are saved to your user profile and do not affect other editors.', workspaceTitle: 'Choose your workspace folder.', workspaceLead: 'We will create .clangd in this folder and open it when setup is complete.', workspaceLabel: 'Workspace folder', chooseFolder: 'Choose folder', workspaceNote: 'Existing .clangd files will not be overwritten.', applyAndOpen: 'Apply Settings and Open Workspace', selectWorkspace: 'Select a workspace folder.', preparing: 'Preparing the build environment…', completed: 'Build environment ready. Select Next to continue configuration.', alreadyInstalled: 'Build environment is already ready. Preparation skipped.', failed: 'Build environment preparation failed: {message}'
 			},
 			'zh-CN': {
 				choiceTitle: '准备好开始竞赛编程。', choiceLead: '我们会准备编译环境，并选择 C++ 语言版本，然后打开工作台。',
-				permission: '准备环境需要确认，可能要求管理员权限。', skip: '稍后配置', continue: '继续', downloadTitle: '正在准备编译环境。', configurationTitle: '工具链已准备就绪。', configurationLead: '确认要写入的 ShortestPath IDE 配置，然后进入工作台。', workspaceTitle: '选择工作目录。', workspaceLead: '我们会在此目录创建 .clangd，并在完成后直接打开它。', workspaceLabel: '工作目录', chooseFolder: '选择目录', selectWorkspace: '请选择工作目录。', preparing: '正在准备编译环境…', completed: '编译环境已准备就绪。点击“下一步”继续配置。', alreadyInstalled: '编译环境已就绪，已跳过重复准备。', failed: '编译环境准备失败：{message}'
+				permission: '准备环境需要确认，可能要求管理员权限。', skip: '稍后配置', continue: '继续', downloadTitle: '正在准备编译环境。', downloadNote: '请保持此窗口打开。准备完成后可继续配置。', retry: '重试', next: '下一步', progressLabel: '安装进度', configurationTitle: '工具链已准备就绪。', configurationLead: '确认要写入的 ShortestPath IDE 配置，然后进入工作台。', configurationNote: '设置写入个人配置，不影响其他编辑器。', workspaceTitle: '选择工作目录。', workspaceLead: '我们会在此目录创建 .clangd，并在完成后直接打开它。', workspaceLabel: '工作目录', chooseFolder: '选择目录', workspaceNote: '已有 .clangd 不会被覆盖。', applyAndOpen: '应用配置并打开工作目录', selectWorkspace: '请选择工作目录。', preparing: '正在准备编译环境…', completed: '编译环境已准备就绪。点击“下一步”继续配置。', alreadyInstalled: '编译环境已就绪，已跳过重复准备。', failed: '编译环境准备失败：{message}'
 			}
 		};
 		const t = translations[language];
@@ -106,12 +104,20 @@
 		document.getElementById('skip').textContent = t.skip;
 		document.getElementById('continue').textContent = t.continue;
 		document.getElementById('download-title').textContent = t.downloadTitle;
+		document.getElementById('download-note').textContent = t.downloadNote;
+		document.getElementById('retry').textContent = t.retry;
+		document.getElementById('download-next').textContent = t.next;
+		document.getElementById('progress').setAttribute('aria-label', t.progressLabel);
 		document.getElementById('configuration-title').textContent = t.configurationTitle;
 		document.getElementById('configuration-lead').textContent = t.configurationLead;
+		document.getElementById('configuration-note').textContent = t.configurationNote;
+		document.getElementById('finish').textContent = t.next;
 		document.getElementById('workspace-title').textContent = t.workspaceTitle;
 		document.getElementById('workspace-lead').textContent = t.workspaceLead;
 		document.getElementById('workspace-label').textContent = t.workspaceLabel;
 		document.getElementById('workspaceFolder-pick').textContent = t.chooseFolder;
+		document.getElementById('workspace-note').textContent = t.workspaceNote;
+		document.getElementById('workspace-finish').textContent = t.applyAndOpen;
 		document.getElementById('choice-title').textContent = localize(pages[0].title);
 		document.getElementById('choice-lead').textContent = localize(pages[0].text);
 		const pageById = id => pages.find(page => page.id === id);
@@ -140,7 +146,24 @@
 		const progress = document.getElementById('progress');
 		const progressDescription = document.getElementById('progress-description');
 		const status = document.getElementById('download-status');
+		const localizeProgress = message => language === 'en' ? message : message
+			.replace(/^Preparing (.+)…$/, '正在准备 $1…')
+			.replace(/^Downloading (.+)… (.+)$/, '正在下载 $1… $2')
+			.replace(/^Extracting (.+)… (.+)$/, '正在解压 $1… $2')
+			.replace(/^Installing bundled (.+)…$/, '正在安装内置 $1…')
+			.replace(/^Connecting to download source for (.+)…$/, '正在连接 $1 的下载源…')
+			.replace(/^Mirror unavailable for (.+); retrying with the official source…$/, '$1 镜像不可用，正在重试官方源…')
+			.replace(/^(.+) is already installed; skipping extraction\.$/, '$1 已安装，跳过解压。')
+			.replace(/^Portable toolchain installation complete\.$/, '便携工具链安装完成。')
+			.replace(/^Toolchain download completed\.$/, '编译环境下载完成。')
+			.replace(/^Toolchain installer exited with code (.+)\.$/, '编译环境安装程序以代码 $1 退出。')
+			.replace(/^Unable to load (.+) installer: (.+)$/, '无法加载 $1 安装程序：$2')
+			.replace(/^Download failed with HTTP (.+)\.$/, '下载失败，HTTP 状态码：$1。')
+			.replace(/^Download connection timed out\.$/, '下载连接超时。')
+			.replace(/^Download stalled while waiting for data\.$/, '下载等待数据时超时。')
+			.replace(/^Download stalled while receiving data\.$/, '下载接收数据时超时。');
 		const setProgressDescription = message => {
+			message = localizeProgress(message);
 			progressDescription.textContent = message;
 			progress.setAttribute('aria-valuetext', message);
 			const percent = /(?:^|\\s)(\\d{1,3})%/.exec(message)?.[1];
@@ -200,7 +223,7 @@
 				document.getElementById('download-next').hidden = false;
 			} else {
 				progress.classList.add('error');
-				status.textContent = t.failed.replace('{message}', result.message);
+				status.textContent = t.failed.replace('{message}', localizeProgress(result.message));
 				setProgressDescription(status.textContent);
 				document.getElementById('retry').hidden = false;
 			}

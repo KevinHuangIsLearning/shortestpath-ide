@@ -35,6 +35,14 @@ For difficult tasks, create a plan before development. After implementation, sta
 
 Do not guess when requirements or externally controlled behavior are unclear. Ask the user before implementing assumptions about website DOM, browser flows, account/session behavior, submission or result formats, expected UI behavior, or any other detail that cannot be verified from the repository or supplied evidence. Clearly state the missing information and wait for the user's direction when it materially affects the implementation.
 
+## ShortestPath Localization
+
+A complete localization change must audit every rendered and dynamic IDE-owned surface, not only `package.nls*.json` or a string dictionary. Check Webview text created at startup and after messages, native dialogs and notifications, command and menu labels, errors, accessibility attributes, titles, placeholders, update UI, diagnostics, and first-run onboarding. Use `localize` or `localizeFormat` at native UI boundaries and cover parameterized or mutation-generated Webview text explicitly.
+
+Preserve externally supplied problem titles, statements, editorials, metadata, algorithm tags, samples, source code, and accepted bilingual examples. Mark external Webview content with `data-i18n-ignore` where necessary instead of translating or rewriting it.
+
+Webview localization bootstraps must satisfy the page CSP, using a nonce when inline scripts are not already allowed. A `MutationObserver` visitor must be idempotent: compare text and attribute values before writing them so the observer cannot trigger itself indefinitely. Add regression coverage for CSP compatibility, unchanged-value guards, dynamic strings, native UI call sites, and external-content boundaries. Validate OJ and Setup extension suites, `npm run typecheck-client`, and `git diff --check` after localization work.
+
 ## Commit & Pull Request Guidelines
 
 Use concise Conventional Commit-style subjects, for example `fix(build): match root Windows locale paths`. Keep commits scoped. Pull requests should explain behavior and validation, link issues, and include screenshots for UI changes. Call out packaging impact and bundled-extension or license changes.

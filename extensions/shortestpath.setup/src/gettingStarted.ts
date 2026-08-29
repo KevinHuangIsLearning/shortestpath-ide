@@ -277,7 +277,7 @@ async function saveState(context: vscode.ExtensionContext, page: SaveMessage['pa
 						}
 						fileNameTemplateOverrides = parsed as Record<string, string>;
 					} catch {
-						void vscode.window.showWarningMessage('CPH 文件名模板覆盖必须是一个 JSON 对象，OJ 简称为键、模板字符串为值。');
+						void vscode.window.showWarningMessage(localize('CPH 文件名模板覆盖必须是一个 JSON 对象，OJ 简称为键、模板字符串为值。'));
 						return;
 					}
 					fileNameTemplate = typeof value.cphFileNameTemplate === 'string'

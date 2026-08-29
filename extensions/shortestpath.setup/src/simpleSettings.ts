@@ -173,7 +173,7 @@ async function readSnippets(context: vscode.ExtensionContext, language: string):
 			return [{ name, prefix: typeof prefix === 'string' ? prefix : '', body: typeof body === 'string' ? body : '', description: typeof snippet.description === 'string' ? snippet.description : '', include: Array.isArray(snippet.include) ? snippet.include.join(', ') : '', exclude: Array.isArray(snippet.exclude) ? snippet.exclude.join(', ') : '' }];
 		});
 	} catch {
-		void vscode.window.showWarningMessage(`无法读取 ${language}.json。请检查 JSON 格式。`);
+		void vscode.window.showWarningMessage(localizeFormat('无法读取 {0}.json。请检查 JSON 格式。', language));
 		return [];
 	}
 }
@@ -218,12 +218,13 @@ async function openCppSnippets(context: vscode.ExtensionContext): Promise<void> 
 		} else if (message?.type === 'selectLanguage' && isSupportedLanguage(message.language)) {
 			await panel.webview.postMessage({ type: 'state', value: await getState(message.language) });
 		} else if (message?.type === 'confirmDelete' && isSupportedLanguage(message.language) && typeof message.name === 'string') {
+			const deleteLabel = localize('删除模板');
 			const action = await vscode.window.showWarningMessage(
-				`确定删除模板“${message.name || '未命名模板'}”吗？删除后会立即保存到 ${message.language}.json。`,
+				localizeFormat('确定删除模板“{0}”吗？删除后会立即保存到 {1}.json。', message.name || localize('未命名模板'), message.language),
 				{ modal: true },
-				'删除模板'
+				deleteLabel
 			);
-			if (action === '删除模板') {
+			if (action === deleteLabel) {
 				await panel.webview.postMessage({ type: 'deleteConfirmed', language: message.language });
 			}
 		} else if (message?.type === 'openJson' && isSupportedLanguage(message.language)) {
@@ -444,15 +445,16 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			}
 		} else if (message?.type === 'toggleExtensionMarketplace' && typeof message.enabled === 'boolean') {
 			if (message.enabled) {
+				const enableLabel = localize('我已了解并启用');
 				const action = await vscode.window.showWarningMessage(
-					'Open VSX 是独立的第三方插件市场。其内容不由 ShortestPath IDE 审核、担保或提供支持；安装第三方扩展可能执行代码并访问你的工作区数据。',
+					localize('Open VSX 是独立的第三方插件市场。其内容不由 ShortestPath IDE 审核、担保或提供支持；安装第三方扩展可能执行代码并访问你的工作区数据。'),
 					{
 						modal: true,
-						detail: '启用后，你需要自行判断扩展的来源、权限、安全性与许可证，并承担相应风险。'
+						detail: localize('启用后，你需要自行判断扩展的来源、权限、安全性与许可证，并承担相应风险。')
 					},
-					'我已了解并启用'
+					enableLabel
 				);
-				if (action !== '我已了解并启用') {
+				if (action !== enableLabel) {
 					await panel.webview.postMessage({ type: 'state', value: getState() });
 					return;
 				}
@@ -973,7 +975,7 @@ button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor
 <div class="row"><div><label for="breakBeforeBraces">大括号位置（BreakBeforeBraces）</label><div class="hint">控制函数、类、if 等代码块的左大括号是否另起一行。</div></div><select id="breakBeforeBraces"><option value="Attach">Attach（左大括号不换行）</option><option value="Linux">Linux（函数、命名空间和类定义换行）</option><option value="Mozilla">Mozilla（枚举、函数和类/结构体定义换行）</option><option value="Stroustrup">Stroustrup（函数、else 和 catch 换行）</option><option value="Allman">Allman（所有左大括号换行）</option><option value="Whitesmiths">Whitesmiths（大括号换行并额外缩进）</option><option value="GNU">GNU（GNU 风格）</option><option value="WebKit">WebKit（函数定义左大括号换行）</option><option value="Custom">Custom（使用 BraceWrapping 的细分规则）</option></select></div>
 <div class="row"><div><label for="alwaysBreakTemplateDeclarations">模板声明换行（AlwaysBreakTemplateDeclarations）</label><div class="hint">控制 <code>template &lt;...&gt;</code> 与后续声明是否分为两行。</div></div><select id="alwaysBreakTemplateDeclarations"><option value="No">No（尽量不换行）</option><option value="Yes">Yes（始终换行）</option><option value="MultiLine">MultiLine（仅后续声明本身多行时换行）</option></select></div>
 <div class="row"><div><label for="pointerAlignment">指针星号位置（PointerAlignment）</label><div class="hint">控制 <code>*</code> 靠近类型、变量名，还是两者之间。</div></div><select id="pointerAlignment"><option value="Left">Left（<code>int* p</code>）</option><option value="Right">Right（<code>int *p</code>）</option><option value="Middle">Middle（<code>int * p</code>）</option></select></div>
-<div class="row"><div><label for="spacesBeforeTrailingComments">行尾注释前空格（SpacesBeforeTrailingComments）</label><div class="hint">如 <code>int x;    // 注释</code> 中注释前的空格数。</div></div><input id="spacesBeforeTrailingComments" type="number" min="0" max="100" step="1"></div>
+<div class="row"><div><label for="spacesBeforeTrailingComments">行尾注释前空格（SpacesBeforeTrailingComments）</label><div class="hint">如 <code>int x;    // comment</code> 中注释前的空格数。</div></div><input id="spacesBeforeTrailingComments" type="number" min="0" max="100" step="1"></div>
 <div class="row"><div><label for="separateDefinitionBlocks">定义块间空行（SeparateDefinitionBlocks）</label><div class="hint">控制相邻函数、类等定义之间是否插入空行。</div></div><select id="separateDefinitionBlocks"><option value="Leave">Leave（保留原有空行）</option><option value="Never">Never（不额外插入空行）</option><option value="Always">Always（相邻定义之间始终插入空行）</option></select></div>
 <div class="row"><div><label for="standard">C++ 语言标准（Standard）</label><div class="hint">用于判断可使用的语法和格式化规则。</div></div><select id="standard"><option value="Auto">Auto（自动判断）</option><option value="c++03">c++03</option><option value="c++11">c++11</option><option value="c++14">c++14</option><option value="c++17">c++17</option><option value="c++20">c++20</option><option value="Latest">Latest（使用最新支持标准）</option></select></div>
 </section>
@@ -1029,7 +1031,7 @@ let saveTimer;
 function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', language, entries }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, 250); }
 function renderLanguages() { const select = byId('language'); select.replaceChildren(); languages.forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.label; select.append(option); }); select.value = language; }
 function select(index) { selected = index; render(); }
-function renderList() { const list = byId('snippetList'); list.replaceChildren(); entries.forEach((entry, index) => { const button = document.createElement('button'); button.className = 'snippet' + (index === selected ? ' active' : ''); button.textContent = entry.name || '未命名模板'; const prefix = document.createElement('small'); prefix.textContent = entry.prefix ? '触发：' + entry.prefix : '尚未设置触发前缀'; button.append(prefix); button.onclick = () => select(index); list.append(button); }); }
+function renderList() { const list = byId('snippetList'); list.replaceChildren(); entries.forEach((entry, index) => { const button = document.createElement('button'); button.className = 'snippet' + (index === selected ? ' active' : ''); button.textContent = entry.name || '未命名模板'; const prefix = document.createElement('small'); prefix.textContent = entry.prefix ? ${JSON.stringify(localize('触发：'))} + entry.prefix : '尚未设置触发前缀'; button.append(prefix); button.onclick = () => select(index); list.append(button); }); }
 function field(label, key, multiline) { const wrapper = document.createElement('div'); const title = document.createElement('label'); title.textContent = label; const control = document.createElement(multiline ? 'textarea' : 'input'); control.value = entries[selected][key] || ''; control.oninput = () => { entries[selected][key] = control.value; if (key === 'name' || key === 'prefix') renderList(); save(); }; wrapper.append(title, control); return wrapper; }
 function renderForm() { const form = byId('form'); form.replaceChildren(); if (selected < 0) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = '还没有模板。点击左侧 ＋ 新建一个。'; form.append(empty); return; } form.append(field('模板名称', 'name'), field('触发前缀', 'prefix'), field('模板内容', 'body', true), field('说明（可选）', 'description')); const patterns = document.createElement('div'); patterns.className = 'two'; patterns.append(field('Include（逗号分隔，可选）', 'include'), field('Exclude（逗号分隔，可选）', 'exclude')); form.append(patterns); }
 function render() { renderList(); renderForm(); byId('delete').disabled = selected < 0; }

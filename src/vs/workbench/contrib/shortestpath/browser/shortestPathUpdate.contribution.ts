@@ -16,7 +16,7 @@ import severity from '../../../../base/common/severity.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { getNLSLanguage, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -46,6 +46,10 @@ const UPDATE_GRACE_STORAGE_KEY = 'shortestpath.update.networkGrace';
 const RELEASE_NOTES_VERSION_STORAGE_KEY = 'shortestpath.releaseNotes.shownVersion';
 const RELEASE_NOTES_CLAIM_STORAGE_KEY = 'shortestpath.releaseNotes.claim';
 const NETWORK_GRACE_DURATION = 3 * 60 * 60 * 1000;
+
+function localizeUpdate(english: string, chinese: string): string {
+	return getNLSLanguage()?.toLowerCase().startsWith('zh') ? chinese : english;
+}
 
 interface IShortestPathReleaseNotesClaim {
 	readonly version: string;
@@ -92,7 +96,7 @@ class ShortestPathUpdateChecker {
 		const updateDocument = await asJson<IShortestPathUpdateDocument>(response);
 		const release = updateDocument ? parseShortestPathUpdateDocument(updateDocument) : undefined;
 		if (!release) {
-			throw new Error('更新清单格式无效。');
+			throw new Error(localizeUpdate('The update manifest is invalid.', '更新清单格式无效。'));
 		}
 		const target = (await this.getUpdateTarget()) ?? { downloadUrl: release.downloadUrl, allowsMinimumVersionLock: false };
 		const result = { release, target, fastDownloadUrl: getShortestPathFastDownloadUrl(release.fastDownloadUrls, target) };
@@ -185,7 +189,7 @@ class ShortestPathUpdateBlocker extends Disposable {
 		const overlay = append(this.layoutService.mainContainer, $('.shortestpath-update-required-overlay', {
 			role: 'dialog',
 			// allow-any-unicode-next-line
-			'aria-label': '需要升级',
+			'aria-label': localizeUpdate('Update required', '需要升级'),
 			'aria-modal': 'true',
 		}));
 		const dialog = append(overlay, $('.shortestpath-update-required-dialog'));
@@ -198,24 +202,25 @@ class ShortestPathUpdateBlocker extends Disposable {
 		updateOverlayTop();
 		this._register(this.layoutService.onDidChangePartVisibility(updateOverlayTop));
 		// allow-any-unicode-next-line
-		const closeButton = append(dialog, $('button.shortestpath-update-required-close', { type: 'button', title: this.options.isRequired ? '更新' : '关闭', 'aria-label': this.options.isRequired ? '更新' : '关闭' }, '×'));
+		const closeButtonLabel = this.options.isRequired ? localizeUpdate('Update', '更新') : localizeUpdate('Close', '关闭');
+		const closeButton = append(dialog, $('button.shortestpath-update-required-close', { type: 'button', title: closeButtonLabel, 'aria-label': closeButtonLabel }, '×'));
 		// allow-any-unicode-next-line
-		append(dialog, $('h1', undefined, this.options.isRequired ? '需要升级 ShortestPath IDE' : `ShortestPath IDE ${this.options.version} 已发布`));
+		append(dialog, $('h1', undefined, this.options.isRequired ? localizeUpdate('ShortestPath IDE Update Required', '需要升级 ShortestPath IDE') : localizeUpdate(`ShortestPath IDE ${this.options.version} Is Available`, `ShortestPath IDE ${this.options.version} 已发布`)));
 		// allow-any-unicode-next-line
-		append(dialog, $('p', undefined, this.options.isRequired ? '此版本已不再受支持。请下载并安装最新版后继续使用。' : '当前有新版本可用。请下载并安装最新版。'));
+		append(dialog, $('p', undefined, this.options.isRequired ? localizeUpdate('This version is no longer supported. Download and install the latest version to continue.', '此版本已不再受支持。请下载并安装最新版后继续使用。') : localizeUpdate('A new version is available. Download and install the latest version.', '当前有新版本可用。请下载并安装最新版。')));
 		if (this.options.releaseNote) {
 			// allow-any-unicode-next-line
 			append(dialog, $('p.shortestpath-update-required-release-note', undefined, this.options.releaseNote));
 		}
 		// allow-any-unicode-next-line
-		const networkButton = this.options.isRequired ? append(dialog, $('button.shortestpath-update-required-network', { type: 'button' }, '网络不好？')) : undefined;
+		const networkButton = this.options.isRequired ? append(dialog, $('button.shortestpath-update-required-network', { type: 'button' }, localizeUpdate('Network problems?', '网络不好？'))) : undefined;
 		const actions = append(dialog, $('.shortestpath-update-required-actions'));
 		// allow-any-unicode-next-line
-		const updateButton = append(actions, $('button.shortestpath-update-required-action.primary', { type: 'button' }, '更新'));
+		const updateButton = append(actions, $('button.shortestpath-update-required-action.primary', { type: 'button' }, localizeUpdate('Update', '更新')));
 		// allow-any-unicode-next-line
-		const fastDownloadButton = this.options.fastDownloadUrl ? append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, '网盘快速下载')) : undefined;
+		const fastDownloadButton = this.options.fastDownloadUrl ? append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, localizeUpdate('Fast Download', '网盘快速下载'))) : undefined;
 		// allow-any-unicode-next-line
-		const alternateUpdateButton = this.options.isRequired ? undefined : append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, '下次丕定'));
+		const alternateUpdateButton = this.options.isRequired ? undefined : append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, localizeUpdate('Later', '稍后再说')));
 
 		const openUpdate = () => void this.openerService.open(URI.parse(this.options.downloadUrl));
 		for (const button of this.options.isRequired ? [closeButton, updateButton] : [updateButton]) {
@@ -249,13 +254,13 @@ class ShortestPathUpdateBlocker extends Disposable {
 				const result = await this.dialogService.confirm({
 					type: severity.Warning,
 					// allow-any-unicode-next-line
-					message: isPermanent ? '已使用两次网络宽限。' : '网络不好时可以暂时继续使用。',
+					message: isPermanent ? localizeUpdate('Both temporary network grace periods have been used.', '已使用两次网络宽限。') : localizeUpdate('You can temporarily continue when the network is unavailable.', '网络不好时可以暂时继续使用。'),
 					// allow-any-unicode-next-line
-					detail: isPermanent ? '选择后将永久不再因最低版本限制锁定。' : '继续使用后，3 小时内不会锁定；到期后仍可再次检查更新。',
+					detail: isPermanent ? localizeUpdate('Choosing this permanently disables minimum-version locking.', '选择后将永久不再因最低版本限制锁定。') : localizeUpdate('Continue for 3 hours without locking. You can check for updates again after it expires.', '继续使用后，3 小时内不会锁定；到期后仍可再次检查更新。'),
 					// allow-any-unicode-next-line
-					primaryButton: isPermanent ? '别他妈烦我' : '继续使用',
+					primaryButton: isPermanent ? localizeUpdate('Do Not Ask Again', '别他妈烦我') : localizeUpdate('Continue', '继续使用'),
 					// allow-any-unicode-next-line
-					cancelButton: '留在更新页面',
+					cancelButton: localizeUpdate('Stay on Update Page', '留在更新页面'),
 				});
 				if (result.confirmed) {
 					this.options.onNetworkGrace!();
@@ -551,15 +556,16 @@ registerAction2(class extends Action2 {
 			if (!result) {
 				ShortestPathUpdateBlocker.dismiss();
 				const reason = !productService.shortestPathVersion
-					? '当前产品未配置版本号。'
-					: '当前产品未配置更新地址。';
+					? localizeUpdate('The current product has no version configured.', '当前产品未配置版本号。')
+					: localizeUpdate('The current product has no update URL configured.', '当前产品未配置更新地址。');
 				if (!fromSetup) {
-					notificationService.error(localize('shortestpath.update.unconfigured', "无法检查 ShortestPath IDE 更新：{0}", reason));
+					notificationService.error(localizeUpdate(`Unable to check for ShortestPath IDE updates: ${reason}`, `无法检查 ShortestPath IDE 更新：${reason}`));
 				}
 				return { status: 'failed', reason };
 			}
 			if (!fromSetup && !isShortestPathUpdateAvailable(productService.shortestPathVersion ?? '', result.release.version)) {
-				notificationService.info(localize('shortestpath.update.latest', "当前已是 ShortestPath IDE 最新版本（{0}）。", productService.shortestPathVersion ?? 'Unknown'));
+				const version = productService.shortestPathVersion ?? localizeUpdate('Unknown', '未知');
+				notificationService.info(localizeUpdate(`ShortestPath IDE is up to date (${version}).`, `当前已是 ShortestPath IDE 最新版本（${version}）。`));
 			}
 			if (!isShortestPathUpdateAvailable(productService.shortestPathVersion ?? '', result.release.version)) {
 				return { status: 'latest', version: result.release.version };
@@ -604,7 +610,7 @@ registerAction2(class extends Action2 {
 			const reason = getErrorMessage(error);
 			// allow-any-unicode-next-line
 			if (!fromSetup) {
-				notificationService.error(localize('shortestpath.update.failed', "无法检查 ShortestPath IDE 更新：{0}", reason));
+				notificationService.error(localizeUpdate(`Unable to check for ShortestPath IDE updates: ${reason}`, `无法检查 ShortestPath IDE 更新：${reason}`));
 			}
 			return { status: 'failed', reason };
 		}
