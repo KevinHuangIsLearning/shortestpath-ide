@@ -248,8 +248,15 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 	/* ---- Modal infrastructure ---- */
 	const modalOverlay = document.getElementById('oj-modal-overlay');
 	const pendingConfirms = new Map<string, (result: boolean) => void>();
+	const dismissPendingConfirms = (): void => {
+		for (const [id, resolve] of pendingConfirms) {
+			pendingConfirms.delete(id);
+			resolve(false);
+		}
+	};
 
 	const closeModal = (): void => {
+		dismissPendingConfirms();
 		if (!modalOverlay || modalOverlay.hidden) {
 			return;
 		}
