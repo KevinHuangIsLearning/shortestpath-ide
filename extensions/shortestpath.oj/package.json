@@ -8,11 +8,8 @@
 		"type": "git",
 		"url": "https://github.com/KevinHuangIsLearning/shortestpath-ide.git"
 	},
-	"enabledApiProposals": [
-		"browser"
-	],
 	"engines": {
-		"vscode": "^1.129.0"
+		"vscode": "^1.128.0"
 	},
 	"categories": [
 		"Other"
@@ -41,6 +38,14 @@
 		"configuration": {
 			"title": "%displayName%",
 			"properties": {
+				"shortestpath.oj.problemSplitRatio": {
+					"type": "number",
+					"default": 60,
+					"minimum": 10,
+					"maximum": 90,
+					"scope": "window",
+					"description": "%configuration.problemSplitRatio%"
+				},
 				"shortestpath.oj.cppSubmissionLanguage": {
 					"type": "string",
 					"enum": [

@@ -3,6 +3,7 @@
 	"description": "通过官方本地 WebSocket 互通协议连接 ShortestPath OJ 与 IDE。",
 	"viewContainer.title": "ShortestPath OJ",
 	"view.name": "题目",
+	"configuration.problemSplitRatio": "打开题面时源码编辑器占编辑区域宽度的百分比。",
 	"configuration.cppSubmissionLanguage": "ShortestPath OJ 提交使用的默认 C++ 语言。选择“每次询问”会在每次 C++ 提交前提示。",
 	"command.openIntegratedBrowser": "ShortestPath OJ：打开",
 	"command.showProblem": "ShortestPath OJ：显示题目",

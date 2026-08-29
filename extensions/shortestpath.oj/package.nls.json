@@ -3,6 +3,7 @@
 	"description": "Connect ShortestPath OJ and the IDE through the official local WebSocket bridge.",
 	"viewContainer.title": "ShortestPath OJ",
 	"view.name": "Problem",
+	"configuration.problemSplitRatio": "Percentage of editor width used by the source code when opening the problem view.",
 	"configuration.cppSubmissionLanguage": "Default C++ language for ShortestPath OJ submissions. Ask means prompt before each C++ submission.",
 	"command.openIntegratedBrowser": "ShortestPath OJ: Open",
 	"command.showProblem": "ShortestPath OJ: Show Problem",

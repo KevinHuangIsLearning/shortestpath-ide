@@ -8,13 +8,12 @@ import { ParsedPattern, parse as parseGlob } from '../../../../base/common/glob.
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isAbsolute, parse as parsePath, ParsedPath, dirname } from '../../../../base/common/path.js';
 import { dirname as resourceDirname, relativePath as getRelativePath } from '../../../../base/common/resources.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { MRUCache } from '../../../../base/common/map.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 
 interface ICustomEditorLabelObject {
 	readonly [key: string]: string;
@@ -40,8 +39,6 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 	private patterns: ICustomEditorLabelPattern[] = [];
 	private enabled = true;
-	private readonly transientLabels = new Map<string, string>();
-
 	private cache = new MRUCache<string, string | null>(1000);
 
 	constructor(
@@ -118,11 +115,6 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	}
 
 	getName(resource: URI): string | undefined {
-		const transientLabel = this.transientLabels.get(resource.toString());
-		if (transientLabel !== undefined) {
-			return transientLabel;
-		}
-
 		if (!this.enabled || this.patterns.length === 0) {
 			return undefined;
 		}
@@ -160,24 +152,6 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		}
 
 		return undefined;
-	}
-
-	setTransientLabel(resource: URI, label: string | undefined): void {
-		const key = resource.toString();
-		const currentLabel = this.transientLabels.get(key);
-		if (label === undefined) {
-			if (currentLabel === undefined) {
-				return;
-			}
-			this.transientLabels.delete(key);
-		} else {
-			if (currentLabel === label) {
-				return;
-			}
-			this.transientLabels.set(key, label);
-		}
-
-		this._onDidChange.fire();
 	}
 
 	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname|extname\((?<extnameN>[-+]?\d+)\)|dirname\((?<dirnameN>[-+]?\d+)\))\}/g;
@@ -269,11 +243,6 @@ export interface ICustomEditorLabelService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
 	getName(resource: URI): string | undefined;
-	setTransientLabel(resource: URI, label: string | undefined): void;
 }
 
 registerSingleton(ICustomEditorLabelService, CustomEditorLabelService, InstantiationType.Delayed);
-
-CommandsRegistry.registerCommand('_shortestpath.oj.setTransientEditorLabel', (accessor: ServicesAccessor, resource: UriComponents, label: string | undefined) => {
-	accessor.get(ICustomEditorLabelService).setTransientLabel(URI.revive(resource), label);
-});
