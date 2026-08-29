@@ -9,6 +9,6 @@
 		"types": ["node"],
 		"skipLibCheck": true
 	},
-	"include": ["src/**/*", "../../src/vscode-dts/vscode.d.ts", "../../src/vscode-dts/vscode.proposed.browser.d.ts"],
+	"include": ["src/**/*", "../../src/vscode-dts/vscode.d.ts"],
 	"exclude": ["node_modules", ".vscode-test", "out"]
 }

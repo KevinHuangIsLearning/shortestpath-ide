@@ -10,8 +10,9 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { localize, localizeFormat, localizeWebviewHtml } from './localization';
 import { canViewEditorial, describeEditorialLockReason, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
-import { describeFloatJudgeTolerance, describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
+import { describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
+import { defaultProblemSourceRatio, getProblemPanelLayout } from './problemPanelLayout';
 import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanel } from './problemPanelLifecycle';
 import { ImportAction, OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
 import { mergeSubmissionHistory, sanitizeSubmissionHistoryEntry, SubmissionHistoryEntry, toSubmissionHistoryEntry } from './submissionHistory';
@@ -47,10 +48,19 @@ import {
 const workspaceCacheDirectoryName = '.shortestpath';
 const legacyWorkspaceCacheFileName = 'oj-problems.json';
 const workspaceProblemRecordVersion = 1;
-const workspaceFolderRequiredMessage = '请先在 ShortestPath IDE 中打开一个文件夹，再从网站导入题目。';
+const workspaceFolderRequiredMessage = localize('请先在 ShortestPath IDE 中打开一个文件夹，再从网站导入题目。');
 const workspaceCachesNeedingRewrite = new WeakSet<WorkspaceProblemCache>();
 let workspaceCacheMutationTail = Promise.resolve();
 let workspaceCacheMigration: Promise<void> | undefined;
+
+async function openUrl(url: string): Promise<void> {
+	const commands = await vscode.commands.getCommands();
+	if (commands.includes('simpleBrowser.show')) {
+		await vscode.commands.executeCommand('simpleBrowser.show', url);
+		return;
+	}
+	await vscode.env.openExternal(vscode.Uri.parse(url));
+}
 
 type WorkspaceProblemCache = {
 	version: 4;
@@ -158,7 +168,6 @@ type ProblemPanelActions = {
 
 class ShortestPathOjProblemPanel {
 	private panel: vscode.WebviewPanel | undefined;
-	private sourceEditorLabel: { sourcePath: string; label: string } | undefined;
 	private state: ProblemPanelState | undefined;
 	private sentSections: ProblemViewSections | undefined;
 	private sentTimerJson = '';
@@ -279,7 +288,7 @@ class ShortestPathOjProblemPanel {
 		const rickrollUrl = vscode.env.language.toLowerCase().startsWith('zh')
 			? 'https://player.bilibili.com/player.html?isOutside=true&aid=80433022&bvid=BV1GJ411x7h7&cid=137649199&p=1'
 			: 'https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J';
-		void vscode.window.openBrowserTab(rickrollUrl, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
+		void openUrl(rickrollUrl).catch(error => console.error('Failed to open the ShortestPath OJ anti-fraud reminder.', error));
 	}
 
 	updateProblemState(problemRef: string, state: ProblemState): void {
@@ -358,37 +367,11 @@ class ShortestPathOjProblemPanel {
 		}
 	}
 
-	clearSourceEditorLabel(): void {
-		if (!this.sourceEditorLabel) {
-			return;
-		}
-		void vscode.commands.executeCommand('_shortestpath.oj.setTransientEditorLabel', vscode.Uri.file(this.sourceEditorLabel.sourcePath), undefined);
-		this.sourceEditorLabel = undefined;
-	}
-
-	updateSourceEditorLabel(): void {
-		const state = this.state;
-		const sourcePath = state?.sourcePath;
-		const label = state && !this.panel && sourcePath
-			? `${path.basename(sourcePath)} & ShortestPath OJ 上的 ${state.problem.title}`
-			: undefined;
-
-		const currentLabel = this.sourceEditorLabel;
-		if (currentLabel !== undefined && currentLabel.sourcePath === sourcePath && currentLabel.label === label) {
-			return;
-		}
-		this.clearSourceEditorLabel();
-		if (sourcePath && label) {
-			void vscode.commands.executeCommand('_shortestpath.oj.setTransientEditorLabel', vscode.Uri.file(sourcePath), label);
-			this.sourceEditorLabel = { sourcePath, label };
-		}
-	}
-
 	hideProblemWhenSourceInactive(): boolean {
 		if (this.panel?.active || !this.state || !shouldHideProblemPanelWhenSourceInactive(this.state.sourcePath, getActiveEditorPath())) {
 			return false;
 		}
-		void this.closeProblemPanelAfterRemembering();
+		this.panel?.dispose();
 		return true;
 	}
 
@@ -410,9 +393,7 @@ class ShortestPathOjProblemPanel {
 		if (!this.state || !shouldHideProblemPanelWhenSourceCloses(this.state.sourcePath, getOpenFileTabGroups().flatMap(group => group.filePaths))) {
 			return false;
 		}
-		await this.rememberSplitRatioBeforeClosing();
 		this.state = undefined;
-		this.updateSourceEditorLabel();
 		this.panel?.dispose();
 		return true;
 	}
@@ -424,23 +405,7 @@ class ShortestPathOjProblemPanel {
 		if (sourcePath && isActiveEditor(sourcePath)) {
 			return;
 		}
-		await this.rememberSplitRatioBeforeClosing();
 		this.state = undefined;
-		this.updateSourceEditorLabel();
-		this.panel?.dispose();
-	}
-
-	/**
-	 * Records the current code/problem split ratio before the problem panel is
-	 * closed, so the next freshly created split uses the same ratio. The panel
-	 * must still be open at this point for the workbench to measure the groups.
-	 */
-	private async rememberSplitRatioBeforeClosing(): Promise<void> {
-		await vscode.commands.executeCommand('shortestpath.oj.rememberProblemSplitRatio');
-	}
-
-	private async closeProblemPanelAfterRemembering(): Promise<void> {
-		await this.rememberSplitRatioBeforeClosing();
 		this.panel?.dispose();
 	}
 
@@ -461,7 +426,7 @@ class ShortestPathOjProblemPanel {
 		if (!this.editorialPanel || !this.state?.editorial) {
 			return;
 		}
-			this.editorialPanel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(this.state.editorial, this.state.problem, this.editorialPanel.webview, this.extensionUri, this.state.connected));
+		this.editorialPanel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(this.state.editorial, this.state.problem, this.editorialPanel.webview, this.extensionUri, this.state.connected));
 	}
 
 	private refreshEditorialLike(hintId: string): void {
@@ -561,7 +526,7 @@ class ShortestPathOjProblemPanel {
 		this.editorialPanelOpening = true;
 		try {
 			if (this.panel) {
-				await this.closeProblemPanelAfterRemembering();
+				this.panel.dispose();
 			}
 			const title = `${localize('解题报告')}: ${problem.title}`;
 			if (this.editorialPanel) {
@@ -640,51 +605,69 @@ class ShortestPathOjProblemPanel {
 				this.pendingTimer = undefined;
 				this.sentTimerJson = '';
 				this.webviewReady = false;
-				this.updateSourceEditorLabel();
 			}
 		});
 		panel.webview.onDidReceiveMessage(message => {
 			void this.handleMessage(message);
 		});
 		this.panel = panel;
-		this.updateSourceEditorLabel();
 		return true;
 	}
 
 	private getProblemPanelTitle(): string {
-		return this.state ? `${this.state.problem.title}题面` : 'ShortestPath OJ';
+		return this.state ? localizeFormat('{0}题面', this.state.problem.title) : 'ShortestPath OJ';
 	}
 
 	private updateProblemPanelTitle(): void {
 		if (this.panel) {
 			this.panel.title = this.getProblemPanelTitle();
 		}
-		this.updateSourceEditorLabel();
+	}
+
+	private async applyProblemPanelLayout(panel: vscode.WebviewPanel): Promise<void> {
+		if (this.panel !== panel) {
+			return;
+		}
+		const configuredRatio = vscode.workspace.getConfiguration('shortestpath.oj').get<number>('problemSplitRatio', defaultProblemSourceRatio);
+		try {
+			await vscode.commands.executeCommand('vscode.setEditorLayout', getProblemPanelLayout(configuredRatio));
+		} catch (error) {
+			console.error('Failed to apply ShortestPath OJ problem panel layout.', error);
+		}
 	}
 
 	private ensureProblemPanel(): boolean {
 		const panelCreated = this.ensurePanel(this.getProblemViewColumn());
-		const problemViewColumn = this.panel?.viewColumn;
-		if (panelCreated && problemViewColumn !== undefined) {
-			setTimeout(() => this.closeShortestPathNewTabs(problemViewColumn), 0);
-			// Always apply the remembered ratio when a fresh panel is created,
-			// even when it lands in a still-existing column (e.g. after the last
-			// problem panel was closed). The command locates the panel group
-			// itself, so the column index is not needed.
-			setTimeout(() => {
-				void vscode.commands.executeCommand('shortestpath.oj.resizeEditorGroups');
-			}, 0);
+		const panel = this.panel;
+		if (panelCreated && panel) {
+			setTimeout(() => void this.initializeProblemPanelLayout(panel), 0);
 		}
 		return panelCreated;
 	}
 
-	private closeShortestPathNewTabs(viewColumn: vscode.ViewColumn): void {
+	private async initializeProblemPanelLayout(panel: vscode.WebviewPanel): Promise<void> {
+		if (this.panel !== panel) {
+			return;
+		}
+		const viewColumn = panel.viewColumn;
+		if (viewColumn === undefined) {
+			return;
+		}
+		try {
+			await this.closeShortestPathNewTabs(viewColumn);
+		} catch (error) {
+			console.error('Failed to close the ShortestPath New Tab placeholder.', error);
+		}
+		await this.applyProblemPanelLayout(panel);
+	}
+
+	private async closeShortestPathNewTabs(viewColumn: vscode.ViewColumn): Promise<void> {
 		const group = vscode.window.tabGroups.all.find(item => item.viewColumn === viewColumn);
 		const newTabs = group?.tabs.filter(item =>
-			!item.isDirty && (item.label === '新建标签页' || item.label === 'New Tab'),
+			item.input === undefined && !item.isDirty && (item.label === '新建标签页' || item.label === 'New Tab'),
 		) ?? [];
 		if (newTabs.length > 0) {
-			void vscode.window.tabGroups.close(newTabs, true);
+			await vscode.window.tabGroups.close(newTabs, true);
 		}
 	}
 
@@ -710,16 +693,13 @@ class ShortestPathOjProblemPanel {
 				case 'ready':
 					this.webviewReady = true;
 					this.flushPendingUpdate();
+					if (this.panel) {
+						void this.applyProblemPanelLayout(this.panel);
+					}
 					return;
 				case 'dismissCompatibilityWarning':
 					state.compatibilityWarningDismissed = true;
 					this.render();
-					return;
-				case 'reportProblemPanelResized':
-					// The user resized the split between the code editor and the
-					// problem panel; remember the new ratio (globally) right away so
-					// it survives closing and re-importing the problem.
-					void vscode.commands.executeCommand('shortestpath.oj.rememberProblemSplitRatio');
 					return;
 				case 'answer':
 					if (typeof value.hintId !== 'string') {
@@ -834,7 +814,7 @@ class ShortestPathOjProblemPanel {
 					return;
 				case 'watchSubmission':
 					if (typeof value.submissionId !== 'string' || !/^\d+$/.test(value.submissionId)) {
-						throw new Error('提交 ID 必须是十进制字符串。');
+						throw new Error(localize('提交 ID 必须是十进制字符串。'));
 					}
 					await this.actions.watchSubmission(state.problem, value.submissionId);
 					state.disconnectedSubmissions.delete(value.submissionId);
@@ -857,7 +837,7 @@ class ShortestPathOjProblemPanel {
 						return;
 					}
 					if (typeof value.submissionId !== 'string' || typeof value.rounds !== 'number' || !Number.isInteger(value.rounds) || value.rounds <= 0) {
-						throw new Error('请选择可用提交并填写正整数轮数。');
+						throw new Error(localize('请选择可用提交并填写正整数轮数。'));
 					}
 					if (!state.stressContext) {
 						state.stressContext = await this.actions.loadStress(state.problem);
@@ -889,7 +869,7 @@ class ShortestPathOjProblemPanel {
 					{
 						const task = state.stressTasks.get(value.taskId);
 						if (!task?.counterExample || !isStressFinished(task.status)) {
-							throw new Error('当前对拍任务还没有可添加的反例。');
+							throw new Error(localize('当前对拍任务还没有可添加的反例。'));
 						}
 						if (state.addingStressCounterExamples.has(task.taskId) || state.addedStressCounterExamples.has(task.taskId)) {
 							return;
@@ -921,7 +901,7 @@ class ShortestPathOjProblemPanel {
 			if (value.command === 'startStress' && error instanceof OutcomeUnknownError) {
 				this.unknownStressStarts.add(state.problem.ref);
 			}
-			const message = error instanceof Error ? error.message : String(error);
+			const message = error instanceof Error ? localize(error.message) : String(error);
 			this.showOperationToast(message);
 			if (value.command === 'submit') {
 				state.statusMessage = state.connected ? '已连接题目网页。' : '等待用户从网站重新发送题目。';
@@ -1094,8 +1074,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		async importProblem(problem, signal) {
 			signal.throwIfAborted();
 			if (!vscode.workspace.workspaceFolders?.length) {
-				void vscode.window.showErrorMessage(workspaceFolderRequiredMessage);
-				throw new Error(workspaceFolderRequiredMessage);
+				const message = workspaceFolderRequiredMessage;
+				void vscode.window.showErrorMessage(message);
+				throw new Error(message);
 			}
 			const { action, cph } = await mutateWorkspaceProblemCache(async cache => {
 				signal.throwIfAborted();
@@ -1122,7 +1103,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			const applied = await mutateWorkspaceProblemCache(cache => {
 				const problem = cache.problems[problemRef];
 				if (!problem) {
-					throw new Error('当前连接尚未导入题目。');
+					throw new Error(localize('当前连接尚未导入题目。'));
 				}
 				if (hasIncompatibleProblemState(problem)) {
 					return false;
@@ -1169,7 +1150,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		if (!panel.hideProblemWhenSourceInactive()) {
 			panel.restoreProblemWhenSourceActive();
 		}
-		panel.updateSourceEditorLabel();
 	};
 	const scheduleProblemPanelSync = () => {
 		setTimeout(() => {
@@ -1177,13 +1157,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}, 0);
 	};
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(scheduleProblemPanelSync));
-	context.subscriptions.push(new vscode.Disposable(() => panel.clearSourceEditorLabel()));
 	context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(scheduleProblemPanelSync));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowser', async () => {
-		await vscode.window.openBrowserTab('https://shortestpath.cn/topics', { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
+		await openUrl('https://shortestpath.cn/topics');
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowserDirect', async () => {
-		await vscode.window.openBrowserTab('https://shortestpath.cn/login', { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
+		await openUrl('https://shortestpath.cn/login');
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblemForCph', async (url: string) => {
 		const cache = await readWorkspaceProblemCache();
@@ -1204,7 +1183,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.submitProblemForUrl', async (url: string) => {
 		const problem = Object.values((await readWorkspaceProblemCache()).problems).find(item => item.url === url);
 		if (!problem) {
-			throw new Error('请先将题目导入 CPH Plus 再从题目面板提交。');
+			throw new Error(localize('请先将题目导入 CPH Plus 再从题目面板提交。'));
 		}
 		await submitProblem(problem, bridge, panel, unknownSubmissions);
 	}));
@@ -1370,7 +1349,7 @@ async function readLegacyWorkspaceProblemCache(): Promise<WorkspaceProblemCache 
 			for (const [problemRef, cachedProblem] of Object.entries(value.problems)) {
 				const problem = restoreCachedProblemCompatibilityWarnings(cachedProblem as ImportedProblem);
 				if (problem.ref !== problemRef) {
-					throw new Error(`旧题目缓存的键 ${problemRef} 与题目路径 ${problem.ref} 不一致。`);
+					throw new Error(localizeFormat('旧题目缓存的键 {0} 与题目路径 {1} 不一致。', problemRef, problem.ref));
 				}
 				problems[problemRef] = problem;
 				if (problem !== cachedProblem) {
@@ -1466,11 +1445,11 @@ async function submitCphProblem(
 	unknownSubmissions: Map<string, SubmissionAttempt>,
 ): Promise<void> {
 	if (typeof value.url !== 'string' || typeof value.srcPath !== 'string') {
-		throw new Error('当前 CPH 活动题目不是 ShortestPath OJ 题目。');
+		throw new Error(localize('当前 CPH 活动题目不是 ShortestPath OJ 题目。'));
 	}
 	const problem = Object.values((await readWorkspaceProblemCache()).problems).find(item => item.url === value.url);
 	if (!problem) {
-		throw new Error('当前 CPH 活动题目不是 ShortestPath OJ 题目。');
+		throw new Error(localize('当前 CPH 活动题目不是 ShortestPath OJ 题目。'));
 	}
 	await submitProblem(problem, bridge, panel, unknownSubmissions, value.srcPath);
 }
@@ -1483,10 +1462,10 @@ async function submitProblem(
 	explicitSourcePath?: string,
 ): Promise<void> {
 	if (problem.capabilities.submission.languages.length === 0) {
-		throw new Error('网页未提供可用的提交语言，无法发起提交。');
+		throw new Error(localize('网页未提供可用的提交语言，无法发起提交。'));
 	}
 	if (!bridge.isBound(problem.ref)) {
-		throw new Error('题目网页未连接，请从网站重新在 ShortestPath IDE 中打开。');
+		throw new Error(localize('题目网页未连接，请从网站重新在 ShortestPath IDE 中打开。'));
 	}
 	const retry = unknownSubmissions.get(problem.ref);
 	if (retry) {
@@ -1499,16 +1478,16 @@ async function submitProblem(
 	}
 	const sourcePath = explicitSourcePath ?? (await readWorkspaceProblemCache()).sourcePaths[problem.ref];
 	if (!sourcePath) {
-		throw new Error('请先将题目导入 CPH Plus 再从题目面板提交。');
+		throw new Error(localize('请先将题目导入 CPH Plus 再从题目面板提交。'));
 	}
 	const safeSourcePath = await validateWorkspaceSourcePath(sourcePath);
 	const document = await vscode.workspace.openTextDocument(vscode.Uri.file(safeSourcePath));
 	if (!(await document.save())) {
-		throw new Error('提交前请先保存源文件。');
+		throw new Error(localize('提交前请先保存源文件。'));
 	}
 	const sourceCode = document.getText();
 	if (!sourceCode.trim()) {
-		throw new Error('源文件为空。');
+		throw new Error(localize('源文件为空。'));
 	}
 	const language = await selectSubmissionLanguage(problem.capabilities.submission.languages, safeSourcePath);
 	if (!language) {
@@ -1557,7 +1536,7 @@ async function sendSubmissionAttempt(
 async function validateWorkspaceSourcePath(sourcePath: string): Promise<string> {
 	const workspaceFolders = vscode.workspace.workspaceFolders;
 	if (!workspaceFolders?.length) {
-		throw new Error('提交源码必须位于当前工作区。');
+		throw new Error(localize('提交源码必须位于当前工作区。'));
 	}
 	const realSourcePath = await fs.realpath(path.resolve(sourcePath));
 	for (const folder of workspaceFolders) {
@@ -1570,7 +1549,7 @@ async function validateWorkspaceSourcePath(sourcePath: string): Promise<string> 
 			return realSourcePath;
 		}
 	}
-	throw new Error(`拒绝提交工作区之外的文件：${realSourcePath}`);
+	throw new Error(localizeFormat('拒绝提交工作区之外的文件：{0}', realSourcePath));
 }
 
 async function selectSubmissionLanguage(languages: SubmissionLanguage[], sourcePath: string): Promise<SubmissionLanguage | undefined> {
@@ -1587,7 +1566,7 @@ async function selectSubmissionLanguage(languages: SubmissionLanguage[], sourceP
 	}
 	const selected = await vscode.window.showQuickPick(
 		languages.map(language => ({ label: language.name, description: language.compileArgs, language })),
-		{ title: '选择 ShortestPath OJ 提交语言', placeHolder: '使用网站当前提供的语言' },
+		{ title: localize('选择 ShortestPath OJ 提交语言'), placeHolder: localize('使用网站当前提供的语言') },
 	);
 	return selected?.language;
 }
@@ -1660,10 +1639,10 @@ function forwardSamplesToCph(problem: ImportedProblem, sourcePath: string | unde
 async function addStressCounterExampleToCph(problem: ImportedProblem, task: StressTask): Promise<void> {
 	const sourcePath = (await readWorkspaceProblemCache()).sourcePaths[problem.ref];
 	if (!sourcePath) {
-		throw new Error('请先将题目添加到 CPH。');
+		throw new Error(localize('请先将题目添加到 CPH。'));
 	}
 	if (!task.counterExample) {
-		throw new Error('当前对拍任务没有反例。');
+		throw new Error(localize('当前对拍任务没有反例。'));
 	}
 	const payload = JSON.stringify({ input: task.counterExample.input, output: task.counterExample.expected });
 	await new Promise<void>((resolve, reject) => {
@@ -1699,14 +1678,14 @@ async function addStressCounterExampleToCph(problem: ImportedProblem, task: Stre
 					finish();
 					return;
 				}
-				finish(new Error(Buffer.concat(chunks).toString('utf8') || '无法将反例添加到 CPH。'));
+				finish(new Error(Buffer.concat(chunks).toString('utf8') || localize('无法将反例添加到 CPH。')));
 			});
 		});
 		const timeout = setTimeout(() => {
 			request.destroy();
-			finish(new Error('无法连接 CPH，请确认 CPH Plus 已启用。'));
+			finish(new Error(localize('无法连接 CPH，请确认 CPH Plus 已启用。')));
 		}, 5000);
-		request.once('error', () => finish(new Error('无法连接 CPH，请确认 CPH Plus 已启用。')));
+		request.once('error', () => finish(new Error(localize('无法连接 CPH，请确认 CPH Plus 已启用。'))));
 		request.end(payload);
 	});
 }
@@ -1798,7 +1777,9 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 	const katexStyles = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'resources', 'katex', 'katex.min.css'));
 	const timer = getProblemViewTimer(state);
 	const judgeType = describeJudgeType(problem.judge.checkerType, problem.judge.floatEpsilon);
-	const judgeTypeTooltip = judgeType === 'Float Judge' && problem.judge.floatEpsilon !== null ? describeFloatJudgeTolerance(problem.judge.floatEpsilon) : undefined;
+	const judgeTypeTooltip = judgeType === 'Float Judge' && problem.judge.floatEpsilon !== null
+		? localizeFormat('允许的精度误差：{0}', String(problem.judge.floatEpsilon))
+		: undefined;
 	const metadataJudge = judgeType ? `<strong class="judge-type${judgeTypeTooltip ? ' judge-type-with-tolerance' : ''}"${judgeTypeTooltip ? ' tabindex="0"' : ''}>${escapeHtml(judgeType)}${judgeTypeTooltip ? `<span class="judge-type-tolerance" role="tooltip">${escapeHtml(judgeTypeTooltip)}</span>` : ''}</strong>` : '';
 	const metadataParts = [
 		`<span class="meta-item meta-collapsible">${escapeHtml(problem.topic.title)}</span>`,
@@ -1865,8 +1846,8 @@ const defaultDifficultyTag: DifficultyTag = {
 };
 
 function renderInformation(problem: ImportedProblem): string {
-	const coreTags = problem.metadata.coreAlgorithm ? [`<span class="tag core">${escapeHtml(problem.metadata.coreAlgorithm)}</span>`] : [];
-	const auxiliaryTags = problem.metadata.auxiliaryAlgorithms.map(tag => `<span class="tag auxiliary">${escapeHtml(tag)}</span>`);
+	const coreTags = problem.metadata.coreAlgorithm ? [`<span class="tag core" data-i18n-ignore>${escapeHtml(problem.metadata.coreAlgorithm)}</span>`] : [];
+	const auxiliaryTags = problem.metadata.auxiliaryAlgorithms.map(tag => `<span class="tag auxiliary" data-i18n-ignore>${escapeHtml(tag)}</span>`);
 	const renderTagGroup = (label: string, tags: string[]): string => tags.length > 0
 		? `<div class="tag-group"><div class="tag-group-label">${label}</div><div class="tag-group-items">${tags.join('')}</div></div>`
 		: '';
@@ -1877,7 +1858,7 @@ function renderInformation(problem: ImportedProblem): string {
 		.filter((value): value is string => value !== undefined)
 		.map(escapeAttribute)
 		.join(' ');
-	const difficultyTag = `<span class="tag difficulty-tag ${difficultyTagClasses}" style="--difficulty-background: ${escapeAttribute(difficulty.backgroundHex)}; --difficulty-foreground: ${escapeAttribute(difficulty.textColor)};">${escapeHtml(difficulty.label)}</span>`;
+	const difficultyTag = `<span class="tag difficulty-tag ${difficultyTagClasses}" data-i18n-ignore style="--difficulty-background: ${escapeAttribute(difficulty.backgroundHex)}; --difficulty-foreground: ${escapeAttribute(difficulty.textColor)};">${escapeHtml(difficulty.label)}</span>`;
 	return `<div class="info-grid">
 				<div class="info-cell"><span class="info-label">${localize('时间限制')}</span><span class="info-value">${problem.limits.timeMs} ms</span></div>
 				<div class="info-cell"><span class="info-label">${localize('内存限制')}</span><span class="info-value">${problem.limits.memoryMB} MB</span></div>

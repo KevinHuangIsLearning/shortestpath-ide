@@ -44,31 +44,6 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 	const timer = document.getElementById('problem-timer-value');
 	const accepted = document.getElementById('problem-accepted');
 
-	/* ---- Split ratio memory ---- */
-	// When the user drags the sash next to the problem panel, the webview
-	// viewport resizes. Report that (throttled) so the extension can remember
-	// the ratio while the panel is still open. The `window` resize event tracks
-	// the panel size directly, unlike observing layout-dependent elements.
-	let lastReportedWidth: number | undefined;
-	let resizeReportTimer: ReturnType<typeof setTimeout> | undefined;
-	const reportPanelResized = (): void => {
-		const width = Math.round(window.innerWidth);
-		if (width === lastReportedWidth) {
-			return;
-		}
-		lastReportedWidth = width;
-		if (resizeReportTimer !== undefined) {
-			clearTimeout(resizeReportTimer);
-		}
-		resizeReportTimer = setTimeout(() => {
-			resizeReportTimer = undefined;
-			vscode.postMessage({ command: 'reportProblemPanelResized' });
-		}, 250);
-	};
-	window.addEventListener('resize', reportPanelResized);
-	// Record the initial ratio once the layout is ready as well.
-	reportPanelResized();
-
 	const timerState: TimerState = {
 		elapsedMs: Number(body.dataset.elapsedMs || 0),
 		capturedAt: Number(body.dataset.capturedAt || Date.now()),
@@ -290,7 +265,7 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			dialog.className = 'modal confirm-dialog';
 			dialog.innerHTML = `
 				<div class="modal-body">
-					<p class="confirm-message"></p>
+					<p class="confirm-message" data-i18n-ignore></p>
 					<div class="confirm-actions">
 						<button type="button" class="secondary cancel-btn"></button>
 						<button type="button" class="confirm-btn"></button>

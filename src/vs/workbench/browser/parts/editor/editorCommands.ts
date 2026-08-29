@@ -23,7 +23,6 @@ import { KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keyb
 import { IListService, IOpenEvent, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchTreeStickyScrollFocused } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAccess.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
@@ -47,7 +46,6 @@ import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editor
 import { prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
-import { getShortestPathOjPrimaryGroupRatio, getShortestPathOjPrimaryGroupWidth, isShortestPathOjProblemGroup, rememberShortestPathOjPrimaryGroupRatio, rememberShortestPathOjProblemSplitRatio } from './shortestpathEditorGroupSizing.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -121,7 +119,6 @@ export const TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID = 'workbench.action.toggleMo
 export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
 export const API_OPEN_WITH_EDITOR_COMMAND_ID = '_workbench.openWith';
-export const RESIZE_SHORTESTPATH_OJ_EDITOR_GROUPS_COMMAND_ID = 'shortestpath.oj.resizeEditorGroups';
 
 export const EDITOR_CORE_NAVIGATION_COMMANDS = [
 	SPLIT_EDITOR,
@@ -227,41 +224,6 @@ function registerEditorMoveCopyCommand(): void {
 				moveCopyEditorsToGroup(true, { to, by: 'group' }, resolvedContext.groupedEditors[0].group, resolvedContext.groupedEditors[0].editors, accessor);
 			}
 		});
-	});
-
-	CommandsRegistry.registerCommand('shortestpath.oj.rememberProblemSplitRatio', (accessor: ServicesAccessor) => {
-		rememberShortestPathOjProblemSplitRatio(
-			accessor.get(IEditorGroupsService),
-			accessor.get(IStorageService),
-		);
-	});
-
-	CommandsRegistry.registerCommand(RESIZE_SHORTESTPATH_OJ_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, _rightGroupIndex: unknown) => {
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const storageService = accessor.get(IStorageService);
-
-		// Locate the OJ problem panel group directly instead of trusting a
-		// view-column index, which can point at the wrong group depending on the
-		// grid layout (e.g. after the last problem panel is closed and reopened).
-		const problemGroup = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE).find(isShortestPathOjProblemGroup);
-		if (!problemGroup) {
-			return;
-		}
-		const leftGroup = editorGroupsService.findGroup({ direction: GroupDirection.LEFT }, problemGroup);
-		if (!leftGroup) {
-			return;
-		}
-
-		const leftSize = editorGroupsService.getSize(leftGroup);
-		const rightSize = editorGroupsService.getSize(problemGroup);
-		const ratio = getShortestPathOjPrimaryGroupRatio(storageService);
-		const primaryWidth = getShortestPathOjPrimaryGroupWidth(leftSize.width, rightSize.width, ratio);
-		if (primaryWidth === undefined) {
-			return;
-		}
-
-		editorGroupsService.setSize(leftGroup, { width: primaryWidth, height: leftSize.height });
-		rememberShortestPathOjPrimaryGroupRatio(storageService, primaryWidth / (primaryWidth + rightSize.width));
 	});
 
 	function moveCopySelectedEditors(isMove: boolean, args: SelectedEditorsMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {

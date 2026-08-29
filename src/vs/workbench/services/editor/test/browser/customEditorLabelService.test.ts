@@ -71,18 +71,6 @@ suite('Custom Editor Label Service', () => {
 		assert.strictEqual(label, '.file.${extname}');
 	});
 
-	test('Transient labels override configured labels without persisting them', async () => {
-		const [customLabelService, configService] = await createCustomLabelService();
-		const resource = URI.file('/workspace/main.cpp');
-		await updatePattern(configService, { '**': '${filename}.${extname}' });
-
-		assert.strictEqual(customLabelService.getName(resource), 'main.cpp');
-		customLabelService.setTransientLabel(resource, 'main.cpp & ShortestPath OJ 上的 A + B');
-		assert.strictEqual(customLabelService.getName(resource), 'main.cpp & ShortestPath OJ 上的 A + B');
-		customLabelService.setTransientLabel(resource, undefined);
-		assert.strictEqual(customLabelService.getName(resource), 'main.cpp');
-	});
-
 	test('Custom Labels: filename', async () => {
 		const [customLabelService, configService] = await createCustomLabelService();
 
