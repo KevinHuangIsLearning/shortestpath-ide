@@ -5,8 +5,8 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { canRequestEditorial, canViewEditorial, describeEditorialLockReason, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from '../editorialAccess';
-import { parseProblemBindData } from '../shortestpathOjProtocol';
+import { canRequestEditorial, canViewEditorial, describeEditorialLockReason, getCurrentEditorialRemainingMs, getEditorialConfirmationMessage, shouldConfirmEditorial } from '../editorialAccess';
+import { applyAcceptedSubmission, parseProblemBindData } from '../shortestpathOjProtocol';
 import { bindPayload } from './fixtures';
 
 const importedProblem = parseProblemBindData(bindPayload);
@@ -23,13 +23,20 @@ suite('ShortestPath OJ editorial access', () => {
 		assert.equal(canViewEditorial(true, false), true);
 	});
 
-	test('does not request confirmation after the problem is accepted', () => {
+	test('requests a neutral confirmation after the problem is accepted', () => {
 		assert.equal(shouldConfirmEditorial(importedProblem), true);
+		const acceptedProblem = applyAcceptedSubmission(importedProblem, 'AC');
+		assert.equal(shouldConfirmEditorial(acceptedProblem), true);
+		assert.equal(getEditorialConfirmationMessage(acceptedProblem), '确认查看吗？');
+	});
+
+	test('preserves the website confirmation requirement before AC', () => {
+		assert.equal(getEditorialConfirmationMessage(importedProblem), importedProblem.state.editorial.confirmationMessage);
 		assert.equal(shouldConfirmEditorial({
 			...importedProblem,
 			state: {
 				...importedProblem.state,
-				timer: { ...importedProblem.state.timer, accepted: true },
+				editorial: { ...importedProblem.state.editorial, requiresConfirmation: false },
 			},
 		}), false);
 	});

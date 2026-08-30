@@ -14,7 +14,11 @@ export function canViewEditorial(connected: boolean, hasCachedEditorial: boolean
 }
 
 export function shouldConfirmEditorial(problem: ImportedProblem): boolean {
-	return !problem.state.timer.accepted && problem.state.editorial.requiresConfirmation;
+	return problem.state.timer.accepted || problem.state.editorial.requiresConfirmation;
+}
+
+export function getEditorialConfirmationMessage(problem: ImportedProblem): string {
+	return problem.state.timer.accepted ? '确认查看吗？' : problem.state.editorial.confirmationMessage;
 }
 
 export function getCurrentEditorialRemainingMs(remainingMs: number, receivedAtMs: number, nowMs = Date.now()): number {

@@ -9,7 +9,7 @@ import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { localize, localizeFormat, localizeWebviewHtml } from './localization';
-import { canViewEditorial, describeEditorialLockReason, getCurrentEditorialRemainingMs, shouldConfirmEditorial } from './editorialAccess';
+import { canViewEditorial, describeEditorialLockReason, getCurrentEditorialRemainingMs, getEditorialConfirmationMessage, shouldConfirmEditorial } from './editorialAccess';
 import { describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
 import { defaultProblemSourceRatio, getProblemPanelLayout } from './problemPanelLayout';
@@ -1025,7 +1025,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		editorial: async problem => {
 			let confirmed = false;
 			if (shouldConfirmEditorial(problem)) {
-				const result = await panel.confirm(problem.state.editorial.confirmationMessage, '确认查看', '取消');
+				const result = await panel.confirm(getEditorialConfirmationMessage(problem), '确认查看', '取消');
 				if (!result) {
 					return undefined;
 				}
