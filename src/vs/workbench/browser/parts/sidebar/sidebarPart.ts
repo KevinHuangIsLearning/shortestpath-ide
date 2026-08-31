@@ -34,10 +34,14 @@ import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
+import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { addDisposableListener, Dimension, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+
+const PRIMARY_SIDE_BAR_SASH_CLASS = 'primary-sidebar-sash';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -71,6 +75,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this.location, this));
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
 	private titlebarLayoutDimension: Dimension | undefined;
+	private readonly primarySideBarSashClassDisposable = this._register(new MutableDisposable());
 
 	//#endregion
 
@@ -174,12 +179,24 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
+		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			return;
+		}
+
 		// CSS moves this side surface below the Tabbar. Give its pane composite the
 		// same reduced height so views do not render into the area below the window.
 		const titlebarInset = this.getHiddenTitlebarInset();
 		this.updateCustomTitlebarVerticalInset(titlebarInset);
 		this.titlebarLayoutDimension = new Dimension(width, height);
 		super.layout(width, Math.max(0, height - titlebarInset), top, left);
+	}
+
+	override setBoundarySashes(sashes: IBoundarySashes): void {
+		super.setBoundarySashes?.(sashes);
+
+		this.primarySideBarSashClassDisposable.clear();
+		const primarySideBarSash = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? sashes.right : sashes.left;
+		this.primarySideBarSashClassDisposable.value = primarySideBarSash?.addClass(PRIMARY_SIDE_BAR_SASH_CLASS);
 	}
 
 	protected override getRelayoutDimension(): Dimension | undefined {
