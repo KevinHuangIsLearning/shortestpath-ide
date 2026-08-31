@@ -47,7 +47,7 @@ globalThis.logger = {
     debug: jest.fn(),
 };
 
-import { runStressTest } from '../stressTest';
+import { getStressTempRoot, runStressTest } from '../stressTest';
 
 describe('stress test runner', () => {
     beforeEach(() => {
@@ -66,6 +66,12 @@ describe('stress test runner', () => {
             fs.writeFile(generator, 'int main() {}'),
             fs.writeFile(std, 'int main() {}'),
         ]);
+        mockCompileFile.mockImplementation(
+            async (_sourcePath: string, options: { outputPath: string }) => {
+                await fs.writeFile(options.outputPath, 'stress binary');
+                return true;
+            },
+        );
 
         mockRunTestCase
             .mockResolvedValueOnce({
@@ -132,6 +138,9 @@ describe('stress test runner', () => {
             expect.objectContaining({ pass: false }),
         );
         await expect(fs.access(root)).resolves.toBeUndefined();
+        await expect(fs.access(getStressTempRoot(target))).rejects.toMatchObject({
+            code: 'ENOENT',
+        });
         await fs.rm(root, { recursive: true, force: true });
     });
 });
