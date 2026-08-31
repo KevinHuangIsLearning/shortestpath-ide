@@ -183,36 +183,42 @@ async function getLanguagePackConfigurations(userDataPath: string, nlsMetadataPa
 	// on import.meta.dirname point at a different directory in development and
 	// in a packaged application. nlsMetadataPath is stable in both layouts:
 	// <app>/out-build in development and <app>/out when packaged.
-	const extensionRoot = join(nlsMetadataPath, '..', 'extensions', 'MS-CEINTL.vscode-language-pack-zh-hans');
-	const manifestPath = join(extensionRoot, 'package.json');
-	try {
-		const manifest = JSON.parse(await promises.readFile(manifestPath, 'utf-8')) as {
-			version?: string;
-			contributes?: { localizations?: Array<{ languageId?: string; localizedLanguageName?: string; translations?: Array<{ id?: string; path?: string }> }> };
-		};
-		const localization = manifest.contributes?.localizations?.find(candidate => candidate.languageId?.toLowerCase() === 'zh-cn');
-		if (localization?.translations?.length) {
-			const translations: Record<string, string> = {};
-			for (const translation of localization.translations) {
-				if (translation.id && translation.path) {
-					translations[translation.id] = join(extensionRoot, translation.path);
+	const builtInLanguagePacks = [
+		{ extensionFolder: 'MS-CEINTL.vscode-language-pack-zh-hans', extensionId: 'ms-ceintl.vscode-language-pack-zh-hans', languageId: 'zh-cn' },
+		{ extensionFolder: 'shortestpath.vscode-language-pack-zh-meme', extensionId: 'shortestpath.vscode-language-pack-zh-meme', languageId: 'zh-meme' },
+	];
+	for (const builtInLanguagePack of builtInLanguagePacks) {
+		const extensionRoot = join(nlsMetadataPath, '..', 'extensions', builtInLanguagePack.extensionFolder);
+		const manifestPath = join(extensionRoot, 'package.json');
+		try {
+			const manifest = JSON.parse(await promises.readFile(manifestPath, 'utf-8')) as {
+				version?: string;
+				contributes?: { localizations?: Array<{ languageId?: string; localizedLanguageName?: string; translations?: Array<{ id?: string; path?: string }> }> };
+			};
+			const localization = manifest.contributes?.localizations?.find(candidate => candidate.languageId?.toLowerCase() === builtInLanguagePack.languageId);
+			if (localization?.translations?.length) {
+				const translations: Record<string, string> = {};
+				for (const translation of localization.translations) {
+					if (translation.id && translation.path) {
+						translations[translation.id] = join(extensionRoot, translation.path);
+					}
+				}
+				if (translations['vscode'] && await Promises.exists(translations['vscode'])) {
+					const version = manifest.version ?? 'builtin';
+					const builtInPack: ILanguagePack = {
+						hash: `builtin-${builtInLanguagePack.languageId}-${version}`,
+						label: localization.localizedLanguageName ?? builtInLanguagePack.languageId,
+						extensions: [{ extensionIdentifier: { id: builtInLanguagePack.extensionId }, version }],
+						translations
+					};
+					// Always prefer the bundled pack. Existing profiles can contain an
+					// empty or stale entry whose absolute path belongs to another build.
+					languagePacks[builtInLanguagePack.languageId] = builtInPack;
 				}
 			}
-			if (translations['vscode'] && await Promises.exists(translations['vscode'])) {
-				const version = manifest.version ?? 'builtin';
-				const builtInPack: ILanguagePack = {
-					hash: `builtin-zh-hans-${version}`,
-					label: localization.localizedLanguageName ?? '中文(简体)',
-					extensions: [{ extensionIdentifier: { id: 'ms-ceintl.vscode-language-pack-zh-hans' }, version }],
-					translations
-				};
-				// Always prefer the bundled pack. Existing profiles can contain an
-				// empty or stale entry whose absolute path belongs to another build.
-				languagePacks['zh-cn'] = builtInPack;
-			}
+		} catch (error) {
+			console.error(`Loading the bundled ${builtInLanguagePack.languageId} language pack failed.`, error);
 		}
-	} catch (error) {
-		console.error('Loading the bundled Simplified Chinese language pack failed.', error);
 	}
 
 	return languagePacks;
