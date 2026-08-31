@@ -87,7 +87,9 @@ export interface IPaneCompositeBarOptions {
 
 export class PaneCompositeBar extends Disposable {
 
-	private static readonly shortestPathActivityBarMigrationKey = 'workbench.activity.shortestpathMinimalDefaultsApplied.v4';
+	// Re-apply defaults once so containers added after v4 (including Flintmark)
+	// are unpinned in existing ShortestPath profiles.
+	private static readonly shortestPathActivityBarMigrationKey = 'workbench.activity.shortestpathMinimalDefaultsApplied.v5';
 	private static readonly activityBarPinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	private static readonly extensionMarketplaceContextKey = 'shortestpath.extensionMarketplaceEnabled';
 	private static readonly extensionsViewContainerId = 'workbench.view.extensions';

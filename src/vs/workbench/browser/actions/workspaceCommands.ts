@@ -24,6 +24,7 @@ import { IFileToOpen, IFolderToOpen, IOpenEmptyWindowOptions, IOpenWindowOptions
 import { IRecent, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
 import { IPathService } from '../../services/path/common/pathService.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
+import { IWorkspaceTrustManagementService } from '../../../platform/workspace/common/workspaceTrust.js';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = localize2('addFolderToWorkspace', 'Add Folder to Workspace...');
@@ -31,6 +32,7 @@ export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = localize2('addFolderToWor
 export const SET_ROOT_FOLDER_COMMAND_ID = 'setRootFolder';
 
 export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
+export const SET_WORKSPACE_FOLDER_TRUST_COMMAND_ID = '_workbench.setWorkspaceFolderTrust';
 
 // Command registration
 
@@ -149,6 +151,25 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async functio
 	}
 
 	return;
+});
+
+// Used by the ShortestPath first-run flow after the user explicitly selects a
+// local workspace folder. Keep this separate from the public trust request API,
+// which must continue to ask the user before changing trust.
+CommandsRegistry.registerCommand({
+	id: SET_WORKSPACE_FOLDER_TRUST_COMMAND_ID,
+	handler: async (accessor: ServicesAccessor, uriComponents?: UriComponents) => {
+		if (!uriComponents) {
+			return;
+		}
+
+		const uri = URI.from(uriComponents, true);
+		if (uri.scheme !== Schemas.file) {
+			return;
+		}
+
+		await accessor.get(IWorkspaceTrustManagementService).setUrisTrust([uri], true);
+	}
 });
 
 // API Command registration
