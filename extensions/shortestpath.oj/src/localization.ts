@@ -30,6 +30,8 @@ const english: Readonly<Record<string, string>> = {
 	'提示': 'Hint',
 	'解题报告': 'Editorial',
 	'正在加载解题报告…': 'Loading editorial…',
+	'加载中…': 'Loading…',
+	'正在提交…': 'Submitting…',
 	'查看解题报告': 'View Editorial',
 	'提示回顾': 'Hints',
 	'简化题解': 'Concise Solution',

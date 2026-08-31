@@ -147,6 +147,7 @@ type ProblemPanelState = {
 	disconnectedStressTasks: Set<string>;
 	addingStressCounterExamples: Set<string>;
 	addedStressCounterExamples: Set<string>;
+	operationsInFlight: Set<string>;
 	editorialRemainingReceivedAtMs: number;
 	sourcePath?: string;
 };
@@ -225,6 +226,7 @@ class ShortestPathOjProblemPanel {
 				disconnectedStressTasks: new Set(),
 				addingStressCounterExamples: new Set(),
 				addedStressCounterExamples: new Set(),
+				operationsInFlight: new Set(),
 				editorialRemainingReceivedAtMs: Date.now(),
 				sourcePath,
 			};
@@ -268,9 +270,6 @@ class ShortestPathOjProblemPanel {
 		}
 		this.updateProblemPanelTitle();
 		if (this.editorialPanel) {
-			return;
-		}
-		if (this.hideProblemWhenSourceInactive()) {
 			return;
 		}
 		const panelCreated = this.ensureProblemPanel();
@@ -471,6 +470,22 @@ class ShortestPathOjProblemPanel {
 		void this.panel?.webview.postMessage({ type: 'showHintModal', html: modalHtml });
 	}
 
+	private beginOperation(state: ProblemPanelState, key: string): boolean {
+		if (state.operationsInFlight.has(key)) {
+			return false;
+		}
+		state.operationsInFlight.add(key);
+		this.render();
+		return true;
+	}
+
+	private endOperation(state: ProblemPanelState, key: string): void {
+		state.operationsInFlight.delete(key);
+		if (this.state === state) {
+			this.render();
+		}
+	}
+
 	private showLockedEditorialNotice(remainingMs: number, reason = ''): void {
 		const reasonText = describeEditorialLockReason(reason);
 		const detail = remainingMs > 0
@@ -569,6 +584,7 @@ class ShortestPathOjProblemPanel {
 						this.refreshEditorialLike(value.hintId);
 					} catch (error) {
 						console.error('Failed to update ShortestPath OJ editorial like.', error);
+						void this.editorialPanel?.webview.postMessage({ type: 'editorialLikeError', hintId: value.hintId });
 					}
 				}
 			});
@@ -702,26 +718,35 @@ class ShortestPathOjProblemPanel {
 					this.render();
 					return;
 				case 'answer':
-					if (typeof value.hintId !== 'string') {
-						return;
-					}
 					{
-						const result = await this.actions.answer(state.problem, value.hintId);
-						if (result.state === 'revealed') {
-							state.answers.set(result.hintId, result.answer);
-							state.hintMessages.delete(result.hintId);
-							hintAnswerCache.set(hintAnswerCacheKey(state.problem.ref, result.hintId), result.answer);
-							state.problem = applyAnswerLikes(state.problem, result);
-						} else {
-							const message = result.remainingMs > 0
-								? `提示尚未解锁，剩余 ${formatDuration(result.remainingMs)}。`
-								: '请先打开当前提示后再查看答案。';
-							state.problem = applyHintLockRemaining(state.problem, result.hintId, result.remainingMs);
-							state.hintMessages.set(result.hintId, message);
+						if (typeof value.hintId !== 'string') {
+							return;
 						}
+						const operationKey = `answer:${value.hintId}`;
+						if (!this.beginOperation(state, operationKey)) {
+							return;
+						}
+						this.refreshHintModal(value.hintId);
+						try {
+							const result = await this.actions.answer(state.problem, value.hintId);
+							if (result.state === 'revealed') {
+								state.answers.set(result.hintId, result.answer);
+								state.hintMessages.delete(result.hintId);
+								hintAnswerCache.set(hintAnswerCacheKey(state.problem.ref, result.hintId), result.answer);
+								state.problem = applyAnswerLikes(state.problem, result);
+							} else {
+								const message = result.remainingMs > 0
+									? `提示尚未解锁，剩余 ${formatDuration(result.remainingMs)}。`
+									: '请先打开当前提示后再查看答案。';
+								state.problem = applyHintLockRemaining(state.problem, result.hintId, result.remainingMs);
+								state.hintMessages.set(result.hintId, message);
+							}
+						} finally {
+							this.endOperation(state, operationKey);
+						}
+						this.refreshHintModal(value.hintId);
+						break;
 					}
-					this.refreshHintModal(value.hintId);
-					break;
 				case 'openHintModal':
 					if (typeof value.hintId !== 'string') {
 						return;
@@ -735,17 +760,26 @@ class ShortestPathOjProblemPanel {
 							return;
 						}
 						if (state.problem.state.timer.accepted && !state.answers.has(hint.id)) {
-							const result = await this.actions.answer(state.problem, hint.id);
-							if (result.state === 'revealed') {
-								state.answers.set(result.hintId, result.answer);
-								state.hintMessages.delete(result.hintId);
-								hintAnswerCache.set(hintAnswerCacheKey(state.problem.ref, result.hintId), result.answer);
-								state.problem = applyAnswerLikes(state.problem, result);
-							} else {
-								state.problem = applyHintLockRemaining(state.problem, result.hintId, result.remainingMs);
-								state.hintMessages.set(result.hintId, result.remainingMs > 0
-									? `提示尚未解锁，剩余 ${formatDuration(result.remainingMs)}。`
-									: '网站尚未确认提示答案可查看。');
+							const operationKey = `answer:${hint.id}`;
+							if (!this.beginOperation(state, operationKey)) {
+								return;
+							}
+							this.refreshHintModal(value.hintId);
+							try {
+								const result = await this.actions.answer(state.problem, hint.id);
+								if (result.state === 'revealed') {
+									state.answers.set(result.hintId, result.answer);
+									state.hintMessages.delete(result.hintId);
+									hintAnswerCache.set(hintAnswerCacheKey(state.problem.ref, result.hintId), result.answer);
+									state.problem = applyAnswerLikes(state.problem, result);
+								} else {
+									state.problem = applyHintLockRemaining(state.problem, result.hintId, result.remainingMs);
+									state.hintMessages.set(result.hintId, result.remainingMs > 0
+										? `提示尚未解锁，剩余 ${formatDuration(result.remainingMs)}。`
+										: '网站尚未确认提示答案可查看。');
+								}
+							} finally {
+								this.endOperation(state, operationKey);
 							}
 						}
 						this.refreshHintModal(value.hintId);
@@ -755,8 +789,18 @@ class ShortestPathOjProblemPanel {
 					if (typeof value.hintId !== 'string' || (value.target !== 'question' && value.target !== 'answer') || typeof value.liked !== 'boolean') {
 						return;
 					}
-					state.problem = applyLikeResult(state.problem, await this.actions.like(state.problem, value.hintId, value.target, value.liked));
-					this.refreshHintModal(value.hintId);
+					{
+						const operationKey = `like:${value.hintId}:${value.target}`;
+						if (!this.beginOperation(state, operationKey)) {
+							return;
+						}
+						try {
+							state.problem = applyLikeResult(state.problem, await this.actions.like(state.problem, value.hintId, value.target, value.liked));
+						} finally {
+							this.endOperation(state, operationKey);
+						}
+						this.refreshHintModal(value.hintId);
+					}
 					break;
 				case 'editorial':
 					{
@@ -808,28 +852,52 @@ class ShortestPathOjProblemPanel {
 					}
 					break;
 				case 'submit':
+					if (!this.beginOperation(state, 'submit')) {
+						return;
+					}
 					state.statusMessage = '正在通过网页提交；如浏览器出现安全验证，请在浏览器中完成。';
 					this.render();
-					await this.actions.submit(state.problem);
+					try {
+						await this.actions.submit(state.problem);
+					} finally {
+						this.endOperation(state, 'submit');
+					}
 					return;
 				case 'watchSubmission':
 					if (typeof value.submissionId !== 'string' || !/^\d+$/.test(value.submissionId)) {
 						throw new Error(localize('提交 ID 必须是十进制字符串。'));
 					}
-					await this.actions.watchSubmission(state.problem, value.submissionId);
-					state.disconnectedSubmissions.delete(value.submissionId);
+					{
+						const operationKey = `watch:${value.submissionId}`;
+						if (!this.beginOperation(state, operationKey)) {
+							return;
+						}
+						try {
+							await this.actions.watchSubmission(state.problem, value.submissionId);
+							state.disconnectedSubmissions.delete(value.submissionId);
+						} finally {
+							this.endOperation(state, operationKey);
+						}
+					}
 					break;
 				case 'loadStress':
 					if (!state.problem.capabilities.stress.supported) {
 						return;
 					}
-					state.stressContext = await this.actions.loadStress(state.problem);
-					for (const task of state.stressContext.tasks) {
-						state.stressTasks.set(task.taskId, task);
-						state.disconnectedStressTasks.delete(task.taskId);
-						if (isStressFinished(task.status)) {
-							state.finishedStressTasks.add(task.taskId);
+					if (!this.beginOperation(state, 'loadStress')) {
+						return;
+					}
+					try {
+						state.stressContext = await this.actions.loadStress(state.problem);
+						for (const task of state.stressContext.tasks) {
+							state.stressTasks.set(task.taskId, task);
+							state.disconnectedStressTasks.delete(task.taskId);
+							if (isStressFinished(task.status)) {
+								state.finishedStressTasks.add(task.taskId);
+							}
 						}
+					} finally {
+						this.endOperation(state, 'loadStress');
 					}
 					break;
 				case 'startStress':
@@ -839,27 +907,34 @@ class ShortestPathOjProblemPanel {
 					if (typeof value.submissionId !== 'string' || typeof value.rounds !== 'number' || !Number.isInteger(value.rounds) || value.rounds <= 0) {
 						throw new Error(localize('请选择可用提交并填写正整数轮数。'));
 					}
-					if (!state.stressContext) {
-						state.stressContext = await this.actions.loadStress(state.problem);
-						for (const task of state.stressContext.tasks) {
-							state.stressTasks.set(task.taskId, task);
-							state.disconnectedStressTasks.delete(task.taskId);
-							if (isStressFinished(task.status)) {
-								state.finishedStressTasks.add(task.taskId);
+					if (!this.beginOperation(state, 'startStress')) {
+						return;
+					}
+					try {
+						if (!state.stressContext) {
+							state.stressContext = await this.actions.loadStress(state.problem);
+							for (const task of state.stressContext.tasks) {
+								state.stressTasks.set(task.taskId, task);
+								state.disconnectedStressTasks.delete(task.taskId);
+								if (isStressFinished(task.status)) {
+									state.finishedStressTasks.add(task.taskId);
+								}
 							}
 						}
-					}
-					if (this.unknownStressStarts.has(state.problem.ref)) {
-						const choice = await this.confirm('上一次对拍启动结果未知。再次发起可能创建另一个任务，是否继续？', '继续', '取消');
-						if (!choice) {
-							return;
+						if (this.unknownStressStarts.has(state.problem.ref)) {
+							const choice = await this.confirm('上一次对拍启动结果未知。再次发起可能创建另一个任务，是否继续？', '继续', '取消');
+							if (!choice) {
+								return;
+							}
+							this.unknownStressStarts.delete(state.problem.ref);
 						}
-						this.unknownStressStarts.delete(state.problem.ref);
-					}
-					{
-						const task = await this.actions.startStress(state.problem, value.submissionId, value.rounds);
-						state.stressTasks.set(task.taskId, task);
-						this.unknownStressStarts.delete(state.problem.ref);
+						{
+							const task = await this.actions.startStress(state.problem, value.submissionId, value.rounds);
+							state.stressTasks.set(task.taskId, task);
+							this.unknownStressStarts.delete(state.problem.ref);
+						}
+					} finally {
+						this.endOperation(state, 'startStress');
 					}
 					break;
 				case 'addStressCounterExample':
@@ -1062,13 +1137,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		renderProblemMarkdown = renderer;
 		markdownContentCache = new WeakMap();
 		panel.refreshEditorial();
-		panel.reveal();
 		log('Problem Markdown renderer initialized.');
 	}).catch(error => log(`Failed to initialize problem Markdown renderer: ${error instanceof Error ? error.message : String(error)}`));
 	context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => {
 		markdownContentCache = new WeakMap();
 		panel.refreshEditorial();
-		panel.reveal();
 	}));
 	bridge = new ShortestPathOjLocalBridge({
 		async importProblem(problem, signal) {
@@ -1147,9 +1220,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		if (await panel.hideProblemWhenSourceCloses()) {
 			return;
 		}
-		if (!panel.hideProblemWhenSourceInactive()) {
-			panel.restoreProblemWhenSourceActive();
-		}
+		panel.restoreProblemWhenSourceActive();
 	};
 	const scheduleProblemPanelSync = () => {
 		setTimeout(() => {
@@ -1758,7 +1829,7 @@ function renderProblemViewSections(
 				? `<div class="operation-notice" role="status">${localize('操作长时间没有响应，可能是因为触发了安全验证，请到浏览器处理。')}</div>`
 				: '',
 		status: `<div class="connection ${state.connected ? 'connected' : 'disconnected'}">${escapeHtml(state.statusMessage)}</div>`,
-		submissionButton: `<button type="button" data-command="submit"${state.connected ? '' : ' disabled'}>${localize('提交代码')}</button>`,
+		submissionButton: `<button type="button" data-command="submit"${state.connected && !state.operationsInFlight.has('submit') ? '' : ' disabled'}>${state.operationsInFlight.has('submit') ? localize('正在提交…') : localize('提交代码')}</button>`,
 		information: renderInformation(problem),
 		statement: renderStatement(problem),
 		hints: renderHints(state),
@@ -1939,24 +2010,24 @@ function renderHints(state: ProblemPanelState): string {
 const likeSvgOutlined = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-thumbs-up size-3.5" aria-hidden="true"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"></path><path d="M7 10v12"></path></svg>';
 const likeSvgFilled = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-thumbs-up size-3.5 fill-current" aria-hidden="true"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"></path><path d="M7 10v12"></path></svg>';
 
-function renderLikeButton(hintId: string, target: 'question' | 'answer', likes: { liked: boolean; count: number }, enabled: boolean): string {
+function renderLikeButton(hintId: string, target: 'question' | 'answer', likes: { liked: boolean; count: number }, enabled: boolean, loading = false): string {
 	const label = `${likes.liked ? '取消点赞' : '点赞'}提示${target === 'question' ? '问题' : '答案'}，当前 ${likes.count} 赞`;
-	return `<button type="button" class="like-btn${likes.liked ? ' liked' : ''}" data-command="like" data-hint-id="${escapeAttribute(hintId)}" data-target="${target}" data-liked="${likes.liked}" aria-label="${escapeAttribute(label)}"${enabled ? '' : ' disabled'}><span class="like-icon like-icon-outline" aria-hidden="true">${likeSvgOutlined}</span><span class="like-icon like-icon-filled" aria-hidden="true">${likeSvgFilled}</span><span class="like-count" aria-hidden="true">${likes.count}</span></button>`;
+	return `<button type="button" class="like-btn${likes.liked ? ' liked' : ''}${loading ? ' loading' : ''}" data-command="like" data-hint-id="${escapeAttribute(hintId)}" data-target="${target}" data-liked="${likes.liked}" aria-label="${escapeAttribute(label)}"${enabled && !loading ? '' : ' disabled'}>${loading ? '<span aria-hidden="true">…</span>' : `<span class="like-icon like-icon-outline" aria-hidden="true">${likeSvgOutlined}</span><span class="like-icon like-icon-filled" aria-hidden="true">${likeSvgFilled}</span><span class="like-count" aria-hidden="true">${likes.count}</span>`}</button>`;
 }
 
 function renderHintModal(state: ProblemPanelState, hint: ProblemHint): string {
 	const questionContent = hint.question
 		? `<div data-render-math data-i18n-ignore>${renderMarkdownContent(hint.question, state.problem.url)}</div>`
 		: '<p>提示问题尚未解锁。</p>';
-	const questionLike = renderLikeButton(hint.id, 'question', hint.likes.question, state.connected && Boolean(hint.question));
+	const questionLike = renderLikeButton(hint.id, 'question', hint.likes.question, state.connected && Boolean(hint.question), state.operationsInFlight.has(`like:${hint.id}:question`));
 	const answer = state.answers.get(hint.id);
-	const answerLike = renderLikeButton(hint.id, 'answer', hint.likes.answer, state.connected && Boolean(answer));
+	const answerLike = renderLikeButton(hint.id, 'answer', hint.likes.answer, state.connected && Boolean(answer), state.operationsInFlight.has(`like:${hint.id}:answer`));
 	const unlocked = hint.unlocked || state.problem.state.timer.accepted;
 	const canRequestAnswer = state.connected;
 	const canShowAnswer = unlocked && canRequestAnswer;
 	const answerContent = answer
 		? `<div data-render-math data-i18n-ignore>${renderMarkdownContent(answer, state.problem.url)}</div>`
-		: `<button type="button" data-command="answer" data-hint-id="${escapeAttribute(hint.id)}" data-can-request="${canRequestAnswer}"${canShowAnswer ? '' : ' disabled'}${!unlocked && hint.remainingMs > 0 ? ` data-remaining-ms="${hint.remainingMs}"` : ''}>${unlocked ? '显示答案' : `<span class="hint-countdown">剩余 ${formatDuration(hint.remainingMs)}</span>`}</button>`;
+		: `<button type="button" data-command="answer" data-hint-id="${escapeAttribute(hint.id)}" data-can-request="${canRequestAnswer}"${canShowAnswer && !state.operationsInFlight.has(`answer:${hint.id}`) ? '' : ' disabled'}${!unlocked && hint.remainingMs > 0 ? ` data-remaining-ms="${hint.remainingMs}"` : ''}>${state.operationsInFlight.has(`answer:${hint.id}`) ? localize('加载中…') : unlocked ? '显示答案' : `<span class="hint-countdown">剩余 ${formatDuration(hint.remainingMs)}</span>`}</button>`;
 	const feedback = state.hintMessages.get(hint.id);
 	return `<div class="modal-header"><h3>提示 ${hint.seq}</h3><button type="button" class="modal-close" data-command="closeModal" aria-label="关闭提示">×</button></div><div class="modal-body">${feedback ? `<p class="hint-feedback" role="status">${escapeHtml(feedback)}</p>` : ''}<div class="modal-columns"><div class="modal-column"><div class="hint-section-heading"><h4>问题</h4>${questionLike}</div>${questionContent}</div><div class="modal-column"><div class="hint-section-heading"><h4>答案</h4>${answerLike}</div>${answerContent}</div></div></div>`;
 }
@@ -2066,6 +2137,14 @@ updateEditorialLayout();
 window.addEventListener('message', (event) => {
 	const message = event.data;
 	if (!message || message.type !== 'editorialLike' || typeof message.hintId !== 'string') {
+		if (message && message.type === 'editorialLikeError' && typeof message.hintId === 'string') {
+			document.querySelectorAll('[data-command="like"]').forEach((element) => {
+				if (element instanceof HTMLButtonElement && element.dataset.hintId === message.hintId) {
+					element.disabled = false;
+					element.classList.remove('loading');
+				}
+			});
+		}
 		return;
 	}
 	document.querySelectorAll('[data-command="like"]').forEach((element) => {
@@ -2079,6 +2158,8 @@ window.addEventListener('message', (event) => {
 			return;
 		}
 		element.dataset.liked = String(liked);
+		element.disabled = false;
+		element.classList.remove('loading');
 		element.classList.toggle('liked', liked);
 		element.setAttribute('aria-label', (liked ? '取消点赞' : '点赞') + '提示' + (isQuestion ? '问题' : '答案') + '，当前 ' + count + ' 赞');
 		const countElement = element.querySelector('.like-count');
@@ -2095,6 +2176,9 @@ document.addEventListener('click', (event) => {
 	const hintId = button.dataset.hintId;
 	const target = button.dataset.target;
 	const liked = button.dataset.liked === 'true';
+	button.disabled = true;
+	button.classList.add('loading');
+	button.innerHTML = '<span aria-hidden="true">…</span>';
 	vscode.postMessage({ command: 'like', hintId, target, liked: !liked });
 });
 </script>
@@ -2157,7 +2241,8 @@ function renderSubmissionStress(state: ProblemPanelState, submission: Submission
 	}
 	const defaultRounds = state.stressContext?.defaultRounds ?? state.problem.capabilities.stress.defaultRounds ?? 120;
 	const hint = '<p class="submission-stress-hint">提交出现 WA，可以使用对拍找到错误数据。</p>';
-	const button = `<button type="button" data-command="startStress" data-submission-id="${escapeAttribute(submissionId)}" data-rounds="${defaultRounds}"${state.connected ? '' : ' disabled'}>发起对拍</button>`;
+	const starting = state.operationsInFlight.has('startStress');
+	const button = `<button type="button" data-command="startStress" data-submission-id="${escapeAttribute(submissionId)}" data-rounds="${defaultRounds}"${state.connected && !starting ? '' : ' disabled'}>${starting ? localize('加载中…') : '发起对拍'}</button>`;
 	return `${hint}${button}`;
 }
 
