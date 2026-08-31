@@ -271,9 +271,12 @@ export const runStressTest = async (
         return { state: 'passed', iteration: lastIteration };
     } finally {
         try {
-            if (root) {
-                await fs.rm(root, { recursive: true, force: true });
-            }
+            await fs.rm(tempParent, {
+                recursive: true,
+                force: true,
+                maxRetries: 3,
+                retryDelay: 100,
+            });
         } finally {
             stressRunning = false;
         }
