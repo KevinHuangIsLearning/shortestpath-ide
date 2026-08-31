@@ -185,7 +185,6 @@ async function getLanguagePackConfigurations(userDataPath: string, nlsMetadataPa
 	// <app>/out-build in development and <app>/out when packaged.
 	const builtInLanguagePacks = [
 		{ extensionFolder: 'MS-CEINTL.vscode-language-pack-zh-hans', extensionId: 'ms-ceintl.vscode-language-pack-zh-hans', languageId: 'zh-cn' },
-		{ extensionFolder: 'shortestpath.vscode-language-pack-zh-meme', extensionId: 'shortestpath.vscode-language-pack-zh-meme', languageId: 'zh-meme' },
 	];
 	for (const builtInLanguagePack of builtInLanguagePacks) {
 		const extensionRoot = join(nlsMetadataPath, '..', 'extensions', builtInLanguagePack.extensionFolder);

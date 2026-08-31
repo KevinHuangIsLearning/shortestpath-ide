@@ -48,7 +48,6 @@ export const excludedForOIDistribution = new Set([
 // them (they use independent toolchains and output layouts).
 export const prebuiltOIDistributionExtensions = new Set([
 	'MS-CEINTL.vscode-language-pack-zh-hans',
-	'shortestpath.vscode-language-pack-zh-meme',
 	'adpyke.codesnap',
 	'danielpinto8zz6.c-cpp-compile-run',
 	'divyanshuagrawal.competitive-programming-helper',
