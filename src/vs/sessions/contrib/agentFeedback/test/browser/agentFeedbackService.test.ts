@@ -6,24 +6,25 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { derived, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService, whenWidgetForSession } from '../../browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../browser/sessionEditorComments.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService, IChatAcceptInputOptions, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { whenChatWidgetForSession } from '../../../chat/browser/chatWidgetUtils.js';
+import { ISession, ISessionFile, SessionFileOperation, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -44,9 +45,11 @@ suite('AgentFeedbackService - Ordering', () => {
 	let fileA: URI;
 	let fileB: URI;
 	let fileC: URI;
+	let onDidDeleteSession: Emitter<ISession>;
 
 	setup(() => {
 		const instantiationService = store.add(new TestInstantiationService());
+		onDidDeleteSession = store.add(new Emitter<ISession>());
 
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -56,6 +59,7 @@ suite('AgentFeedbackService - Ordering', () => {
 			override openEditor(..._args: unknown[]): Promise<undefined> { return Promise.resolve(undefined); }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidDeleteSession = onDidDeleteSession.event;
 			override getSession(_resource: URI) { return undefined; }
 		});
 		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
@@ -210,7 +214,7 @@ suite('AgentFeedbackService - Ordering', () => {
 		// feedback id) for that match to succeed.
 		await service.revealFeedback(session, f2.id);
 
-		const comments = getSessionEditorComments(session, service.getFeedback(session));
+		const comments = getSessionEditorComments(session, service.getFeedback(session), undefined, service.getVisibleResolvedFeedbackIds(session));
 		const bearing = service.getNavigationBearing(session, comments);
 		assert.strictEqual(comments[bearing.activeIdx]?.sourceId, f2.id);
 
@@ -221,6 +225,56 @@ suite('AgentFeedbackService - Ordering', () => {
 			{ session: session.toString(), commentId: comments[1].id, resource: fileA.toString() },
 			{ session: session.toString(), commentId: comments[0].id, resource: fileA.toString() },
 		]);
+	});
+
+	test('resolved feedback is visible only after an explicit reveal', async () => {
+		const feedback = service.addFeedback(
+			session,
+			fileA,
+			r(5),
+			'Resolved feedback',
+			undefined,
+			undefined,
+			undefined,
+			AgentFeedbackKind.UserReview,
+			AgentFeedbackState.Resolved,
+		);
+		const visibleComments = () => getSessionEditorComments(
+			session,
+			service.getFeedback(session),
+			undefined,
+			service.getVisibleResolvedFeedbackIds(session),
+		).map(comment => comment.sourceId);
+
+		const beforeReveal = visibleComments();
+		await service.revealFeedback(session, feedback.id);
+		const afterReveal = visibleComments();
+
+		service.setFeedbackResolved(session, feedback.id, false);
+		const afterUnresolve = visibleComments();
+		service.setFeedbackResolved(session, feedback.id, true);
+		const afterReresolve = visibleComments();
+
+		service.showFeedbackInEditor(session, [feedback.id]);
+		const afterShow = visibleComments();
+		service.hideFeedbackInEditor(session, feedback.id);
+		const afterHide = visibleComments();
+
+		assert.deepStrictEqual({
+			beforeReveal,
+			afterReveal,
+			afterUnresolve,
+			afterReresolve,
+			afterShow,
+			afterHide,
+		}, {
+			beforeReveal: [],
+			afterReveal: [feedback.id],
+			afterUnresolve: [feedback.id],
+			afterReresolve: [],
+			afterShow: [feedback.id],
+			afterHide: [],
+		});
 	});
 
 	test('removing feedback preserves ordering', () => {
@@ -271,7 +325,10 @@ suite('AgentFeedbackService - Ordering', () => {
 			replies: items[0].replies,
 		}, {
 			text: 'initial',
-			replies: ['first reply', 'second reply'],
+			replies: [
+				{ text: 'first reply', author: 'user' },
+				{ text: 'second reply', author: 'user' },
+			],
 		});
 	});
 
@@ -281,6 +338,24 @@ suite('AgentFeedbackService - Ordering', () => {
 
 		const items = service.getFeedback(session);
 		assert.strictEqual(items[0].replies, undefined);
+	});
+
+	test('deleting a session drops its per-session bookkeeping', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'comment');
+		service.setNavigationAnchor(session, feedback.id);
+		service.setFeedbackResolved(session, feedback.id, true);
+		service.showFeedbackInEditor(session, [feedback.id]);
+		assert.deepStrictEqual([...service.getVisibleResolvedFeedbackIds(session)], [feedback.id]);
+
+		onDidDeleteSession.fire({ resource: session } as ISession);
+
+		assert.deepStrictEqual({
+			visibleResolved: [...service.getVisibleResolvedFeedbackIds(session)],
+			anchoredIdx: service.getNavigationBearing(session).activeIdx,
+		}, {
+			visibleResolved: [],
+			anchoredIdx: -1,
+		});
 	});
 });
 
@@ -310,17 +385,19 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		return { input };
 	}
 
-	function makeSession(resource: URI, status: SessionStatus = SessionStatus.InProgress, options?: { folders?: URI[]; changes?: URI[] }): ISession {
+	function makeSession(resource: URI, status: SessionStatus = SessionStatus.InProgress, options?: { folders?: URI[]; changes?: URI[]; externalChanges?: URI[] }): ISession {
 		const workspace = options?.folders
 			? { folders: options.folders.map(root => ({ root, workingDirectory: root })) }
 			: undefined;
 		const changes = (options?.changes ?? []).map(uri => ({ modifiedUri: uri, originalUri: uri }));
+		const externalChanges = (options?.externalChanges ?? []).map(uri => ({ uri, operation: SessionFileOperation.Modified }));
 		return {
 			resource,
 			status: observableValue<SessionStatus>('status', status),
 			isCreated: observableValue('isCreated', status !== SessionStatus.Untitled),
 			workspace: observableValue('workspace', workspace),
 			changes: observableValue('changes', changes),
+			externalChanges: observableValue('externalChanges', externalChanges),
 		} as unknown as ISession;
 	}
 
@@ -349,6 +426,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 			override get visibleEditorPanes() { return visiblePanes; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidDeleteSession = Event.None;
 			override getSession(resource: URI) { return sessions.get(resource.toString()); }
 		});
 		instantiationService.stub(ISessionsService, { activeSession: activeSessionObs } as unknown as ISessionsService);
@@ -566,6 +644,49 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		setActiveSession(wsSession);
 
 		assert.strictEqual(service.getSessionForFile(changed)?.resource.toString(), sessionS1.toString());
+	});
+
+	test('returns a session for files that are part of external changes even outside the workspace', () => {
+		const external = URI.file('/home/user/.config/settings.json');
+		const wsSession = makeSession(sessionS1, SessionStatus.InProgress, { folders: [URI.file('/workspace')], externalChanges: [external] });
+		sessions.set(sessionS1.toString(), wsSession);
+		setActiveSession(wsSession);
+
+		assert.strictEqual(service.getSessionForFile(external)?.resource.toString(), sessionS1.toString());
+	});
+
+	test('computes the session external changes once for repeated scope checks', () => {
+		const external = URI.file('/home/user/.config/settings.json');
+		let computations = 0;
+		let releasedSubscriptions = 0;
+		// Mirrors the agent host provider, which holds a state subscription per
+		// chat for as long as its external changes are observed and releases
+		// them again once they are not.
+		const externalChanges = derived<readonly ISessionFile[]>(reader => {
+			computations++;
+			reader.store.add(toDisposable(() => releasedSubscriptions++));
+			return [{ uri: external, operation: SessionFileOperation.Modified }];
+		});
+		const wsSession: ISession = { ...makeSession(sessionS1, SessionStatus.InProgress, { folders: [URI.file('/workspace')] }), externalChanges };
+		sessions.set(sessionS1.toString(), wsSession);
+		setActiveSession(wsSession);
+
+		const scopes = [
+			service.getSessionForFile(external)?.resource.toString(),
+			service.getSessionForFile(URI.file('/elsewhere/other.ts'))?.resource.toString(),
+			service.getSessionForFile(external)?.resource.toString(),
+		];
+
+		assert.deepStrictEqual({ scopes, computations, releasedSubscriptions }, {
+			scopes: [sessionS1.toString(), undefined, sessionS1.toString()],
+			computations: 1,
+			releasedSubscriptions: 0,
+		});
+
+		// Activating another session releases the previous session's subscriptions.
+		setActiveSession(sessions.get(sessionS2.toString())!);
+
+		assert.deepStrictEqual({ computations, releasedSubscriptions }, { computations: 1, releasedSubscriptions: 1 });
 	});
 
 	test('does not return a session for output view resources', () => {
@@ -835,7 +956,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	});
 });
 
-suite('AgentFeedbackService - whenWidgetForSession', () => {
+suite('whenChatWidgetForSession', () => {
 
 	const store = new DisposableStore();
 	const session = URI.parse('test://session/1');
@@ -875,13 +996,13 @@ suite('AgentFeedbackService - whenWidgetForSession', () => {
 		const host = createWidgetHost();
 		host.load();
 
-		assert.strictEqual(await whenWidgetForSession(host.service, session, 0), host.widget);
+		assert.strictEqual(await whenChatWidgetForSession(host.service, session, 0), host.widget);
 	});
 
 	test('resolves once a widget loads the session', async () => {
 		const host = createWidgetHost();
 
-		const pending = whenWidgetForSession(host.service, session, 5000);
+		const pending = whenChatWidgetForSession(host.service, session, 5000);
 		await timeout(0);
 		host.load();
 
@@ -891,7 +1012,7 @@ suite('AgentFeedbackService - whenWidgetForSession', () => {
 	test('resolves undefined when no widget loads the session in time', async () => {
 		const host = createWidgetHost();
 
-		assert.strictEqual(await whenWidgetForSession(host.service, session, 1), undefined);
+		assert.strictEqual(await whenChatWidgetForSession(host.service, session, 1), undefined);
 	});
 
 	test('resolves when a widget that already has the session is added later', async () => {
@@ -905,7 +1026,7 @@ suite('AgentFeedbackService - whenWidgetForSession', () => {
 			override getWidgetBySessionResource(_resource: URI): IChatWidget | undefined { return widgets[0]; }
 		};
 
-		const pending = whenWidgetForSession(service, session, 5000);
+		const pending = whenChatWidgetForSession(service, session, 5000);
 		await timeout(0);
 		widgets = [widget];
 		onDidAddWidget.fire(widget);
