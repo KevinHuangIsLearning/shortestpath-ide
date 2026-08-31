@@ -828,12 +828,11 @@ export class CodeApplication extends Disposable {
 		// Signal phase: ready - before opening first window
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
-		// The competitive-programming setup is intentionally shown before the
-		// workbench is created, so a first launch never flashes a VS Code window.
+		// First-run setup is an editor tab owned by shortestpath.setup, matching
+		// the Get Started Guide. The workbench must exist before that tab can open.
 		const onboarding = await this.showShortestPathFirstRun();
 
-		// Open Windows. Keep the hidden onboarding window alive until the workbench
-		// has been created: Windows quits the application when its last window closes.
+		// Open the workbench first so the setup extension can create its editor tab.
 		try {
 			await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls, onboarding?.workspaceFolder));
 		} finally {
@@ -861,6 +860,14 @@ export class CodeApplication extends Disposable {
 	}
 
 	private async showShortestPathFirstRun(): Promise<IShortestPathOnboardingResult | undefined> {
+		// First-run setup now belongs to the workbench editor tab provided by the
+		// shortestpath.setup extension. Keep the old implementation below as a
+		// migration reference; it is disabled unless explicitly requested by a
+		// developer while diagnosing the legacy flow.
+		if (process.env['SP_USE_LEGACY_FIRST_RUN'] !== '1') {
+			return undefined;
+		}
+
 		if (this.configurationService.getValue<boolean>('shortestpath.setup.completed')) {
 			return undefined;
 		}

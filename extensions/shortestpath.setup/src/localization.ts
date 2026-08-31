@@ -7,6 +7,25 @@ import * as vscode from 'vscode';
 
 const english: Readonly<Record<string, string>> = {
 	'开始使用': 'Get Started',
+	'开箱配置': 'Initial Setup',
+	'准备编译环境': 'Prepare Build Environment',
+	'先检测并配置 g++ 与 clangd，环境准备完成后再继续设置 IDE 偏好。': 'Detect and configure g++ and clangd before continuing with IDE preferences.',
+	'环境配置': 'Environment Setup',
+	'点击“开始准备”检测编译器和智能提示工具。': 'Click “Start Preparation” to detect the compiler and language server.',
+	'如果需要下载工具链，安装会在终端中进行；完成后可再次点击检测。': 'If tools need to be downloaded, installation will run in a terminal. Check again when it finishes.',
+	'开始准备': 'Start Preparation',
+	'正在检测和准备编译环境…': 'Detecting and preparing the build environment…',
+	'编译环境已准备完成。': 'The build environment is ready.',
+	'编译环境尚未准备完成，请完成安装后再次检测。': 'The build environment is not ready yet. Finish the installation and check again.',
+	'正在准备编译环境': 'Preparing Build Environment',
+	'编译环境准备失败：{0}': 'Build environment preparation failed: {0}',
+	'编译环境准备失败：安装程序以代码 {0} 退出。': 'Build environment preparation failed: the installer exited with code {0}.',
+	'没有可用的编译环境安装程序。': 'No build environment installer is available.',
+	'选择显示语言': 'Choose Display Language',
+	'完成并重启': 'Finish and Restart',
+	'配置已完成。你可以现在选择 IDE 显示语言；选择后会按正常流程重启。': 'Setup is complete. You can choose the IDE display language now; the normal restart flow will be used afterwards.',
+	'编译环境尚未准备完成。请等待安装终端结束，然后重新打开开箱配置。': 'The build environment is not ready yet. Wait for the installer terminal to finish, then reopen Initial Setup.',
+	'环境尚未准备完成，请完成安装后再次检测。': 'The environment is not ready yet. Finish the installation and check again.',
 	'代码模板': 'Code Snippets',
 	'自动格式化': 'Automatic Formatting',
 	'CPH 设置': 'CPH Settings',
@@ -464,10 +483,10 @@ const english: Readonly<Record<string, string>> = {
 	,'Open VSX 是独立的第三方插件市场。其内容不由 ShortestPath IDE 审核、担保或提供支持；安装第三方扩展可能执行代码并访问你的工作区数据。': 'Open VSX is an independent third-party extension marketplace. Its content is not reviewed, guaranteed, or supported by ShortestPath IDE; third-party extensions may execute code and access workspace data.'
 	,'启用后，你需要自行判断扩展的来源、权限、安全性与许可证，并承担相应风险。': 'After enabling it, you are responsible for evaluating each extension\'s source, permissions, security, and license.'
 	,'我已了解并启用': 'I Understand and Enable'
-	,'ShortestPath IDE 已配置为使用便携工具链。下载将在设置终端中继续，不会修改系统 PATH。': 'ShortestPath IDE is configured for its portable toolchain. The download continues in the setup terminal without changing your system PATH.'
+	,'ShortestPath IDE 已配置为使用便携工具链。': 'ShortestPath IDE is configured to use its portable toolchain.'
 	,'预设已保存，但一个或多个编译器尚未安装。请完成终端安装，然后再次运行“ShortestPath IDE: Configure Competitive Programming Environment”以检测其实际路径。': 'The preset was saved, but one or more compilers are not installed yet. Finish the terminal installer, then run “ShortestPath IDE: Configure Competitive Programming Environment” again to detect their actual paths.'
 	,'ShortestPath IDE 已就绪。正在使用 {0}。': 'ShortestPath IDE is ready. Using {0}.'
-	,'便携工具链由首次启动设置窗口下载。请重新启动设置以完成下载。': 'Portable toolchains are downloaded by the first-run setup window. Restart setup to download them.'
+	,'便携工具链由开箱配置页下载。请重新启动开箱配置以完成下载。': 'Portable toolchains are downloaded by the Initial Setup page. Restart Initial Setup to download them.'
 	,'立即重新启动设置': 'Restart Setup Now'
 	,'未能读取系统字体。请检查系统字体服务后重新打开此页面。': 'Could not read system fonts. Check the system font service, then reopen this page.'
 	,'系统等宽字体': 'System Monospaced Fonts'
@@ -493,6 +512,26 @@ export function localize(value: string): string {
 
 export function localizeFormat(value: string, ...arguments_: readonly unknown[]): string {
 	return localize(value).replace(/\{(\d+)\}/g, (match, index) => index in arguments_ ? String(arguments_[Number(index)]) : match);
+}
+
+export function localizeToolchainProgress(message: string): string {
+	if (vscode.env.language.toLowerCase().startsWith('en')) {
+		return message;
+	}
+	return message
+		.replace(/^Preparing (.+)…$/, '正在准备 $1…')
+		.replace(/^Downloading (.+)… (.+)$/, '正在下载 $1… $2')
+		.replace(/^Extracting (.+)… (.+)$/, '正在解压 $1… $2')
+		.replace(/^Installing bundled (.+)…$/, '正在安装内置 $1…')
+		.replace(/^Connecting to download source for (.+)…$/, '正在连接 $1 的下载源…')
+		.replace(/^Mirror unavailable for (.+); retrying with the official source…$/, '$1 镜像不可用，正在重试官方源…')
+		.replace(/^(.+) is already installed; skipping extraction\.$/, '$1 已安装，跳过解压。')
+		.replace(/^Portable toolchain installation complete\.$/, '便携工具链安装完成。')
+		.replace(/^Toolchain download completed\.$/, '编译环境下载完成。')
+		.replace(/^Download failed with HTTP (.+)\.$/, '下载失败，HTTP 状态码：$1。')
+		.replace(/^Download connection timed out\.$/, '下载连接超时。')
+		.replace(/^Download stalled while waiting for data\.$/, '下载等待数据时超时。')
+		.replace(/^Download stalled while receiving data\.$/, '下载接收数据时超时。');
 }
 
 /**

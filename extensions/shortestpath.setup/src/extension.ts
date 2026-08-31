@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createHash } from 'crypto';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import * as vscode from 'vscode';
 import { registerSimpleSettings } from './simpleSettings';
 import { registerRelaxMode } from './relaxMode';
@@ -15,8 +15,10 @@ import { registerGettingStarted } from './gettingStarted';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
 import { localize, localizeFormat } from './localization';
 import { getPortableDataRoot, managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
+import { installPortableAssets, type PortableAsset } from './portableToolchainInstaller';
 
 type PlatformPreset = {
+	pages?: PresetPage[];
 	portableToolchain: boolean;
 	compilerCandidates: string[];
 	clangdCandidates: string[];
@@ -24,13 +26,28 @@ type PlatformPreset = {
 	downloadSources?: DownloadSource[];
 };
 
+type PresetPage = {
+	id?: string;
+	title?: LocalizedValue;
+	text?: LocalizedValue;
+	controls?: readonly PresetControl[];
+};
+
+type PresetControl = {
+	key?: string;
+	default?: unknown;
+};
+
+type LocalizedValue = string | { readonly [locale: string]: string };
+
 type CphDefaultSettings = Record<string, unknown>;
 
-type DownloadSource = { id: string; unavailable?: boolean };
+type DownloadSource = { id: string; unavailable?: boolean; label?: LocalizedValue };
 
 type PlatformInstaller = {
 	createCommand?(input: { toolchainRoot: string; source?: DownloadSource; stage?: string; locale?: string }): string;
-	getPortableAssets?(input: { toolchainRoot: string; source?: DownloadSource; stage?: string; locale?: string }): readonly unknown[];
+	createProcess?(input: { toolchainRoot: string; source?: DownloadSource; stage?: string; locale?: string }): { executable: string; args: readonly string[]; displayName: string };
+	getPortableAssets?(input: { toolchainRoot: string; source?: DownloadSource; stage?: string; locale?: string }): readonly PortableAsset[];
 };
 
 type SetupSelection = 'recommended' | 'repair';
@@ -40,6 +57,19 @@ type FirstRunSelection = {
 	installToolchain: boolean;
 	cppStandard: 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 	workspaceFolder: string;
+	completeSetup?: boolean;
+};
+
+type SetupEnvironmentOptions = {
+	sourceId?: unknown;
+	stage?: unknown;
+	prompt?: boolean;
+	reportProgress?: (message: string) => void;
+};
+
+type ToolchainInstallResult = {
+	readonly success: boolean;
+	readonly message: string;
 };
 
 const SETUP_COMPLETE = 'shortestpath.setupComplete';
@@ -232,8 +262,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	registerToolchainDiagnostics(context);
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.setupEnvironment', () => runSetup(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.redetectToolchain', () => runSetup(context)));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.installToolchainStage', (options?: SetupEnvironmentOptions) => installToolchainStage(context, options)));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.applyFirstRunSetup', (selection: unknown) => isFirstRunSelection(selection) ? configure(context, { ...selection, completeSetup: false }) : false));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.repairToolchain', () => repairToolchain(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.rerunFirstRunSetup', () => rerunFirstRunSetup()));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.pickWorkspaceFolder', pickWorkspaceFolder));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.initializeOiWorkspace', () => initializeOiWorkspace(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.showAllFiles', toggleHiddenFiles));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.hideSetupFiles', toggleHiddenFiles));
@@ -356,11 +389,11 @@ async function repairToolchain(context: vscode.ExtensionContext): Promise<void> 
 	await offerInstaller(context, preset, !compiler || await isAppleClang(compiler), !clangd, true);
 }
 
-async function runSetup(context: vscode.ExtensionContext): Promise<void> {
-	await configure(context);
+async function runSetup(context: vscode.ExtensionContext): Promise<boolean> {
+	return configure(context);
 }
 
-async function configure(context: vscode.ExtensionContext, firstRunSelection?: FirstRunSelection): Promise<void> {
+async function configure(context: vscode.ExtensionContext, firstRunSelection?: FirstRunSelection): Promise<boolean> {
 	const preset = loadPreset(context);
 	let compiler = await findPreferredCompiler(preset.compilerCandidates);
 	let clangd = await findFirstExecutable(preset.clangdCandidates);
@@ -384,10 +417,6 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	if (installerStarted) {
 		compiler = await findPreferredCompiler(preset.compilerCandidates);
 		clangd = await findFirstExecutable(preset.clangdCandidates);
-		if (preset.portableToolchain) {
-			compiler ??= preset.compilerCandidates[0];
-			clangd ??= preset.clangdCandidates[0];
-		}
 	}
 	if (compiler && await isAppleClang(compiler)) {
 		await vscode.window.showWarningMessage(
@@ -433,22 +462,31 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	if (clangd) {
 		settings['clangd.path'] = clangd;
 	}
+	const compilerReady = !!compiler && (!path.isAbsolute(compiler) || fs.existsSync(compiler));
+	const clangdReady = !!clangd && (!path.isAbsolute(clangd) || fs.existsSync(clangd));
 	await updateGlobalSettings(settings);
 	if (firstRunSelection) {
 		const firstRunConfiguration = vscode.workspace.getConfiguration('shortestpath.setup');
 		await firstRunConfiguration.update('pending', undefined, vscode.ConfigurationTarget.Global);
 		await firstRunConfiguration.update('repair', false, vscode.ConfigurationTarget.Global);
-		await firstRunConfiguration.update('completed', true, vscode.ConfigurationTarget.Global);
+		if (firstRunSelection.completeSetup !== false && compilerReady && clangdReady) {
+			await firstRunConfiguration.update('completed', true, vscode.ConfigurationTarget.Global);
+		}
 	}
-	await context.globalState.update(SETUP_COMPLETE, true);
+	if (!firstRunSelection || (firstRunSelection.completeSetup !== false && compilerReady && clangdReady)) {
+		await context.globalState.update(SETUP_COMPLETE, true);
+	}
 
-	if (installerStarted && preset.portableToolchain) {
-		void vscode.window.showInformationMessage(localize('ShortestPath IDE 已配置为使用便携工具链。下载将在设置终端中继续，不会修改系统 PATH。'));
-	} else if (!compiler || !clangd) {
-		void vscode.window.showWarningMessage(localize('预设已保存，但一个或多个编译器尚未安装。请完成终端安装，然后再次运行“ShortestPath IDE: Configure Competitive Programming Environment”以检测其实际路径。'));
-	} else {
-		void vscode.window.showInformationMessage(localizeFormat('ShortestPath IDE 已就绪。正在使用 {0}。', compiler));
+	if (firstRunSelection?.completeSetup !== false) {
+		if (installerStarted && preset.portableToolchain) {
+			void vscode.window.showInformationMessage(localize('ShortestPath IDE 已配置为使用便携工具链。'));
+		} else if (!compiler || !clangd) {
+			void vscode.window.showWarningMessage(localize('预设已保存，但一个或多个编译器尚未安装。请完成终端安装，然后再次运行“ShortestPath IDE: Configure Competitive Programming Environment”以检测其实际路径。'));
+		} else {
+			void vscode.window.showInformationMessage(localizeFormat('ShortestPath IDE 已就绪。正在使用 {0}。', compiler));
+		}
 	}
+	return compilerReady && clangdReady;
 }
 
 async function rebasePortableToolchain(context: vscode.ExtensionContext): Promise<void> {
@@ -598,6 +636,74 @@ function loadPlatformInstaller(context: vscode.ExtensionContext): PlatformInstal
 	return require(path.join(context.extensionPath, 'resources', `${getPlatformName()}.js`)) as PlatformInstaller;
 }
 
+async function pickWorkspaceFolder(): Promise<string | undefined> {
+	const result = await vscode.window.showOpenDialog({
+		canSelectFiles: false,
+		canSelectFolders: true,
+		canSelectMany: false,
+		openLabel: localize('选择目录')
+	});
+	return result?.[0]?.fsPath;
+}
+
+async function installToolchainStage(context: vscode.ExtensionContext, options: SetupEnvironmentOptions = {}): Promise<ToolchainInstallResult> {
+	const preset = loadPreset(context);
+	const source = selectDownloadSource(preset, options.sourceId);
+	const stage = typeof options.stage === 'string' && options.stage ? options.stage : 'toolchain';
+	return runInstallerStage(
+		context,
+		source,
+		stage,
+		message => options.reportProgress?.(message)
+	);
+}
+
+function selectDownloadSource(preset: PlatformPreset, sourceId: unknown): DownloadSource | undefined {
+	const available = preset.downloadSources?.filter(source => !source.unavailable) ?? [];
+	if (typeof sourceId === 'string') {
+		return available.find(source => source.id === sourceId);
+	}
+	return available.find(source => source.id === 'tuna') ?? available[0];
+}
+
+async function runInstallerStage(context: vscode.ExtensionContext, source: DownloadSource | undefined, stage: string, reportProgress: (message: string) => void): Promise<ToolchainInstallResult> {
+	const toolchainRoot = path.join(context.globalStorageUri.fsPath, 'toolchains');
+	const installer = loadPlatformInstaller(context);
+	const assets = stage === 'toolchain' ? installer.getPortableAssets?.({ toolchainRoot, source, stage, locale: vscode.env.language }) : undefined;
+	if (assets?.length) {
+		const result = await installPortableAssets({ appRoot: vscode.env.appRoot, toolchainRoot, assets, reportProgress });
+		if (!result.success || !installer.createProcess) {
+			return result;
+		}
+	}
+	if (!installer.createProcess) {
+		return { success: false, message: localize('没有可用的编译环境安装程序。') };
+	}
+	let processDefinition: ReturnType<NonNullable<PlatformInstaller['createProcess']>>;
+	try {
+		processDefinition = installer.createProcess({ toolchainRoot, source, stage, locale: vscode.env.language });
+	} catch (error) {
+		return { success: false, message: localizeFormat('编译环境准备失败：{0}', error instanceof Error ? error.message : String(error)) };
+	}
+	reportProgress(`Preparing ${processDefinition.displayName}${source ? ` via ${source.id}` : ''}…`);
+	return new Promise(resolve => {
+		const child = spawn(processDefinition.executable, processDefinition.args, { windowsHide: true });
+		const onData = (data: Buffer) => {
+			for (const line of data.toString().split(/\r?\n/)) {
+				if (line.trim()) {
+					reportProgress(line.trim());
+				}
+			}
+		};
+		child.stdout?.on('data', onData);
+		child.stderr?.on('data', onData);
+		child.on('error', error => resolve({ success: false, message: error.message }));
+		child.on('close', code => resolve(code === 0
+			? { success: true, message: 'Toolchain download completed.' }
+			: { success: false, message: `Toolchain installer exited with code ${code ?? 'unknown'}.` }));
+	});
+}
+
 async function offerInstaller(context: vscode.ExtensionContext, preset: PlatformPreset, compilerMissing: boolean, clangdMissing: boolean, repair = false): Promise<void> {
 	const missingTools = [
 		compilerMissing ? (process.platform === 'darwin' ? 'Homebrew GCC' : 'g++') : undefined,
@@ -611,13 +717,12 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 	);
 	if (choice === localize('安装并修复')) {
 		const toolchainRoot = path.join(context.globalStorageUri.fsPath, 'toolchains');
-		const source = preset.downloadSources?.find(candidate => candidate.id === 'tuna' && !candidate.unavailable)
-			?? preset.downloadSources?.find(candidate => !candidate.unavailable);
+		const source = selectDownloadSource(preset, undefined);
 		const installer = loadPlatformInstaller(context);
 		if (installer.getPortableAssets || !installer.createCommand) {
 			const restartLabel = localize('立即重新启动设置');
 			const restart = await vscode.window.showInformationMessage(
-				localize('便携工具链由首次启动设置窗口下载。请重新启动设置以完成下载。'),
+				localize('便携工具链由开箱配置页下载。请重新启动开箱配置以完成下载。'),
 				restartLabel
 			);
 			if (restart === restartLabel) {

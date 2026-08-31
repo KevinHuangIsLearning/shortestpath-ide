@@ -3,8 +3,10 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { localize, localizeWebviewHtml } from './localization';
+import { localize, localizeToolchainProgress, localizeWebviewHtml } from './localization';
 import { getSystemFonts } from './systemFonts';
 import {
 	applyCppStandard,
@@ -16,6 +18,8 @@ import {
 } from './simpleSettings';
 
 const GETTING_STARTED_VERSION = 'shortestpath.gettingStarted.version';
+const GETTING_STARTED_FIRST_RUN_MIGRATION = 'shortestpath.gettingStarted.firstRunMigration.v1';
+const FIRST_RUN_WORKSPACE = 'shortestpath.gettingStarted.pendingWorkspace';
 const CPH_FILE_NAME_SETTINGS = 'shortestpath.gettingStarted.cphFileNameSettings';
 const DEFAULT_CPH_FILE_NAME_TEMPLATE = '{ojName}/{contestId}/{problemId}.{ext}';
 const DEFAULT_CPH_FILE_NAME_TEMPLATE_OVERRIDES: Record<string, string> = {
@@ -29,6 +33,8 @@ const DEFAULT_CPH_FILE_NAME_TEMPLATE_OVERRIDES: Record<string, string> = {
 };
 
 let activePanel: vscode.WebviewPanel | undefined;
+let activePanelIsFirstRun = false;
+let awaitingLocaleRestart = false;
 
 type GettingStartedState = {
 	fontFamily: string;
@@ -63,8 +69,69 @@ type CphFileNameSettings = {
 	fileNameTemplateOverrides: Record<string, string>;
 };
 
+type FirstRunSetupInfo = {
+	choiceTitle: string;
+	choiceText: string;
+	stages: Array<{ id: string; title: string; text: string }>;
+	configurationTitle: string;
+	configurationText: string;
+	cppStandard: CppStandard;
+	sources: Array<{ id: string; label: string; unavailable?: boolean }>;
+};
+
+type FirstRunMessage =
+	| { type: 'installToolchain'; sourceId?: unknown; stage: string }
+	| { type: 'pickWorkspaceFolder' }
+	| { type: 'complete'; cppStandard: unknown; workspaceFolder: unknown; installToolchain: boolean }
+	| { type: 'skip' };
+
+type ToolchainInstallResult = {
+	readonly success: boolean;
+	readonly message: string;
+};
+
+function localizePresetValue(value: unknown): string {
+	if (typeof value === 'string') {
+		return value;
+	}
+	if (!value || typeof value !== 'object') {
+		return '';
+	}
+	const values = value as Record<string, unknown>;
+	const locale = vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
+	return typeof values[locale] === 'string' ? values[locale] as string
+		: typeof values.en === 'string' ? values.en as string
+			: typeof values['zh-CN'] === 'string' ? values['zh-CN'] as string
+				: '';
+}
+
+function loadFirstRunSetupInfo(context: vscode.ExtensionContext): FirstRunSetupInfo {
+	type RawPage = { id?: string; title?: unknown; text?: unknown; controls?: Array<{ key?: string; default?: unknown }> };
+	type RawPreset = { pages?: RawPage[]; downloadSources?: Array<{ id: string; label?: unknown; unavailable?: boolean }> };
+	const presetPath = path.join(context.extensionPath, 'resources', `${process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux'}.json`);
+	const preset = JSON.parse(fs.readFileSync(presetPath, 'utf8')) as RawPreset;
+	const pages = preset.pages ?? [];
+	const configuration = pages.find(page => Array.isArray(page.controls));
+	const toolchainPages = pages.slice(1).filter(page => !Array.isArray(page.controls));
+	const stages = toolchainPages.map((page, index) => ({
+		id: page.id || (index === toolchainPages.length - 1 ? 'toolchain' : `stage-${index}`),
+		title: localizePresetValue(page.title),
+		text: localizePresetValue(page.text)
+	}));
+	const cppStandard = configuration?.controls?.find(control => control.key === 'cppStandard')?.default;
+	return {
+		choiceTitle: localizePresetValue(pages[0]?.title) || localize('ShortestPath IDE'),
+		choiceText: localizePresetValue(pages[0]?.text),
+		stages,
+		configurationTitle: localizePresetValue(configuration?.title) || localize('配置'),
+		configurationText: localizePresetValue(configuration?.text),
+		cppStandard: isCppStandard(cppStandard) ? cppStandard : 'c++23',
+		sources: (preset.downloadSources ?? []).map(source => ({ id: source.id, label: localizePresetValue(source.label) || source.id, unavailable: source.unavailable }))
+	};
+}
+
 export function registerGettingStarted(context: vscode.ExtensionContext): void {
-	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openGettingStarted', () => openGettingStarted(context)));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openGettingStarted', () => openGettingStarted(context, !vscode.workspace.getConfiguration('shortestpath.setup').get<boolean>('completed'))));
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
 		// The setup may finish in this same session (setup.completed flips), so
 		// re-evaluate the auto-open condition when it changes.
@@ -81,31 +148,64 @@ function currentExtensionVersion(): string {
 }
 
 async function maybeAutoOpenGettingStarted(context: vscode.ExtensionContext): Promise<void> {
-	// Only guide users after the environment setup has finished. The first-run
-	// window (toolchain installation) is unrelated to this tab.
-	if (!vscode.workspace.getConfiguration('shortestpath.setup').get<boolean>('completed')) {
+	if (!context.globalState.get<boolean>(GETTING_STARTED_FIRST_RUN_MIGRATION)) {
+		// Older first-run implementations used the Get Started marker for the
+		// onboarding window. Clear it once so the editor-tab migration can show the
+		// ordinary Get Started Guide after setup completes.
+		await context.globalState.update(GETTING_STARTED_VERSION, undefined);
+		await context.globalState.update(GETTING_STARTED_FIRST_RUN_MIGRATION, true);
+	}
+	if (awaitingLocaleRestart) {
 		return;
 	}
+	const pendingWorkspace = context.globalState.get<string>(FIRST_RUN_WORKSPACE);
+	if (pendingWorkspace) {
+		await context.globalState.update(FIRST_RUN_WORKSPACE, undefined);
+		if (path.isAbsolute(pendingWorkspace)) {
+			setTimeout(() => void openFirstRunWorkspace(pendingWorkspace), 1000);
+		}
+		return;
+	}
+	const firstRun = !vscode.workspace.getConfiguration('shortestpath.setup').get<boolean>('completed');
 	if (context.globalState.get<string>(GETTING_STARTED_VERSION) === currentExtensionVersion()) {
-		return;
+		if (!firstRun) {
+			return;
+		}
 	}
-	// Give the workbench a moment to settle before opening the tab. The marker is
-	// written when the panel is actually opened, so a fresh install or an upgrade
-	// shows the guide exactly once per version.
-	setTimeout(() => void vscode.commands.executeCommand('shortestpath.openGettingStarted'), 1000);
+	// Give the workbench a moment to settle before opening the tab. First-run
+	// setup deliberately uses the same editor surface as Get Started.
+	setTimeout(() => openGettingStarted(context, firstRun), 1000);
 }
 
-function openGettingStarted(context: vscode.ExtensionContext): void {
+function openGettingStarted(context: vscode.ExtensionContext, firstRun = false): void {
 	if (activePanel) {
-		activePanel.reveal(vscode.ViewColumn.Active);
-		return;
+		if (firstRun && !activePanelIsFirstRun) {
+			activePanel.dispose();
+		} else {
+			activePanel.reveal(vscode.ViewColumn.Active);
+			return;
+		}
 	}
 	let isSaving = false;
 	let isDisposed = false;
-	const panel = vscode.window.createWebviewPanel('shortestpath.gettingStarted', localize('开始使用'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	let finishingFirstRun = false;
+	let preparingEnvironment = false;
+	const firstRunSetupInfo = firstRun ? loadFirstRunSetupInfo(context) : undefined;
+	const panel = vscode.window.createWebviewPanel('shortestpath.gettingStarted', firstRun ? localize('开箱配置') : localize('开始使用'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
 	activePanel = panel;
-	void context.globalState.update(GETTING_STARTED_VERSION, currentExtensionVersion());
-	panel.webview.html = localizeWebviewHtml(getHtml(getState()));
+	activePanelIsFirstRun = firstRun;
+	if (!firstRun) {
+		void context.globalState.update(GETTING_STARTED_VERSION, currentExtensionVersion());
+	}
+	panel.webview.html = localizeWebviewHtml(getHtml(getState(), firstRun, firstRunSetupInfo));
+	if (firstRun) {
+		// Keep onboarding focused on the editor tab, like the built-in Get Started
+		// experience, instead of leaving the Explorer/sidebar competing for space.
+		void Promise.all([
+			vscode.commands.executeCommand('workbench.action.closeSidebar'),
+			vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar')
+		]);
+	}
 	void getSystemFonts().then(async result => {
 		if (isDisposed) {
 			return;
@@ -121,7 +221,56 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 			}
 		}
 	});
-	panel.webview.onDidReceiveMessage(async (message: SaveMessage | { type: 'snippets' } | { type: 'autoFormatSettings' } | { type: 'cphSettings' } | { type: 'complete' }) => {
+	panel.webview.onDidReceiveMessage(async (message: SaveMessage | { type: 'snippets' } | { type: 'autoFormatSettings' } | { type: 'cphSettings' } | FirstRunMessage) => {
+		if (firstRun) {
+			if (message.type === 'installToolchain') {
+				if (preparingEnvironment) {
+					return;
+				}
+				preparingEnvironment = true;
+				try {
+					const result = await vscode.commands.executeCommand<ToolchainInstallResult>('shortestpath.installToolchainStage', {
+						sourceId: message.sourceId,
+						stage: message.stage,
+						reportProgress: (progressMessage: string) => {
+							if (!isDisposed) {
+								void panel.webview.postMessage({ type: 'toolchainProgress', message: localizeToolchainProgress(progressMessage) });
+							}
+						}
+					});
+					if (!isDisposed) {
+						await panel.webview.postMessage({ type: 'toolchainResult', ...result });
+					}
+				} catch (error) {
+					if (!isDisposed) {
+						await panel.webview.postMessage({ type: 'toolchainResult', success: false, message: error instanceof Error ? error.message : String(error) });
+					}
+				} finally {
+					preparingEnvironment = false;
+				}
+				return;
+			}
+			if (message.type === 'pickWorkspaceFolder') {
+				const workspaceFolder = await vscode.commands.executeCommand<string | undefined>('shortestpath.pickWorkspaceFolder');
+				if (!isDisposed) {
+					await panel.webview.postMessage({ type: 'workspaceFolder', value: workspaceFolder });
+				}
+				return;
+			}
+			if (message.type === 'skip') {
+				panel.dispose();
+				return;
+			}
+			if (message.type === 'complete' && !finishingFirstRun) {
+				finishingFirstRun = true;
+				try {
+					await finishFirstRun(context, panel, message);
+				} finally {
+					finishingFirstRun = false;
+				}
+			}
+			return;
+		}
 		if (message.type === 'save') {
 			isSaving = true;
 			try {
@@ -165,8 +314,65 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 	panel.onDidDispose(() => {
 		isDisposed = true;
 		activePanel = undefined;
+		activePanelIsFirstRun = false;
 		configurationListener.dispose();
 	});
+}
+
+async function finishFirstRun(context: vscode.ExtensionContext, panel: vscode.WebviewPanel, message: Extract<FirstRunMessage, { type: 'complete' }>): Promise<void> {
+	if (!isCppStandard(message.cppStandard) || typeof message.workspaceFolder !== 'string' || !path.isAbsolute(message.workspaceFolder)) {
+		void vscode.window.showWarningMessage(localize('请选择有效的 C++ 版本和工作目录。'));
+		return;
+	}
+	const setupReady = await configureFirstRun(message.cppStandard, message.workspaceFolder, message.installToolchain);
+	if (setupReady !== true) {
+		void vscode.window.showWarningMessage(localize('编译环境尚未准备完成。请完成安装后重试。'));
+		return;
+	}
+	const languageAction = localize('选择显示语言');
+	const restartAction = localize('完成并重启');
+	const choice = await vscode.window.showInformationMessage(
+		localize('配置已完成。你可以现在选择 IDE 显示语言；选择后会按正常流程重启。'),
+		{ modal: true },
+		languageAction,
+		restartAction
+	);
+	if (choice === languageAction) {
+		panel.dispose();
+		await context.globalState.update(FIRST_RUN_WORKSPACE, message.workspaceFolder);
+		awaitingLocaleRestart = true;
+		await markFirstRunComplete(context);
+		await vscode.commands.executeCommand('workbench.action.configureLocale');
+		return;
+	}
+	if (choice !== restartAction) {
+		return;
+	}
+	await context.globalState.update(FIRST_RUN_WORKSPACE, undefined);
+	await markFirstRunComplete(context);
+	panel.dispose();
+	await openFirstRunWorkspace(message.workspaceFolder);
+}
+
+async function configureFirstRun(cppStandard: CppStandard, workspaceFolder: string, installToolchain: boolean): Promise<boolean> {
+	return vscode.commands.executeCommand<boolean>('shortestpath.applyFirstRunSetup', {
+		mode: 'recommended',
+		installToolchain,
+		cppStandard,
+		workspaceFolder,
+		completeSetup: false
+	});
+}
+
+async function markFirstRunComplete(context: vscode.ExtensionContext): Promise<void> {
+	await context.globalState.update(GETTING_STARTED_VERSION, undefined);
+	await context.globalState.update('shortestpath.setupComplete', true);
+	await vscode.workspace.getConfiguration('shortestpath.setup').update('completed', true, vscode.ConfigurationTarget.Global);
+}
+
+async function openFirstRunWorkspace(workspaceFolder: string): Promise<void> {
+	await vscode.commands.executeCommand('_workbench.setWorkspaceFolderTrust', vscode.Uri.file(workspaceFolder));
+	await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(workspaceFolder), { forceReuseWindow: true });
 }
 
 function getState(): GettingStartedState {
@@ -314,7 +520,191 @@ async function saveState(context: vscode.ExtensionContext, page: SaveMessage['pa
 	}
 }
 
-function getHtml(state: GettingStartedState): string {
+function getFirstRunHtml(info: FirstRunSetupInfo): string {
+	const ui = {
+		choiceTitle: info.choiceTitle,
+		choiceText: info.choiceText,
+		permission: localize('准备环境需要确认，可能要求管理员权限。'),
+		skip: localize('稍后配置'),
+		continue: localize('继续'),
+		downloadTitle: localize('正在准备编译环境。'),
+		downloadNote: localize('请保持此页面打开。准备完成后可继续配置。'),
+		retry: localize('重试'),
+		next: localize('下一步'),
+		progressLabel: localize('安装进度'),
+		configurationTitle: info.configurationTitle,
+		configurationText: info.configurationText,
+		configurationNote: localize('设置写入个人配置，不影响其他编辑器。'),
+		workspaceTitle: localize('选择工作目录。'),
+		workspaceText: localize('我们会在此目录创建 .clangd，并在完成后直接打开它。'),
+		workspaceLabel: localize('工作目录'),
+		chooseFolder: localize('选择目录'),
+		workspaceNote: localize('已有 .clangd 不会被覆盖。'),
+		applyAndOpen: localize('应用配置并打开工作目录'),
+		selectWorkspace: localize('请选择工作目录。'),
+		preparing: localize('正在准备编译环境…'),
+		completed: localize('编译环境已准备就绪。点击“下一步”继续配置。'),
+		failed: localize('编译环境准备失败：{0}')
+	};
+	const serialized = JSON.stringify({ ui, info }).replace(/</g, '\\u003c');
+	return `<!doctype html>
+<html lang="${vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+<title>${localize('开箱配置')}</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; overflow: hidden; background: radial-gradient(circle at 20% 0%, #25345f 0, transparent 42%), #0f1117; color: #f4f6fb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+main { height: 100vh; display: flex; flex-direction: column; max-width: 1120px; margin: 0 auto; padding: 0 36px; }
+.progress { display: flex; justify-content: center; align-items: center; gap: 9px; padding: 20px 0 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #2c3550; transition: transform .32s ease, background-color .32s ease; }
+.dot.active { background: #78a9ff; transform: scale(1.35); }
+.stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.page { position: absolute; inset: 0; display: flex; flex-direction: column; visibility: hidden; opacity: 0; transform: translateX(30px); transition: opacity .28s ease, transform .28s ease; }
+.page.visible { visibility: visible; opacity: 1; transform: none; }
+.page-head { padding-top: 8vh; }
+.badge { color: #a8c7ff; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.big-logo { font-size: clamp(36px, 6vw, 62px); font-weight: 800; letter-spacing: -.04em; background: linear-gradient(90deg, #78a9ff, #a8c7ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+h1 { margin: 14px 0 10px; font-size: clamp(30px, 4vw, 48px); letter-spacing: -.04em; }
+.lead { color: #b7bfce; font-size: 17px; line-height: 1.6; max-width: 760px; }
+.page-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: stretch; flex: 1; min-height: 0; padding: 24px 0; }
+.page-body.centered { grid-template-columns: minmax(0, 1fr); justify-content: center; align-content: start; padding-top: 12px; }
+.page-body.centered .pane { width: min(960px, 100%); justify-self: center; }
+.pane { min-width: 0; border: 1px solid #30394d; border-radius: 16px; background: rgba(16, 19, 28, .9); padding: 24px; }
+.pane.card { display: flex; flex-direction: column; gap: 15px; }
+.row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #262e40; }
+.row:last-child { border-bottom: 0; }
+.row-label { color: #dbe4f5; }
+.hint, .note { color: #8d98aa; font-size: 12px; line-height: 1.5; }
+input, select { width: 100%; padding: 9px 10px; border: 1px solid #30394d; border-radius: 8px; background: #10131c; color: #f4f6fb; font: inherit; }
+input[type="checkbox"] { width: 18px; height: 18px; accent-color: #78a9ff; }
+.workspace-picker { display: flex; min-width: 0; gap: 8px; }
+.workspace-picker input { min-width: 0; }
+.workspace-picker button { flex: 0 0 auto; white-space: nowrap; }
+.toggle { display: flex; align-items: center; gap: 10px; }
+.actions { display: flex; justify-content: space-between; align-items: center; padding: 10px 0 26px; }
+button { appearance: none; font: inherit; color: inherit; cursor: pointer; }
+.btn { padding: 11px 24px; border: 0; border-radius: 9px; font-weight: 700; font-size: 14px; }
+.primary { background: #78a9ff; color: #071329; }
+.secondary { background: #253b64; color: #e8f0ff; }
+.ghost { background: transparent; color: #aeb8c9; border: 1px solid #30394d; }
+.btn[disabled] { opacity: .45; cursor: default; }
+.terminal { background: #0b0e14; border: 1px solid #262e40; border-radius: 10px; padding: 14px; font-family: var(--vscode-editor-font-family, monospace); font-size: 13px; line-height: 1.7; color: #9cdcfe; white-space: pre-wrap; word-break: break-word; }
+.progress-panel { display: flex; flex-direction: column; gap: 14px; }
+.progress-track { height: 10px; overflow: hidden; border-radius: 999px; background: #252d3d; }
+.progress-bar { width: 38%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #78a9ff, #a8c7ff); animation: progress-indeterminate 1.5s ease-in-out infinite; }
+.progress-panel.complete .progress-bar { width: 100%; animation: none; }
+.progress-panel.error .progress-bar { width: 100%; animation: none; background: #f48771; }
+.status { min-height: 1.6em; color: #a8c7ff; font-size: 17px; line-height: 1.6; }
+@keyframes progress-indeterminate { from { transform: translateX(-110%); } to { transform: translateX(290%); } }
+@media (max-width: 780px) { .page-body { grid-template-columns: 1fr; overflow: auto; } body { overflow: auto; } main { height: auto; min-height: 100vh; } .stage { min-height: 680px; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body><main>
+<div class="progress" id="progress" aria-label="${ui.progressLabel}"></div>
+<div class="stage">
+<section class="page visible" data-page="choice">
+<div class="page-head"><div class="big-logo">${ui.choiceTitle}</div><p class="lead" id="choice-text">${ui.choiceText}</p></div>
+<div class="page-body centered"><div class="pane card">
+<b>${localize('环境配置')}</b>
+<p class="lead">${localize('我们会按原有步骤准备编译环境，然后进入配置确认。')}</p>
+<div id="source-choice" hidden><div class="row"><div class="row-label">${localize('下载源')}</div><select id="download-source"></select></div></div>
+<p class="hint">${ui.permission}</p>
+</div></div>
+<div class="actions"><button id="skip" class="btn ghost">${ui.skip}</button><button id="continue" class="btn primary">${ui.continue}</button></div>
+</section>
+<section class="page" data-page="download">
+<div class="page-head"><div class="badge">Toolchain</div><h1 id="download-title">${ui.downloadTitle}</h1><p id="download-status" class="status">${ui.preparing}</p></div>
+<div class="page-body centered"><div class="pane card progress-panel" id="progress-panel"><div class="progress-track"><div class="progress-bar"></div></div><p id="progress-description" class="hint" aria-live="polite">${ui.preparing}</p></div></div>
+<div class="actions"><span class="note">${ui.downloadNote}</span><span><button id="retry" class="btn secondary" hidden>${ui.retry}</button><button id="download-next" class="btn primary" hidden>${ui.next}</button></span></div>
+</section>
+<section class="page" data-page="configuration">
+<div class="page-head"><div class="badge">Configuration</div><h1>${ui.configurationTitle}</h1><p class="lead">${ui.configurationText}</p></div>
+<div class="page-body centered"><div class="pane card"><div class="row"><div class="row-label">${localize('默认 C++ 语言版本')}</div><select id="cpp-standard"><option value="c++11">C++11</option><option value="c++14">C++14</option><option value="c++17">C++17</option><option value="c++20">C++20</option><option value="c++23">C++23</option></select></div></div></div>
+	<div class="actions"><span></span><button id="configuration-next" class="btn primary">${ui.next}</button></div>
+</section>
+<section class="page" data-page="workspace">
+<div class="page-head"><div class="badge">Workspace</div><h1>${ui.workspaceTitle}</h1><p class="lead">${ui.workspaceText}</p></div>
+<div class="page-body centered"><div class="pane card"><div class="row"><div class="row-label">${ui.workspaceLabel}</div><div class="workspace-picker"><input id="workspace-folder" type="text" readonly><button id="workspace-pick" class="btn secondary" type="button">${ui.chooseFolder}</button></div></div></div></div>
+	<div class="actions"><span class="note">${ui.workspaceNote}</span><button id="workspace-finish" class="btn primary">${ui.applyAndOpen}</button></div>
+</section>
+</div></main>
+<script>
+const vscode = acquireVsCodeApi();
+const data = ${serialized};
+const byId = id => document.getElementById(id);
+const pages = ['choice', 'download', 'configuration', 'workspace'];
+let pageIndex = 0;
+let stageIndex = 0;
+let activeStage = '';
+let toolchainReady = false;
+const page = name => document.querySelector('.page[data-page="' + name + '"]');
+function updateDots() { byId('progress').replaceChildren(...pages.map((name, index) => { const dot = document.createElement('span'); dot.className = 'dot' + (index === pageIndex ? ' active' : ''); dot.setAttribute('aria-label', name); return dot; })); }
+function show(name) { pages.forEach(value => page(value).classList.toggle('visible', value === name)); pageIndex = pages.indexOf(name); updateDots(); }
+function setProgress(message) { byId('progress-description').textContent = message; }
+function localizeProgress(message) { return message; }
+function setSourceOptions() {
+  const sources = data.info.sources || [];
+  if (!sources.length) return;
+  const select = byId('download-source');
+  sources.forEach(source => { const option = document.createElement('option'); option.value = source.id; option.textContent = source.label; option.disabled = source.unavailable === true; select.append(option); });
+  const chinese = sources.find(source => source.id === 'tuna' && !source.unavailable);
+  if (chinese) select.value = chinese.id;
+  byId('source-choice').hidden = false;
+}
+function currentStage() { return data.info.stages[stageIndex] || { id: 'toolchain', title: data.ui.downloadTitle, text: data.ui.preparing }; }
+function installCurrentStage() {
+  const stage = currentStage();
+  activeStage = stage.id;
+  byId('download-title').textContent = stage.title;
+  byId('download-status').textContent = stage.text;
+  byId('progress-panel').className = 'pane card progress-panel';
+  byId('retry').hidden = true;
+  byId('download-next').hidden = true;
+  setProgress(data.ui.preparing);
+  vscode.postMessage({ type: 'installToolchain', sourceId: byId('download-source').value || undefined, stage: stage.id });
+}
+byId('continue').addEventListener('click', () => { show('download'); stageIndex = 0; if (data.info.stages.length) installCurrentStage(); else show('configuration'); });
+byId('skip').addEventListener('click', () => vscode.postMessage({ type: 'skip' }));
+byId('retry').addEventListener('click', installCurrentStage);
+byId('download-next').addEventListener('click', () => { if (stageIndex + 1 < data.info.stages.length) { stageIndex++; installCurrentStage(); } else { show('configuration'); } });
+byId('configuration-next').addEventListener('click', () => show('workspace'));
+byId('workspace-pick').addEventListener('click', () => vscode.postMessage({ type: 'pickWorkspaceFolder' }));
+byId('workspace-finish').addEventListener('click', () => { const workspaceFolder = byId('workspace-folder').value; if (!workspaceFolder) { window.alert(data.ui.selectWorkspace); return; } vscode.postMessage({ type: 'complete', cppStandard: byId('cpp-standard').value, workspaceFolder, installToolchain: toolchainReady }); });
+window.addEventListener('message', event => {
+  const message = event.data;
+  if (message?.type === 'toolchainProgress') { setProgress(localizeProgress(message.message)); return; }
+  if (message?.type === 'toolchainResult') {
+    if (message.success) { toolchainReady = true; byId('progress-panel').classList.add('complete'); byId('download-status').textContent = data.ui.completed; setProgress(data.ui.completed); byId('download-next').hidden = false; }
+    else { byId('progress-panel').classList.add('error'); byId('download-status').textContent = data.ui.failed.replace('{0}', localizeProgress(message.message)); setProgress(byId('download-status').textContent); byId('retry').hidden = false; }
+    return;
+  }
+  if (message?.type === 'workspaceFolder' && typeof message.value === 'string') { byId('workspace-folder').value = message.value; }
+});
+byId('cpp-standard').value = data.info.cppStandard;
+setSourceOptions();
+updateDots();
+</script>
+</body></html>`;
+}
+
+function getHtml(state: GettingStartedState, firstRun = false, firstRunSetupInfo?: FirstRunSetupInfo): string {
+	if (firstRun) {
+		return getFirstRunHtml(firstRunSetupInfo ?? {
+			choiceTitle: localize('ShortestPath IDE'),
+			choiceText: localize('我们会准备编译环境，并选择 C++ 语言版本，然后打开工作台。'),
+			stages: [{ id: 'toolchain', title: localize('正在准备编译环境'), text: localize('正在准备编译环境…') }],
+			configurationTitle: localize('配置'),
+			configurationText: localize('选择默认的 C++ 语言版本。'),
+			cppStandard: 'c++23',
+			sources: []
+		});
+	}
 	const serializedState = JSON.stringify(state).replace(/</g, '\\u003c');
 	return `<!doctype html>
 <html lang="zh-CN">
@@ -968,7 +1358,7 @@ function save(page, value) {
   vscode.postMessage({ type: 'save', page, value });
 }
 const NEXT = {
-  welcome: 'font', font: 'theme', theme: 'cpp', cpp: 'clangd', clangd: 'cleanup', cleanup: 'autosave', autosave: 'autoformat', autoformat: 'cphNaming', cphNaming: 'snippets', snippets: 'done'
+		welcome: 'font', font: 'theme', theme: 'cpp', cpp: 'clangd', clangd: 'cleanup', cleanup: 'autosave', autosave: 'autoformat', autoformat: 'cphNaming', cphNaming: 'snippets', snippets: 'done'
 };
 function bindNext(nextId) {
   byId(nextId).addEventListener('click', () => {
@@ -1008,7 +1398,7 @@ byId('openAutoFormatSettings').addEventListener('click', () => vscode.postMessag
 byId('openCphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
 window.addEventListener('message', event => {
   const message = event.data;
-  if (message?.type === 'systemFonts') {
+	if (message?.type === 'systemFonts') {
     const generation = ++fontDetectionGeneration;
     systemFonts = message.value.fonts;
     monospaceFonts = [];
@@ -1030,7 +1420,7 @@ window.addEventListener('message', event => {
     render();
   }
 });
-document.querySelector('.page[data-page="welcome"]').classList.add('visible');
+	document.querySelector('.page[data-page="' + PAGES[0] + '"]').classList.add('visible');
 updateDots();
 render();
 </script>

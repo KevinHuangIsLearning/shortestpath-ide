@@ -18,6 +18,10 @@ test('covers the rendered English setup surfaces', () => {
 		'浏览器分栏比例（10–90）',
 		'可为每个 OJ 设置题面来源。',
 		'用几步配置好你的竞赛编程环境偏好。所有改动都会实时生效，随时可以返回调整。',
+		'准备编译环境',
+		'先检测并配置 g++ 与 clangd，环境准备完成后再继续设置 IDE 偏好。',
+		'正在准备编译环境',
+		'编译环境准备失败：{0}',
 		'基础风格（BasedOnStyle）',
 		'控制短小 if / else 是否可以保持在同一行。',
 		'行长与缩进',
@@ -93,4 +97,29 @@ test('localizes first-run progress messages while preserving installer output', 
 	for (const text of ['正在准备 $1…', '正在下载 $1… $2', '正在解压 $1… $2', '便携工具链安装完成。', '下载连接超时。']) {
 		assert.match(firstRun, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 	}
+});
+
+test('keeps first-run preparation in the editor-tab setup flow', () => {
+	const extensionRoot = path.resolve(__dirname, '../..');
+	const gettingStarted = fs.readFileSync(path.join(extensionRoot, 'src', 'gettingStarted.ts'), 'utf8');
+	const extension = fs.readFileSync(path.join(extensionRoot, 'src', 'extension.ts'), 'utf8');
+	const workspaceCommands = fs.readFileSync(path.resolve(__dirname, '../../../..', 'src/vs/workbench/browser/actions/workspaceCommands.ts'), 'utf8');
+	assert.match(gettingStarted, /function getFirstRunHtml/);
+	assert.match(gettingStarted, /type: 'installToolchain'/);
+	assert.match(gettingStarted, /type: 'pickWorkspaceFolder'/);
+	assert.match(gettingStarted, /type: 'complete'/);
+	assert.match(gettingStarted, /class="workspace-picker"/);
+	assert.match(gettingStarted, /workspace-picker button \{ flex: 0 0 auto; white-space: nowrap; \}/);
+	assert.match(gettingStarted, /setWorkspaceFolderTrust[\s\S]*vscode\.openFolder/);
+	assert.match(gettingStarted, /globalState\.update\(GETTING_STARTED_VERSION/);
+	assert.match(gettingStarted, /forceReuseWindow: true/);
+	assert.doesNotMatch(gettingStarted, /workbench\.action\.reloadWindow/);
+	assert.match(workspaceCommands, /setWorkspaceFolderTrust/);
+	assert.match(workspaceCommands, /setUrisTrust\(\[uri\], true\)/);
+	assert.match(extension, /installPortableAssets/);
+	assert.match(extension, /shortestpath\.installToolchainStage/);
+	assert.match(extension, /shortestpath\.applyFirstRunSetup/);
+	assert.doesNotMatch(extension, /ProgressLocation\.Notification/);
+	assert.doesNotMatch(extension, /便携工具链由首次启动设置窗口下载/);
+	assert.doesNotMatch(extension, /下载将在设置终端中继续/);
 });
