@@ -7,6 +7,9 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const apiBaseUrl = 'https://api.gitcode.com/api/v5';
+const apiRequestTimeoutMs = 30_000;
+const assetUploadTimeoutMs = 10 * 60_000;
+const maxAttempts = 3;
 
 function readArgument(name) {
 	const index = process.argv.indexOf(name);
@@ -24,16 +27,55 @@ function requiredEnvironment(name) {
 	return value;
 }
 
+function shouldRetry(response) {
+	return response.status === 429 || response.status >= 500;
+}
+
+function delay(attempt) {
+	return new Promise(resolve => setTimeout(resolve, attempt * 1_000));
+}
+
+async function fetchWithTimeout(url, options, description, timeoutMs) {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		return await fetch(url, { ...options, signal: controller.signal });
+	} catch (error) {
+		if (controller.signal.aborted) {
+			throw new Error(`${description} timed out after ${Math.round(timeoutMs / 1_000)} seconds.`, { cause: error });
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
 async function request(path, options = {}) {
-	const response = await fetch(`${apiBaseUrl}${path}`, {
-		...options,
-		headers: {
-			Accept: 'application/json',
-			Authorization: `Bearer ${token}`,
-			...options.headers,
-		},
-	});
-	return response;
+	const url = `${apiBaseUrl}${path}`;
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		try {
+			const response = await fetchWithTimeout(url, {
+				...options,
+				headers: {
+					Accept: 'application/json',
+					Authorization: `Bearer ${token}`,
+					...options.headers,
+				},
+			}, `GitCode API request to ${path}`, apiRequestTimeoutMs);
+			if (!shouldRetry(response) || attempt === maxAttempts) {
+				return response;
+			}
+			console.warn(`GitCode API request to ${path} returned HTTP ${response.status}; retrying (${attempt}/${maxAttempts}).`);
+		} catch (error) {
+			if (attempt === maxAttempts) {
+				throw error;
+			}
+			console.warn(`${error.message} Retrying (${attempt}/${maxAttempts}).`);
+		}
+		await delay(attempt);
+	}
+
+	throw new Error(`GitCode API request to ${path} exhausted its retries.`);
 }
 
 const tag = readArgument('--tag');
@@ -102,20 +144,39 @@ for (const assetName of assetNames) {
 		continue;
 	}
 
-	const uploadUrlPath = `${releasePath}/${encodeURIComponent(tag)}/upload_url?file_name=${encodeURIComponent(assetName)}`;
-	const uploadUrlResponse = await request(uploadUrlPath);
-	if (!uploadUrlResponse.ok) {
-		throw new Error(`GitCode upload URL request for ${assetName} failed with HTTP ${uploadUrlResponse.status}.`);
-	}
-	const upload = await uploadUrlResponse.json();
 	const contents = await readFile(join(assetDirectory, assetName));
-	const uploadResponse = await fetch(upload.url, {
-		method: 'PUT',
-		headers: upload.headers,
-		body: contents,
-	});
-	if (!uploadResponse.ok) {
-		throw new Error(`GitCode upload for ${assetName} failed with HTTP ${uploadResponse.status}.`);
+	const uploadUrlPath = `${releasePath}/${encodeURIComponent(tag)}/upload_url?file_name=${encodeURIComponent(assetName)}`;
+	let uploaded = false;
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		const uploadUrlResponse = await request(uploadUrlPath);
+		if (!uploadUrlResponse.ok) {
+			throw new Error(`GitCode upload URL request for ${assetName} failed with HTTP ${uploadUrlResponse.status}.`);
+		}
+		const upload = await uploadUrlResponse.json();
+		try {
+			const uploadResponse = await fetchWithTimeout(upload.url, {
+				method: 'PUT',
+				headers: upload.headers,
+				body: contents,
+			}, `GitCode upload for ${assetName}`, assetUploadTimeoutMs);
+			if (uploadResponse.ok) {
+				uploaded = true;
+				break;
+			}
+			if (!shouldRetry(uploadResponse) || attempt === maxAttempts) {
+				throw new Error(`GitCode upload for ${assetName} failed with HTTP ${uploadResponse.status}.`);
+			}
+			console.warn(`GitCode upload for ${assetName} returned HTTP ${uploadResponse.status}; retrying (${attempt}/${maxAttempts}).`);
+		} catch (error) {
+			if (attempt === maxAttempts) {
+				throw error;
+			}
+			console.warn(`${error.message} Retrying (${attempt}/${maxAttempts}).`);
+		}
+		await delay(attempt);
+	}
+	if (!uploaded) {
+		throw new Error(`GitCode upload for ${assetName} exhausted its retries.`);
 	}
 	console.log(`Uploaded ${assetName}.`);
 }
