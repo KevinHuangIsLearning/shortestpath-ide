@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { readFile, readdir } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { Readable, Transform } from 'node:stream';
 
 const apiBaseUrl = 'https://api.gitcode.com/api/v5';
 const apiRequestTimeoutMs = 30_000;
@@ -44,6 +46,30 @@ function formatBytes(bytes) {
 		unit++;
 	}
 	return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function formatProgressBar(percent) {
+	const width = 20;
+	const complete = Math.floor(percent / 100 * width);
+	return `[${'█'.repeat(complete)}${'░'.repeat(width - complete)}] ${percent}%`;
+}
+
+function createUploadBody(assetPath, assetName, totalBytes) {
+	let sentBytes = 0;
+	let lastReportedPercent = -1;
+	const progress = new Transform({
+		transform(chunk, encoding, callback) {
+			sentBytes += chunk.length;
+			const percent = Math.min(100, Math.floor(sentBytes / totalBytes * 100));
+			const reportedPercent = Math.floor(percent / 5) * 5;
+			if (reportedPercent > lastReportedPercent || sentBytes === totalBytes) {
+				lastReportedPercent = reportedPercent;
+				console.log(`${assetName} ${formatProgressBar(percent)} (${formatBytes(sentBytes)} / ${formatBytes(totalBytes)})`);
+			}
+			callback(null, chunk);
+		},
+	});
+	return Readable.toWeb(createReadStream(assetPath).pipe(progress));
 }
 
 async function fetchWithTimeout(url, options, description, timeoutMs) {
@@ -117,7 +143,7 @@ if (releaseResponse.status === 404) {
 	releaseResponse = await request(releasePath, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-	body: JSON.stringify({
+		body: JSON.stringify({
 			tag_name: tag,
 			name: title,
 			body: notes,
@@ -160,22 +186,28 @@ for (const assetName of assetNames) {
 		continue;
 	}
 
-	const contents = await readFile(join(assetDirectory, assetName));
+	const assetPath = join(assetDirectory, assetName);
+	const assetSize = (await stat(assetPath)).size;
 	const uploadUrlPath = `${releasePath}/${encodeURIComponent(tag)}/upload_url?file_name=${encodeURIComponent(assetName)}`;
 	let uploaded = false;
 	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-		console.log(`Preparing upload for ${assetName} (${formatBytes(contents.byteLength)}), attempt ${attempt}/${maxAttempts}.`);
+		console.log(`Preparing upload for ${assetName} (${formatBytes(assetSize)}), attempt ${attempt}/${maxAttempts}.`);
 		const uploadUrlResponse = await request(uploadUrlPath);
 		if (!uploadUrlResponse.ok) {
 			throw new Error(`GitCode upload URL request for ${assetName} failed with HTTP ${uploadUrlResponse.status}.`);
 		}
 		const upload = await uploadUrlResponse.json();
 		try {
-			console.log(`Uploading ${assetName} (${formatBytes(contents.byteLength)}).`);
+			console.log(`Uploading ${assetName} (${formatBytes(assetSize)}).`);
+			const headers = { ...upload.headers };
+			if (!Object.keys(headers).some(header => header.toLowerCase() === 'content-length')) {
+				headers['Content-Length'] = String(assetSize);
+			}
 			const uploadResponse = await fetchWithTimeout(upload.url, {
 				method: 'PUT',
-				headers: upload.headers,
-				body: contents,
+				headers,
+				body: createUploadBody(assetPath, assetName, assetSize),
+				duplex: 'half',
 			}, `GitCode upload for ${assetName}`, assetUploadTimeoutMs);
 			if (uploadResponse.ok) {
 				uploaded = true;
