@@ -35,9 +35,24 @@ function delay(attempt) {
 	return new Promise(resolve => setTimeout(resolve, attempt * 1_000));
 }
 
+function formatBytes(bytes) {
+	const units = ['B', 'KiB', 'MiB', 'GiB'];
+	let value = bytes;
+	let unit = 0;
+	while (value >= 1024 && unit < units.length - 1) {
+		value /= 1024;
+		unit++;
+	}
+	return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
 async function fetchWithTimeout(url, options, description, timeoutMs) {
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+	const startedAt = Date.now();
+	const heartbeat = setInterval(() => {
+		console.log(`${description} is still in progress (${Math.floor((Date.now() - startedAt) / 1_000)} seconds elapsed).`);
+	}, 30_000);
 	try {
 		return await fetch(url, { ...options, signal: controller.signal });
 	} catch (error) {
@@ -47,6 +62,7 @@ async function fetchWithTimeout(url, options, description, timeoutMs) {
 		throw error;
 	} finally {
 		clearTimeout(timeout);
+		clearInterval(heartbeat);
 	}
 }
 
@@ -148,12 +164,14 @@ for (const assetName of assetNames) {
 	const uploadUrlPath = `${releasePath}/${encodeURIComponent(tag)}/upload_url?file_name=${encodeURIComponent(assetName)}`;
 	let uploaded = false;
 	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		console.log(`Preparing upload for ${assetName} (${formatBytes(contents.byteLength)}), attempt ${attempt}/${maxAttempts}.`);
 		const uploadUrlResponse = await request(uploadUrlPath);
 		if (!uploadUrlResponse.ok) {
 			throw new Error(`GitCode upload URL request for ${assetName} failed with HTTP ${uploadUrlResponse.status}.`);
 		}
 		const upload = await uploadUrlResponse.json();
 		try {
+			console.log(`Uploading ${assetName} (${formatBytes(contents.byteLength)}).`);
 			const uploadResponse = await fetchWithTimeout(upload.url, {
 				method: 'PUT',
 				headers: upload.headers,
