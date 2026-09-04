@@ -57,19 +57,26 @@ function formatProgressBar(percent) {
 function createUploadBody(assetPath, assetName, totalBytes) {
 	let sentBytes = 0;
 	let lastReportedPercent = -1;
+	const reportProgress = force => {
+		const percent = Math.min(100, Math.floor(sentBytes / totalBytes * 100));
+		const reportedPercent = Math.floor(percent / 5) * 5;
+		if (force || reportedPercent > lastReportedPercent || sentBytes === totalBytes) {
+			lastReportedPercent = reportedPercent;
+			console.log(`${assetName} ${formatProgressBar(percent)} (${formatBytes(sentBytes)} / ${formatBytes(totalBytes)})`);
+		}
+	};
 	const progress = new Transform({
 		transform(chunk, encoding, callback) {
 			sentBytes += chunk.length;
-			const percent = Math.min(100, Math.floor(sentBytes / totalBytes * 100));
-			const reportedPercent = Math.floor(percent / 5) * 5;
-			if (reportedPercent > lastReportedPercent || sentBytes === totalBytes) {
-				lastReportedPercent = reportedPercent;
-				console.log(`${assetName} ${formatProgressBar(percent)} (${formatBytes(sentBytes)} / ${formatBytes(totalBytes)})`);
-			}
+			reportProgress(false);
 			callback(null, chunk);
 		},
 	});
-	return Readable.toWeb(createReadStream(assetPath).pipe(progress));
+	const progressInterval = setInterval(() => reportProgress(true), 30_000);
+	return {
+		body: Readable.toWeb(createReadStream(assetPath).pipe(progress)),
+		stop: () => clearInterval(progressInterval),
+	};
 }
 
 async function fetchWithTimeout(url, options, description, timeoutMs) {
@@ -203,12 +210,18 @@ for (const assetName of assetNames) {
 			if (!Object.keys(headers).some(header => header.toLowerCase() === 'content-length')) {
 				headers['Content-Length'] = String(assetSize);
 			}
-			const uploadResponse = await fetchWithTimeout(upload.url, {
-				method: 'PUT',
-				headers,
-				body: createUploadBody(assetPath, assetName, assetSize),
-				duplex: 'half',
-			}, `GitCode upload for ${assetName}`, assetUploadTimeoutMs);
+			const uploadProgress = createUploadBody(assetPath, assetName, assetSize);
+			let uploadResponse;
+			try {
+				uploadResponse = await fetchWithTimeout(upload.url, {
+					method: 'PUT',
+					headers,
+					body: uploadProgress.body,
+					duplex: 'half',
+				}, `GitCode upload for ${assetName}`, assetUploadTimeoutMs);
+			} finally {
+				uploadProgress.stop();
+			}
 			if (uploadResponse.ok) {
 				uploaded = true;
 				break;
