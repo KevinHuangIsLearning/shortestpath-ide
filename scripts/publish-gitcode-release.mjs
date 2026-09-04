@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createReadStream } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Readable, Transform } from 'node:stream';
 
 const apiBaseUrl = 'https://api.gitcode.com/api/v5';
 const apiRequestTimeoutMs = 30_000;
-const assetUploadTimeoutMs = 10 * 60_000;
 const maxAttempts = 3;
+const maxUploadAttempts = 2;
 
 function readArgument(name) {
 	const index = process.argv.indexOf(name);
@@ -64,29 +63,65 @@ function formatProgressBar(percent) {
 	return `[${'█'.repeat(complete)}${'░'.repeat(width - complete)}] ${percent}%`;
 }
 
-function createUploadBody(assetPath, assetName, totalBytes) {
-	let sentBytes = 0;
-	let lastReportedPercent = -1;
-	const reportProgress = force => {
-		const percent = Math.min(100, Math.floor(sentBytes / totalBytes * 100));
-		const reportedPercent = Math.floor(percent / 5) * 5;
-		if (force || reportedPercent > lastReportedPercent || sentBytes === totalBytes) {
-			lastReportedPercent = reportedPercent;
-			console.log(`${assetName} ${formatProgressBar(percent)} (${formatBytes(sentBytes)} / ${formatBytes(totalBytes)})`);
-		}
-	};
-	const progress = new Transform({
-		transform(chunk, encoding, callback) {
-			sentBytes += chunk.length;
-			reportProgress(false);
-			callback(null, chunk);
-		},
+async function uploadAsset(url, headers, assetPath, assetName, totalBytes) {
+	const curlArguments = [
+		'--fail',
+		'--progress-meter',
+		'--request', 'PUT',
+		'--upload-file', assetPath,
+		'--connect-timeout', '30',
+		'--speed-limit', '1024',
+		'--speed-time', '90',
+		'--max-time', '600',
+	];
+	for (const [header, value] of Object.entries(headers)) {
+		curlArguments.push('--header', `${header}: ${value}`);
+	}
+	curlArguments.push(url);
+
+	console.log(`Uploading ${assetName} (${formatBytes(totalBytes)}) with curl.`);
+	await new Promise((resolve, reject) => {
+		const curl = spawn('curl', curlArguments, { stdio: ['ignore', 'ignore', 'pipe'] });
+		let lastPercent = 0;
+		let lastReportedPercent = -1;
+		let progressRemainder = '';
+		let errorOutput = '';
+		const reportProgress = force => {
+			if (force || lastPercent >= lastReportedPercent + 5 || lastPercent === 100) {
+				lastReportedPercent = lastPercent;
+				console.log(`${assetName} ${formatProgressBar(lastPercent)} (${formatBytes(Math.floor(totalBytes * lastPercent / 100))} / ${formatBytes(totalBytes)})`);
+			}
+		};
+		const progressInterval = setInterval(() => reportProgress(true), 30_000);
+		const finish = callback => {
+			clearInterval(progressInterval);
+			callback();
+		};
+		curl.stderr.on('data', data => {
+			const output = progressRemainder + data.toString();
+			const lines = output.split(/\r|\n/);
+			progressRemainder = lines.pop();
+			for (const line of lines) {
+				const percent = /^\s*(\d{1,3})\s+/.exec(line)?.[1];
+				if (percent !== undefined) {
+					lastPercent = Number(percent);
+					reportProgress(false);
+				} else if (line.trim()) {
+					errorOutput += `${line}\n`;
+				}
+			}
+		});
+		curl.on('error', error => finish(() => reject(error)));
+		curl.on('close', code => finish(() => {
+			if (code === 0) {
+				lastPercent = 100;
+				reportProgress(true);
+				resolve();
+			} else {
+				reject(new Error(`curl upload for ${assetName} exited with code ${code}.${errorOutput ? ` ${errorOutput.trim()}` : ''}`));
+			}
+		}));
 	});
-	const progressInterval = setInterval(() => reportProgress(true), 30_000);
-	return {
-		body: Readable.toWeb(createReadStream(assetPath).pipe(progress)),
-		stop: () => clearInterval(progressInterval),
-	};
 }
 
 async function fetchWithTimeout(url, options, description, timeoutMs) {
@@ -221,44 +256,22 @@ for (const assetName of assetNames) {
 	const assetSize = (await stat(assetPath)).size;
 	const uploadUrlPath = `${releasePath}/${encodeURIComponent(tag)}/upload_url?file_name=${encodeURIComponent(assetName)}`;
 	let uploaded = false;
-	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-		console.log(`Preparing upload for ${assetName} (${formatBytes(assetSize)}), attempt ${attempt}/${maxAttempts}.`);
+	for (let attempt = 1; attempt <= maxUploadAttempts; attempt++) {
+		console.log(`Preparing upload for ${assetName} (${formatBytes(assetSize)}), attempt ${attempt}/${maxUploadAttempts}.`);
 		const uploadUrlResponse = await request(uploadUrlPath);
 		if (!uploadUrlResponse.ok) {
 			throw new Error(`GitCode upload URL request for ${assetName} failed with HTTP ${uploadUrlResponse.status}.`);
 		}
 		const upload = await uploadUrlResponse.json();
 		try {
-			console.log(`Uploading ${assetName} (${formatBytes(assetSize)}).`);
-			const headers = { ...upload.headers };
-			if (!Object.keys(headers).some(header => header.toLowerCase() === 'content-length')) {
-				headers['Content-Length'] = String(assetSize);
-			}
-			const uploadProgress = createUploadBody(assetPath, assetName, assetSize);
-			let uploadResponse;
-			try {
-				uploadResponse = await fetchWithTimeout(upload.url, {
-					method: 'PUT',
-					headers,
-					body: uploadProgress.body,
-					duplex: 'half',
-				}, `GitCode upload for ${assetName}`, assetUploadTimeoutMs);
-			} finally {
-				uploadProgress.stop();
-			}
-			if (uploadResponse.ok) {
-				uploaded = true;
-				break;
-			}
-			if (!shouldRetry(uploadResponse) || attempt === maxAttempts) {
-				throw new Error(`GitCode upload for ${assetName} failed with HTTP ${uploadResponse.status}.`);
-			}
-			console.warn(`GitCode upload for ${assetName} returned HTTP ${uploadResponse.status}; retrying (${attempt}/${maxAttempts}).`);
+			await uploadAsset(upload.url, upload.headers, assetPath, assetName, assetSize);
+			uploaded = true;
+			break;
 		} catch (error) {
-			if (attempt === maxAttempts) {
+			if (attempt === maxUploadAttempts) {
 				throw error;
 			}
-			console.warn(`${error.message} Retrying (${attempt}/${maxAttempts}).`);
+			console.warn(`${error.message} Retrying (${attempt}/${maxUploadAttempts}).`);
 		}
 		await delay(attempt);
 	}
