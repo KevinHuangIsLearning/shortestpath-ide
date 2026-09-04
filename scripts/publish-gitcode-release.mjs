@@ -48,6 +48,16 @@ function formatBytes(bytes) {
 	return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+function rewriteReleaseNotes(notes, githubRepository, gitcodeOwner, gitcodeRepository, releaseTag) {
+	const githubRepositoryUrl = `https://github.com/${githubRepository}`;
+	const gitcodeRepositoryUrl = `https://gitcode.com/${gitcodeOwner}/${gitcodeRepository}`;
+	const gitcodeDownloadUrl = `${gitcodeRepositoryUrl}/releases/download/${encodeURIComponent(releaseTag)}`;
+	return notes
+		.replaceAll(`${githubRepositoryUrl}/releases/latest/download`, gitcodeDownloadUrl)
+		.replaceAll(`${githubRepositoryUrl}/releases/download/${encodeURIComponent(releaseTag)}`, gitcodeDownloadUrl)
+		.replaceAll(githubRepositoryUrl, gitcodeRepositoryUrl);
+}
+
 function formatProgressBar(percent) {
 	const width = 20;
 	const complete = Math.floor(percent / 100 * width);
@@ -134,10 +144,12 @@ const assetDirectory = readArgument('--asset-directory');
 const owner = requiredEnvironment('GITCODE_OWNER');
 const repository = requiredEnvironment('GITCODE_REPOSITORY');
 const token = requiredEnvironment('GITCODE_TOKEN');
+const githubRepository = requiredEnvironment('GITHUB_REPOSITORY');
 const releasePath = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/releases`;
 const releaseTagPath = `${releasePath}/tags/${encodeURIComponent(tag)}`;
 const title = (await readFile(titleFile, 'utf8')).trim();
 const notes = await readFile(notesFile, 'utf8');
+const releaseNotes = rewriteReleaseNotes(notes, githubRepository, owner, repository, tag);
 const releaseStatus = tag.startsWith('Beta-v') ? 'pre' : 'latest';
 
 if (!title) {
@@ -150,10 +162,10 @@ if (releaseResponse.status === 404) {
 	releaseResponse = await request(releasePath, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
+	body: JSON.stringify({
 			tag_name: tag,
 			name: title,
-			body: notes,
+			body: releaseNotes,
 			release_status: releaseStatus,
 		}),
 	});
@@ -173,7 +185,19 @@ if (releaseResponse.status === 404) {
 	}
 } else if (releaseResponse.ok) {
 	release = await releaseResponse.json();
-	console.log(`GitCode Release ${tag} already exists; uploading only missing assets.`);
+	const updateResponse = await request(`${releasePath}/${encodeURIComponent(tag)}`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			tag_name: tag,
+			name: title,
+			body: releaseNotes,
+		}),
+	});
+	if (!updateResponse.ok) {
+		throw new Error(`GitCode Release update failed with HTTP ${updateResponse.status}.`);
+	}
+	console.log(`Updated GitCode Release ${tag}; uploading only missing assets.`);
 } else {
 	throw new Error(`GitCode Release lookup failed with HTTP ${releaseResponse.status}.`);
 }
