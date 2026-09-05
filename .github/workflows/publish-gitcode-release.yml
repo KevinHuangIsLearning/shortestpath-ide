@@ -19,7 +19,7 @@ jobs:
   publish:
     name: Publish GitCode Release
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 180
     env:
       GITCODE_OWNER: KevinHuangIsLearning
       GITCODE_REPOSITORY: shortestpath-ide

@@ -11,6 +11,7 @@ const apiBaseUrl = 'https://api.gitcode.com/api/v5';
 const apiRequestTimeoutMs = 30_000;
 const maxAttempts = 3;
 const maxUploadAttempts = 2;
+const maxConcurrentUploads = 3;
 
 function readArgument(name) {
 	const index = process.argv.indexOf(name);
@@ -72,7 +73,7 @@ async function uploadAsset(url, headers, assetPath, assetName, totalBytes) {
 		'--connect-timeout', '30',
 		'--speed-limit', '1024',
 		'--speed-time', '90',
-		'--max-time', '600',
+		'--max-time', '1800',
 	];
 	for (const [header, value] of Object.entries(headers)) {
 		curlArguments.push('--header', `${header}: ${value}`);
@@ -122,6 +123,52 @@ async function uploadAsset(url, headers, assetPath, assetName, totalBytes) {
 			}
 		}));
 	});
+}
+
+async function uploadReleaseAsset(releasePath, tag, asset) {
+	const uploadUrlPath = `${releasePath}/${encodeURIComponent(tag)}/upload_url?file_name=${encodeURIComponent(asset.name)}`;
+	for (let attempt = 1; attempt <= maxUploadAttempts; attempt++) {
+		console.log(`Preparing upload for ${asset.name} (${formatBytes(asset.size)}), attempt ${attempt}/${maxUploadAttempts}.`);
+		const uploadUrlResponse = await request(uploadUrlPath);
+		if (!uploadUrlResponse.ok) {
+			throw new Error(`GitCode upload URL request for ${asset.name} failed with HTTP ${uploadUrlResponse.status}.`);
+		}
+		const upload = await uploadUrlResponse.json();
+		try {
+			await uploadAsset(upload.url, upload.headers, asset.path, asset.name, asset.size);
+			console.log(`Uploaded ${asset.name}.`);
+			return;
+		} catch (error) {
+			if (attempt === maxUploadAttempts) {
+				throw error;
+			}
+			console.warn(`${error.message} Retrying (${attempt}/${maxUploadAttempts}).`);
+		}
+		await delay(attempt);
+	}
+
+	throw new Error(`GitCode upload for ${asset.name} exhausted its retries.`);
+}
+
+async function uploadConcurrently(assets, concurrency, upload) {
+	let nextAssetIndex = 0;
+	let failure;
+	async function worker() {
+		while (!failure && nextAssetIndex < assets.length) {
+			const asset = assets[nextAssetIndex++];
+			try {
+				await upload(asset);
+			} catch (error) {
+				failure ??= error;
+			}
+		}
+	}
+
+	const workerCount = Math.min(concurrency, assets.length);
+	await Promise.all(Array.from({ length: workerCount }, () => worker()));
+	if (failure) {
+		throw failure;
+	}
 }
 
 async function fetchWithTimeout(url, options, description, timeoutMs) {
@@ -246,6 +293,7 @@ if (assetNames.length === 0) {
 	throw new Error('No release assets were found.');
 }
 
+const assetsToUpload = [];
 for (const assetName of assetNames) {
 	if (existingAssets.has(assetName)) {
 		console.log(`Keeping existing asset ${assetName}.`);
@@ -254,29 +302,9 @@ for (const assetName of assetNames) {
 
 	const assetPath = join(assetDirectory, assetName);
 	const assetSize = (await stat(assetPath)).size;
-	const uploadUrlPath = `${releasePath}/${encodeURIComponent(tag)}/upload_url?file_name=${encodeURIComponent(assetName)}`;
-	let uploaded = false;
-	for (let attempt = 1; attempt <= maxUploadAttempts; attempt++) {
-		console.log(`Preparing upload for ${assetName} (${formatBytes(assetSize)}), attempt ${attempt}/${maxUploadAttempts}.`);
-		const uploadUrlResponse = await request(uploadUrlPath);
-		if (!uploadUrlResponse.ok) {
-			throw new Error(`GitCode upload URL request for ${assetName} failed with HTTP ${uploadUrlResponse.status}.`);
-		}
-		const upload = await uploadUrlResponse.json();
-		try {
-			await uploadAsset(upload.url, upload.headers, assetPath, assetName, assetSize);
-			uploaded = true;
-			break;
-		} catch (error) {
-			if (attempt === maxUploadAttempts) {
-				throw error;
-			}
-			console.warn(`${error.message} Retrying (${attempt}/${maxUploadAttempts}).`);
-		}
-		await delay(attempt);
-	}
-	if (!uploaded) {
-		throw new Error(`GitCode upload for ${assetName} exhausted its retries.`);
-	}
-	console.log(`Uploaded ${assetName}.`);
+	assetsToUpload.push({ name: assetName, path: assetPath, size: assetSize });
 }
+
+assetsToUpload.sort((first, second) => second.size - first.size || first.name.localeCompare(second.name));
+console.log(`Uploading ${assetsToUpload.length} missing asset(s) with up to ${maxConcurrentUploads} concurrent uploads.`);
+await uploadConcurrently(assetsToUpload, maxConcurrentUploads, asset => uploadReleaseAsset(releasePath, tag, asset));
