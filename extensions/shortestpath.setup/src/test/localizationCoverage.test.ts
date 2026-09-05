@@ -119,6 +119,8 @@ test('keeps first-run preparation in the editor-tab setup flow', () => {
 	assert.match(extension, /installPortableAssets/);
 	assert.match(extension, /shortestpath\.installToolchainStage/);
 	assert.match(extension, /shortestpath\.applyFirstRunSetup/);
+	assert.match(extension, /await removeLegacyWindowsCompilerLocale\(context\)/);
+	assert.match(extension, /'toolchains', 'winlibs', 'mingw64-ucrt-15', 'share', 'locale'/);
 	assert.doesNotMatch(extension, /ProgressLocation\.Notification/);
 	assert.doesNotMatch(extension, /便携工具链由首次启动设置窗口下载/);
 	assert.doesNotMatch(extension, /下载将在设置终端中继续/);
