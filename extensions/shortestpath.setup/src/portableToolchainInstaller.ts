@@ -19,6 +19,7 @@ export type PortableAsset = {
 	readonly bundledArchivePath?: string;
 	readonly targetDirectory: string;
 	readonly requiredFile: string;
+	readonly directoryToRemove?: string;
 };
 
 export type PortableInstallResult = {
@@ -53,6 +54,7 @@ async function installPortableAsset(options: PortableInstallOptions, asset: Port
 	const requiredPath = path.join(targetPath, asset.requiredFile);
 	if (fs.existsSync(requiredPath)) {
 		options.reportProgress(`${asset.id} is already installed; skipping extraction.`);
+		await removeAssetDirectory(targetPath, asset, options.reportProgress);
 		return;
 	}
 
@@ -79,10 +81,22 @@ async function installPortableAsset(options: PortableInstallOptions, asset: Port
 		if (!fs.existsSync(requiredPath)) {
 			throw new Error(`${asset.id} archive did not contain ${asset.requiredFile}.`);
 		}
+		await removeAssetDirectory(targetPath, asset, options.reportProgress);
 	} finally {
 		if (downloaded) {
 			await fs.promises.rm(archivePath, { force: true });
 		}
+	}
+}
+
+async function removeAssetDirectory(targetPath: string, asset: PortableAsset, reportProgress: (message: string) => void): Promise<void> {
+	if (!asset.directoryToRemove) {
+		return;
+	}
+	const directoryPath = path.join(targetPath, asset.directoryToRemove);
+	if (fs.existsSync(directoryPath)) {
+		reportProgress(`Removing locale data from ${asset.id}…`);
+		await fs.promises.rm(directoryPath, { recursive: true, force: true });
 	}
 }
 

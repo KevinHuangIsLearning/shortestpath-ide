@@ -272,6 +272,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.hideSetupFiles', toggleHiddenFiles));
 	warnAboutPortablePathWithSpaces();
 	await rebasePortableToolchain(context);
+	await removeLegacyWindowsCompilerLocale(context);
 	if (!context.globalState.get<boolean>(FILE_EXCLUDES_MIGRATION)) {
 		await ensureShortestPathFileExcludes();
 		await context.globalState.update(FILE_EXCLUDES_MIGRATION, true);
@@ -306,6 +307,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}));
 	await applyPending();
 	void offerOiWorkspaceInitialization(context);
+}
+
+async function removeLegacyWindowsCompilerLocale(context: vscode.ExtensionContext): Promise<void> {
+	if (process.platform !== 'win32') {
+		return;
+	}
+	const localePath = path.join(context.globalStorageUri.fsPath, 'toolchains', 'winlibs', 'mingw64-ucrt-15', 'share', 'locale');
+	if (fs.existsSync(localePath)) {
+		await fs.promises.rm(localePath, { recursive: true, force: true });
+	}
 }
 
 function warnAboutPortablePathWithSpaces(): void {

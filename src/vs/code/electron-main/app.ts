@@ -203,6 +203,7 @@ interface IShortestPathPortableAsset {
 	readonly bundledArchivePath?: string;
 	readonly targetDirectory: string;
 	readonly requiredFile: string;
+	readonly directoryToRemove?: string;
 }
 
 const nodeRequire = createRequire(import.meta.url);
@@ -1108,6 +1109,7 @@ export class CodeApplication extends Disposable {
 				const archivePath = useBundledArchive ? bundledArchivePath : join(toolchainRoot, asset.archiveName);
 				if (fs.existsSync(join(targetPath, asset.requiredFile))) {
 					reportProgress(`${asset.id} is already installed; skipping extraction.`);
+					await this.removeShortestPathAssetDirectory(targetPath, asset, reportProgress);
 					continue;
 				}
 				if (useBundledArchive) {
@@ -1124,17 +1126,29 @@ export class CodeApplication extends Disposable {
 						reportProgress(`Extracting ${asset.id}… ${percent}%${detail ? ` (${detail})` : ''}`);
 					}
 				});
-				if (!useBundledArchive) {
-					await fs.promises.unlink(archivePath);
-				}
 				if (!fs.existsSync(join(targetPath, asset.requiredFile))) {
 					throw new Error(`${asset.id} archive did not contain ${asset.requiredFile}.`);
+				}
+				await this.removeShortestPathAssetDirectory(targetPath, asset, reportProgress);
+				if (!useBundledArchive) {
+					await fs.promises.unlink(archivePath);
 				}
 			}
 			reportProgress('Portable toolchain installation complete.');
 			return { success: true, message: 'Toolchain download completed.' };
 		} catch (error) {
 			return { success: false, message: toErrorMessage(error) };
+		}
+	}
+
+	private async removeShortestPathAssetDirectory(targetPath: string, asset: IShortestPathPortableAsset, reportProgress: (message: string) => void): Promise<void> {
+		if (asset.directoryToRemove) {
+			const directoryPath = join(targetPath, asset.directoryToRemove);
+			if (!fs.existsSync(directoryPath)) {
+				return;
+			}
+			reportProgress(`Removing locale data from ${asset.id}…`);
+			await fs.promises.rm(directoryPath, { recursive: true, force: true });
 		}
 	}
 
