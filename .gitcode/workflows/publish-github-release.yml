@@ -1,0 +1,73 @@
+name: Publish GitHub Release to GitCode
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub Release tag (Release-v* or Beta-v*)
+        required: true
+        type: string
+
+permissions:
+  repository: write
+
+concurrency:
+  max: 1
+  exceed-action: QUEUE
+
+jobs:
+  publish:
+    name: Mirror GitHub Release
+    runs-on: [ubuntu-latest, x64, medium]
+    env:
+      GITHUB_REPOSITORY: KevinHuangIsLearning/shortestpath-ide
+      GITHUB_TOKEN: ${{ secrets.SOURCE_GITHUB_TOKEN }}
+      GITCODE_OWNER: KevinHuangIsLearning
+      GITCODE_REPOSITORY: shortestpath-ide
+    steps:
+      - name: Validate tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          case "$RELEASE_TAG" in
+            Release-v*|Beta-v*) ;;
+            *)
+              echo 'tag must start with Release-v or Beta-v.' >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Checkout source code
+        uses: checkout
+
+      - name: Set up Node.js
+        uses: setup-node
+        with:
+          node-version: '22'
+
+      - name: Download GitHub Release
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          node scripts/download-github-release.mjs \
+            --tag "$RELEASE_TAG" \
+            --title-file gitcode-release-title.txt \
+            --notes-file gitcode-release-notes.md \
+            --commit-file gitcode-release-commit.txt \
+            --asset-directory release
+
+      - name: Write checksums
+        run: |
+          cd release
+          find . -maxdepth 1 -type f -printf '%f\0' | sort -z | xargs -0 -r sha256sum -- > SHA256SUMS
+
+      - name: Publish GitCode Release
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          node scripts/publish-gitcode-release.mjs \
+            --tag "$RELEASE_TAG" \
+            --title-file gitcode-release-title.txt \
+            --notes-file gitcode-release-notes.md \
+            --commit-file gitcode-release-commit.txt \
+            --asset-directory release
