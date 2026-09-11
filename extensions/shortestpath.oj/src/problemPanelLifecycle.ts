@@ -3,25 +3,6 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function shouldRestoreProblemPanel(
-	disposedSourcePath: string | undefined,
-	currentSourcePath: string | undefined,
-	panelExists: boolean,
-	openFilePaths: readonly string[],
-): boolean {
-	return disposedSourcePath !== undefined
-		&& currentSourcePath === disposedSourcePath
-		&& !panelExists
-		&& openFilePaths.includes(disposedSourcePath);
-}
-
-export function shouldHideProblemPanelWhenSourceInactive(
-	sourcePath: string | undefined,
-	activeSourcePath: string | undefined,
-): boolean {
-	return sourcePath !== undefined && sourcePath !== activeSourcePath;
-}
-
 export function shouldHideProblemPanelWhenSourceCloses(
 	sourcePath: string | undefined,
 	openFilePaths: readonly string[],
