@@ -417,7 +417,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 		'shortestpath.settings',
 		localize('ShortestPath IDE 设置'),
 		vscode.ViewColumn.Active,
-		{ enableScripts: true, retainContextWhenHidden: true }
+		{ enableScripts: true, modal: true, retainContextWhenHidden: true }
 	);
 	panel.webview.html = localizeWebviewHtml(getHtml(getState()));
 	void getSystemFonts().then(async result => {

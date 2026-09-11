@@ -324,6 +324,7 @@ export class ExtHostWebviewPanels extends Disposable implements extHostProtocol.
 
 function serializeWebviewPanelOptions(options: vscode.WebviewPanelOptions): extHostProtocol.IWebviewPanelOptions {
 	return {
+		modal: options.modal,
 		enableFindWidget: options.enableFindWidget,
 		retainContextWhenHidden: options.retainContextWhenHidden,
 	};

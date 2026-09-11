@@ -10051,6 +10051,9 @@ declare module 'vscode' {
 	 * Content settings for a webview panel.
 	 */
 	export interface WebviewPanelOptions {
+		/** Controls whether this webview opens in the workbench modal editor. */
+		readonly modal?: boolean;
+
 		/**
 		 * Controls if the find widget is enabled in the panel.
 		 *
