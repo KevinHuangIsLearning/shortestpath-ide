@@ -203,16 +203,63 @@ header {
 }
 
 .title-line {
-	align-items: baseline;
+	align-items: center;
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	gap: 10px;
 	min-width: 0;
 }
 
 .title-line h1 {
+	flex: 1 1 auto;
 	font-size: 1.5em;
 	margin: 0;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.title-line h1 a {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.title-line h1.title-wrap a {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+	white-space: normal;
+}
+
+.statement-version-control {
+	align-items: center;
+	display: inline-flex;
+	flex: 0 0 auto;
+	font-size: 0.78em;
+	gap: 4px;
+	white-space: nowrap;
+}
+
+.statement-version-control select {
+	font-size: inherit;
+	width: auto;
+	padding: 1px 18px 1px 5px;
+}
+
+.statement-version-control button {
+	background: transparent;
+	border: 0;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font: inherit;
+	padding: 1px 3px;
+}
+
+.statement-version-control button:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
 }
 
 .title-meta-line {

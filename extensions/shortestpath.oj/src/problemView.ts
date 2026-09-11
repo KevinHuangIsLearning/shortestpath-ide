@@ -43,6 +43,19 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 	const body = document.body;
 	const timer = document.getElementById('problem-timer-value');
 	const accepted = document.getElementById('problem-accepted');
+	const updateTitleLayout = (): void => {
+		const title = document.querySelector<HTMLAnchorElement>('.title-line h1 a');
+		const heading = title?.parentElement;
+		if (!title || !heading) {
+			return;
+		}
+		heading.classList.remove('title-wrap');
+		if (title.clientWidth > 0) {
+			heading.classList.toggle('title-wrap', title.scrollWidth > title.clientWidth);
+		}
+	};
+	window.requestAnimationFrame(updateTitleLayout);
+	window.addEventListener('resize', updateTitleLayout);
 
 	const timerState: TimerState = {
 		elapsedMs: Number(body.dataset.elapsedMs || 0),
@@ -384,6 +397,14 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		}
 	});
 
+	document.addEventListener('change', event => {
+		const select = event.target;
+		if (!(select instanceof HTMLSelectElement) || select.dataset.command !== 'selectStatementVersion') {
+			return;
+		}
+		vscode.postMessage({ command: 'selectStatementVersion', versionIndex: Number(select.value) });
+	});
+
 	/* ---- Sample copy ---- */
 	const copySample = async (button: HTMLButtonElement): Promise<void> => {
 		const block = button.closest('.io-block');
@@ -485,6 +506,8 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			vscode.postMessage({ command, submissionId: button.dataset.submissionId, rounds: Number(button.dataset.rounds) });
 		} else if (command === 'editorial') {
 			vscode.postMessage({ command });
+		} else if (command === 'deletePreviousStatement') {
+			vscode.postMessage({ command, versionIndex: Number(button.dataset.versionIndex) });
 		} else if (command === 'closeModal') {
 			closeModal();
 		} else if (command) {

@@ -13,10 +13,11 @@ import { canViewEditorial, describeEditorialLockReason, getCurrentEditorialRemai
 import { describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
 import { defaultProblemSourceRatio, getProblemPanelLayout } from './problemPanelLayout';
-import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses, shouldHideProblemPanelWhenSourceInactive, shouldRestoreProblemPanel } from './problemPanelLifecycle';
+import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses } from './problemPanelLifecycle';
 import { ImportAction, OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
 import { mergeSubmissionHistory, sanitizeSubmissionHistoryEntry, SubmissionHistoryEntry, toSubmissionHistoryEntry } from './submissionHistory';
 import { isHeaderSafeSourcePath } from './sourcePath';
+import { appendPreviousStatementVersion, hasProblemStatementChanged, ProblemStatementSnapshot, sanitizeProblemStatementVersions } from './problemStatementVersion';
 import { formatElapsedTimer } from './timerDisplay';
 import { assertUniqueWorkspaceProblemRecordFileNames, getWorkspaceProblemRecordFileName } from './workspaceProblemCache';
 import { migrateLegacyWorkspaceCache } from './workspaceProblemCacheMigration';
@@ -47,7 +48,7 @@ import {
 
 const workspaceCacheDirectoryName = '.shortestpath';
 const legacyWorkspaceCacheFileName = 'oj-problems.json';
-const workspaceProblemRecordVersion = 1;
+const workspaceProblemRecordVersion = 2;
 const workspaceFolderRequiredMessage = localize('请先在 ShortestPath IDE 中打开一个文件夹，再从网站导入题目。');
 const workspaceCachesNeedingRewrite = new WeakSet<WorkspaceProblemCache>();
 let workspaceCacheMutationTail = Promise.resolve();
@@ -68,6 +69,7 @@ type WorkspaceProblemCache = {
 	sourcePaths: Record<string, string>;
 	submissions: Record<string, SubmissionHistoryEntry[]>;
 	editorials: Record<string, EditorialResult>;
+	previousStatements: Record<string, ProblemStatementSnapshot[]>;
 };
 
 type CphImportResult = { succeeded: boolean; sourcePath?: string };
@@ -75,11 +77,12 @@ type CphImportResult = { succeeded: boolean; sourcePath?: string };
 type CachedWorkspaceProblemCache = Omit<Partial<WorkspaceProblemCache>, 'version'> & { version?: 3 | 4 };
 
 type WorkspaceProblemRecord = {
-	version: typeof workspaceProblemRecordVersion;
+	version: 1 | typeof workspaceProblemRecordVersion;
 	problem: ImportedProblem;
 	sourcePath?: string;
 	submissions: SubmissionHistoryEntry[];
 	editorial?: EditorialResult;
+	previousStatements?: ProblemStatementSnapshot[];
 };
 
 function isWrongAnswerStatus(status: string): boolean {
@@ -150,6 +153,8 @@ type ProblemPanelState = {
 	operationsInFlight: Set<string>;
 	editorialRemainingReceivedAtMs: number;
 	sourcePath?: string;
+	previousStatements: ProblemStatementSnapshot[];
+	statementVersionIndex: number;
 };
 
 type ProblemPanelActions = {
@@ -165,6 +170,8 @@ type ProblemPanelActions = {
 	saveSubmissionHistory(problem: ImportedProblem, submission: SubmissionHistoryEntry): Promise<void>;
 	loadEditorial(problem: ImportedProblem): Promise<EditorialResult | undefined>;
 	saveEditorial(problem: ImportedProblem, editorial: EditorialResult): Promise<void>;
+	loadPreviousStatements(problem: ImportedProblem): Promise<ProblemStatementSnapshot[]>;
+	deletePreviousStatement(problem: ImportedProblem, versionIndex: number): Promise<ProblemStatementSnapshot[]>;
 };
 
 class ShortestPathOjProblemPanel {
@@ -177,7 +184,6 @@ class ShortestPathOjProblemPanel {
 	private webviewReady = false;
 	private renderedProblemRef: string | undefined;
 	private editorialPanel: vscode.WebviewPanel | undefined;
-	private editorialPanelOpening = false;
 	private longRunningOperationNoticeCount = 0;
 	private longRunningOperationNoticeVisible = false;
 	private operationToastMessage: string | undefined;
@@ -196,7 +202,7 @@ class ShortestPathOjProblemPanel {
 		if (fromWebsite) {
 			this.showAntiFraudReminder();
 		}
-		if (!this.state || this.state.problem.ref !== problem.ref) {
+		if (!this.state || this.state.problem.ref !== problem.ref || hasProblemStatementChanged(this.state.problem, problem)) {
 			this.longRunningOperationNoticeCount = 0;
 			this.longRunningOperationNoticeVisible = false;
 			this.clearOperationToast();
@@ -229,12 +235,15 @@ class ShortestPathOjProblemPanel {
 				operationsInFlight: new Set(),
 				editorialRemainingReceivedAtMs: Date.now(),
 				sourcePath,
+				previousStatements: [],
+				statementVersionIndex: 0,
 			};
 			const state = this.state;
 			void Promise.all([
 				this.actions.loadSubmissionHistory(problem),
 				this.actions.loadEditorial(problem),
-			]).then(([submissions, editorial]) => {
+				this.actions.loadPreviousStatements(problem),
+			]).then(([submissions, editorial, previousStatements]) => {
 				if (this.state !== state || state.problem.ref !== problem.ref) {
 					return;
 				}
@@ -253,6 +262,11 @@ class ShortestPathOjProblemPanel {
 				}
 				if (state.editorial === undefined) {
 					state.editorial = editorial;
+				}
+				const previousStatementCount = state.previousStatements.length;
+				state.previousStatements = previousStatements;
+				if (previousStatementCount !== previousStatements.length) {
+					this.renderedProblemRef = undefined;
 				}
 				this.render();
 			}).catch(error => console.error('Failed to load ShortestPath OJ cached content.', error));
@@ -364,28 +378,6 @@ class ShortestPathOjProblemPanel {
 		if (!panelCreated && panel) {
 			panel.reveal(panel.viewColumn, false);
 		}
-	}
-
-	hideProblemWhenSourceInactive(): boolean {
-		if (this.panel?.active || !this.state || !shouldHideProblemPanelWhenSourceInactive(this.state.sourcePath, getActiveEditorPath())) {
-			return false;
-		}
-		this.panel?.dispose();
-		return true;
-	}
-
-	restoreProblemWhenSourceActive(): boolean {
-		if (this.editorialPanelOpening || !this.state || !shouldRestoreProblemPanel(
-			this.state.sourcePath,
-			getActiveEditorPath(),
-			this.panel !== undefined,
-			getOpenFileTabGroups().flatMap(group => group.filePaths),
-		)) {
-			return false;
-		}
-		this.ensureProblemPanel();
-		this.render();
-		return true;
 	}
 
 	async hideProblemWhenSourceCloses(): Promise<boolean> {
@@ -538,65 +530,61 @@ class ShortestPathOjProblemPanel {
 		if (editorial.state !== 'available') {
 			return;
 		}
-		this.editorialPanelOpening = true;
-		try {
-			if (this.panel) {
-				this.panel.dispose();
-			}
-			const title = `${localize('解题报告')}: ${problem.title}`;
-			if (this.editorialPanel) {
-				this.editorialPanel.title = title;
-				this.editorialPanel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri, canLike));
-				this.editorialPanel.reveal(this.editorialPanel.viewColumn, false);
+		if (this.panel) {
+			this.panel.dispose();
+		}
+		const title = `${localize('解题报告')}: ${problem.title}`;
+		if (this.editorialPanel) {
+			this.editorialPanel.title = title;
+			this.editorialPanel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri, canLike));
+			this.editorialPanel.reveal(this.editorialPanel.viewColumn, false);
+			return;
+		}
+		// Keep the problem and editorial as tabs in the source editor group. This
+		// avoids a forced split while leaving users free to move either tab later.
+		const viewColumn = this.findBoundSourceEditorColumn() ?? this.findCodeEditorColumn();
+		const panel = vscode.window.createWebviewPanel(
+			'shortestpath.ojEditorial',
+			title,
+			{ viewColumn, preserveFocus: false },
+			{
+				enableScripts: true,
+				modal: true,
+				localResourceRoots: [this.extensionUri],
+				retainContextWhenHidden: true,
+			},
+		);
+		this.editorialPanel = panel;
+		panel.webview.onDidReceiveMessage(async (message) => {
+			if (!this.state) {
 				return;
 			}
-			// Keep the problem and editorial as tabs in the source editor group. This
-			// avoids a forced split while leaving users free to move either tab later.
-			const viewColumn = this.findBoundSourceEditorColumn() ?? this.findCodeEditorColumn();
-			const panel = vscode.window.createWebviewPanel(
-				'shortestpath.ojEditorial',
-				title,
-				{ viewColumn, preserveFocus: false },
-				{
-					enableScripts: true,
-					localResourceRoots: [this.extensionUri],
-					retainContextWhenHidden: true,
-				},
-			);
-			this.editorialPanel = panel;
-			panel.webview.onDidReceiveMessage(async (message) => {
-				if (!this.state) {
-					return;
-				}
-				if (typeof message !== 'object' || message === null) {
-					return;
-				}
-				const value = message as { command?: unknown; hintId?: unknown; target?: unknown; liked?: unknown };
-				if (value.command === 'like' && typeof value.hintId === 'string' && (value.target === 'question' || value.target === 'answer') && typeof value.liked === 'boolean') {
-					try {
-						const result = await this.actions.like(this.state.problem, value.hintId, value.target, value.liked);
-						this.state.problem = applyLikeResult(this.state.problem, result);
-						if (this.state.editorial) {
-							this.state.editorial = applyEditorialLikeResult(this.state.editorial, result);
-							this.state.cachedEditorial = this.state.editorial;
-							void this.actions.saveEditorial(this.state.problem, this.state.editorial).catch(error => console.error('Failed to save ShortestPath OJ editorial likes.', error));
-						}
-						this.refreshEditorialLike(value.hintId);
-					} catch (error) {
-						console.error('Failed to update ShortestPath OJ editorial like.', error);
-						void this.editorialPanel?.webview.postMessage({ type: 'editorialLikeError', hintId: value.hintId });
+			if (typeof message !== 'object' || message === null) {
+				return;
+			}
+			const value = message as { command?: unknown; hintId?: unknown; target?: unknown; liked?: unknown };
+			if (value.command === 'like' && typeof value.hintId === 'string' && (value.target === 'question' || value.target === 'answer') && typeof value.liked === 'boolean') {
+				try {
+					const result = await this.actions.like(this.state.problem, value.hintId, value.target, value.liked);
+					this.state.problem = applyLikeResult(this.state.problem, result);
+					if (this.state.editorial) {
+						this.state.editorial = applyEditorialLikeResult(this.state.editorial, result);
+						this.state.cachedEditorial = this.state.editorial;
+						void this.actions.saveEditorial(this.state.problem, this.state.editorial).catch(error => console.error('Failed to save ShortestPath OJ editorial likes.', error));
 					}
+					this.refreshEditorialLike(value.hintId);
+				} catch (error) {
+					console.error('Failed to update ShortestPath OJ editorial like.', error);
+					void this.editorialPanel?.webview.postMessage({ type: 'editorialLikeError', hintId: value.hintId });
 				}
-			});
-			panel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(editorial, problem, panel.webview, this.extensionUri, canLike));
-			panel.onDidDispose(() => {
-				if (this.editorialPanel === panel) {
-					this.editorialPanel = undefined;
-				}
-			});
-		} finally {
-			setTimeout(() => this.editorialPanelOpening = false, 0);
-		}
+			}
+		});
+		panel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(editorial, problem, panel.webview, this.extensionUri, canLike));
+		panel.onDidDispose(() => {
+			if (this.editorialPanel === panel) {
+				this.editorialPanel = undefined;
+			}
+		});
 	}
 
 	private ensurePanel(viewColumn: vscode.ViewColumn): boolean {
@@ -703,6 +691,7 @@ class ShortestPathOjProblemPanel {
 			taskId?: unknown;
 			confirmId?: unknown;
 			result?: unknown;
+			versionIndex?: unknown;
 		};
 		try {
 			switch (value.command) {
@@ -717,6 +706,33 @@ class ShortestPathOjProblemPanel {
 					state.compatibilityWarningDismissed = true;
 					this.render();
 					return;
+				case 'selectStatementVersion':
+					if (typeof value.versionIndex !== 'number' || !Number.isInteger(value.versionIndex) || value.versionIndex < 0 || value.versionIndex > state.previousStatements.length) {
+						return;
+					}
+					state.statementVersionIndex = value.versionIndex;
+					this.renderedProblemRef = undefined;
+					this.render();
+					return;
+				case 'deletePreviousStatement':
+					{
+						if (typeof value.versionIndex !== 'number' || !Number.isInteger(value.versionIndex) || value.versionIndex < 1 || value.versionIndex > state.previousStatements.length) {
+							return;
+						}
+						const confirmed = await this.confirm(localize('确认删除当前旧版题面吗？'), localize('删除'), localize('取消'));
+						if (!confirmed) {
+							return;
+						}
+						state.previousStatements = await this.actions.deletePreviousStatement(state.problem, value.versionIndex - 1);
+						if (state.statementVersionIndex === value.versionIndex) {
+							state.statementVersionIndex = 0;
+						} else if (state.statementVersionIndex > value.versionIndex) {
+							state.statementVersionIndex--;
+						}
+						this.renderedProblemRef = undefined;
+						this.render();
+						return;
+					}
 				case 'answer':
 					{
 						if (typeof value.hintId !== 'string') {
@@ -1130,6 +1146,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				cache.editorials[problem.ref] = editorial;
 			}
 		}, true),
+		loadPreviousStatements: problem => mutateWorkspaceProblemCache(cache => cache.previousStatements[problem.ref] ?? [], false),
+		deletePreviousStatement: (problem, versionIndex) => mutateWorkspaceProblemCache(cache => {
+			const versions = cache.previousStatements[problem.ref] ?? [];
+			cache.previousStatements[problem.ref] = versions.filter((_, index) => index !== versionIndex);
+			return cache.previousStatements[problem.ref];
+		}, true),
 	}, unknownStressStarts);
 	// Loading Shiki can take long enough for the page's first WebSocket connection after a
 	// wake URI to fail. Start the local bridge first and upgrade the renderer when ready.
@@ -1154,9 +1176,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			const { action, cph } = await mutateWorkspaceProblemCache(async cache => {
 				signal.throwIfAborted();
 				const action: ImportAction = cache.problems[problem.ref] ? 'updated' : 'created';
+				const previous = cache.problems[problem.ref];
+				const statementChanged = previous !== undefined && hasProblemStatementChanged(previous, problem);
 				const previousSourcePath = cache.sourcePaths[problem.ref];
+				if (previous && statementChanged) {
+					cache.previousStatements[problem.ref] = appendPreviousStatementVersion(cache.previousStatements[problem.ref] ?? [], previous);
+					delete cache.sourcePaths[problem.ref];
+					delete cache.submissions[problem.ref];
+					delete cache.editorials[problem.ref];
+					for (const hintId of hintAnswerCache.keys()) {
+						if (hintId.startsWith(`${problem.ref}/`)) {
+							hintAnswerCache.delete(hintId);
+						}
+					}
+					unknownSubmissions.delete(problem.ref);
+					unknownStressStarts.delete(problem.ref);
+				}
 				cache.problems[problem.ref] = problem;
-				const cph = await forwardSamplesToCph(problem, previousSourcePath, signal);
+				const cph = await forwardSamplesToCph(problem, statementChanged ? undefined : previousSourcePath, signal);
 				signal.throwIfAborted();
 				if (cph.sourcePath) {
 					cache.sourcePaths[problem.ref] = cph.sourcePath;
@@ -1217,17 +1254,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblem', () => panel.reveal()));
 	const syncProblemPanelWithActiveTab = async (): Promise<void> => {
-		if (await panel.hideProblemWhenSourceCloses()) {
-			return;
-		}
-		panel.restoreProblemWhenSourceActive();
+		await panel.hideProblemWhenSourceCloses();
 	};
 	const scheduleProblemPanelSync = () => {
 		setTimeout(() => {
 			void syncProblemPanelWithActiveTab();
 		}, 0);
 	};
-	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(scheduleProblemPanelSync));
 	context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(scheduleProblemPanelSync));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowser', async () => {
 		await openUrl('https://shortestpath.cn/topics');
@@ -1283,6 +1316,7 @@ function createEmptyWorkspaceProblemCache(): WorkspaceProblemCache {
 		sourcePaths: Object.create(null) as Record<string, string>,
 		submissions: Object.create(null) as Record<string, SubmissionHistoryEntry[]>,
 		editorials: Object.create(null) as Record<string, EditorialResult>,
+		previousStatements: Object.create(null) as Record<string, ProblemStatementSnapshot[]>,
 	};
 }
 
@@ -1356,7 +1390,7 @@ async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> 
 					continue;
 				}
 				const record = JSON.parse(content) as Partial<WorkspaceProblemRecord>;
-				if (record.version !== workspaceProblemRecordVersion || !record.problem || typeof record.problem !== 'object') {
+				if ((record.version !== 1 && record.version !== workspaceProblemRecordVersion) || !record.problem || typeof record.problem !== 'object') {
 					continue;
 				}
 				const problem = restoreCachedProblemCompatibilityWarnings(record.problem as ImportedProblem);
@@ -1372,6 +1406,8 @@ async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> 
 				}
 				const submissions = sanitizeSubmissionHistory(record.submissions);
 				cache.submissions[problem.ref] = submissions.entries;
+				const previousStatements = sanitizeProblemStatementVersions(record.previousStatements);
+				cache.previousStatements[problem.ref] = previousStatements.versions;
 				if (record.editorial !== undefined) {
 					try {
 						const editorial = parseEditorialResult(record.editorial);
@@ -1383,7 +1419,7 @@ async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> 
 						needsRewrite = true;
 					}
 				}
-				needsRewrite ||= problem !== record.problem || submissions.changed;
+				needsRewrite ||= record.version !== workspaceProblemRecordVersion || problem !== record.problem || submissions.changed || previousStatements.changed;
 			} catch (error) {
 				console.warn(`Ignoring unreadable ShortestPath OJ cache record: ${name}`, error);
 			}
@@ -1415,6 +1451,7 @@ async function readLegacyWorkspaceProblemCache(): Promise<WorkspaceProblemCache 
 		const sourcePaths = Object.create(null) as Record<string, string>;
 		const submissions = Object.create(null) as Record<string, SubmissionHistoryEntry[]>;
 		const editorials = Object.create(null) as Record<string, EditorialResult>;
+		const previousStatements = Object.create(null) as Record<string, ProblemStatementSnapshot[]>;
 		let historyWasSanitized = false;
 		if (value.problems && typeof value.problems === 'object') {
 			for (const [problemRef, cachedProblem] of Object.entries(value.problems)) {
@@ -1456,6 +1493,7 @@ async function readLegacyWorkspaceProblemCache(): Promise<WorkspaceProblemCache 
 			sourcePaths,
 			submissions,
 			editorials,
+			previousStatements,
 		};
 		if (historyWasSanitized) {
 			workspaceCachesNeedingRewrite.add(cache);
@@ -1490,6 +1528,7 @@ async function writeWorkspaceProblemCache(cache: WorkspaceProblemCache): Promise
 			sourcePath: cache.sourcePaths[problemRef],
 			submissions: cache.submissions[problemRef] ?? [],
 			editorial: cache.editorials[problemRef],
+			previousStatements: cache.previousStatements[problemRef] ?? [],
 		};
 		await vscode.workspace.fs.writeFile(getWorkspaceProblemRecordUri(problemRef), new TextEncoder().encode(`${JSON.stringify(record, undefined, '\t')}\n`));
 	}));
@@ -1822,6 +1861,7 @@ function renderProblemViewSections(
 	editorialRequestInFlight: boolean,
 ): ProblemViewSections {
 	const { problem } = state;
+	const statementProblem = getSelectedStatementProblem(problem, state.previousStatements, state.statementVersionIndex);
 	return {
 		operationNotice: operationToastMessage
 			? `<div class="operation-notice error" role="alert">${escapeHtml(operationToastMessage)}</div>`
@@ -1830,8 +1870,8 @@ function renderProblemViewSections(
 				: '',
 		status: `<div class="connection ${state.connected ? 'connected' : 'disconnected'}">${escapeHtml(state.statusMessage)}</div>`,
 		submissionButton: `<button type="button" data-command="submit"${state.connected && !state.operationsInFlight.has('submit') ? '' : ' disabled'}>${state.operationsInFlight.has('submit') ? localize('正在提交…') : localize('提交代码')}</button>`,
-		information: renderInformation(problem),
-		statement: renderStatement(problem),
+		information: renderInformation(statementProblem),
+		statement: renderStatement(problem, state.previousStatements, state.statementVersionIndex),
 		hints: renderHints(state),
 		editorialAction: renderEditorialAction(problem, state.connected, state.cachedEditorial?.state === 'available', editorialRequestInFlight),
 		submissions: renderSubmissions(state),
@@ -1842,7 +1882,7 @@ function renderProblemViewSections(
 }
 
 function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSections, template: string, webview: vscode.Webview, extensionUri: vscode.Uri): string {
-	const { problem } = state;
+	const problem = getSelectedStatementProblem(state.problem, state.previousStatements, state.statementVersionIndex);
 	const script = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'out', 'problemView.js'));
 	const styles = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'resources', 'problemView.css'));
 	const katexStyles = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'resources', 'katex', 'katex.min.css'));
@@ -1874,6 +1914,7 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 		STATUS: sections.status,
 		SUBMISSION_BUTTON: sections.submissionButton,
 		INFORMATION: sections.information,
+		STATEMENT_VERSION: renderStatementVersionControl(state.previousStatements, state.statementVersionIndex),
 		STATEMENT: sections.statement,
 		HINTS: sections.hints,
 		EDITORIAL_ACTION: sections.editorialAction,
@@ -1945,18 +1986,19 @@ function renderInformation(problem: ImportedProblem): string {
 			</div>`;
 }
 
-function renderStatement(problem: ImportedProblem): string {
+function renderStatement(problem: ImportedProblem, previousStatements: ProblemStatementSnapshot[], statementVersionIndex: number): string {
+	const selected = getSelectedStatementProblem(problem, previousStatements, statementVersionIndex);
 	const sections: Array<[string, MarkdownContent | undefined]> = [
-		[localize('题目描述'), problem.statement.description],
-		[localize('输入格式'), problem.statement.inputFormat],
-		[localize('输出格式'), problem.statement.outputFormat],
-		[localize('数据范围'), problem.statement.constraints],
+		[localize('题目描述'), selected.statement.description],
+		[localize('输入格式'), selected.statement.inputFormat],
+		[localize('输出格式'), selected.statement.outputFormat],
+		[localize('数据范围'), selected.statement.constraints],
 	];
 	const statement = sections
 		.filter((entry): entry is [string, MarkdownContent] => entry[1] !== undefined)
-		.map(([title, content]) => `<section><h2>${title}</h2><div data-i18n-ignore>${renderMarkdownContent(content, problem.url)}</div></section>`)
+		.map(([title, content]) => `<section><h2>${title}</h2><div data-i18n-ignore>${renderMarkdownContent(content, selected.url)}</div></section>`)
 		.join('');
-	const samples = problem.samples
+	const samples = selected.samples
 		.map((sample, index) => {
 			const io = `<article class="sample">
 				<h3>样例 ${index + 1}</h3>
@@ -1972,12 +2014,26 @@ function renderStatement(problem: ImportedProblem): string {
 				</div>
 			</article>`;
 			const explanation = sample.explanation.trim()
-				? `<div class="sample-explanation" data-render-math data-i18n-ignore>${renderProblemMarkdown(sample.explanation, problem.url)}</div>`
+				? `<div class="sample-explanation" data-render-math data-i18n-ignore>${renderProblemMarkdown(sample.explanation, selected.url)}</div>`
 				: '';
 			return `${io}${explanation}`;
 		})
 		.join('');
 	return `${statement}${samples ? `<section class="samples"><h2>样例</h2>${samples}</section>` : ''}`;
+}
+
+function renderStatementVersionControl(previousStatements: ProblemStatementSnapshot[], statementVersionIndex: number): string {
+	const versionOptions = [
+		`<option value="0">${localize('当前')}</option>`,
+		...previousStatements.map((_, index) => `<option value="${index + 1}"${statementVersionIndex === index + 1 ? ' selected' : ''}>${localizeFormat('旧版 {0}', String(index + 1))}</option>`),
+	].join('');
+	return previousStatements.length === 0
+		? ''
+		: `<span class="statement-version-control"><select data-command="selectStatementVersion" aria-label="${localize('题面版本')}">${versionOptions}</select>${statementVersionIndex > 0 ? `<button type="button" data-command="deletePreviousStatement" data-version-index="${statementVersionIndex}" aria-label="${localize('删除旧版题面')}">${localize('删除')}</button>` : ''}</span>`;
+}
+
+function getSelectedStatementProblem(problem: ImportedProblem, previousStatements: ProblemStatementSnapshot[], statementVersionIndex: number): ImportedProblem {
+	return statementVersionIndex === 0 ? problem : previousStatements[statementVersionIndex - 1] ?? problem;
 }
 
 function renderHints(state: ProblemPanelState): string {
