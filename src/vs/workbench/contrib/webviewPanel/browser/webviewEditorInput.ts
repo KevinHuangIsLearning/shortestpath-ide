@@ -35,7 +35,10 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
+		return EditorInputCapabilities.Readonly
+			| EditorInputCapabilities.Singleton
+			| EditorInputCapabilities.CanDropIntoEditor
+			| (this._webview.options.requiresModal ? EditorInputCapabilities.RequiresModal : EditorInputCapabilities.None);
 	}
 
 	private readonly _resourceId = generateUuid();

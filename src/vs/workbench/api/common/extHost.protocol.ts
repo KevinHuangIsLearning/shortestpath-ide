@@ -1041,6 +1041,7 @@ export interface IWebviewContentOptions {
 }
 
 export interface IWebviewPanelOptions {
+	readonly modal?: boolean;
 	readonly enableFindWidget?: boolean;
 	readonly retainContextWhenHidden?: boolean;
 }

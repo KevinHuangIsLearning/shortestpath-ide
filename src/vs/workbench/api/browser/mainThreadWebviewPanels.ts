@@ -354,6 +354,7 @@ function reviveWebviewIcon(value: extHostProtocol.IWebviewIconPath | undefined):
 
 function reviveWebviewOptions(panelOptions: extHostProtocol.IWebviewPanelOptions): WebviewOptions {
 	return {
+		requiresModal: panelOptions.modal,
 		enableFindWidget: panelOptions.enableFindWidget,
 		retainContextWhenHidden: panelOptions.retainContextWhenHidden,
 	};

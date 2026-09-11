@@ -595,9 +595,10 @@ class ShortestPathOjProblemPanel {
 			'shortestpath.ojProblem',
 			this.getProblemPanelTitle(),
 			{ viewColumn, preserveFocus: true },
-			{
-				enableScripts: true,
-				localResourceRoots: [this.extensionUri],
+				{
+					enableScripts: true,
+					modal: true,
+					localResourceRoots: [this.extensionUri],
 				retainContextWhenHidden: true,
 			},
 		);
