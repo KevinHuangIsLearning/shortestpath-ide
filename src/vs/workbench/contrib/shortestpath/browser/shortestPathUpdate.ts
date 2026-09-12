@@ -31,13 +31,29 @@ export interface IShortestPathUpdateTarget {
 	readonly fastDownloadType?: keyof IShortestPathFastDownloadUrls;
 }
 
+const SHORTEST_PATH_UPDATE_FALLBACK_URL = 'https://raw.gitcode.com/KevinHuangIsLearning/shortestpath-ide/raw/main/latest.json';
+
+export function getShortestPathUpdateUrls(primaryUrl: string): readonly string[] {
+	return primaryUrl === SHORTEST_PATH_UPDATE_FALLBACK_URL ? [primaryUrl] : [primaryUrl, SHORTEST_PATH_UPDATE_FALLBACK_URL];
+}
+
+export async function getShortestPathUpdateWithFallback<T>(primaryUrl: string, load: (url: string) => Promise<T>): Promise<T> {
+	let lastError: unknown;
+	for (const url of getShortestPathUpdateUrls(primaryUrl)) {
+		try {
+			return await load(url);
+		} catch (error) {
+			lastError = error;
+		}
+	}
+	throw lastError;
+}
+
 export interface IShortestPathUpdateGraceState {
 	readonly version: string;
 	readonly minimumSupportedVersion: string;
 	readonly downloadUrl: string;
-	readonly graceCount: number;
-	readonly graceUntil?: number;
-	readonly permanentlyAllowed?: boolean;
+	readonly graceUntil: number;
 }
 
 export function parseShortestPathUpdateGraceState(value: unknown, version: string): IShortestPathUpdateGraceState | undefined {
@@ -45,8 +61,7 @@ export function parseShortestPathUpdateGraceState(value: unknown, version: strin
 		return undefined;
 	}
 	const state = value as Partial<IShortestPathUpdateGraceState>;
-	const graceCount = state.graceCount;
-	if (state.version !== version || typeof state.minimumSupportedVersion !== 'string' || typeof state.downloadUrl !== 'string' || typeof graceCount !== 'number' || !Number.isInteger(graceCount) || graceCount < 0 || graceCount > 2 || (state.permanentlyAllowed !== undefined && typeof state.permanentlyAllowed !== 'boolean')) {
+	if (state.version !== version || typeof state.minimumSupportedVersion !== 'string' || typeof state.downloadUrl !== 'string' || typeof state.graceUntil !== 'number' || !Number.isFinite(state.graceUntil)) {
 		return undefined;
 	}
 	try {
@@ -57,10 +72,12 @@ export function parseShortestPathUpdateGraceState(value: unknown, version: strin
 	} catch {
 		return undefined;
 	}
-	if (state.permanentlyAllowed === true) {
-		return graceCount === 2 && state.graceUntil === undefined ? state as IShortestPathUpdateGraceState : undefined;
-	}
-	return graceCount >= 1 && typeof state.graceUntil === 'number' && Number.isFinite(state.graceUntil) ? state as IShortestPathUpdateGraceState : undefined;
+	return {
+		version: state.version,
+		minimumSupportedVersion: state.minimumSupportedVersion,
+		downloadUrl: state.downloadUrl,
+		graceUntil: state.graceUntil,
+	};
 }
 
 export function isShortestPathUpdateGraceStateForMinimumVersion(state: IShortestPathUpdateGraceState | undefined, minimumSupportedVersion: string | undefined): boolean {
@@ -69,7 +86,13 @@ export function isShortestPathUpdateGraceStateForMinimumVersion(state: IShortest
 
 export function getShortestPathUpdateGraceStateForMinimumVersion(value: unknown, version: string, minimumSupportedVersion: string | undefined, clear: () => void): IShortestPathUpdateGraceState | undefined {
 	const state = parseShortestPathUpdateGraceState(value, version);
-	if (state && !isShortestPathUpdateGraceStateForMinimumVersion(state, minimumSupportedVersion)) {
+	if (!state) {
+		if (value !== undefined) {
+			clear();
+		}
+		return undefined;
+	}
+	if (!isShortestPathUpdateGraceStateForMinimumVersion(state, minimumSupportedVersion)) {
 		clear();
 		return undefined;
 	}
