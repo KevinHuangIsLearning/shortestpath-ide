@@ -181,8 +181,8 @@ function parseShortestPathFastDownloadUrls(value: unknown): IShortestPathFastDow
 
 function isShortestPathFastDownloadUrl(value: string): boolean {
 	try {
-		const url = new URL(value);
-		return url.protocol === 'https:' && url.hostname === 'www.icloud.com.cn' && url.pathname.startsWith('/iclouddrive/');
+		new URL(value);
+		return true;
 	} catch {
 		return false;
 	}
