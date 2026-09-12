@@ -36,6 +36,7 @@ type SimpleSettingsState = {
 	newFileDefaultLanguage: string;
 	useExtensionMarketplace: boolean;
 	shortestPathCppSubmissionLanguage: string;
+	defaultSubmitMethod: string;
 	antiFraudReminder: boolean;
 	themes: ThemeOption[];
 };
@@ -474,6 +475,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.commands.executeCommand('shortestpath.openToolchainDiagnostics');
 		} else if (message?.type === 'cphSettings') {
 			await vscode.commands.executeCommand('shortestpath.configureCph');
+		} else if (message?.type === 'customSubmitScripts') {
+			await vscode.commands.executeCommand('shortestpath.openCustomSubmitScripts');
 		} else if (message?.type === 'checkForUpdates') {
 			await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status: 'checking' });
 			try {
@@ -563,6 +566,7 @@ function getState(): SimpleSettingsState {
 		newFileDefaultLanguage: vscode.workspace.getConfiguration('shortestpath.newFile', null).get<string>('defaultLanguage') ?? 'cpp',
 		useExtensionMarketplace: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('useExtensionMarketplace') ?? false,
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'ask',
+		defaultSubmitMethod: vscode.workspace.getConfiguration('cph.general', null).get<string>('defaultSubmitMethod') ?? 'ask',
 		antiFraudReminder: vscode.workspace.getConfiguration('shortestpath.oj', null).get<boolean>('antiFraudReminder') ?? false,
 		themes: getThemeOptions(colorTheme)
 	};
@@ -621,6 +625,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('shortestpath.newFile.defaultLanguage', typeof value.newFileDefaultLanguage === 'string' && value.newFileDefaultLanguage ? value.newFileDefaultLanguage : 'cpp', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.useExtensionMarketplace', value.useExtensionMarketplace === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global),
+		settings.update('cph.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.antiFraudReminder', value.antiFraudReminder === true, vscode.ConfigurationTarget.Global)
 	]);
 }
@@ -690,7 +695,8 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <section class="card" data-category="tools"><div class="row"><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>开始使用</label><div class="hint">分步引导配置字体、主题、语言版本等偏好。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div><div class="row"><div><label>CPH 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 CPH 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label for="defaultSubmitMethod">CPH 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
@@ -875,6 +881,7 @@ function apply(state) {
 	byId('autoFormat').checked = !!state.autoFormat;
   byId('cppStandard').value = state.cppStandard;
 	byId('shortestPathCppSubmissionLanguage').value = state.shortestPathCppSubmissionLanguage;
+	byId('defaultSubmitMethod').value = state.defaultSubmitMethod;
   byId('compilerFlags').value = state.compilerFlags;
   byId('clangdVariableTypeHints').checked = !!state.clangdVariableTypeHints;
   byId('errorLensCodeLensEnabled').checked = !!state.errorLensCodeLensEnabled;
@@ -892,7 +899,7 @@ function apply(state) {
 	byId('antiFraudReminder').checked = !!state.antiFraudReminder;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, modernUIEnabled: byId('modernUIEnabled').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, antiFraudReminder: byId('antiFraudReminder').checked }; }
+function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, modernUIEnabled: byId('modernUIEnabled').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, antiFraudReminder: byId('antiFraudReminder').checked }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#settingsSearch):not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily)').forEach(control => {
@@ -922,6 +929,7 @@ byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'sni
 byId('gettingStarted').addEventListener('click', () => vscode.postMessage({ type: 'gettingStarted' }));
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
 byId('cphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
+byId('customSubmitScripts').addEventListener('click', () => vscode.postMessage({ type: 'customSubmitScripts' }));
 const checkForUpdatesButton = byId('checkForUpdates');
 const checkForUpdatesStatus = byId('checkForUpdatesStatus');
 const updateCheckLabels = { checking: '正在检查更新…', latest: '当前已是最新版本。', available: '发现新版本，请查看更新窗口。', failed: '检查更新失败，请稍后重试。' };

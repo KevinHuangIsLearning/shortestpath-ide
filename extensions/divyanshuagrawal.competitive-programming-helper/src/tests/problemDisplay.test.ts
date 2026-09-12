@@ -104,6 +104,7 @@ describe('problem display target', () => {
         );
     });
 
+
     test('does not display a page when legacy automatic opening is disabled', () => {
         expect(
             getProblemDisplayTarget(

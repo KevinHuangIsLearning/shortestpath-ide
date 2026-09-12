@@ -103,6 +103,8 @@ test('keeps first-run preparation in the editor-tab setup flow', () => {
 	const extensionRoot = path.resolve(__dirname, '../..');
 	const gettingStarted = fs.readFileSync(path.join(extensionRoot, 'src', 'gettingStarted.ts'), 'utf8');
 	const extension = fs.readFileSync(path.join(extensionRoot, 'src', 'extension.ts'), 'utf8');
+	const windowsPreset = JSON.parse(fs.readFileSync(path.join(extensionRoot, 'resources', 'windows.json'), 'utf8')) as { downloadSources?: unknown };
+	const windowsInstaller = fs.readFileSync(path.join(extensionRoot, 'resources', 'windows.js'), 'utf8');
 	const workspaceCommands = fs.readFileSync(path.resolve(__dirname, '../../../..', 'src/vs/workbench/browser/actions/workspaceCommands.ts'), 'utf8');
 	assert.match(gettingStarted, /function getFirstRunHtml/);
 	assert.match(gettingStarted, /type: 'installToolchain'/);
@@ -121,6 +123,9 @@ test('keeps first-run preparation in the editor-tab setup flow', () => {
 	assert.match(extension, /shortestpath\.applyFirstRunSetup/);
 	assert.match(extension, /await removeLegacyWindowsCompilerLocale\(context\)/);
 	assert.match(extension, /'toolchains', 'winlibs', 'mingw64-ucrt-15', 'share', 'locale'/);
+	assert.equal(windowsPreset.downloadSources, undefined);
+	assert.match(windowsInstaller, /bundledArchivePath: 'resources\/oi-defaults\/toolchains\/clangd-windows-/);
+	assert.match(windowsInstaller, /bundledArchivePath: `resources\/oi-defaults\/toolchains\/\$\{mingwArchiveName\}`/);
 	assert.doesNotMatch(extension, /ProgressLocation\.Notification/);
 	assert.doesNotMatch(extension, /便携工具链由首次启动设置窗口下载/);
 	assert.doesNotMatch(extension, /下载将在设置终端中继续/);

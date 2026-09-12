@@ -1409,6 +1409,51 @@ function Judge(props: {
     });
 
     const renderSubmitButton = (className = '') => {
+        if (problem.browserSubmissionAvailable) {
+            let nativeSubmissionAvailable = false;
+            try {
+                const hostname = new URL(problem.url).hostname;
+                nativeSubmissionAvailable =
+                    hostname.endsWith('codeforces.com') ||
+                    hostname === 'open.kattis.com' ||
+                    hostname.endsWith('cses.fi');
+            } catch {
+                // The browser submission resolver already validated the URL.
+            }
+            return (
+                <button
+                    className={`btn ${className} ${
+                        waitingForSubmit ? 'is-waiting' : ''
+                    }`}
+                    disabled={waitingForSubmit}
+                    aria-live="polite"
+                    onClick={() => {
+                        setWaitingForSubmit(true);
+                        sendMessageToVSCode({
+                            command:
+                                problem.browserSubmissionKind === 'custom' ||
+                                !nativeSubmissionAvailable
+                                    ? 'submitBrowser'
+                                    : 'submitWithChoice',
+                            problem,
+                        });
+                    }}
+                >
+                    {waitingForSubmit ? (
+                        <span className="submit-waiting-copy">
+                            <span>{t('preparingSubmissionForm')}</span>
+                        </span>
+                    ) : (
+                        <>
+                            <span className="icon">
+                                <i className="codicon codicon-cloud-upload"></i>
+                            </span>{' '}
+                            {t('submit')}
+                        </>
+                    )}
+                </button>
+            );
+        }
         if (!problem.url.startsWith('http')) {
             return null;
         }
@@ -2441,6 +2486,10 @@ function App() {
         const fn = (event: any) => {
             const data: VSToWebViewMessage = event.data;
             switch (data.command) {
+                case 'browser-submission-availability': {
+                    setProblem(current => current?.srcPath === data.srcPath ? { ...current, browserSubmissionAvailable: data.available, browserSubmissionKind: data.kind } : current);
+                    break;
+                }
                 case 'new-problem': {
                     if (data.problem === undefined) {
                         setShowFallback(true);

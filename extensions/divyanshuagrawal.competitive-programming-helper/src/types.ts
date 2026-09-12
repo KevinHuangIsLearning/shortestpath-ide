@@ -67,7 +67,9 @@ export type prefSection =
     | 'general.vjudgeOjNames'
     | 'general.vjudgeOpenInBrowser'
     | 'general.vjudgeUrlSuffix'
-    | 'general.vjudgeBrowserSplitRatio';
+    | 'general.vjudgeBrowserSplitRatio'
+    | 'general.customSubmitScripts'
+    | 'general.defaultSubmitMethod';
 
 export type Language = {
     name: LangNames;
@@ -107,6 +109,8 @@ export type Problem = {
     tests: TestCase[];
     srcPath: string;
     local?: boolean;
+    browserSubmissionAvailable?: boolean;
+    browserSubmissionKind?: 'custom' | 'vjudge';
     customCheckerPath?: string;
     largeSampleDirectory?: string;
     largeSampleComparison?: LargeSampleComparisonOptions;
@@ -321,6 +325,16 @@ export type SubmitKattis = {
     command: 'submitKattis';
 } & WebviewMessageCommon;
 
+export type SubmitBrowser = {
+    command: 'submitBrowser';
+    problem: Problem;
+};
+
+export type SubmitWithChoice = {
+    command: 'submitWithChoice';
+    problem: Problem;
+};
+
 export type SubmitShortestPath = {
     command: 'submitShortestPath';
 } & WebviewMessageCommon;
@@ -382,6 +396,8 @@ export type WebviewToVSEvent =
     | OnlineJudgeEnv
     | SubmitKattis
     | SubmitShortestPath
+    | SubmitBrowser
+    | SubmitWithChoice
     | OpenUrl
     | GetExtLogs
     | SetHideOutputDiff
@@ -425,6 +441,13 @@ export type WaitingForSubmitCommand = {
 
 export type SubmitFinishedCommand = {
     command: 'submit-finished';
+};
+
+export type BrowserSubmissionAvailabilityCommand = {
+    command: 'browser-submission-availability';
+    srcPath: string;
+    available: boolean;
+    kind?: 'custom' | 'vjudge';
 };
 
 export type NewProblemCommand = {
@@ -561,6 +584,7 @@ export type VSToWebViewMessage =
     | NotRunningCommand
     | RemoteMessageCommand
     | NewProblemCommand
+    | BrowserSubmissionAvailabilityCommand
     | ExtLogsCommand
     | UpdateOnlineJudgeEnvCommand;
 

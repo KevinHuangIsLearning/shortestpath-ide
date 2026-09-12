@@ -11,7 +11,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { AuxiliaryBarMaximizedContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, SecondarySideBarVisibleContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
-import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -80,7 +80,11 @@ MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
 		icon: closeIcon
 	},
 	group: 'navigation',
-	order: 2
+	order: 2,
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT),
+		ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP)
+	)
 });
 
 registerAction2(class extends Action2 {

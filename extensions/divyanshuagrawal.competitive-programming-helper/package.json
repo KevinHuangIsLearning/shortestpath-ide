@@ -9,6 +9,9 @@
     "engines": {
         "vscode": "^1.52.0"
     },
+    "enabledApiProposals": [
+        "browser"
+    ],
     "categories": [
         "Other"
     ],
@@ -476,7 +479,7 @@
                             "oj": "CF",
                             "ojName": "Codeforces",
                             "contestIdRegex": "(?:contest|gym|problemset\\/problem)\\/(\\d+)",
-                            "problemIdRegex": "(?:contest|gym|problemset\\/problem)\\/\\d+\\/(\\w+)"
+                            "problemIdRegex": "(?:contest|gym|problemset\\/problem)\\/\\d+\\/(?:problem\\/)?(\\w+)"
                         },
                         "atcoder.jp": {
                             "oj": "AT",
@@ -1096,6 +1099,34 @@
                         }
                     },
                     "description": "%cph.general.vjudgeOjNames.description%"
+                },
+                "cph.general.defaultSubmitMethod": {
+                    "type": "string",
+                    "enum": ["ask", "vjudge", "native"],
+                    "enumDescriptions": [
+                        "%cph.general.defaultSubmitMethod.ask%",
+                        "%cph.general.defaultSubmitMethod.vjudge%",
+                        "%cph.general.defaultSubmitMethod.native%"
+                    ],
+                    "default": "ask",
+                    "scope": "application",
+                    "description": "%cph.general.defaultSubmitMethod.description%"
+                },
+                "cph.general.customSubmitScripts": {
+                    "type": "object",
+                    "default": {},
+                    "patternProperties": {
+                        "^.+$": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": { "type": "string" },
+                                "script": { "type": "string" }
+                            },
+                            "required": ["urlTemplate", "script"]
+                        }
+                    },
+                    "scope": "application",
+                    "description": "%cph.general.customSubmitScripts.description%"
                 },
                 "cph.general.vjudgeOpenInBrowser": {
                     "type": "boolean",

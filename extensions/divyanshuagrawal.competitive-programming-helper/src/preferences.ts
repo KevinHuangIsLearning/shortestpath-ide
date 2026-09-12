@@ -155,6 +155,23 @@ export const getVjudgeBrowserSplitRatio = (): number => {
     return typeof r === 'number' ? Math.max(10, Math.min(90, r)) : 50;
 };
 
+export const getCustomSubmitScripts = (): Record<string, { urlTemplate: string; script: string }> => {
+    const value = getPreference('general.customSubmitScripts');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+};
+
+export const getDefaultSubmitMethod = (): 'ask' | 'vjudge' | 'native' => {
+    const value = getPreference('general.defaultSubmitMethod');
+    return value === 'vjudge' || value === 'native' ? value : 'ask';
+};
+
+export type VjudgeOjMapping = {
+    urlTemplate: string;
+    problemIdRegex?: string;
+    compositeFormat?: string;
+    vjudgeUrlKey?: string;
+};
+
 export const getDefaultLangPref = (): string | null => {
     const pref = getPreference('general.defaultLanguage');
     if (pref === 'none' || pref == ' ' || !pref) {

@@ -84,6 +84,9 @@ declare module 'vscode' {
 
 		/** When `true`, the browser tab will open in the background. */
 		background?: boolean;
+
+		/** When `true`, open this browser tab in the VS Code modal editor part. */
+		modal?: boolean;
 	}
 
 	export namespace window {

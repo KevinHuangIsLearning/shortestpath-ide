@@ -3,6 +3,8 @@ export const translations: Record<string, any> = {
         runTestcases: 'Run Testcases',
         submitToCodeForces: 'Submit to CodeForces',
         submit: 'Submit',
+        fillSubmissionForm: 'Fill submission form',
+        preparingSubmissionForm: 'Preparing form…',
         submitOnKattis: 'Submit on Kattis',
         submitting: 'Submitting...',
         kattisInstructions:
@@ -252,6 +254,8 @@ int main() {
         runTestcases: '运行测试用例',
         submitToCodeForces: '提交到 CodeForces',
         submit: '提交',
+        fillSubmissionForm: '填写提交表单',
+        preparingSubmissionForm: '正在准备表单…',
         submitOnKattis: '提交到 Kattis',
         submitting: '正在提交...',
         kattisInstructions:

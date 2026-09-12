@@ -46,100 +46,8 @@
 	position: relative; /* position tabs border bottom or editor actions (when tabs wrap) relative to this container */
 }
 
-/* With no custom titlebar, the macOS traffic lights share the editor tab row. */
-.monaco-workbench.custom-titlebar-hidden.mac.nosidebar .part.editor > .content .editor-group-container.sidebar-recovery-host > .title > .tabs-and-actions-container {
-	box-sizing: border-box;
-	/* Keep the first tab clear of the persistent Sidebar recovery button. */
-	padding-left: 128px;
-}
-
-/* Auxiliary editor windows have no Activity Bar or Sidebar to keep the native
- * macOS traffic lights clear of the first tab. Only the group touching the
- * physical top-left corner needs this inset when the auxiliary part is split. */
-.monaco-workbench.custom-titlebar-hidden.mac .part.editor.auxiliary-editor-part > .content .editor-group-container.top-left-editor-group > .title > .tabs-and-actions-container {
-	box-sizing: border-box;
-	padding-left: 90px;
-}
-
-.monaco-workbench.custom-titlebar-hidden.windows.nosidebar .part.editor > .content .editor-group-container.sidebar-recovery-host > .title > .tabs-and-actions-container {
-	box-sizing: border-box;
-	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
-}
-
-/* Electron exposes the native Window Controls Overlay geometry through the
- * titlebar-area environment variables. Reserve precisely the covered region
- * for the editor group that reaches each physical window edge. */
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-left-host > .title > .tabs-and-actions-container,
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-right-host > .title > .tabs-and-actions-container {
-	box-sizing: border-box;
-}
-
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-left-host > .title > .tabs-and-actions-container {
-	padding-left: env(titlebar-area-x, 0px);
-}
-
-/* When the Sidebar is hidden, the recovery control occupies the first 48px
- * after the native left safe area. This must win over the regular WCO rule. */
-.monaco-workbench.custom-titlebar-hidden.windows.nosidebar .part.editor > .content .editor-group-container.window-controls-overlay-left-host.sidebar-recovery-host > .title > .tabs-and-actions-container {
-	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
-}
-
-.monaco-workbench.custom-titlebar-hidden.nosidebar .part.editor > .content .editor-group-container.top-left-editor-group > .title > .tabs-and-actions-container {
-	padding-left: 48px;
-	box-sizing: border-box;
-}
-
-.monaco-workbench.custom-titlebar-hidden.nosidebar.mac .part.editor > .content .editor-group-container.top-left-editor-group > .title > .tabs-and-actions-container {
-	padding-left: 128px;
-}
-
-.monaco-workbench.custom-titlebar-hidden.nosidebar.windows .part.editor > .content .editor-group-container.top-left-editor-group.window-controls-overlay-left-host > .title > .tabs-and-actions-container {
-	padding-left: calc(env(titlebar-area-x, 0px) + 48px);
-}
-
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor > .content .editor-group-container.window-controls-overlay-right-host > .title > .tabs-and-actions-container {
-	padding-right: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
-}
-
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty {
 	display: none;
-}
-
-.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty {
-	display: flex;
-	flex: 1;
-	height: var(--editor-group-tab-height);
-	align-items: center;
-}
-
-/* An empty replacement tab row has no editor to act on. Do not leave the
- * editor-actions toolbar and its overflow button stranded on the left. */
-.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty .editor-actions,
-.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty .editor-actions-separator {
-	display: none !important;
-}
-
-/* In an empty editor group the otherwise transparent title row must remain a
- * native drag surface. Its layout controls still explicitly opt out below. */
-.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty,
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty,
-.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty > .title,
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty > .title {
-	-webkit-app-region: drag;
-}
-
-.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .editor-layout-actions,
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .editor-layout-actions,
-.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .tabs-bar-new-tab,
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .tabs-bar-new-tab,
-.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .tab,
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .tab,
-.monaco-workbench.custom-titlebar-hidden.mac .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .action-item {
-	-webkit-app-region: no-drag;
-}
-
-.monaco-workbench.custom-titlebar-hidden.windows .part.editor:has(.editor-group-container.empty) .editor-group-container.empty .action-item {
-	-webkit-app-region: no-drag;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom::after {
@@ -228,22 +136,6 @@
 	box-sizing: border-box;
 	padding-left: 10px;
 	outline-offset: -2px;
-}
-
-/* A persistent empty-state tab makes the replacement title surface useful:
- * clicking it opens a new untitled text file in this editor group. */
-.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title .tabs-container > .tab.empty-tabbar-new-file {
-	min-width: 116px;
-	padding: 0 16px;
-	align-items: center;
-	justify-content: center;
-	color: var(--vscode-tab-inactiveForeground);
-	border-right: 1px solid var(--vscode-tab-border);
-}
-
-.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title .tabs-container > .tab.empty-tabbar-new-file:hover {
-	background-color: var(--vscode-tab-hoverBackground);
-	color: var(--vscode-tab-hoverForeground);
 }
 
 /* Tab Background Color in/active group/tab */
@@ -678,17 +570,9 @@
 	display: none;
 }
 
-.monaco-workbench.custom-titlebar-hidden .part.editor > .content .editor-group-container > .title .editor-layout-actions {
-	display: flex;
-	margin: 0 18px 0 8px;
-	-webkit-app-region: no-drag;
-}
+.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions {
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions,
-.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions-separator,
-.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-layout-actions {
-
-	/* When multiple tab bars are visible, only show actions and layout controls on the last tab bar. */
+	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
 	display: none;
 }
 

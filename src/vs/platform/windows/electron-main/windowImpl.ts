@@ -32,7 +32,7 @@ import { IApplicationStorageMainService, IStorageMainService } from '../../stora
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { getMenuBarVisibility, getWindowControlsOverlayHeight, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings } from '../../window/common/window.js';
+import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -191,16 +191,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// Update the window controls immediately based on cached or default values
 		if (useCustomTitleStyle && useWindowControlsOverlay(this.configurationService)) {
-			// macOS receives an explicit trafficLightPosition in the BrowserWindow
-			// constructor. Restoring the generic height cache here would immediately
-			// overwrite that position with stale pre-upgrade coordinates.
-			if (!isMacintosh) {
-				const cachedWindowControlHeight = isWindows ? undefined : this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
-				if (cachedWindowControlHeight) {
-					this.updateWindowControls({ height: cachedWindowControlHeight });
-				} else {
-					this.updateWindowControls({ height: isWindows ? getWindowControlsOverlayHeight(this.configurationService) : DEFAULT_CUSTOM_TITLEBAR_HEIGHT });
-				}
+			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
+			if (cachedWindowControlHeight) {
+				this.updateWindowControls({ height: cachedWindowControlHeight });
+			} else {
+				this.updateWindowControls({ height: DEFAULT_CUSTOM_TITLEBAR_HEIGHT });
 			}
 		}
 
@@ -414,7 +409,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private windowControlsDimmed = false;
 	private lastWindowControlColors: { backgroundColor?: string; foregroundColor?: string } | undefined;
 
-	updateWindowControls(options: { height?: number; position?: { x: number; y: number }; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
 		const win = this.win;
 		if (!win) {
 			return;
@@ -440,9 +435,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				this.lastWindowControlColors = { backgroundColor, foregroundColor };
 			}
 
-			const effectiveBackgroundColor = isWindows
-				? 'rgba(0, 0, 0, 0)'
-				: this.windowControlsDimmed && backgroundColor ? this.dimColor(backgroundColor) : backgroundColor;
+			const effectiveBackgroundColor = this.windowControlsDimmed && backgroundColor ? this.dimColor(backgroundColor) : backgroundColor;
 			const effectiveForegroundColor = this.windowControlsDimmed && foregroundColor ? this.dimColor(foregroundColor) : foregroundColor;
 
 			win.setTitleBarOverlay({
@@ -454,11 +447,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// macOS: update window controls via setWindowButtonPosition()
 		else if (isMacintosh && options.height !== undefined) {
-			if (options.position) {
-				win.setWindowButtonPosition(options.position);
-				return;
-			}
-
 			// When the position is set, the horizontal margin is offset to ensure
 			// the distance between the traffic lights and the window frame is equal
 			// in both directions.
@@ -467,10 +455,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			if (!offset) {
 				win.setWindowButtonPosition(null);
 			} else {
-				win.setWindowButtonPosition({
-					x: offset + 1,
-					y: offset
-				});
+				win.setWindowButtonPosition({ x: offset, y: offset });
 			}
 		}
 	}

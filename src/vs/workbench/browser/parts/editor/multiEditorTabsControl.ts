@@ -64,7 +64,6 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 
 const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 
@@ -804,7 +803,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.tabActionBars = [];
 
 			this.clearEditorActionsToolbar();
-			this.updateEditorLayoutActionsToolbar();
 			this.updateTabsControlVisibility();
 
 			// Do not open a New Tab in a group that has been removed. Closing the
@@ -1982,7 +1980,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
-		return this.contextKeyService.getContextKeyValue<boolean>(IsTopRightEditorGroupContext.key) ? editorActions : { primary: [], secondary: [] };
+		return editorActions;
 	}
 
 	getHeight(): number {

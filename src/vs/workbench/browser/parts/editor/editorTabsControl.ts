@@ -10,7 +10,6 @@ import { $, Dimension, getActiveWindow, getWindow, isMouseEvent, setVisibility }
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, ActionRunner, toAction } from '../../../../base/common/actions.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { createActionViewItem, getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -27,7 +26,7 @@ import { EditorPane } from './editorPane.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { canOpenEditorsInNewWindow, IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, IsTopRightEditorGroupContext, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
+import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { isFirefox } from '../../../../base/browser/browser.js';
@@ -126,7 +125,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private editorLayoutActionsToolbar: WorkbenchToolBar | undefined;
 	private readonly editorLayoutActionsToolbarDisposables = this._register(new DisposableStore());
 	private readonly editorLayoutActionsDisposables = this._register(new DisposableStore());
-	private readonly updateEditorLayoutActionsToolbarScheduler = this._register(new RunOnceScheduler(() => this.updateEditorLayoutActionsToolbar(), 0));
 
 	private readonly contextMenuContextKeyService: IContextKeyService;
 	private resourceContext: ResourceContextKey;
@@ -191,14 +189,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.contextMenuContextKeyService);
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
-
-		// These controls are only visible in the top-right group. Defer rebuilding
-		// until after context-key delivery to keep menu lazy-listeners stable.
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([IsTopRightEditorGroupContext.key]))) {
-				this.updateEditorLayoutActionsToolbarScheduler.schedule();
-			}
-		}));
 	}
 
 	protected create(parent: HTMLElement): HTMLElement {
@@ -225,7 +215,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		parent.appendChild(this.editorLayoutActionsToolbarContainer);
 
 		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
-		this.updateEditorLayoutActionsToolbar();
 	}
 
 	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement): HTMLElement {
@@ -410,7 +399,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.updateEditorLayoutActionsToolbar();
 	}
 
-	protected updateEditorLayoutActionsToolbar(): void {
+	private updateEditorLayoutActionsToolbar(): void {
 		if (
 			!this.editorActionsEnabled ||
 			!this.editorLayoutActionsToolbarContainer ||
