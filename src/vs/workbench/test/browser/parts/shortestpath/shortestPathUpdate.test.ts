@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathUpdateGraceStateForMinimumVersion, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
+import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, getShortestPathUpdateUrls, getShortestPathUpdateWithFallback, isShortestPathUpdateAvailable, isShortestPathUpdateGraceStateForMinimumVersion, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
 
 suite('ShortestPath update check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -90,6 +90,37 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(getShortestPathReleaseNotesUrl('invalid'), undefined);
 	});
 
+	test('checks GitHub before the GitCode fallback', () => {
+		const githubUrl = 'https://raw.githubusercontent.com/KevinHuangIsLearning/shortestpath-ide/main/latest.json';
+		const gitcodeUrl = 'https://raw.gitcode.com/KevinHuangIsLearning/shortestpath-ide/raw/main/latest.json';
+		assert.deepStrictEqual(getShortestPathUpdateUrls(githubUrl), [githubUrl, gitcodeUrl]);
+		assert.deepStrictEqual(getShortestPathUpdateUrls(gitcodeUrl), [gitcodeUrl]);
+	});
+
+	test('uses GitCode after any GitHub failure', async () => {
+		const githubUrl = 'https://raw.githubusercontent.com/KevinHuangIsLearning/shortestpath-ide/main/latest.json';
+		const visited: string[] = [];
+		const result = await getShortestPathUpdateWithFallback(githubUrl, async url => {
+			visited.push(url);
+			if (url === githubUrl) {
+				throw new Error('invalid response');
+			}
+			return 'gitcode';
+		});
+		assert.strictEqual(result, 'gitcode');
+		assert.deepStrictEqual(visited, [
+			githubUrl,
+			'https://raw.gitcode.com/KevinHuangIsLearning/shortestpath-ide/raw/main/latest.json',
+		]);
+
+		let attempts = 0;
+		await assert.rejects(getShortestPathUpdateWithFallback(githubUrl, async url => {
+			attempts++;
+			throw new Error(url === githubUrl ? 'github failed' : 'gitcode failed');
+		}), /gitcode failed/);
+		assert.strictEqual(attempts, 2);
+	});
+
 	test('selects the matching direct download asset', () => {
 		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', 'user'), {
 			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-User-Setup.exe',
@@ -136,17 +167,13 @@ suite('ShortestPath update check', () => {
 			version: '0.2.0',
 			minimumSupportedVersion: '0.2.1',
 			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip',
-			graceCount: 1,
 			graceUntil: 123,
 		};
 		assert.deepStrictEqual(parseShortestPathUpdateGraceState(grace, '0.2.0'), grace);
-		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 0 }, '0.2.0'), undefined);
-		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 3 }, '0.2.0'), undefined);
 		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceUntil: Number.NaN }, '0.2.0'), undefined);
 		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, downloadUrl: 'https://example.com/update' }, '0.2.0'), undefined);
-		assert.deepStrictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 2, graceUntil: undefined, permanentlyAllowed: true }, '0.2.0'), { ...grace, graceCount: 2, graceUntil: undefined, permanentlyAllowed: true });
-		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 1, graceUntil: undefined, permanentlyAllowed: true }, '0.2.0'), undefined);
-		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, permanentlyAllowed: true }, '0.2.0'), undefined);
+		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceUntil: undefined, permanentlyAllowed: true }, '0.2.0'), undefined);
+		assert.deepStrictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 1 }, '0.2.0'), grace);
 	});
 
 	test('binds persisted grace state to its minimum supported version', () => {
@@ -154,8 +181,7 @@ suite('ShortestPath update check', () => {
 			version: '0.2.0',
 			minimumSupportedVersion: '0.2.1',
 			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip',
-			graceCount: 2,
-			permanentlyAllowed: true,
+			graceUntil: 123,
 		}, '0.2.0');
 
 		assert.strictEqual(isShortestPathUpdateGraceStateForMinimumVersion(grace, '0.2.1'), true);
@@ -163,9 +189,9 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(isShortestPathUpdateGraceStateForMinimumVersion(grace, undefined), false);
 	});
 
-	test('clears temporary and permanent grace when the minimum version changes', () => {
+	test('clears mismatched and legacy permanent grace', () => {
 		for (const state of [
-			{ version: '0.2.0', minimumSupportedVersion: '0.2.2', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip', graceCount: 1, graceUntil: 123 },
+			{ version: '0.2.0', minimumSupportedVersion: '0.2.2', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip', graceUntil: 123 },
 			{ version: '0.2.0', minimumSupportedVersion: '0.2.2', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip', graceCount: 2, permanentlyAllowed: true },
 		]) {
 			let stored: unknown = state;

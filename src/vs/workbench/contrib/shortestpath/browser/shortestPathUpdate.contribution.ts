@@ -32,7 +32,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
+import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, getShortestPathUpdateWithFallback, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
 
 interface IShortestPathUpdateCheckResult {
 	readonly release: IShortestPathUpdate;
@@ -45,7 +45,7 @@ type ShortestPathUpdateCheckOutcome = { status: 'latest' | 'available' | 'failed
 const UPDATE_GRACE_STORAGE_KEY = 'shortestpath.update.networkGrace';
 const RELEASE_NOTES_VERSION_STORAGE_KEY = 'shortestpath.releaseNotes.shownVersion';
 const RELEASE_NOTES_CLAIM_STORAGE_KEY = 'shortestpath.releaseNotes.claim';
-const NETWORK_GRACE_DURATION = 3 * 60 * 60 * 1000;
+const NETWORK_GRACE_DURATION = 15 * 60 * 1000;
 
 function localizeUpdate(english: string, chinese: string): string {
 	return getNLSLanguage()?.toLowerCase().startsWith('zh') ? chinese : english;
@@ -82,22 +82,26 @@ class ShortestPathUpdateChecker {
 			return undefined;
 		}
 
-		const response = await this.requestService.request({
-			type: 'GET',
-			url: updateUrl,
-			disableCache: true,
-			timeout: 10000,
-			callSite: 'shortestPathUpdate.check',
-		}, CancellationToken.None);
-		if (response.res.statusCode !== 200) {
-			throw new Error(`Failed to check for ShortestPath IDE updates: HTTP ${response.res.statusCode}`);
-		}
+		const release = await getShortestPathUpdateWithFallback(updateUrl, async url => {
+			const response = await this.requestService.request({
+				type: 'GET',
+				url,
+				disableCache: true,
+				timeout: 10000,
+				callSite: 'shortestPathUpdate.check',
+			}, CancellationToken.None);
+			if (response.res.statusCode !== 200) {
+				throw new Error(`Failed to check for ShortestPath IDE updates: HTTP ${response.res.statusCode}`);
+			}
 
-		const updateDocument = await asJson<IShortestPathUpdateDocument>(response);
-		const release = updateDocument ? parseShortestPathUpdateDocument(updateDocument) : undefined;
-		if (!release) {
-			throw new Error(localizeUpdate('The update manifest is invalid.', '更新清单格式无效。'));
-		}
+			const updateDocument = await asJson<IShortestPathUpdateDocument>(response);
+			const parsedRelease = updateDocument ? parseShortestPathUpdateDocument(updateDocument) : undefined;
+			if (!parsedRelease) {
+				// allow-any-unicode-next-line
+				throw new Error(localizeUpdate('The update manifest is invalid.', '更新清单格式无效。'));
+			}
+			return parsedRelease;
+		});
 		const target = (await this.getUpdateTarget()) ?? { downloadUrl: release.downloadUrl, allowsMinimumVersionLock: false };
 		const result = { release, target, fastDownloadUrl: getShortestPathFastDownloadUrl(release.fastDownloadUrls, target) };
 
@@ -149,7 +153,6 @@ interface IShortestPathUpdateDialogOptions {
 	readonly isRequired: boolean;
 	readonly version?: string;
 	readonly releaseNote?: string;
-	readonly graceCount?: number;
 	readonly onNetworkGrace?: () => void;
 }
 
@@ -216,14 +219,14 @@ class ShortestPathUpdateBlocker extends Disposable {
 		const networkButton = this.options.isRequired ? append(dialog, $('button.shortestpath-update-required-network', { type: 'button' }, localizeUpdate('Network problems?', '网络不好？'))) : undefined;
 		const actions = append(dialog, $('.shortestpath-update-required-actions'));
 		// allow-any-unicode-next-line
-		const updateButton = append(actions, $('button.shortestpath-update-required-action.primary', { type: 'button' }, localizeUpdate('Update', '更新')));
+		const alternateUpdateButton = append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, this.options.isRequired ? localizeUpdate('Update Anyway', '或者更新') : localizeUpdate('Later', '稍后再说')));
 		// allow-any-unicode-next-line
 		const fastDownloadButton = this.options.fastDownloadUrl ? append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, localizeUpdate('Fast Download', '网盘快速下载'))) : undefined;
 		// allow-any-unicode-next-line
-		const alternateUpdateButton = this.options.isRequired ? undefined : append(actions, $('button.shortestpath-update-required-action.secondary', { type: 'button' }, localizeUpdate('Later', '稍后再说')));
+		const updateButton = append(actions, $('button.shortestpath-update-required-action.primary', { type: 'button' }, localizeUpdate('Update', '更新')));
 
 		const openUpdate = () => void this.openerService.open(URI.parse(this.options.downloadUrl));
-		for (const button of this.options.isRequired ? [closeButton, updateButton] : [updateButton]) {
+		for (const button of this.options.isRequired ? [closeButton, updateButton, alternateUpdateButton] : [updateButton]) {
 			this._register(addDisposableListener(button, 'click', event => {
 				event.preventDefault();
 				event.stopPropagation();
@@ -238,7 +241,7 @@ class ShortestPathUpdateBlocker extends Disposable {
 			}));
 		}
 		if (!this.options.isRequired) {
-			for (const button of [closeButton, alternateUpdateButton!]) {
+			for (const button of [closeButton, alternateUpdateButton]) {
 				this._register(addDisposableListener(button, 'click', event => {
 					event.preventDefault();
 					event.stopPropagation();
@@ -250,15 +253,14 @@ class ShortestPathUpdateBlocker extends Disposable {
 			this._register(addDisposableListener(networkButton, 'click', async event => {
 				event.preventDefault();
 				event.stopPropagation();
-				const isPermanent = this.options.graceCount! >= 2;
 				const result = await this.dialogService.confirm({
 					type: severity.Warning,
 					// allow-any-unicode-next-line
-					message: isPermanent ? localizeUpdate('Both temporary network grace periods have been used.', '已使用两次网络宽限。') : localizeUpdate('You can temporarily continue when the network is unavailable.', '网络不好时可以暂时继续使用。'),
+					message: localizeUpdate('You can temporarily continue when the network is unavailable.', '网络不好时可以暂时继续使用。'),
 					// allow-any-unicode-next-line
-					detail: isPermanent ? localizeUpdate('Choosing this permanently disables minimum-version locking.', '选择后将永久不再因最低版本限制锁定。') : localizeUpdate('Continue for 3 hours without locking. You can check for updates again after it expires.', '继续使用后，3 小时内不会锁定；到期后仍可再次检查更新。'),
+					detail: localizeUpdate('Continue for 15 minutes without locking. You can check for updates again after it expires.', '继续使用后，15 分钟内不会锁定；到期后仍可再次检查更新。'),
 					// allow-any-unicode-next-line
-					primaryButton: isPermanent ? localizeUpdate('Do Not Ask Again', '别他妈烦我') : localizeUpdate('Continue', '继续使用'),
+					primaryButton: localizeUpdate('Continue', '继续使用'),
 					// allow-any-unicode-next-line
 					cancelButton: localizeUpdate('Stay on Update Page', '留在更新页面'),
 				});
@@ -316,7 +318,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, UPDATE_GRACE_STORAGE_KEY, this._store)(() => {
 			const state = this.productService.shortestPathVersion ? getShortestPathUpdateGraceState(this.storageService, this.productService.shortestPathVersion) : undefined;
 			this.scheduleGraceExpiry(state);
-			if (state?.permanentlyAllowed || (state?.graceUntil && state.graceUntil > Date.now())) {
+			if (state?.graceUntil && state.graceUntil > Date.now()) {
 				ShortestPathUpdateBlocker.dismiss();
 				this.blocker = undefined;
 			}
@@ -343,10 +345,6 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 				return;
 			}
 
-			if (graceState?.permanentlyAllowed) {
-				this.unlockAfterFailedCheck();
-				return;
-			}
 			if (graceState?.graceUntil && graceState.minimumSupportedVersion === result.release.minimumSupportedVersion && graceState.graceUntil > Date.now()) {
 				this.scheduleGraceExpiry(graceState);
 				this.unlockAfterFailedCheck();
@@ -354,7 +352,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 			}
 
 			if (!ShortestPathUpdateBlocker.hasActive) {
-				this.showBlocker(instantiationService, result.release.minimumSupportedVersion, result.target?.downloadUrl ?? result.release.downloadUrl, result.fastDownloadUrl, graceState?.graceCount ?? 0, result.release.releaseNote);
+				this.showBlocker(instantiationService, result.release.minimumSupportedVersion, result.target?.downloadUrl ?? result.release.downloadUrl, result.fastDownloadUrl, result.release.releaseNote);
 			}
 		} catch (error) {
 			logService.debug('ShortestPath IDE update check failed.', error);
@@ -363,29 +361,26 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 		}
 	}
 
-	private showBlocker(instantiationService: IInstantiationService, minimumSupportedVersion: string, downloadUrl: string, fastDownloadUrl: string | undefined, graceCount: number, releaseNote?: string): void {
+	private showBlocker(instantiationService: IInstantiationService, minimumSupportedVersion: string, downloadUrl: string, fastDownloadUrl: string | undefined, releaseNote?: string): void {
 		this.blocker = this._register(ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
 			downloadUrl,
 			fastDownloadUrl,
 			isRequired: true,
-			graceCount,
 			releaseNote,
-			onNetworkGrace: () => this.grantNetworkGrace(minimumSupportedVersion, downloadUrl, graceCount),
+			onNetworkGrace: () => this.grantNetworkGrace(minimumSupportedVersion, downloadUrl),
 		}));
 	}
 
-	private grantNetworkGrace(minimumSupportedVersion: string, downloadUrl: string, graceCount: number): void {
+	private grantNetworkGrace(minimumSupportedVersion: string, downloadUrl: string): void {
 		if (!this.productService.shortestPathVersion) {
 			return;
 		}
 
-		const isPermanent = graceCount >= 2;
 		const state: IShortestPathUpdateGraceState = {
 			version: this.productService.shortestPathVersion,
 			minimumSupportedVersion,
 			downloadUrl,
-			graceCount: isPermanent ? graceCount : graceCount + 1,
-			...(isPermanent ? { permanentlyAllowed: true } : { graceUntil: Date.now() + NETWORK_GRACE_DURATION }),
+			graceUntil: Date.now() + NETWORK_GRACE_DURATION,
 		};
 		this.storageService.store(UPDATE_GRACE_STORAGE_KEY, state, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this.blocker?.dispose();
@@ -395,7 +390,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 
 	private scheduleGraceExpiry(state: IShortestPathUpdateGraceState | undefined): void {
 		this.graceExpiryScheduler.cancel();
-		if (!state?.graceUntil || state.permanentlyAllowed) {
+		if (!state?.graceUntil) {
 			return;
 		}
 		this.graceExpiryScheduler.schedule(Math.max(0, state.graceUntil - Date.now()));
@@ -407,7 +402,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 		this.blocker = undefined;
 		if (this.productService.shortestPathVersion) {
 			const state = getShortestPathUpdateGraceState(this.storageService, this.productService.shortestPathVersion);
-			if (state && !state.permanentlyAllowed) {
+			if (state) {
 				this.storageService.remove(UPDATE_GRACE_STORAGE_KEY, StorageScope.APPLICATION);
 			}
 		}
@@ -423,7 +418,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 			return;
 		}
 		const state = getShortestPathUpdateGraceState(this.storageService, this.productService.shortestPathVersion);
-		if (!state || state.permanentlyAllowed || !state.graceUntil) {
+		if (!state?.graceUntil) {
 			return;
 		}
 		if (state.graceUntil > Date.now()) {
@@ -572,25 +567,21 @@ registerAction2(class extends Action2 {
 			}
 			const graceState = productService.shortestPathVersion ? getShortestPathUpdateGraceStateForCurrentMinimumVersion(storageService, productService.shortestPathVersion, result.release.minimumSupportedVersion) : undefined;
 			if (result.release.minimumSupportedVersion && result.target?.allowsMinimumVersionLock !== false && productService.shortestPathVersion && !isShortestPathVersionSupported(productService.shortestPathVersion, result.release.minimumSupportedVersion)) {
-				if (graceState?.permanentlyAllowed || (graceState?.graceUntil && graceState.graceUntil > Date.now())) {
+				if (graceState?.graceUntil && graceState.graceUntil > Date.now()) {
 					return { status: 'available', version: result.release.version };
 				}
 				const downloadUrl = result.target?.downloadUrl ?? result.release.downloadUrl;
-				const graceCount = graceState?.graceCount ?? 0;
 				const blocker = ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
 					downloadUrl,
 					fastDownloadUrl: result.fastDownloadUrl,
 					isRequired: true,
-					graceCount,
 					releaseNote: result.release.releaseNote,
 					onNetworkGrace: () => {
-						const isPermanent = graceCount >= 2;
 						storageService.store(UPDATE_GRACE_STORAGE_KEY, {
 							version: productService.shortestPathVersion!,
 							minimumSupportedVersion: result.release.minimumSupportedVersion!,
 							downloadUrl,
-							graceCount: isPermanent ? graceCount : graceCount + 1,
-							...(isPermanent ? { permanentlyAllowed: true } : { graceUntil: Date.now() + NETWORK_GRACE_DURATION }),
+							graceUntil: Date.now() + NETWORK_GRACE_DURATION,
 						}, StorageScope.APPLICATION, StorageTarget.MACHINE);
 						blocker.dispose();
 					},
@@ -599,7 +590,7 @@ registerAction2(class extends Action2 {
 				ShortestPathUpdateBlocker.dismiss();
 				if (productService.shortestPathVersion) {
 					const graceState = getShortestPathUpdateGraceState(storageService, productService.shortestPathVersion);
-					if (graceState && !graceState.permanentlyAllowed) {
+					if (graceState) {
 						storageService.remove(UPDATE_GRACE_STORAGE_KEY, StorageScope.APPLICATION);
 					}
 				}
