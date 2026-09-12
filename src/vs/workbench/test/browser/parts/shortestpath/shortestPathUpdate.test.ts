@@ -34,11 +34,11 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', releaseNote: 'x'.repeat(4001) }), undefined);
 	});
 
-	test('parses only supported fast download URLs', () => {
+	test('parses arbitrary fast download URLs', () => {
 		const fastDownloadUrls = {
-			macosArm64: 'https://www.icloud.com.cn/iclouddrive/macos',
-			windowsUserSetup: 'https://www.icloud.com.cn/iclouddrive/user-setup',
-			windowsPortable: 'https://www.icloud.com.cn/iclouddrive/portable',
+			macosArm64: 'https://example.com/download/macos',
+			windowsUserSetup: 'https://downloads.example.net/user-setup',
+			windowsPortable: 'https://files.example.org/portable',
 		};
 		const update = parseShortestPathUpdateDocument({
 			version: '0.2.1',
@@ -46,7 +46,7 @@ suite('ShortestPath update check', () => {
 			fastDownloadUrls,
 		});
 		assert.deepStrictEqual(update?.fastDownloadUrls, fastDownloadUrls);
-		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', fastDownloadUrls: { macosArm64: 'https://example.com/download' } }), undefined);
+		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', fastDownloadUrls: { macosArm64: 'not a URL' } }), undefined);
 		assert.deepStrictEqual(parseShortestPathUpdateDocument({
 			version: '0.2.1',
 			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
