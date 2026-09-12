@@ -23,7 +23,7 @@ import { CustomMenubarControl } from './menubarControl.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode, Position } from '../../../services/layout/browser/layoutService.js';
 import { createActionViewItem, fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -53,7 +53,7 @@ import { IView } from '../../../../base/browser/ui/grid/grid.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -264,6 +264,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private leftContent!: HTMLElement;
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
+	private sidebarToggle: HTMLButtonElement | undefined;
+	private sidebarToggleIcon: HTMLElement | undefined;
 
 	protected readonly customMenubar = this._register(new MutableDisposable<CustomMenubarControl>());
 	private readonly customMenubarDisposables = this._register(new DisposableStore());
@@ -380,6 +382,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.updateStyles();
 		}
 
+		if (event.affectsConfiguration('workbench.sideBar.location')) {
+			this.updateSidebarToggle();
+		}
+
 		// Custom menu bar (disabled if auxiliary)
 		if (!this.isAuxiliary && !hasNativeMenu(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
 			if (event.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
@@ -484,6 +490,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
 		}
 
+		if (!this.isAuxiliary && hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
+			this.createSidebarToggle();
+		}
+
 		// Draggable region that we can manipulate for #52522
 		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
@@ -557,12 +567,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 					primaryWindowControlsLocation = 'right';
 				}
 			}
-
-			if (isMacintosh && isNative && primaryWindowControlsLocation === 'left') {
+			if (isMacintosh && isNative && primaryWindowControlsLocation === 'left' && !this.sidebarToggle) {
 				// macOS native: controls are on the left and the container is not needed to make room
-				// for something, except for web where a custom menu being supported). not putting the
-				// container helps with allowing to move the window when clicking very close to the
-				// window control buttons.
+				// unless the main title bar contains a leading action. Not putting the container in
+				// auxiliary windows helps with allowing the window to move when clicking very close
+				// to the window control buttons.
 			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
 				// Linux/Windows: controls are explicitly disabled
 			} else {
@@ -612,6 +621,39 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.updateStyles();
 
 		return this.element;
+	}
+
+	private createSidebarToggle(): void {
+		this.sidebarToggle = append(this.leftContent, $('button.titlebar-sidebar-toggle'));
+		this.sidebarToggle.type = 'button';
+		this.sidebarToggleIcon = append(this.sidebarToggle, $('span.codicon'));
+		this.sidebarToggleIcon.ariaHidden = 'true';
+
+		this._register(addDisposableListener(this.sidebarToggle, EventType.CLICK, () => {
+			void this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.toggleSidebarVisibility'));
+		}));
+		this._register(this.layoutService.onDidChangePartVisibility(({ partId }) => {
+			if (partId === Parts.SIDEBAR_PART) {
+				this.updateSidebarToggle();
+			}
+		}));
+		this.updateSidebarToggle();
+	}
+
+	private updateSidebarToggle(): void {
+		if (!this.sidebarToggle || !this.sidebarToggleIcon) {
+			return;
+		}
+
+		const visible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
+		const position = this.layoutService.getSideBarPosition();
+		const label = visible ? localize('hidePrimarySideBar', "Hide Primary Side Bar") : localize('showPrimarySideBar', "Show Primary Side Bar");
+		const icon = position === Position.LEFT ? 'layout-sidebar-left' : 'layout-sidebar-right';
+
+		this.sidebarToggle.setAttribute('aria-label', label);
+		this.sidebarToggle.setAttribute('aria-pressed', String(visible));
+		this.sidebarToggle.title = label;
+		this.sidebarToggleIcon.className = `codicon codicon-${icon}${visible ? '' : '-off'}`;
 	}
 
 	private createTitle(): void {
@@ -973,7 +1015,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		const zoomFactor = getZoomFactor(getWindow(this.element));
 
 		this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
-		this.element.closest<HTMLElement>('.monaco-workbench')?.style.setProperty('--zoom-factor', zoomFactor.toString());
 		this.rootContainer.classList.toggle('counter-zoom', this.preventZoom);
 
 		if (this.customMenubar.value) {

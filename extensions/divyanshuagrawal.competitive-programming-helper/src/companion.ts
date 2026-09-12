@@ -451,6 +451,8 @@ const handleNewProblem = async (problem: Problem, preferredSourcePath?: string):
     // Determine the VJudge URL to open. For a VJudge import retain the exact
     // received URL; otherwise derive it from the restored original OJ URL.
     let vjudgeUrlToOpen: string | undefined;
+    const originalOj = detectOj(problem.url);
+    const vjudgeMapping = getVjudgeOjNames();
     if (getVjudgeOpenInBrowser()) {
         try {
             const urlObj = new URL(receivedProblemUrl);
@@ -459,7 +461,6 @@ const handleNewProblem = async (problem: Problem, preferredSourcePath?: string):
             } else {
                 const ojInfo = detectOj(problem.url);
                 if (ojInfo.oj && ojInfo.problemId) {
-                    const vjudgeMapping = getVjudgeOjNames();
                     if (vjudgeMapping) {
                         const [matchKey, matchEntry] =
                             Object.entries(vjudgeMapping).find(
@@ -491,7 +492,6 @@ const handleNewProblem = async (problem: Problem, preferredSourcePath?: string):
         }
     }
 
-    const originalOj = detectOj(problem.url);
     const displayTarget = getProblemDisplayTarget(
         getVjudgeOpenInBrowser(),
         getProblemSourceForUrl(

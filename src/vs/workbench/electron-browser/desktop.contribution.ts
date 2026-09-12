@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
 import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing, StartTracing, StartHeapTracing } from './actions/developerActions.js';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, MinimizeWindowAction, SwitchWindowAction, QuickSwitchWindowAction, SwitchToMainWindowAction, FocusWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, SwitchToMainWindowAction, FocusWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry } from '../../platform/commands/common/commands.js';
@@ -44,7 +44,6 @@ import product from '../../platform/product/common/product.js';
 	registerAction2(SwitchToMainWindowAction);
 	registerAction2(FocusWindowAction);
 	registerAction2(CloseWindowAction);
-	registerAction2(MinimizeWindowAction);
 	registerAction2(CloseOtherWindowsAction);
 	registerAction2(ToggleWindowAlwaysOnTopAction);
 	registerAction2(EnableWindowAlwaysOnTopAction);
@@ -262,11 +261,11 @@ import product from '../../platform/product/common/product.js';
 				'markdownEnumDescriptions': [
 					localize(`window.customTitleBarVisibility.auto`, "Automatically changes custom title bar visibility."),
 					localize(`window.customTitleBarVisibility.windowed`, "Hide custom titlebar in full screen. When not in full screen, automatically change custom title bar visibility."),
-					localize(`window.customTitleBarVisibility.never`, "Hide the custom title bar while keeping the window controls available in the workbench."),
+					localize(`window.customTitleBarVisibility.never`, "Hide custom titlebar when {0} is set to `native`.", '`#window.titleBarStyle#`'),
 				],
-				'default': 'never',
+				'default': 'windowed',
 				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden with `never` while window controls remain available in the workbench."),
+				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden when in full screen mode with `windowed`. The custom title bar can only be hidden in non full screen mode with `never` when {0} is set to `native`.", '`#window.titleBarStyle#`'),
 			},
 			'window.menuStyle': {
 				'type': 'string',

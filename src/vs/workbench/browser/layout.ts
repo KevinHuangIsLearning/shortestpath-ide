@@ -111,7 +111,6 @@ enum LayoutClasses {
 	WINDOW_BORDER = 'border',
 	NO_SHADOWS = 'no-shadows',
 	FLOATING_PANELS = 'floating-panels',
-	CUSTOM_TITLEBAR_HIDDEN = 'custom-titlebar-hidden',
 	// Presentation class for the Modern UI Update experiment, owned/toggled at
 	// runtime by `ModernUIContribution`. It is *also* applied here at render
 	// time (see `getLayoutClasses`) to avoid a flash of unstyled workbench chrome.
@@ -1921,7 +1920,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	getLayoutClasses(): string[] {
 		return coalesce([
-			!hasNativeTitlebar(this.configurationService) && !this.isVisible(Parts.TITLEBAR_PART) ? LayoutClasses.CUSTOM_TITLEBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.SIDEBAR_PART) ? LayoutClasses.SIDEBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.EDITOR_PART, mainWindow) ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
@@ -2370,7 +2368,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	updateMenubarVisibility(skipLayout: boolean): void {
 		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
-		this.mainContainer.classList.toggle(LayoutClasses.CUSTOM_TITLEBAR_HIDDEN, !hasNativeTitlebar(this.configurationService) && !shouldShowTitleBar);
 		if (!skipLayout && this.workbenchGrid && shouldShowTitleBar !== this.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
@@ -2378,7 +2375,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	updateCustomTitleBarVisibility(): void {
 		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
-		this.mainContainer.classList.toggle(LayoutClasses.CUSTOM_TITLEBAR_HIDDEN, !hasNativeTitlebar(this.configurationService) && !shouldShowTitleBar);
 		const titlebarVisible = this.isVisible(Parts.TITLEBAR_PART);
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
@@ -2903,7 +2899,7 @@ const LayoutStateKeys = {
 	EDITOR_HIDDEN: new RuntimeStateKey<boolean>('editor.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 	PANEL_HIDDEN: new RuntimeStateKey<boolean>('panel.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, true),
 	AUXILIARYBAR_HIDDEN: new RuntimeStateKey<boolean>('auxiliaryBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, true),
-	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, true, true)
+	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true)
 
 } as const;
 
@@ -2977,7 +2973,7 @@ class LayoutStateModel extends Disposable {
 		}
 
 		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION)) {
-			this.setRuntimeValueAndFire(LayoutStateKeys.SIDEBAR_POSITON, Position.LEFT);
+			this.setRuntimeValueAndFire(LayoutStateKeys.SIDEBAR_POSITON, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 		}
 	}
 
@@ -2992,7 +2988,7 @@ class LayoutStateModel extends Disposable {
 		} else if (key === LayoutStateKeys.STATUSBAR_HIDDEN) {
 			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE, !value);
 		} else if (key === LayoutStateKeys.SIDEBAR_POSITON) {
-			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION, positionToString(Position.LEFT));
+			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION, positionToString(value as Position));
 		}
 	}
 
@@ -3014,7 +3010,7 @@ class LayoutStateModel extends Disposable {
 		// Apply legacy settings
 		this.stateCache.set(LayoutStateKeys.ACTIVITYBAR_HIDDEN.name, this.isActivityBarHidden());
 		this.stateCache.set(LayoutStateKeys.STATUSBAR_HIDDEN.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
-		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, Position.LEFT);
+		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 
 		// Set dynamic defaults: part sizing and side bar visibility
 		const auxiliaryBarForceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
@@ -3181,7 +3177,7 @@ class LayoutStateModel extends Disposable {
 					this.stateCache.set(key.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
 					break;
 				case LayoutStateKeys.SIDEBAR_POSITON:
-					this.stateCache.set(key.name, Position.LEFT);
+					this.stateCache.set(key.name, this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left');
 					break;
 			}
 		}

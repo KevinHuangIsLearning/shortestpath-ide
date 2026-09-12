@@ -17,8 +17,6 @@ import { DisposableStore, MutableDisposable } from '../../../../base/common/life
 import { MultiRowEditorControl } from './multiRowEditorTabsControl.js';
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { NoEditorTabsControl } from './noEditorTabsControl.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
 import { EditorHeaderControl } from './editorHeaderControl.js';
 
 export interface IEditorTitleControlDimensions {
@@ -52,8 +50,7 @@ export class EditorTitleControl extends Themable {
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		private readonly showHeader: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
 
@@ -201,15 +198,8 @@ export class EditorTitleControl extends Themable {
 		const tabsControlHeight = this.editorTabsControl.getHeight();
 
 		return {
-			total: Math.max(tabsControlHeight + this.headerControl.height, this.emptyTitlebarHeight),
-			offset: Math.max(tabsControlHeight, this.emptyTitlebarHeight)
+			total: tabsControlHeight + this.headerControl.height,
+			offset: tabsControlHeight
 		};
-	}
-
-	private get emptyTitlebarHeight(): number {
-		return this.groupView.isEmpty &&
-			!hasNativeTitlebar(this.configurationService)
-			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT
-			: 0;
 	}
 }

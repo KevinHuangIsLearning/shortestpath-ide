@@ -17,6 +17,8 @@ import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_BACKGROUND, 
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
+import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { LayoutPriority } from '../../../../base/browser/ui/grid/grid.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
@@ -34,12 +36,6 @@ import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
-import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { addDisposableListener, Dimension, EventType, getWindow } from '../../../../base/browser/dom.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
-import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 
 const PRIMARY_SIDE_BAR_SASH_CLASS = 'primary-sidebar-sash';
 
@@ -74,7 +70,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this.location, this));
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
-	private titlebarLayoutDimension: Dimension | undefined;
 	private readonly primarySideBarSashClassDisposable = this._register(new MutableDisposable());
 
 	//#endregion
@@ -93,7 +88,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -138,89 +132,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		this.registerActions();
-	}
-
-	override create(parent: HTMLElement): void {
-		super.create(parent);
-
-		const commandCenterContainer = parent.ownerDocument.createElement('div');
-		commandCenterContainer.className = 'shortestpath-sidebar-command-center-container';
-
-		const toggleSidebar = parent.ownerDocument.createElement('button');
-		toggleSidebar.className = 'shortestpath-sidebar-toggle';
-		toggleSidebar.type = 'button';
-		// allow-any-unicode-next-line
-		toggleSidebar.setAttribute('aria-label', localize2('sidebarToggle', '切换主侧栏').value);
-		// allow-any-unicode-next-line
-		toggleSidebar.title = localize2('sidebarToggleTooltip', '切换主侧栏').value;
-		const toggleIcon = parent.ownerDocument.createElement('span');
-		toggleIcon.className = 'codicon codicon-layout-sidebar-left';
-		toggleIcon.ariaHidden = 'true';
-		toggleSidebar.appendChild(toggleIcon);
-
-		const commandCenter = parent.ownerDocument.createElement('button');
-		commandCenter.className = 'shortestpath-sidebar-command-center';
-		commandCenter.type = 'button';
-		commandCenter.setAttribute('aria-label', localize2('sidebarCommandCenter', 'Search Files and Commands').value);
-		commandCenter.title = localize2('sidebarCommandCenterTooltip', 'Search Files and Commands').value;
-
-		const icon = parent.ownerDocument.createElement('span');
-		icon.className = 'codicon codicon-search';
-		icon.ariaHidden = 'true';
-		const label = parent.ownerDocument.createElement('span');
-		label.className = 'label';
-		label.textContent = localize2('sidebarCommandCenterLabel', 'Search').value;
-		commandCenter.append(icon, label);
-		commandCenterContainer.append(toggleSidebar, commandCenter);
-		parent.appendChild(commandCenterContainer);
-
-		this._register(addDisposableListener(toggleSidebar, EventType.CLICK, () => this.commandService.executeCommand('workbench.action.toggleSidebarVisibility')));
-		this._register(addDisposableListener(commandCenter, EventType.CLICK, () => this.commandService.executeCommand('workbench.action.quickOpenWithModes')));
-	}
-
-	override layout(width: number, height: number, top: number, left: number): void {
-		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			return;
-		}
-
-		// CSS moves this side surface below the Tabbar. Give its pane composite the
-		// same reduced height so views do not render into the area below the window.
-		const titlebarInset = this.getHiddenTitlebarInset();
-		this.updateCustomTitlebarVerticalInset(titlebarInset);
-		this.titlebarLayoutDimension = new Dimension(width, height);
-		super.layout(width, Math.max(0, height - titlebarInset), top, left);
-	}
-
-	override setBoundarySashes(sashes: IBoundarySashes): void {
-		super.setBoundarySashes?.(sashes);
-
-		this.primarySideBarSashClassDisposable.clear();
-		const primarySideBarSash = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? sashes.right : sashes.left;
-		this.primarySideBarSashClassDisposable.value = primarySideBarSash?.addClass(PRIMARY_SIDE_BAR_SASH_CLASS);
-	}
-
-	protected override getRelayoutDimension(): Dimension | undefined {
-		return this.titlebarLayoutDimension ?? super.getRelayoutDimension();
-	}
-
-	private getHiddenTitlebarInset(): number {
-		if (this.element?.closest('.monaco-workbench')?.classList.contains('custom-titlebar-hidden') !== true) {
-			return 0;
-		}
-
-		return isWindows || (isMacintosh && this.element.classList.contains('left')) ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 0;
-	}
-
-	private updateCustomTitlebarVerticalInset(titlebarInset: number): void {
-		if (titlebarInset === 0) {
-			this.element.style.removeProperty('--shortestpath-custom-titlebar-vertical-inset');
-			return;
-		}
-
-		const computedStyle = getWindow(this.element).getComputedStyle(this.element);
-		const marginTop = Number.parseFloat(computedStyle.marginTop) || 0;
-		const marginBottom = Number.parseFloat(computedStyle.marginBottom) || 0;
-		this.element.style.setProperty('--shortestpath-custom-titlebar-vertical-inset', `${titlebarInset + marginTop + marginBottom}px`);
 	}
 
 	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {
@@ -270,6 +181,22 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
 		container.style.borderLeftColor = !isPositionLeft ? borderColor || '' : '';
 		container.style.outlineColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
+	}
+
+	override layout(width: number, height: number, top: number, left: number): void {
+		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			return;
+		}
+
+		super.layout(width, height, top, left);
+	}
+
+	override setBoundarySashes(sashes: IBoundarySashes): void {
+		super.setBoundarySashes?.(sashes);
+
+		this.primarySideBarSashClassDisposable.clear();
+		const primarySideBarSash = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? sashes.right : sashes.left;
+		this.primarySideBarSashClassDisposable.value = primarySideBarSash?.addClass(PRIMARY_SIDE_BAR_SASH_CLASS);
 	}
 
 	protected override getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {

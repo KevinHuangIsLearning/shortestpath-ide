@@ -1,4 +1,6 @@
+import { fillBrowserSubmission, getBrowserSubmission } from '../browserSubmission';
 import * as vscode from 'vscode';
+import localize from '../i18n';
 import { storeSubmitProblem, submitKattisProblem } from '../companion';
 import {
     clearKillRequested,
@@ -27,6 +29,7 @@ import {
     getLiveUserCountPref,
     getRetainWebviewContextPref,
     getDefaultOnlineJudge,
+    getDefaultSubmitMethod,
     getHideOutputDifferencePref,
     updatePreference,
     getPythonCommand,
@@ -383,6 +386,39 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                             onlineJudgeEnv: getDefaultOnlineJudge(),
                         });
                         await deleteProblemFile(message.problem.srcPath);
+                        break;
+                    }
+
+                    case 'submitBrowser': {
+                        try {
+                            if (this.currentProblem) { await fillBrowserSubmission(this.currentProblem); }
+                        } finally {
+                            await this.extensionToJudgeViewMessage({ command: 'submit-finished' });
+                        }
+                        break;
+                    }
+
+                    case 'submitWithChoice': {
+                        try {
+                            let method = getDefaultSubmitMethod();
+                            if (method === 'ask') {
+                                const selection = await vscode.window.showQuickPick([
+                                    { label: 'VJudge', value: 'vjudge' as const },
+                                    { label: localize('cph.submit.native', '原 OJ'), value: 'native' as const },
+                                ], { placeHolder: localize('cph.submit.chooseMethod', '选择提交方式') });
+                                if (!selection) { break; }
+                                method = selection.value;
+                            }
+                            if (method === 'vjudge') {
+                                if (this.currentProblem) { await fillBrowserSubmission(this.currentProblem); }
+                            } else {
+                                const hostname = new URL(message.problem.url).hostname;
+                                if (hostname === 'open.kattis.com') { submitKattisProblem(message.problem); }
+                                else { storeSubmitProblem(message.problem); }
+                            }
+                        } finally {
+                            await this.extensionToJudgeViewMessage({ command: 'submit-finished' });
+                        }
                         break;
                     }
 
@@ -831,11 +867,26 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
         }
     };
 
+    public async refreshBrowserSubmission(): Promise<void> {
+        if (!this.currentProblem) { return; }
+        let submission: ReturnType<typeof getBrowserSubmission>;
+        try { submission = getBrowserSubmission(this.currentProblem.url); } catch { /* Invalid mapping. */ }
+        const available = !!submission;
+        this.currentProblem.browserSubmissionAvailable = available;
+        this.currentProblem.browserSubmissionKind = submission?.kind;
+        await this.extensionToJudgeViewMessage({ command: 'browser-submission-availability', srcPath: this.currentProblem.srcPath, available, kind: submission?.kind });
+    }
+
     /** Posts a message to the webview. */
     public extensionToJudgeViewMessage = async (
         message: VSToWebViewMessage,
     ) => {
         if (message.command === 'new-problem') {
+            if (message.problem) {
+                let submission: ReturnType<typeof getBrowserSubmission>;
+                try { submission = getBrowserSubmission(message.problem.url); } catch { /* Invalid mapping: retain native submission. */ }
+                message.problem = { ...message.problem, browserSubmissionAvailable: !!submission, browserSubmissionKind: submission?.kind };
+            }
             message.onlineJudgeEnv = message.onlineJudgeEnv ?? onlineJudgeEnv;
             this.currentProblem = message.problem;
             this.problemPath = message.problem?.srcPath;

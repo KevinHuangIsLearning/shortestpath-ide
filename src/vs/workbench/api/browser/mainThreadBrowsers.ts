@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../services/editor/common/editorService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext, MainContext, MainThreadBrowsersShape } from '../common/extHost.protocol.js';
 import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../../contrib/browserView/common/browserView.js';
@@ -62,9 +62,11 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		await this.editorService.openEditor(
 			{
 				resource: browserUri,
-				options: { ...options, viewState: { url } }
+				options: { ...options, viewState: { url, requiresModal: !!options?.modal } }
 			},
-			columnToEditorGroup(this.editorGroupsService, this.configurationService, viewColumn),
+			options?.modal
+				? MODAL_GROUP
+				: columnToEditorGroup(this.editorGroupsService, this.configurationService, viewColumn),
 		);
 		const known = this._knownBrowsers.get(id);
 		if (!known) {

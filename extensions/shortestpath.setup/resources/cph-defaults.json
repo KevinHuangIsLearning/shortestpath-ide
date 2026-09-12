@@ -63,7 +63,7 @@
 			"oj": "CF",
 			"ojName": "Codeforces",
 			"contestIdRegex": "(?:contest|gym|problemset\\/problem)\\/(\\d+)",
-			"problemIdRegex": "(?:contest|gym|problemset\\/problem)\\/\\d+\\/(\\w+)"
+			"problemIdRegex": "(?:contest|gym|problemset\\/problem)\\/\\d+\\/(?:problem\\/)?(\\w+)"
 		},
 		"atcoder.jp": {
 			"oj": "AT",

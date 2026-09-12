@@ -23,6 +23,7 @@ import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/co
 import { ToggleAuxiliaryBarAction } from './auxiliaryBarActions.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
+import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -230,6 +231,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	private fillExtraContextMenuActions(actions: IAction[]): void {
+		const currentPositionRight = this.layoutService.getSideBarPosition() === Position.LEFT;
+
 		if (this.getCompositeBarPosition() === CompositeBarPosition.TITLE) {
 			const viewsSubmenuAction = this.getViewsSubmenuAction();
 			if (viewsSubmenuAction) {
@@ -251,6 +254,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		actions.push(...[
 			new Separator(),
 			new SubmenuAction('workbench.action.panel.position', localize('activity bar position', "Activity Bar Position"), positionActions),
+			toAction({ id: ToggleSidebarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSidebarPositionAction.ID) }),
 			toggleShowLabelsAction,
 			toAction({ id: ToggleAuxiliaryBarAction.ID, label: localize('hide second side bar', "Hide Secondary Side Bar"), run: () => this.commandService.executeCommand(ToggleAuxiliaryBarAction.ID) })
 		]);
@@ -281,7 +285,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	protected getCompositeBarPosition(): CompositeBarPosition {
 		switch (this.configuration.position) {
-			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
+			case ActivityBarPosition.TOP: return CompositeBarPosition.TITLE;
 			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
 			case ActivityBarPosition.HIDDEN: return CompositeBarPosition.TITLE;
 			case ActivityBarPosition.DEFAULT: return CompositeBarPosition.TITLE;

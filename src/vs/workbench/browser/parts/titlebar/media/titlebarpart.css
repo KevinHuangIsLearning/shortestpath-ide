@@ -72,6 +72,40 @@
 	align-items: center;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .titlebar-sidebar-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 3px;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-medium);
+	color: inherit;
+	background: transparent;
+	cursor: pointer;
+	flex: 0 0 auto;
+	order: 2;
+	z-index: 2500;
+	box-sizing: border-box;
+	-webkit-app-region: no-drag;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .titlebar-sidebar-toggle:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .titlebar-sidebar-toggle:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.monaco-workbench.mac:not(.web):not(.fullscreen) .part.titlebar > .titlebar-container > .titlebar-left:has(> .window-controls-container) > .titlebar-sidebar-toggle {
+	margin-left: 4px;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-left {
 	order: 0;
 	width: 20%;

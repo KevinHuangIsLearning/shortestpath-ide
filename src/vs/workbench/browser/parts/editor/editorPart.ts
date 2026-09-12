@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { ActivityBarPosition, Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners, getFloatingEditorVerticalMargins } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners, getFloatingEditorVerticalMargins } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -101,7 +101,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
-	private sidebarToggle: HTMLElement | undefined;
 
 	//#region Events
 
@@ -161,6 +160,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
 	protected readonly container = $('.content');
+
 	readonly scopedInstantiationService: IInstantiationService;
 	protected readonly scopedContextKeyService: IContextKeyService;
 
@@ -1127,61 +1127,20 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 				return;
 			}
 
-			const sideBarPosition = this.layoutService.getSideBarPosition();
-			const activityBarOnSide = this.configurationService.getValue<ActivityBarPosition>('workbench.activityBar.location') === ActivityBarPosition.DEFAULT;
-			const hasRightSideSurface =
-				(activityBarOnSide && this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) && sideBarPosition === Position.RIGHT) ||
-				(this.layoutService.isVisible(Parts.SIDEBAR_PART) && sideBarPosition === Position.RIGHT) ||
-				(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && sideBarPosition === Position.LEFT) ||
-				(this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.getPanelPosition() === Position.RIGHT);
-			const hasLeftSideSurface =
-				(activityBarOnSide && this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) && sideBarPosition === Position.LEFT) ||
-				(this.layoutService.isVisible(Parts.SIDEBAR_PART) && sideBarPosition === Position.LEFT) ||
-				(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && sideBarPosition === Position.RIGHT) ||
-				(this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.getPanelPosition() === Position.LEFT);
-
-			const maximizedGroup = this.hasMaximizedGroup() ? this.groups.find(group => this.isGroupMaximized(group)) : undefined;
-			let topRightGroup = maximizedGroup;
-			let topLeftGroup = maximizedGroup;
-			if (!maximizedGroup) {
-				for (const group of this.groups) {
-					if (
-						this.gridWidget.getNeighborViews(group, Direction.Up).length === 0 &&
-						this.gridWidget.getNeighborViews(group, Direction.Right).length === 0
-					) {
-						topRightGroup = group;
-					}
-
-					if (
-						this.gridWidget.getNeighborViews(group, Direction.Up).length === 0 &&
-						this.gridWidget.getNeighborViews(group, Direction.Left).length === 0
-					) {
-						topLeftGroup = group;
-					}
+			let topRightGroup: IEditorGroupView | undefined;
+			for (const group of this.groups) {
+				if (
+					this.gridWidget.getNeighborViews(group, Direction.Up).length === 0 &&
+					this.gridWidget.getNeighborViews(group, Direction.Right).length === 0
+				) {
+					topRightGroup = group;
+					break;
 				}
 			}
 
 			for (const group of this.groups) {
 				const contextKey = this.editorPartsView.bind(IsTopRightEditorGroupContext, group);
 				contextKey.set(group === topRightGroup);
-
-				// Mark the physical top-left group independently for auxiliary macOS
-				// traffic lights. Native Windows controls may occupy either edge, so
-				// those host classes also account for side surfaces.
-				if (group instanceof EditorGroupView) {
-					group.element.classList.toggle('top-left-editor-group', group === topLeftGroup);
-					group.element.classList.toggle('window-controls-overlay-left-host', group === topLeftGroup && !hasLeftSideSurface);
-					group.element.classList.toggle('window-controls-overlay-right-host', group === topRightGroup && !hasRightSideSurface);
-					group.element.classList.toggle('sidebar-recovery-host', group === topLeftGroup && !this.layoutService.isVisible(Parts.SIDEBAR_PART));
-				}
-			}
-
-			this.sidebarToggle ??= this.element.querySelector<HTMLElement>('.shortestpath-tabbar-sidebar-toggle') ?? undefined;
-			if (this.sidebarToggle && topLeftGroup instanceof EditorGroupView) {
-				const tabBar = topLeftGroup.element.querySelector<HTMLElement>(':scope > .title');
-				if (tabBar && this.sidebarToggle.parentElement !== tabBar) {
-					tabBar.appendChild(this.sidebarToggle);
-				}
 			}
 		};
 
@@ -1201,7 +1160,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}));
 		this._register(this.onDidChangeGroupMaximized(() => {
 			updateContextKeys();
-			updateTopRightGroupContextKey();
 			this.applyContentRightInset();
 		}));
 		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));
@@ -1210,7 +1168,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			this.applyContentRightInset();
 		}));
 		this._register(this.onDidLayout(() => updateTopRightGroupContextKey()));
-		this._register(this.layoutService.onDidChangePartVisibility(() => updateTopRightGroupContextKey()));
 	}
 
 	private setupDragAndDropSupport(parent: HTMLElement, container: HTMLElement): void {

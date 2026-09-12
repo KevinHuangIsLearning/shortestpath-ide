@@ -1,4 +1,9 @@
 {
+    "cph.general.defaultSubmitMethod.description": "Default method when both native OJ submission and VJudge submission are available.",
+    "cph.general.defaultSubmitMethod.ask": "Ask every time.",
+    "cph.general.defaultSubmitMethod.vjudge": "Use VJudge.",
+    "cph.general.defaultSubmitMethod.native": "Use the original OJ submission.",
+    "cph.general.customSubmitScripts.description": "Per-OJ submission URLs and JavaScript. URL components are encoded; JavaScript placeholders such as {code} become string literals without extra quotes. Used by Fill submission form.",
     "cph.runTestCases.title": "Run Testcases",
     "cph.submitToCodeForces.title": "Submit to CodeForces",
     "cph.compileWithoutRunning.title": "Compile Without Running",

@@ -12,16 +12,15 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
+import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { addDisposableListener, append, EventType, getWindow, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
+import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMenuBarVisibility, MenuSettings } from '../../../../platform/window/common/window.js';
-import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { getMenuBarVisibility, MenuSettings } from '../../../../platform/window/common/window.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -320,12 +319,6 @@ export class ActivitybarPart extends Part {
 	}
 
 	override layout(width: number, height: number): void {
-		// The hidden titlebar lets the editor own the first row. The activity bar
-		// is rendered below it, so its internal composite layout must receive the
-		// same reduced height as its visual container. Otherwise the bottom
-		// Manage/Settings action would be laid out beyond the window edge.
-		const titlebarInset = this.isShiftedBelowHiddenTitlebar() ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 0;
-		this.updateCustomTitlebarVerticalInset(titlebarInset);
 		super.layout(width, height, 0, 0);
 
 		if (!this.content) {
@@ -334,7 +327,7 @@ export class ActivitybarPart extends Part {
 
 		const { top, bottom } = this.getFloatingGutters();
 		const contentWidth = Math.max(0, width - this.floatingHorizontalGutter);
-		const contentHeight = Math.max(0, height - titlebarInset - top - bottom);
+		const contentHeight = Math.max(0, height - top - bottom);
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
@@ -356,26 +349,6 @@ export class ActivitybarPart extends Part {
 			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
 			bottom: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
 		};
-	}
-
-	private isShiftedBelowHiddenTitlebar(): boolean {
-		if (this.element?.closest('.monaco-workbench')?.classList.contains('custom-titlebar-hidden') !== true) {
-			return false;
-		}
-
-		return isWindows || (isMacintosh && this.element.classList.contains('left'));
-	}
-
-	private updateCustomTitlebarVerticalInset(titlebarInset: number): void {
-		if (titlebarInset === 0) {
-			this.element.style.removeProperty('--shortestpath-custom-titlebar-vertical-inset');
-			return;
-		}
-
-		const computedStyle = getWindow(this.element).getComputedStyle(this.element);
-		const marginTop = Number.parseFloat(computedStyle.marginTop) || 0;
-		const marginBottom = Number.parseFloat(computedStyle.marginBottom) || 0;
-		this.element.style.setProperty('--shortestpath-custom-titlebar-vertical-inset', `${titlebarInset + marginTop + marginBottom}px`);
 	}
 
 	toJSON(): object {
@@ -580,6 +553,8 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 			];
 			actions.push(new SubmenuAction('workbench.action.activityBar.size', localize('activity bar size', "Activity Bar Size"), sizeActions));
 		}
+
+		actions.push(toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) }));
 
 		if (this.part === Parts.SIDEBAR_PART) {
 			actions.push(toAction({ id: ToggleSidebarVisibilityAction.ID, label: ToggleSidebarVisibilityAction.LABEL, run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarVisibilityAction().run(accessor)) }));

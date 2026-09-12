@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron, { Display, Rectangle } from 'electron';
-import { release } from 'os';
 import { Color } from '../../../base/common/color.js';
 import { Event } from '../../../base/common/event.js';
 import { join } from '../../../base/common/path.js';
-import { IProcessEnvironment, isLinux, isMacintosh, isTahoeOrNewer, isWindows } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -18,7 +17,7 @@ import { ServicesAccessor, createDecorator } from '../../instantiation/common/in
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { AgentsWindowOpenSource, getWindowControlsOverlayHeight, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
 import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../../window/electron-main/window.js';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
@@ -218,17 +217,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		if (useWindowControlsOverlay(configurationService)) {
 			if (isMacintosh) {
 				options.titleBarOverlay = true;
-
-				const isCompactTabBar = configurationService.getValue<'default' | 'compact'>('workbench.editor.tabHeight') === 'compact';
-				const isModernUI = configurationService.getValue<boolean>('workbench.experimental.modernUI');
-				if (isModernUI) {
-					options.trafficLightPosition = { x: 18, y: 18 };
-				} else {
-					const tabBarHeight = isCompactTabBar ? 22 : 35;
-					const buttonHeight = isTahoeOrNewer(release()) ? 14 : 16;
-					const offset = Math.floor((tabBarHeight - buttonHeight) / 2);
-					options.trafficLightPosition = { x: offset + 1, y: offset };
-				}
 			} else {
 
 				// This logic will not perfectly guess the right colors
@@ -239,8 +227,8 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 				const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
 				options.titleBarOverlay = {
-					height: getWindowControlsOverlayHeight(configurationService),
-					color: isWindows ? 'rgba(0, 0, 0, 0)' : titleBarColor,
+					height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
+					color: titleBarColor,
 					symbolColor
 				};
 			}

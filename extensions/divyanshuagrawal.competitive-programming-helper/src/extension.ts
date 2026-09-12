@@ -35,6 +35,7 @@ import {
     checkLaunchWebview,
 } from './webview/editorChange';
 import { submitToCodeForces, submitToKattis } from './submit';
+import { registerBrowserSubmission } from './browserSubmission';
 import JudgeViewProvider from './webview/JudgeView';
 import {
     getRetainWebviewContextPref,
@@ -55,6 +56,10 @@ export const getJudgeViewProvider = () => {
 
 const registerCommands = (context: vscode.ExtensionContext) => {
     globalThis.logger.log('Registering commands');
+    registerBrowserSubmission(context);
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+        if (event.affectsConfiguration('cph.general')) { void judgeViewProvider?.refreshBrowserSubmission(); }
+    }));
     const disposable = vscode.commands.registerCommand(
         'cph.runTestCases',
         () => {

@@ -49,6 +49,7 @@ export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly parentViewId?: string;
 	/** Whether the tab came from the default localhost link opener. Not serialized. */
 	readonly isDefaultLinkOpen?: boolean;
+	readonly requiresModal?: boolean;
 }
 
 /**
@@ -220,7 +221,7 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.ForceReveal | EditorInputCapabilities.Readonly;
+		return EditorInputCapabilities.ForceReveal | EditorInputCapabilities.Readonly | (this._initialData.requiresModal ? EditorInputCapabilities.RequiresModal : 0);
 	}
 
 	override get resource(): URI {

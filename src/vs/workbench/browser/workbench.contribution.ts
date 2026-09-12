@@ -569,9 +569,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.sideBar.location': {
 				'type': 'string',
-				'enum': ['left'],
+				'enum': ['left', 'right'],
 				'default': 'left',
-				'description': localize('sideBarLocation', "ShortestPath IDE keeps the primary side bar and activity bar on the left of the workbench."),
+				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench."),
 				agentsWindow: { default: 'left', readOnly: true },
 			},
 			'workbench.panel.showLabels': {
@@ -813,9 +813,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			[LayoutSettings.MODERN_UI]: {
 				'type': 'boolean',
-				'default': true,
-				'tags': ['experimental'],
-				'description': localize('modernUI', "Controls whether the experimental Modern UI Update is enabled. When on, the side bars and bottom panel are shown as floating cards with rounded corners and gaps, and a set of refreshed workbench styles is applied, matching the Agents window design."),
+				'default': false,
+				'description': localize('modernUI', "Controls whether the Modern UI Update is enabled. When on, the side bars and bottom panel are shown as floating cards with rounded corners and gaps, and a set of refreshed workbench styles is applied, matching the Agents window design."),
 				experiment: { mode: 'auto' },
 			},
 			[LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]: {
@@ -890,7 +889,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						localize('window.menuBarVisibility.compact.web', "Menu is displayed as a compact button in the side bar.") :
 						localize({ key: 'window.menuBarVisibility.compact', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1} and {2} is either {3} or {4}.", '`#window.titleBarStyle#`', '`native`', '`#window.menuStyle#`', '`native`', '`inherit`')
 				],
-				'default': isWeb || isWindows ? 'compact' : 'classic',
+				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': isMacintosh ?
 					localize('menuBarVisibility.mac', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and executing `Focus Application Menu` will show it. A setting of 'compact' will move the menu into the side bar.") :
@@ -983,10 +982,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: 'workbench.sideBar.location', migrateFn: (value: unknown) => {
-			return value === 'right' ? [['workbench.sideBar.location', { value: 'left' }]] : [];
-		}
-	}, {
 		key: 'workbench.activityBar.visible', migrateFn: (value: unknown) => {
 			const result: ConfigurationKeyValuePairs = [];
 			if (value !== undefined) {

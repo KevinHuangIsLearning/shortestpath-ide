@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { registerSimpleSettings } from './simpleSettings';
 import { registerRelaxMode } from './relaxMode';
 import { registerCphSettings } from './cphSettings';
+	import { registerBrowserScriptTester } from './browserScriptTester';
 import { registerGettingStarted } from './gettingStarted';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
 import { localize, localizeFormat } from './localization';
@@ -256,6 +257,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 	}));
 	registerSimpleSettings(context);
+	registerBrowserScriptTester(context);
 	registerRelaxMode(context);
 	registerCphSettings(context);
 	registerGettingStarted(context);
