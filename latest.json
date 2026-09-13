@@ -1,6 +1,6 @@
 {
-	"version": "0.3.15",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.15",
+	"version": "0.3.16",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.16",
 	"minimumSupportedVersion": "0.3.15",
-	"releaseNote": "- 解决了一些已知问题，添加了一些小功能。\n\n- Fixed some known issues and added some minor features."
+	"releaseNote": "每次更新都要绞尽脑汁写更新日志，直到看见国内某大厂软件的更新日志，我顿时茅塞顿开！\n- 解决了一些已知问题。\n\n- Fixed some known issues."
 }
