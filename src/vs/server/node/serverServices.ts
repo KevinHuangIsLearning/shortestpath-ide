@@ -3,19 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import { hostname, release } from 'os';
 import { Emitter, Event } from '../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import * as path from '../../base/common/path.js';
 import { IURITransformer } from '../../base/common/uriIpc.js';
-import { generateUuid } from '../../base/common/uuid.js';
 import { getMachineId, getSqmMachineId, getDevDeviceId } from '../../base/node/id.js';
 import { Promises } from '../../base/node/pfs.js';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer, StaticRouter } from '../../base/parts/ipc/common/ipc.js';
 import { ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
-import { createRandomIPCHandle } from '../../base/parts/ipc/node/ipc.net.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../platform/configuration/common/configurationService.js';
 import { ExtensionHostDebugBroadcastChannel } from '../../platform/debug/common/extensionHostDebugIpc.js';
@@ -59,8 +56,8 @@ import { ServerTelemetryChannel } from '../../platform/telemetry/common/remoteTe
 import { IServerTelemetryService, ServerNullTelemetryService, ServerTelemetryService } from '../../platform/telemetry/common/serverTelemetryService.js';
 import { RemoteTerminalChannel } from './remoteTerminalChannel.js';
 import { createURITransformer } from '../../base/common/uriTransformer.js';
-import { ServerConnectionToken, ServerConnectionTokenType } from './serverConnectionToken.js';
-import { ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
+import { ServerConnectionToken } from './serverConnectionToken.js';
+import { getRedactedServerParsedArgs, ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { REMOTE_TERMINAL_CHANNEL_NAME } from '../../workbench/contrib/terminal/common/remote/remoteTerminalChannel.js';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from '../../workbench/services/remote/common/remoteFileSystemProviderClient.js';
 import { ExtensionHostStatusService, IExtensionHostStatusService } from './extensionHostStatusService.js';
@@ -80,10 +77,6 @@ import { RemoteExtensionsScannerChannel, RemoteExtensionsScannerService } from '
 import { RemoteExtensionsScannerChannelName } from '../../platform/remote/common/remoteExtensionsScanner.js';
 import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
-import { NodeAgentHostStarter } from '../../platform/agentHost/node/nodeAgentHostStarter.js';
-import { ServerAgentHostManager } from './serverAgentHostManager.js';
-import { AgentHostChannel, UnavailableAgentHostChannel } from './agentHostChannel.js';
-import { AgentHostIpcChannels } from '../../platform/agentHost/common/agentService.js';
 import { IServerLifetimeService, ServerLifetimeService } from './serverLifetimeService.js';
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
@@ -131,7 +124,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	disposables.add(logService.onDidChangeLogLevel(logLevel => log(logService, logLevel, `Log level changed to ${LogLevelToString(logService.getLevel())}`)));
 
 	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
-	logService.trace('process arguments:', environmentService.args);
+	logService.trace('process arguments:', getRedactedServerParsedArgs(environmentService.args));
 	if (Array.isArray(productService.serverGreeting)) {
 		logService.info(`\n\n${productService.serverGreeting.join('\n')}\n\n`);
 	}
@@ -244,6 +237,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	}, process.exit);
 	services.set(IServerLifetimeService, serverLifetimeService);
 
+	/* Agent host support is intentionally excluded from ShortestPath.
 	// ---- Agent host wiring -------------------------------------------------
 	//
 	// Three independent configurations:
@@ -292,6 +286,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const bridgePath = args['agent-host-bridge-path'] ?? spawnPath;
 		const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
 		const bridgeToken = args['agent-host-bridge-connection-token']
+			?? agentHostBridgeConnectionToken
 			?? ((bridgePort || bridgePath) && connectionToken.type === ServerConnectionTokenType.Mandatory
 				? connectionToken.value
 				: undefined);
@@ -312,11 +307,11 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
 			logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no --agent-host-bridge-port / --agent-host-bridge-path set.`);
 		}
-	} else if (args['agent-host-bridge-port'] || args['agent-host-bridge-path'] || args['agent-host-bridge-host'] || args['agent-host-bridge-connection-token']) {
+	} else if (args['agent-host-bridge-port'] || args['agent-host-bridge-path'] || args['agent-host-bridge-host'] || args['agent-host-bridge-connection-token'] || agentHostBridgeConnectionToken) {
 		const bridgePort = args['agent-host-bridge-port'];
 		const bridgePath = args['agent-host-bridge-path'];
 		const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
-		const bridgeToken = args['agent-host-bridge-connection-token'];
+		const bridgeToken = args['agent-host-bridge-connection-token'] ?? agentHostBridgeConnectionToken;
 		if (bridgePort || bridgePath) {
 			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
 				socketServer,
@@ -366,6 +361,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			logService.error(`[AgentHostChannel] Failed to register IPC channel '${AgentHostIpcChannels.RemoteProxy}'`, error);
 		}
 	}
+	*/
 
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
 	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));

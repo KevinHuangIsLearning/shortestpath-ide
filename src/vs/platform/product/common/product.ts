@@ -9,11 +9,6 @@ import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandbo
 
 interface IPackageConfiguration {
 	readonly version: string;
-	readonly dependencies?: Readonly<Record<string, string>>;
-}
-
-function getDependencyVersion(packageConfiguration: IPackageConfiguration, packageName: string): string | undefined {
-	return packageConfiguration.dependencies?.[packageName]?.replace(/^[~^]/, '');
 }
 
 /**
@@ -58,13 +53,6 @@ else if (globalThis._VSCODE_PRODUCT_JSON && globalThis._VSCODE_PACKAGE_JSON) {
 		});
 	}
 
-	if (!product.copilotVersions) {
-		const runtime = getDependencyVersion(packageConfiguration, '@github/copilot');
-		const sdk = getDependencyVersion(packageConfiguration, '@github/copilot-sdk');
-		if (runtime && sdk) {
-			Object.assign(product, { copilotVersions: { runtime, sdk } });
-		}
-	}
 }
 
 // Web environment or unknown
@@ -86,22 +74,7 @@ else {
 			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
 			licenseName: 'MIT',
 			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
-			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
-			defaultChatAgent: {
-				extensionId: 'GitHub.copilot',
-				chatExtensionId: 'GitHub.copilot-chat',
-				provider: {
-					default: {
-						id: 'github',
-						name: 'GitHub',
-					},
-					enterprise: {
-						id: 'github-enterprise',
-						name: 'GitHub Enterprise',
-					}
-				},
-				providerScopes: []
-			}
+			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt'
 		});
 	}
 }

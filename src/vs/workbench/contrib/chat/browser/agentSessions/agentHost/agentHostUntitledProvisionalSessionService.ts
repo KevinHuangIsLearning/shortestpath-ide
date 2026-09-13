@@ -105,6 +105,9 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 */
 	get(sessionResource: URI): URI | undefined;
 
+	/** Working directories used to create the current provisional generation. */
+	getProvisionalWorkingDirectories(sessionResource: URI): readonly URI[] | undefined;
+
 	/**
 	 * Initial config the editor window applies to every new Agent Host session.
 	 * Returns `undefined` in the Agents window, where the sessions provider owns
@@ -206,21 +209,19 @@ type ProvisionalOperationResult = URI | void;
 class ActiveClientBinding extends Disposable {
 	constructor(
 		readonly roots: readonly URI[],
-		readonly scope: IAgentCustomizationScope | undefined,
+		readonly scope: IAgentCustomizationScope,
 		clientId: string,
 		publish: () => void,
 	) {
 		super();
-		if (scope) {
-			this._register(scope);
-			this._register(autorun(reader => {
-				if (!scope.isResolved.read(reader)) {
-					return;
-				}
-				scope.activeClient(clientId).read(reader);
-				publish();
-			}));
-		}
+		this._register(scope);
+		this._register(autorun(reader => {
+			if (!scope.isResolved.read(reader)) {
+				return;
+			}
+			scope.activeClient(clientId).read(reader);
+			publish();
+		}));
 	}
 }
 
@@ -373,6 +374,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return undefined;
 		}
 		return this._generationMatchingDesiredState(entry)?.backendSession;
+	}
+
+	getProvisionalWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
+		const entry = this._entries.get(sessionResource);
+		if (!entry || entry.disposed) {
+			return undefined;
+		}
+		return this._generationMatchingDesiredState(entry)?.workingDirectories;
 	}
 
 	private _computeWorkingDirectories(primary: URI | undefined, provider: string): readonly URI[] | undefined {
@@ -546,13 +555,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return;
 		}
 		const scope = entry.activeClientBinding.value?.scope;
-		if (!scope?.isResolved.get()) {
+		if (!scope || !scope.isResolved.get()) {
 			return;
 		}
 		const activeClient = scope.activeClient(this._agentHostService.clientId).get();
-		if (!activeClient) {
-			return;
-		}
 		this._agentHostService.dispatch(entry.generation.backendSession.toString(), {
 			type: ActionType.SessionActiveClientSet,
 			activeClient,

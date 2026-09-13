@@ -348,6 +348,7 @@ export function codexMcpServersFromConfig(servers: Record<string, unknown> | und
 }
 
 // #endregion
+
 // #region MCP server authentication (reuse the workbench OAuth path)
 //
 // codex won't expose an OAuth-gated http MCP server's tools until it is

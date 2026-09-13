@@ -19,7 +19,6 @@ import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
-import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 
 const globAsync = promisify(glob);
@@ -98,13 +97,10 @@ const desktopWorkerEntryPoints = [
 // Desktop workbench and code entry points
 const desktopEntryPoints = [
 	'vs/workbench/workbench.desktop.main',
-	'vs/sessions/sessions.desktop.main',
 	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/localTranscription/node/localTranscriptionMain',
 	'vs/platform/terminal/node/ptyHostMain',
-	'vs/platform/agentHost/node/agentHostMain',
-	'vs/platform/agentHost/node/diffWorkerMain',
 	'vs/workbench/api/node/extensionHostProcess',
 ];
 
@@ -112,7 +108,6 @@ const codeEntryPoints = [
 	'vs/code/node/cliProcessMain',
 	'vs/code/electron-utility/sharedProcess/sharedProcessMain',
 	'vs/code/electron-browser/workbench/workbench',
-	'vs/sessions/electron-browser/sessions',
 ];
 
 // Web entry points (used in server-web and vscode-web)
@@ -121,11 +116,7 @@ const webEntryPoints = [
 	'vs/code/browser/workbench/workbench',
 ];
 
-// Additional web-only entry points (CDN build only, not in server-web)
-const sessionsWebEntryPoint = 'vs/sessions/sessions.web.main.internal';
-const webOnlyEntryPoints = [
-	sessionsWebEntryPoint,
-];
+const webOnlyEntryPoints: string[] = [];
 
 const keyboardMapEntryPoints = [
 	'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux',
@@ -138,8 +129,6 @@ const serverEntryPoints = [
 	'vs/workbench/api/node/extensionHostProcess',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
-	'vs/platform/agentHost/node/agentHostMain',
-	'vs/platform/agentHost/node/diffWorkerMain',
 ];
 
 // Bootstrap files per target
@@ -216,8 +205,6 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 			return new Set([
 				'vs/workbench/workbench.desktop.main',
 				'vs/code/electron-browser/workbench/workbench',
-				'vs/sessions/sessions.desktop.main',
-				'vs/sessions/electron-browser/sessions',
 			]);
 		case 'server':
 			return new Set(); // Server has no UI
@@ -229,7 +216,6 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 		case 'web':
 			return new Set([
 				'vs/workbench/workbench.web.main.internal',
-				'vs/sessions/sessions.web.main.internal',
 			]);
 		default:
 			throw new Error(`Unknown target: ${target}`);
@@ -249,9 +235,6 @@ const commonResourcePatterns = [
 	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
-	'vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
-	'vs/sessions/contrib/chat/browser/media/*.svg',
-	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg'
 ];
 
 // Resources for desktop target
@@ -261,8 +244,6 @@ const desktopResourcePatterns = [
 	// HTML
 	'vs/code/electron-browser/workbench/workbench.html',
 	'vs/code/electron-browser/workbench/workbench-dev.html',
-	'vs/sessions/electron-browser/sessions.html',
-	'vs/sessions/electron-browser/sessions-dev.html',
 	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 	'vs/workbench/contrib/webview/browser/pre/*.html',
 
@@ -286,7 +267,6 @@ const desktopResourcePatterns = [
 
 	// Media - audio
 	'vs/platform/accessibilitySignal/browser/media/*.mp3',
-	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
@@ -298,9 +278,6 @@ const desktopResourcePatterns = [
 	'vs/workbench/browser/parts/editor/media/*.png',
 	'vs/workbench/contrib/debug/browser/media/*.png',
 
-	// Sessions - built-in prompts and skills
-	'vs/sessions/prompts/*.prompt.md',
-	'vs/sessions/skills/**/SKILL.md',
 ];
 
 // Resources for server target (minimal - no UI)
@@ -347,7 +324,6 @@ const serverWebResourcePatterns = [
 
 	// Media - audio
 	'vs/platform/accessibilitySignal/browser/media/*.mp3',
-	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
@@ -375,7 +351,6 @@ const webResourcePatterns = [
 
 	// Media - audio
 	'vs/platform/accessibilitySignal/browser/media/*.mp3',
-	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
@@ -1017,13 +992,6 @@ ${tslib}`,
 
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
 	await compileStandaloneFiles(outDir, doMinify, target);
-
-	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
-		await bundleDevTunnelsWeb({
-			minify: doMinify,
-			outDir: path.join(outDir, 'vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser'),
-		});
-	}
 
 	console.log(`[bundle] Done in ${Date.now() - t1}ms (${bundled} bundles)`);
 }
