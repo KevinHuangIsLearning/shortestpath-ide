@@ -536,10 +536,10 @@ const english: Readonly<Record<string, string>> = {
 	,'7 天内不再显示': 'Hidden for 7 days'
 	,'无法打开支持页面：{0}': 'Could not open the support page: {0}'
 	,'使用文档': 'Documentation'
-	,'在内置浏览器中查看 ShortestPath IDE 的功能说明与使用教程。': 'Read the ShortestPath IDE feature guide and tutorials in the Integrated Browser.'
+	,'在外部浏览器中查看 ShortestPath IDE 的功能说明与使用教程。': 'Read the ShortestPath IDE feature guide and tutorials in your external browser.'
 	,'查看文档': 'View Documentation'
 	,'配合 Competitive Champion 使用 IDE': 'Use the IDE with Competitive Champion'
-	,'在内置浏览器中查看如何配合 Competitive Champion 使用 IDE。': 'Read how to use the IDE with Competitive Champion in the Integrated Browser.'
+	,'在外部浏览器中查看如何配合 Competitive Champion 使用 IDE。': 'Read how to use the IDE with Competitive Champion in your external browser.'
 	,'无法打开文档页面：{0}': 'Could not open the documentation page: {0}'
 };
 

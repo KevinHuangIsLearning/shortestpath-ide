@@ -62,13 +62,12 @@ async function openBuyMeACoffeePage(): Promise<void> {
 }
 
 // The documentation entry opens the ShortestPath IDE user guide in the
-// Integrated Browser so readers stay inside the IDE instead of losing their
-// place in an external browser.
+// system browser.
 const documentationUrl = 'https://kevinhuang.feishu.cn/wiki/LLBBwJQQGil2NnkJXWxcAeaLndd';
 
 async function openDocumentationPage(): Promise<void> {
 	try {
-		await vscode.window.openBrowserTab(documentationUrl, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
+		await vscode.env.openExternal(vscode.Uri.parse(documentationUrl));
 	} catch (error) {
 		void vscode.window.showErrorMessage(localizeFormat('无法打开文档页面：{0}', error instanceof Error ? error.message : String(error)));
 	}
@@ -715,7 +714,7 @@ section.card[hidden], .row[hidden] { display: none; } .no-results { color: var(-
 <aside class="sidebar"><div class="sidebar-title">设置</div><input id="settingsSearch" class="settings-search" type="search" placeholder="搜索设置"><nav class="categories" aria-label="设置分类"><button class="category active" data-category="all">全部</button><button class="category" data-category="editor">编辑器</button><button class="category" data-category="cpp">C++ 与 clangd</button><button class="category" data-category="appearance">外观与保存</button><button class="category" data-category="tools">工具</button></nav></aside>
 <div class="settings-content">
 <h1>ShortestPath IDE 设置</h1><p>只保留竞赛编程常用选项。更改会自动保存；其他设置可在高级设置中调整。</p>
-<section class="card documentation"><div class="row"><div><label>使用文档</label><div class="hint">在内置浏览器中查看 ShortestPath IDE 的功能说明与使用教程。</div></div><button id="openDocumentation">查看文档</button></div></section>
+<section class="card documentation"><div class="row"><div><label>使用文档</label><div class="hint">在外部浏览器中查看 ShortestPath IDE 的功能说明与使用教程。</div></div><button id="openDocumentation">查看文档</button></div></section>
 ${buyMeACoffeeHtml}
 <section class="card" data-category="editor">
 <div class="row"><div><label for="fontFamily">代码字体</label><div class="hint">仅可从检测到的系统等宽字体中选择，不支持手动输入。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" disabled aria-describedby="fontLoadStatus"><option>正在读取系统字体…</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div></div></div>
