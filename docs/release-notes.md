@@ -2,11 +2,21 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.3.15 更新 / What's New
+## v0.3.16 更新 / What's New
 
-- 解决了一些已知问题，添加了一些小功能。
+- 升级至 VS Code 1.137.0 内核。
+- 默认启用现代 UI；Windows 标题栏使用更紧凑的菜单入口，并简化窗口图标显示。
+- 修复 VS Code 内核升级后聊天、语言模型、MCP 等协议服务未完整注册时，可能导致扩展宿主无法启动的问题。
+- 改进更新检查：GitHub 更新清单不可用时自动尝试 GitCode 镜像；强制更新遇到网络问题时可临时继续使用 15 分钟；快速下载链接兼容性更好。
+- 主页和简化设置新增使用文档与项目支持入口，主页操作按用途分组显示。使用文档以及 CPH 设置中的 Competitive Champion 文档现会在系统外部浏览器中打开。
+- 修复从简化设置打开工具链诊断时，诊断页未以 modal 打开且被设置页遮挡的问题。
 
-- Fixed some known issues and added some minor features.
+- Upgraded the VS Code core to 1.137.0.
+- Enabled Modern UI by default. On Windows, the title bar now uses a more compact menu entry and a simplified app-icon layout.
+- Fixed an issue introduced during the core upgrade where missing chat, language-model, MCP, and related protocol service registrations could prevent the extension host from starting.
+- Improved update checks: the GitCode mirror is tried automatically when the GitHub update manifest is unavailable, required updates can grant a temporary 15-minute network grace period, and fast-download links accept more URL formats.
+- Added documentation and project-support entries to the Home page and Simplified Settings, with Home page actions grouped by purpose. Documentation and the Competitive Champion guide in CPH Settings now open in the system browser.
+- Fixed Toolchain Diagnostics opened from Simplified Settings not appearing as a modal and being covered by the Settings modal.
 
 The English version follows the Chinese version.
 
