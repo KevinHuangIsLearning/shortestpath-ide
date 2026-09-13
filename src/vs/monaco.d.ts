@@ -4002,6 +4002,8 @@ declare namespace monaco.editor {
 		inlineCompletionsAccessibilityVerbose?: boolean;
 	}
 
+	export type DiffEditorViewMode = 'inline' | 'sideBySide' | 'automatic';
+
 	export interface IDiffEditorBaseOptions {
 		/**
 		 * Allow the user to resize the diff editor split view.
@@ -6611,6 +6613,11 @@ declare namespace monaco.languages {
 	export function getLanguages(): ILanguageExtensionPoint[];
 
 	export function getEncodedLanguageId(languageId: string): number;
+
+	/**
+	 * Compute the score of a language selector against a candidate Uri and language.
+	 */
+	export function score(selector: LanguageSelector | undefined, candidateUri: Uri, candidateLanguage: string): number;
 
 	/**
 	 * An event emitted when a language is associated for the first time with a text model.

@@ -47,7 +47,6 @@ export function getChatRequestLabel(request: IChatRequestViewModel, index: numbe
 	}
 	return getExplicitFileOrImageAttachmentSummary(request.variables) ?? localize('chatOutline.emptyRequest', "Request {0}", index + 1);
 }
-
 /**
  * A single navigable element in a chat outline. Each entry maps to a user
  * request (prompt) in the chat, acting as the top-level "symbol" the user can
