@@ -18,7 +18,7 @@ export function registerToolchainDiagnostics(context: vscode.ExtensionContext): 
 
 async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promise<void> {
 	const sourcePath = getActiveCppSourcePath();
-	const panel = vscode.window.createWebviewPanel('shortestpath.toolchainDiagnostics', localize('工具链诊断'), { viewColumn: vscode.ViewColumn.Active, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true });
+	const panel = vscode.window.createWebviewPanel('shortestpath.toolchainDiagnostics', localize('工具链诊断'), { viewColumn: vscode.ViewColumn.Active, preserveFocus: true }, { enableScripts: true, modal: true, retainContextWhenHidden: true });
 	const refresh = async () => {
 		const items = await collectDiagnostics(getActiveCppSourcePath() ?? sourcePath);
 		await panel.webview.postMessage({ type: 'state', value: { items, needsRepair: items.some(item => item.status === 'error' || (item.status === 'warning' && item.repairable !== false)) } });
