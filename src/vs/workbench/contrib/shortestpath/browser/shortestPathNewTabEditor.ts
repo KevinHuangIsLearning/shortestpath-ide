@@ -65,7 +65,7 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		// allow-any-unicode-next-line
 		this.addAction(toolActions, localizeNewTab('View Documentation', '查看文档'), 'codicon-book', () => this.openerService.open(URI.parse('https://kevinhuang.feishu.cn/wiki/LLBBwJQQGil2NnkJXWxcAeaLndd'), { openExternal: true }));
 		// allow-any-unicode-next-line
-		this.addAction(toolActions, localizeNewTab('Buy Me a Coffee', 'Buy Me a Coffee'), 'codicon-coffee', () => this.commandService.executeCommand('workbench.action.browser.open', 'https://kevinhuang.feishu.cn/wiki/Z6a6w3M9riOFXXkXLAoc1G7inJd'));
+		this.addAction(toolActions, localizeNewTab('Buy Me a Coffee', '请我喝杯咖啡'), 'codicon-coffee', () => this.commandService.executeCommand('workbench.action.browser.open', 'https://kevinhuang.feishu.cn/wiki/Z6a6w3M9riOFXXkXLAoc1G7inJd'));
 		// allow-any-unicode-next-line
 		this.addAction(toolActions, localizeNewTab('Open Settings', '打开设置'), 'codicon-settings-gear', () => this.commandService.executeCommand('shortestpath.openSettings'));
 		// allow-any-unicode-next-line

@@ -530,6 +530,7 @@ const english: Readonly<Record<string, string>> = {
 	,'新模板': 'New Snippet'
 	,'尚未设置触发前缀': 'No prefix set'
 	,'这个放松源已经添加过了。': 'This relax source has already been added.'
+	,'请我喝杯咖啡': 'Buy Me a Coffee'
 	,'如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。': 'If ShortestPath IDE has been useful to you, please consider supporting its continued maintenance and updates.'
 	,'打开支持页面': 'Open Support Page'
 	,'关闭 7 天': 'Hide for 7 Days'

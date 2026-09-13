@@ -38,6 +38,7 @@ test('covers the rendered English setup surfaces', () => {
 		'模板名称',
 		'尚未设置触发前缀',
 		'这个放松源已经添加过了。',
+		'请我喝杯咖啡',
 		'如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。',
 		'打开支持页面',
 		'关闭 7 天',

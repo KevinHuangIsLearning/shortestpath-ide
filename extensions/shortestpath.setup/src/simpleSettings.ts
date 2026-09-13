@@ -679,7 +679,7 @@ function getHtml(state: SimpleSettingsState, showBuyMeACoffee: boolean): string 
 	// page's own template stays free of escaped backticks.
 	const buyMeACoffeeHtml = showBuyMeACoffee
 		? '<section class="card buy-me-a-coffee" id="buyMeACoffee">'
-		+ '<div class="row"><div><label>Buy Me a Coffee</label><div class="hint">如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。</div></div>'
+		+ '<div class="row"><div><label>请我喝杯咖啡</label><div class="hint">如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。</div></div>'
 		+ '<div class="buy-me-a-coffee-actions"><button id="openBuyMeACoffee" type="button">打开支持页面</button>'
 		+ '<button id="dismissBuyMeACoffee" class="secondary" type="button" title="7 天内不再显示">关闭 7 天</button></div></div>'
 		+ '</section>'
