@@ -32,7 +32,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, getShortestPathUpdateWithFallback, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
+import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateDialogKind, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, getShortestPathUpdateWithFallback, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
 
 interface IShortestPathUpdateCheckResult {
 	readonly release: IShortestPathUpdate;
@@ -69,7 +69,6 @@ class ShortestPathUpdateChecker {
 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
@@ -104,22 +103,6 @@ class ShortestPathUpdateChecker {
 		});
 		const target = (await this.getUpdateTarget()) ?? { downloadUrl: release.downloadUrl, allowsMinimumVersionLock: false };
 		const result = { release, target, fastDownloadUrl: getShortestPathFastDownloadUrl(release.fastDownloadUrls, target) };
-
-		if (release.minimumSupportedVersion && target?.allowsMinimumVersionLock !== false && !isShortestPathVersionSupported(currentVersion, release.minimumSupportedVersion)) {
-			return result;
-		}
-
-		if (!isShortestPathUpdateAvailable(currentVersion, release.version)) {
-			return result;
-		}
-
-		ShortestPathUpdateBlocker.getOrCreate(this.instantiationService, {
-			downloadUrl: target?.downloadUrl ?? release.downloadUrl,
-			fastDownloadUrl: result.fastDownloadUrl,
-			isRequired: false,
-			version: release.version,
-			releaseNote: release.releaseNote,
-		});
 
 		return result;
 	}
@@ -340,8 +323,14 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 				return;
 			}
 			const graceState = this.productService.shortestPathVersion ? getShortestPathUpdateGraceStateForCurrentMinimumVersion(this.storageService, this.productService.shortestPathVersion, result.release.minimumSupportedVersion) : undefined;
-			if (!result.release.minimumSupportedVersion || result.target?.allowsMinimumVersionLock === false || !this.productService.shortestPathVersion || isShortestPathVersionSupported(this.productService.shortestPathVersion, result.release.minimumSupportedVersion)) {
-				this.clearInactiveGrace();
+			const dialogKind = getShortestPathUpdateDialogKind(this.productService.shortestPathVersion ?? '', result.release, result.target);
+			if (dialogKind === 'none') {
+				this.clearInactiveGrace(true);
+				return;
+			}
+			if (dialogKind === 'available') {
+				this.clearInactiveGrace(false);
+				this.showAvailableUpdate(instantiationService, result);
 				return;
 			}
 
@@ -352,7 +341,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 			}
 
 			if (!ShortestPathUpdateBlocker.hasActive) {
-				this.showBlocker(instantiationService, result.release.minimumSupportedVersion, result.target?.downloadUrl ?? result.release.downloadUrl, result.fastDownloadUrl, result.release.releaseNote);
+				this.showBlocker(instantiationService, result.release.minimumSupportedVersion!, result.target?.downloadUrl ?? result.release.downloadUrl, result.fastDownloadUrl, result.release.releaseNote);
 			}
 		} catch (error) {
 			logService.debug('ShortestPath IDE update check failed.', error);
@@ -362,6 +351,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private showBlocker(instantiationService: IInstantiationService, minimumSupportedVersion: string, downloadUrl: string, fastDownloadUrl: string | undefined, releaseNote?: string): void {
+		ShortestPathUpdateBlocker.dismiss();
 		this.blocker = this._register(ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
 			downloadUrl,
 			fastDownloadUrl,
@@ -369,6 +359,17 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 			releaseNote,
 			onNetworkGrace: () => this.grantNetworkGrace(minimumSupportedVersion, downloadUrl),
 		}));
+	}
+
+	private showAvailableUpdate(instantiationService: IInstantiationService, result: IShortestPathUpdateCheckResult): void {
+		ShortestPathUpdateBlocker.dismiss();
+		ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
+			downloadUrl: result.target?.downloadUrl ?? result.release.downloadUrl,
+			fastDownloadUrl: result.fastDownloadUrl,
+			isRequired: false,
+			version: result.release.version,
+			releaseNote: result.release.releaseNote,
+		});
 	}
 
 	private grantNetworkGrace(minimumSupportedVersion: string, downloadUrl: string): void {
@@ -396,10 +397,12 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 		this.graceExpiryScheduler.schedule(Math.max(0, state.graceUntil - Date.now()));
 	}
 
-	private clearInactiveGrace(): void {
+	private clearInactiveGrace(dismissBlocker: boolean): void {
 		this.graceExpiryScheduler.cancel();
-		ShortestPathUpdateBlocker.dismiss();
-		this.blocker = undefined;
+		if (dismissBlocker) {
+			ShortestPathUpdateBlocker.dismiss();
+			this.blocker = undefined;
+		}
 		if (this.productService.shortestPathVersion) {
 			const state = getShortestPathUpdateGraceState(this.storageService, this.productService.shortestPathVersion);
 			if (state) {
@@ -566,11 +569,21 @@ registerAction2(class extends Action2 {
 				return { status: 'latest', version: result.release.version };
 			}
 			const graceState = productService.shortestPathVersion ? getShortestPathUpdateGraceStateForCurrentMinimumVersion(storageService, productService.shortestPathVersion, result.release.minimumSupportedVersion) : undefined;
-			if (result.release.minimumSupportedVersion && result.target?.allowsMinimumVersionLock !== false && productService.shortestPathVersion && !isShortestPathVersionSupported(productService.shortestPathVersion, result.release.minimumSupportedVersion)) {
+			const dialogKind = getShortestPathUpdateDialogKind(productService.shortestPathVersion ?? '', result.release, result.target);
+			if (dialogKind === 'required') {
 				if (graceState?.graceUntil && graceState.graceUntil > Date.now()) {
+					ShortestPathUpdateBlocker.dismiss();
+					ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
+						downloadUrl: result.target?.downloadUrl ?? result.release.downloadUrl,
+						fastDownloadUrl: result.fastDownloadUrl,
+						isRequired: false,
+						version: result.release.version,
+						releaseNote: result.release.releaseNote,
+					});
 					return { status: 'available', version: result.release.version };
 				}
 				const downloadUrl = result.target?.downloadUrl ?? result.release.downloadUrl;
+				ShortestPathUpdateBlocker.dismiss();
 				const blocker = ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
 					downloadUrl,
 					fastDownloadUrl: result.fastDownloadUrl,
@@ -594,6 +607,13 @@ registerAction2(class extends Action2 {
 						storageService.remove(UPDATE_GRACE_STORAGE_KEY, StorageScope.APPLICATION);
 					}
 				}
+				ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
+					downloadUrl: result.target?.downloadUrl ?? result.release.downloadUrl,
+					fastDownloadUrl: result.fastDownloadUrl,
+					isRequired: false,
+					version: result.release.version,
+					releaseNote: result.release.releaseNote,
+				});
 			}
 			return { status: 'available', version: result.release.version };
 		} catch (error) {

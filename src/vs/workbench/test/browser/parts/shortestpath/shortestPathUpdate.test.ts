@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, getShortestPathUpdateUrls, getShortestPathUpdateWithFallback, isShortestPathUpdateAvailable, isShortestPathUpdateGraceStateForMinimumVersion, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
+import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateDialogKind, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, getShortestPathUpdateUrls, getShortestPathUpdateWithFallback, isShortestPathUpdateAvailable, isShortestPathUpdateGraceStateForMinimumVersion, isShortestPathVersionSupported, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from '../../../../contrib/shortestpath/browser/shortestPathUpdate.js';
 
 suite('ShortestPath update check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -83,6 +83,14 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(isShortestPathUpdateAvailable('0.3.0', '0.2.9'), false);
 		assert.strictEqual(isShortestPathVersionSupported('0.2.0', '0.2.0'), true);
 		assert.strictEqual(isShortestPathVersionSupported('0.1.9', '0.2.0'), false);
+	});
+
+	test('classifies update dialog behavior', () => {
+		const release = { version: '0.3.16', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.16', minimumSupportedVersion: '0.3.15' };
+		assert.strictEqual(getShortestPathUpdateDialogKind('0.3.16', release, getShortestPathUpdateTarget('darwin', undefined)), 'none');
+		assert.strictEqual(getShortestPathUpdateDialogKind('0.3.15', release, getShortestPathUpdateTarget('darwin', undefined)), 'available');
+		assert.strictEqual(getShortestPathUpdateDialogKind('0.3.14', release, getShortestPathUpdateTarget('darwin', undefined)), 'required');
+		assert.strictEqual(getShortestPathUpdateDialogKind('0.3.14', release, getShortestPathUpdateTarget('win32', undefined)), 'available');
 	});
 
 	test('gets release notes from the fixed GitHub Markdown directory', () => {

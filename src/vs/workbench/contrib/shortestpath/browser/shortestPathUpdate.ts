@@ -31,6 +31,18 @@ export interface IShortestPathUpdateTarget {
 	readonly fastDownloadType?: keyof IShortestPathFastDownloadUrls;
 }
 
+export type ShortestPathUpdateDialogKind = 'none' | 'available' | 'required';
+
+export function getShortestPathUpdateDialogKind(currentVersion: string, release: IShortestPathUpdate, target: IShortestPathUpdateTarget | undefined): ShortestPathUpdateDialogKind {
+	if (!isShortestPathUpdateAvailable(currentVersion, release.version)) {
+		return 'none';
+	}
+	if (release.minimumSupportedVersion && target?.allowsMinimumVersionLock !== false && !isShortestPathVersionSupported(currentVersion, release.minimumSupportedVersion)) {
+		return 'required';
+	}
+	return 'available';
+}
+
 const SHORTEST_PATH_UPDATE_FALLBACK_URL = 'https://raw.gitcode.com/KevinHuangIsLearning/shortestpath-ide/raw/main/latest.json';
 
 export function getShortestPathUpdateUrls(primaryUrl: string): readonly string[] {
