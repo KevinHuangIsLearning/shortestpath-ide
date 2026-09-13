@@ -507,6 +507,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 		} else if (message?.type === 'autoFormat') {
 			await vscode.commands.executeCommand('shortestpath.configureAutoFormat');
 		} else if (message?.type === 'toolchainDiagnostics') {
+			panel.dispose();
 			await vscode.commands.executeCommand('shortestpath.openToolchainDiagnostics');
 		} else if (message?.type === 'cphSettings') {
 			await vscode.commands.executeCommand('shortestpath.configureCph');

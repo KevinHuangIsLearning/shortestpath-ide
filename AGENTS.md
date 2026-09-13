@@ -19,6 +19,21 @@ Run commands from the repository root:
 
 Before tests, follow `.github/copilot-instructions.md`: use the build watch task when available, otherwise the typecheck or extension gulp task. Do not use `npm run compile` for TypeScript validation.
 
+## Upstream Kernels: Keep the Chat/Agent Service Layer
+
+This fork ships no Copilot/Chat/Agent extension, but the **service layer must stay registered**. `extensionHost.contribution.ts` unconditionally imports the `mainThread*.ts` customers (`MainThreadChatAgents2`, `ChatSessions`, `LanguageModels`, `LanguageModelTools`, `Mcp`, `Interactive`, `CodeMapper`, …), whose constructors DI-inject chat/agent services. Deleting those `registerSingleton` providers from `workbench.common.main.ts` — the usual accident when resolving an upstream merge conflict — makes every customer fail to construct, so `extensionHostManager.ts` throws `Missing proxy instance MainThreadChatAgents2` and the **whole extension host** dies. Only the first missing proxy is reported; a queue of others hides behind it.
+
+When syncing upstream, never drop a `chat` / `mcp` / `interactive` / `sessions` import block wholesale. Keep the service providers, drop UI entry points only:
+
+- **Keep** — `chat/browser/chat.shared.contribution.js` (owns the `IChat*` / `IPrompts*` / `IAgent*` / `ILanguageModels*` singletons), `chat.contribution.js`, `chatSessions/chatSessions.contribution.js`, `mcp/browser/mcp.contribution.js`, `interactive/browser/interactive.contribution.js`, `chat/common/chatEntitlementService.js`, the agentHost service modules, `vs/sessions` color/size tokens.
+- **Drop** — `chat.view.contribution.js`, `agentSessions/agentHost/agentHost.contribution.js`, `inlineChat`, `agentsVoice`, `mcp.view.contribution.js`, `chatContext.contribution.js`, `welcomeAgentSessions`, `remoteCodingAgents`.
+
+Never add standalone `ILanguageModelsService` / `ILanguageModelsConfigurationService` / `ILanguageModelIgnoredFilesService` singletons to the entry file; `chat.shared.contribution.ts` already registers all three. `src/vs/sessions/` is a separate app entry, outside this contract.
+
+### Static verification (no GUI needed)
+
+Diff the services registered by the `workbench.desktop.main.ts` import closure against the `@I*` tokens injected by every `mainThread*.ts` customer. Any surviving `IChat*` / `IAgent*` / `ILanguageModel*` / `IMcp*` / `IInteractive*` token is a dead extension host. Scan **every** decorator in each customer file, not just the first `constructor(` — they routinely declare multiple classes.
+
 ## Coding Style & Naming Conventions
 
 Use tabs, single quotes for non-localized strings, braces for control flow, and `async`/`await`. Use PascalCase for types and enum values; camelCase for functions and variables. Localize visible text through `vs/nls`, preserve copyright headers, and register disposables immediately. Run `npm run eslint`, `npm run stylelint`, and `npm run valid-layers-check` where relevant.
