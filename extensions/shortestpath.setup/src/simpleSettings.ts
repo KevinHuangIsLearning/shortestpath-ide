@@ -41,6 +41,39 @@ type SimpleSettingsState = {
 	themes: ThemeOption[];
 };
 
+// A highlighted "Buy Me a Coffee" entry sits at the top of the simplified settings
+// page. Dismissing it hides the entry for a week; the deadline is persisted so
+// it survives window reloads and restarts.
+const buyMeACoffeeUrl = 'https://kevinhuang.feishu.cn/wiki/Z6a6w3M9riOFXXkXLAoc1G7inJd';
+const buyMeACoffeeDismissedUntilKey = 'shortestpath.buyMeACoffee.dismissedUntil';
+const buyMeACoffeeHideDuration = 7 * 24 * 60 * 60 * 1000;
+
+function isBuyMeACoffeeVisible(context: vscode.ExtensionContext): boolean {
+	const dismissedUntil = context.globalState.get<unknown>(buyMeACoffeeDismissedUntilKey);
+	return typeof dismissedUntil !== 'number' || !Number.isFinite(dismissedUntil) || Date.now() >= dismissedUntil;
+}
+
+async function openBuyMeACoffeePage(): Promise<void> {
+	try {
+		await vscode.window.openBrowserTab(buyMeACoffeeUrl, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
+	} catch (error) {
+		void vscode.window.showErrorMessage(localizeFormat('无法打开支持页面：{0}', error instanceof Error ? error.message : String(error)));
+	}
+}
+
+// The documentation entry opens the ShortestPath IDE user guide in the
+// Integrated Browser so readers stay inside the IDE instead of losing their
+// place in an external browser.
+const documentationUrl = 'https://kevinhuang.feishu.cn/wiki/LLBBwJQQGil2NnkJXWxcAeaLndd';
+
+async function openDocumentationPage(): Promise<void> {
+	try {
+		await vscode.window.openBrowserTab(documentationUrl, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false });
+	} catch (error) {
+		void vscode.window.showErrorMessage(localizeFormat('无法打开文档页面：{0}', error instanceof Error ? error.message : String(error)));
+	}
+}
+
 export function registerSimpleSettings(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openSettings', () => openSimpleSettings(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.configureCppSnippets', () => openCppSnippets(context)));
@@ -420,7 +453,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 		vscode.ViewColumn.Active,
 		{ enableScripts: true, modal: true, retainContextWhenHidden: true }
 	);
-	panel.webview.html = localizeWebviewHtml(getHtml(getState()));
+	panel.webview.html = localizeWebviewHtml(getHtml(getState(), isBuyMeACoffeeVisible(context)));
 	void getSystemFonts().then(async result => {
 		if (isDisposed) {
 			return;
@@ -469,6 +502,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.commands.executeCommand('shortestpath.configureCppSnippets');
 		} else if (message?.type === 'gettingStarted') {
 			await vscode.commands.executeCommand('shortestpath.openGettingStarted');
+		} else if (message?.type === 'openDocumentation') {
+			await openDocumentationPage();
 		} else if (message?.type === 'autoFormat') {
 			await vscode.commands.executeCommand('shortestpath.configureAutoFormat');
 		} else if (message?.type === 'toolchainDiagnostics') {
@@ -505,6 +540,10 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			}
 		} else if (message?.type === 'unlockRelaxMode') {
 			await unlockRelaxMode(context);
+		} else if (message?.type === 'buyMeACoffee') {
+			await openBuyMeACoffeePage();
+		} else if (message?.type === 'dismissBuyMeACoffee') {
+			await context.globalState.update(buyMeACoffeeDismissedUntilKey, Date.now() + buyMeACoffeeHideDuration);
 		}
 	}, undefined, context.subscriptions);
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
@@ -634,8 +673,17 @@ export function isCppStandard(value: unknown): value is CppStandard {
 	return value === 'c++11' || value === 'c++14' || value === 'c++17' || value === 'c++20' || value === 'c++23';
 }
 
-function getHtml(state: SimpleSettingsState): string {
+function getHtml(state: SimpleSettingsState, showBuyMeACoffee: boolean): string {
 	const serializedState = JSON.stringify(state).replace(/</g, '\\u003c');
+	// Built as plain concatenation rather than a nested template literal so the
+	// page's own template stays free of escaped backticks.
+	const buyMeACoffeeHtml = showBuyMeACoffee
+		? '<section class="card buy-me-a-coffee" id="buyMeACoffee">'
+		+ '<div class="row"><div><label>Buy Me a Coffee</label><div class="hint">如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。</div></div>'
+		+ '<div class="buy-me-a-coffee-actions"><button id="openBuyMeACoffee" type="button">打开支持页面</button>'
+		+ '<button id="dismissBuyMeACoffee" class="secondary" type="button" title="7 天内不再显示">关闭 7 天</button></div></div>'
+		+ '</section>'
+		: '';
 	return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -658,12 +706,16 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 .fallback-list { display: grid; gap: 7px; }.fallback-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; }.fallback-row .icon { min-width: 28px; padding: 5px; }.add-fallback { margin-top: 8px; }
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); } button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } #saved { color: var(--vscode-testing-iconPassed); }
 section.card[hidden], .row[hidden] { display: none; } .no-results { color: var(--vscode-descriptionForeground); margin: 28px 0; } @media (max-width: 720px) { body { height: auto; overflow: auto; } main { display: block; height: auto; padding: 24px 18px 48px; }.sidebar { position: static; margin-bottom: 22px; }.settings-content { overflow: visible; padding-right: 0; }.categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }.row { grid-template-columns: 1fr; gap: 8px; }.font-preview { margin-left: 0; } }
+.buy-me-a-coffee { border-color: var(--vscode-focusBorder); background: var(--vscode-editorWidget-background); }.buy-me-a-coffee label { color: var(--vscode-textLink-foreground); font-size: 15px; }.buy-me-a-coffee-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }.buy-me-a-coffee-actions button { white-space: nowrap; }
+.documentation { border-color: var(--vscode-focusBorder); background: var(--vscode-editorWidget-background); }.documentation label { color: var(--vscode-textLink-foreground); font-size: 15px; }
 </style>
 </head>
 <body><main>
 <aside class="sidebar"><div class="sidebar-title">设置</div><input id="settingsSearch" class="settings-search" type="search" placeholder="搜索设置"><nav class="categories" aria-label="设置分类"><button class="category active" data-category="all">全部</button><button class="category" data-category="editor">编辑器</button><button class="category" data-category="cpp">C++ 与 clangd</button><button class="category" data-category="appearance">外观与保存</button><button class="category" data-category="tools">工具</button></nav></aside>
 <div class="settings-content">
 <h1>ShortestPath IDE 设置</h1><p>只保留竞赛编程常用选项。更改会自动保存；其他设置可在高级设置中调整。</p>
+<section class="card documentation"><div class="row"><div><label>使用文档</label><div class="hint">在内置浏览器中查看 ShortestPath IDE 的功能说明与使用教程。</div></div><button id="openDocumentation">查看文档</button></div></section>
+${buyMeACoffeeHtml}
 <section class="card" data-category="editor">
 <div class="row"><div><label for="fontFamily">代码字体</label><div class="hint">仅可从检测到的系统等宽字体中选择，不支持手动输入。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" disabled aria-describedby="fontLoadStatus"><option>正在读取系统字体…</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div></div></div>
 <div id="fontPreview" class="font-preview">#include &lt;bits/stdc++.h&gt;
@@ -927,6 +979,7 @@ byId('advanced').addEventListener('click', () => vscode.postMessage({ type: 'adv
 byId('configureLocale').addEventListener('click', () => vscode.postMessage({ type: 'configureLocale' }));
 byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));
 byId('gettingStarted').addEventListener('click', () => vscode.postMessage({ type: 'gettingStarted' }));
+byId('openDocumentation').addEventListener('click', () => vscode.postMessage({ type: 'openDocumentation' }));
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
 byId('cphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
 byId('customSubmitScripts').addEventListener('click', () => vscode.postMessage({ type: 'customSubmitScripts' }));
@@ -943,6 +996,10 @@ window.addEventListener('message', event => {
 });
 checkForUpdatesButton.addEventListener('click', () => vscode.postMessage({ type: 'checkForUpdates' }));
 byId('toolchainDiagnostics').addEventListener('click', () => vscode.postMessage({ type: 'toolchainDiagnostics' }));
+const openBuyMeACoffeeButton = byId('openBuyMeACoffee');
+if (openBuyMeACoffeeButton) openBuyMeACoffeeButton.addEventListener('click', () => vscode.postMessage({ type: 'buyMeACoffee' }));
+const dismissBuyMeACoffeeButton = byId('dismissBuyMeACoffee');
+if (dismissBuyMeACoffeeButton) dismissBuyMeACoffeeButton.addEventListener('click', () => { vscode.postMessage({ type: 'dismissBuyMeACoffee' }); const entry = byId('buyMeACoffee'); if (entry) entry.hidden = true; });
 window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); if (event.data?.type === 'systemFonts') void applySystemFonts(event.data.value); });
 apply(${serializedState});
 updateSettingsFilter();
