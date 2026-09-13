@@ -38,6 +38,11 @@ test('covers the rendered English setup surfaces', () => {
 		'模板名称',
 		'尚未设置触发前缀',
 		'这个放松源已经添加过了。',
+		'如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。',
+		'打开支持页面',
+		'关闭 7 天',
+		'7 天内不再显示',
+		'无法打开支持页面：{0}',
 	]) {
 		assert.match(localization, new RegExp(`['"]${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]\\s*:`));
 	}
@@ -54,6 +59,20 @@ test('covers the rendered English setup surfaces', () => {
 	] as const) {
 		assert.match(fs.readFileSync(path.join(extensionRoot, 'src', file), 'utf8'), pattern);
 	}
+});
+
+test('keeps the Buy Me a Coffee entry dismissible for seven days', () => {
+	const extensionRoot = path.resolve(__dirname, '../..');
+	const settings = fs.readFileSync(path.join(extensionRoot, 'src', 'simpleSettings.ts'), 'utf8');
+	assert.match(settings, /const buyMeACoffeeHideDuration = 7 \* 24 \* 60 \* 60 \* 1000;/);
+	assert.match(settings, /openBrowserTab\(buyMeACoffeeUrl/);
+	assert.match(settings, /get<unknown>\(buyMeACoffeeDismissedUntilKey\)/);
+	assert.match(settings, /isBuyMeACoffeeVisible\(context\)/);
+	assert.match(settings, /message\?\.type === 'buyMeACoffee'/);
+	assert.match(settings, /message\?\.type === 'dismissBuyMeACoffee'/);
+	assert.match(settings, /update\(buyMeACoffeeDismissedUntilKey, Date\.now\(\) \+ buyMeACoffeeHideDuration\)/);
+	// The entry only reaches the page while it is inside its visible window.
+	assert.match(settings, /const buyMeACoffeeHtml = showBuyMeACoffee[\s\S]{0,40}\?/);
 });
 
 test('compiles the setup bootstrap and translates input attributes without rewrite loops', () => {

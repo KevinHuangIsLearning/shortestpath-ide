@@ -12,7 +12,7 @@
 }
 
 .shortestpath-new-tab-content {
-	max-width: 620px;
+	max-width: 880px;
 }
 
 .shortestpath-new-tab h1 {
@@ -28,10 +28,18 @@
 	font-size: 24px;
 }
 
+.shortestpath-new-tab-columns {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 40px;
+	align-items: start;
+}
+
 .shortestpath-new-tab h2 {
-	margin: 0 0 16px;
-	font-size: 28px;
+	margin: 0 0 14px;
+	font-size: 20px;
 	font-weight: 500;
+	color: var(--vscode-descriptionForeground);
 }
 
 .shortestpath-new-tab-actions {
@@ -39,6 +47,13 @@
 	flex-direction: column;
 	align-items: flex-start;
 	gap: 8px;
+}
+
+@media (max-width: 760px) {
+	.shortestpath-new-tab-columns {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 32px;
+	}
 }
 
 .shortestpath-new-tab-action {

@@ -40,26 +40,42 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		append(content, $('h1', undefined, localizeNewTab('ShortestPath IDE', 'ShortestPath IDE')));
 		// allow-any-unicode-next-line
 		append(content, $('.subtitle', undefined, localizeNewTab('Competitive programming, focused.', '专注于竞赛编程。')));
-		// allow-any-unicode-next-line
-		append(content, $('h2', undefined, localizeNewTab('Start', '开始')));
 
-		const actions = append(content, $('.shortestpath-new-tab-actions'));
+		// Two columns, grouped by purpose: the left column covers file and
+		// workspace actions, the right column collects tools and resources.
+		const columns = append(content, $('.shortestpath-new-tab-columns'));
 		// allow-any-unicode-next-line
-		this.addAction(actions, localizeNewTab('New File...', '新建文件...'), 'codicon-new-file', () => this.commandService.executeCommand('workbench.action.files.newUntitledFile', { languageId: this.configurationService.getValue<string>('shortestpath.newFile.defaultLanguage') || 'cpp' }));
+		const fileActions = this.addColumn(columns, localizeNewTab('Start', '开始'));
 		// allow-any-unicode-next-line
-		this.addAction(actions, localizeNewTab('Open...', '打开...'), 'codicon-folder-opened', () => this.commandService.executeCommand('workbench.action.files.openFile'));
+		const toolActions = this.addColumn(columns, localizeNewTab('Tools & Resources', '工具与资源'));
+
 		// allow-any-unicode-next-line
-		this.addAction(actions, localizeNewTab('Open Folder...', '打开文件夹...'), 'codicon-folder', () => this.commandService.executeCommand('workbench.action.files.openFolder'));
+		this.addAction(fileActions, localizeNewTab('New File...', '新建文件...'), 'codicon-new-file', () => this.commandService.executeCommand('workbench.action.files.newUntitledFile', { languageId: this.configurationService.getValue<string>('shortestpath.newFile.defaultLanguage') || 'cpp' }));
 		// allow-any-unicode-next-line
-		this.addAction(actions, localizeNewTab('Open File Quickly...', '快速打开文件...'), 'codicon-go-to-file', () => this.commandService.executeCommand('workbench.action.quickOpen'));
+		this.addAction(fileActions, localizeNewTab('Open...', '打开...'), 'codicon-folder-opened', () => this.commandService.executeCommand('workbench.action.files.openFile'));
 		// allow-any-unicode-next-line
-		this.addAction(actions, localizeNewTab('Open Integrated Browser', '打开内置浏览器'), 'codicon-globe', () => this.commandService.executeCommand('workbench.action.browser.open'));
+		this.addAction(fileActions, localizeNewTab('Open Folder...', '打开文件夹...'), 'codicon-folder', () => this.commandService.executeCommand('workbench.action.files.openFolder'));
 		// allow-any-unicode-next-line
-		this.addAction(actions, localizeNewTab('Open ShortestPath OJ', '打开 ShortestPath OJ'), 'codicon-mortar-board', () => this.openerService.open(URI.parse('https://shortestpath.cn'), { openExternal: true }));
+		this.addAction(fileActions, localizeNewTab('Open File Quickly...', '快速打开文件...'), 'codicon-go-to-file', () => this.commandService.executeCommand('workbench.action.quickOpen'));
 		// allow-any-unicode-next-line
-		this.addAction(actions, localizeNewTab('Open Settings', '打开设置'), 'codicon-settings-gear', () => this.commandService.executeCommand('shortestpath.openSettings'));
+		this.addAction(fileActions, localizeNewTab('Open Integrated Browser', '打开内置浏览器'), 'codicon-globe', () => this.commandService.executeCommand('workbench.action.browser.open'));
 		// allow-any-unicode-next-line
-		this.addAction(actions, localizeNewTab('Beware of telecom fraud, do not click!!!', '谨防电信诈骗，千万别点！！！'), 'codicon-warning', () => this.commandService.executeCommand('workbench.action.browser.open', localizeNewTab('https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J', 'https://player.bilibili.com/player.html?isOutside=true&aid=80433022&bvid=BV1GJ411x7h7&cid=137649199&p=1')));
+		this.addAction(fileActions, localizeNewTab('Open ShortestPath OJ', '打开 ShortestPath OJ'), 'codicon-mortar-board', () => this.openerService.open(URI.parse('https://shortestpath.cn'), { openExternal: true }));
+
+		// allow-any-unicode-next-line
+		this.addAction(toolActions, localizeNewTab('View Documentation', '查看文档'), 'codicon-book', () => this.commandService.executeCommand('workbench.action.browser.open', 'https://kevinhuang.feishu.cn/wiki/LLBBwJQQGil2NnkJXWxcAeaLndd'));
+		// allow-any-unicode-next-line
+		this.addAction(toolActions, localizeNewTab('Buy Me a Coffee', 'Buy Me a Coffee'), 'codicon-coffee', () => this.commandService.executeCommand('workbench.action.browser.open', 'https://kevinhuang.feishu.cn/wiki/Z6a6w3M9riOFXXkXLAoc1G7inJd'));
+		// allow-any-unicode-next-line
+		this.addAction(toolActions, localizeNewTab('Open Settings', '打开设置'), 'codicon-settings-gear', () => this.commandService.executeCommand('shortestpath.openSettings'));
+		// allow-any-unicode-next-line
+		this.addAction(toolActions, localizeNewTab('Beware of telecom fraud, do not click!!!', '谨防电信诈骗，千万别点！！！'), 'codicon-warning', () => this.commandService.executeCommand('workbench.action.browser.open', localizeNewTab('https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J', 'https://player.bilibili.com/player.html?isOutside=true&aid=80433022&bvid=BV1GJ411x7h7&cid=137649199&p=1')));
+	}
+
+	private addColumn(parent: HTMLElement, title: string): HTMLElement {
+		const column = append(parent, $('section.shortestpath-new-tab-column'));
+		append(column, $('h2', undefined, title));
+		return append(column, $('.shortestpath-new-tab-actions'));
 	}
 
 	private addAction(parent: HTMLElement, label: string, icon: string, run: () => Thenable<unknown>): void {
