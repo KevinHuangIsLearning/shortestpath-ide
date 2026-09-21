@@ -8,7 +8,7 @@ import * as path from 'path';
 import { createHash } from 'crypto';
 import { execFile, spawn } from 'child_process';
 import * as vscode from 'vscode';
-import { registerSimpleSettings } from './simpleSettings';
+import { defaultClangFormatConfig, defaultCompilerFlagsFor, registerSimpleSettings } from './simpleSettings';
 import { registerRelaxMode } from './relaxMode';
 import { registerCphSettings } from './cphSettings';
 	import { registerBrowserScriptTester } from './browserScriptTester';
@@ -90,6 +90,7 @@ const shortestPathHiddenFiles: Record<string, boolean> = {
 const FILE_EXCLUDES_MIGRATION = 'shortestpath.fileExcludes.v3';
 const OJ_MAPPING_MIGRATION = 'shortestpath.ojMapping.v2';
 const FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION = 'shortestpath.fileNameTemplateOverrides.v1';
+const CLANG_FORMAT_MIGRATION = 'shortestpath.clangFormat.v1';
 const shortestPathOjMapping = {
 	oj: 'ShortestPath',
 	ojName: 'ShortestPath',
@@ -154,47 +155,16 @@ function createDefaultClangdProjectConfig(workspaceFolder: string, compiler: str
 	createDefaultClangdConfig(path.join(workspaceFolder, '.clangd'), compiler, cppStandard);
 }
 
-const defaultClangFormatConfig = `BasedOnStyle: Google
-
-# --- 行为：尽量允许一行写完 ---
-AllowShortIfStatementsOnASingleLine: AllIfsAndElse
-AllowShortLoopsOnASingleLine: true
-AllowShortBlocksOnASingleLine: true
-AllowShortFunctionsOnASingleLine: Inline
-
-# --- 行长（核心关键，不然上面全白给） ---
-ColumnLimit: 0
-
-# --- 缩进 ---
-IndentWidth: 4
-TabWidth: 4
-UseTab: Never
-
-# --- 访问修饰符 ---
-AccessModifierOffset: -2
-
-# --- 大括号风格 ---
-BreakBeforeBraces: Attach
-AlwaysBreakTemplateDeclarations: No
-
-# --- 指针与注释 ---
-PointerAlignment: Left
-SpacesBeforeTrailingComments: 4
-
-# --- 代码块间距 ---
-SeparateDefinitionBlocks: Always
-
-# --- 语言标准 ---
-Standard: Latest
-`;
-
+// The content comes from simpleSettings, which owns the .clang-format model for
+// the settings page. Keeping a second template here is how the first-run path
+// and the settings page drift apart.
 function createDefaultClangFormatConfig(workspaceFolder: string): void {
 	const configPath = path.join(workspaceFolder, '.clang-format');
 	if (fs.existsSync(configPath)) {
 		return;
 	}
 	try {
-		fs.writeFileSync(configPath, defaultClangFormatConfig, { encoding: 'utf8', flag: 'wx' });
+		fs.writeFileSync(configPath, defaultClangFormatConfig(), { encoding: 'utf8', flag: 'wx' });
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
 			throw error;
@@ -210,9 +180,28 @@ function getSingleLocalWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
 	return workspaceFolders[0];
 }
 
+// Both files must be present before a workspace counts as configured. The
+// first-run flow used to write only .clangd, and treating that as "already
+// configured" silently suppressed the prompt that would have added
+// .clang-format. Without it clang-format falls back to the LLVM style, which
+// reformats every file to 2-space indentation.
 function hasOiWorkspaceConfig(workspaceFolder: vscode.WorkspaceFolder): boolean {
 	return fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clangd'))
-		|| fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clang-format'));
+		&& fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clang-format'));
+}
+
+// Older builds wrote only .clangd during first-run setup, so workspaces that
+// went through that flow never received a .clang-format and clang-format
+// silently fell back to the LLVM style (2-space indentation). Backfill the file
+// once for existing installs. Nothing is overwritten: the create helper returns
+// early when the file already exists.
+async function ensureDefaultClangFormatConfig(): Promise<boolean> {
+	const workspaceFolder = getSingleLocalWorkspaceFolder();
+	if (!workspaceFolder) {
+		return false;
+	}
+	createDefaultClangFormatConfig(workspaceFolder.uri.fsPath);
+	return true;
 }
 
 async function initializeOiWorkspace(context: vscode.ExtensionContext): Promise<void> {
@@ -227,7 +216,7 @@ async function initializeOiWorkspace(context: vscode.ExtensionContext): Promise<
 	createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, 'c++23');
 	createDefaultClangFormatConfig(workspaceFolder.uri.fsPath);
 	await context.workspaceState.update(OI_WORKSPACE_INITIALIZATION_DISMISSED, undefined);
-	void vscode.window.showInformationMessage(localizeFormat('已在“{0}”中创建 .clangd 和 .clang-format。', workspaceFolder.name));
+	void vscode.window.showInformationMessage(localizeFormat('“{0}”的 OI 项目配置已补全。', workspaceFolder.name));
 }
 
 async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext): Promise<void> {
@@ -237,7 +226,7 @@ async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext):
 	}
 
 	const action = await vscode.window.showInformationMessage(
-		localizeFormat('“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？', workspaceFolder.name),
+		localizeFormat('“{0}”的 OI 项目配置不完整。要补全 .clangd 和 .clang-format 吗？', workspaceFolder.name),
 		localize('初始化 OI 配置'),
 		localize('暂不初始化')
 	);
@@ -286,6 +275,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	if (!context.globalState.get<boolean>(FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION)) {
 		await ensureShortestPathFileNameTemplateOverride();
 		await context.globalState.update(FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION, true);
+	}
+	if (!context.globalState.get<boolean>(CLANG_FORMAT_MIGRATION)) {
+		// Stay pending until a single local workspace folder is open; marking it
+		// done without a folder would skip the backfill entirely.
+		if (await ensureDefaultClangFormatConfig()) {
+			await context.globalState.update(CLANG_FORMAT_MIGRATION, true);
+		}
 	}
 	const updateHiddenFilesContext = () => {
 		void vscode.commands.executeCommand('setContext', 'shortestpath.showAllFiles', !hasShortestPathHiddenFiles());
@@ -455,20 +451,13 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		settings['c-cpp-compile-run.output-location'] = '.';
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
 		if (firstRunSelection?.mode !== 'repair' || preservedCompilerFlags !== undefined) {
-			const compilerFlags = preservedCompilerFlags ?? [
-				`-std=${cppStandard}`,
-				'-O2',
-				'-g',
-				'-Wall',
-				'-Wextra',
-				'-D_GLIBCXX_DEBUG',
-				...(process.platform === 'win32' ? ['-static'] : []),
-			].join(' ');
+			const compilerFlags = preservedCompilerFlags ?? defaultCompilerFlagsFor(cppStandard);
 			settings['cph.language.cpp.Args'] = compilerFlags;
 			settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
 		}
 		if (firstRunSelection) {
 			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard);
+			createDefaultClangFormatConfig(firstRunSelection.workspaceFolder);
 		}
 		settings['clangd.arguments'] = clangdArgumentsForCompiler(compiler);
 	}

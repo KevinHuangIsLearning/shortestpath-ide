@@ -15,17 +15,26 @@ export type ThemeOption = {
 	label: string;
 };
 
-export const defaultCompilerFlags = `-std=c++23 -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG${process.platform === 'win32' ? ' -static' : ''}`;
+// The single source of the product's default compiler flags. The first-run
+// setup derives them from the chosen standard; every other reader falls back to
+// c++23 through `defaultCompilerFlags`.
+export function defaultCompilerFlagsFor(cppStandard: CppStandard): string {
+	return `-std=${cppStandard} -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG${process.platform === 'win32' ? ' -static' : ''}`;
+}
+
+export const defaultCompilerFlags = defaultCompilerFlagsFor('c++23');
 
 type SimpleSettingsState = {
 	fontFamily: string;
 	fontLigatures: boolean;
 	fontSize: number;
 	autoFormat: boolean;
+	indentSize: number;
+	insertSpaces: boolean;
 	cppStandard: CppStandard;
 	compilerFlags: string;
 	clangdVariableTypeHints: boolean;
-	errorLensCodeLensEnabled: boolean;
+	errorLensEnabled: boolean;
 	executableCleanupEnabled: boolean;
 	executableCleanupDelaySeconds: number;
 	colorTheme: string;
@@ -421,6 +430,15 @@ Standard: ${state.standard}
 `;
 }
 
+/**
+ * The default workspace .clang-format content. The OI workspace bootstrap in
+ * extension.ts reuses this instead of keeping a second copy of the template, so
+ * the first-run path and the settings page cannot drift apart.
+ */
+export function defaultClangFormatConfig(): string {
+	return serializeAutoFormat(defaultAutoFormatState);
+}
+
 async function openAutoFormatSettings(): Promise<void> {
 	const workspaceFolder = getAutoFormatWorkspaceFolder();
 	if (!workspaceFolder) {
@@ -552,10 +570,12 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('editor.fontSize')
 			|| event.affectsConfiguration('editor.formatOnSave')
 			|| event.affectsConfiguration('editor.formatOnPaste')
+			|| event.affectsConfiguration('editor.tabSize')
+			|| event.affectsConfiguration('editor.insertSpaces')
 			|| event.affectsConfiguration('cph.language.cpp.Args')
 			|| event.affectsConfiguration('c-cpp-compile-run.cpp-flags')
 			|| event.affectsConfiguration('editor.inlayHints.enabled')
-			|| event.affectsConfiguration('errorLens.codeLensEnabled')
+			|| event.affectsConfiguration('errorLens.enabled')
 			|| event.affectsConfiguration('shortestpath.executableCleanupEnabled')
 			|| event.affectsConfiguration('shortestpath.executableCleanupDelaySeconds')
 			|| event.affectsConfiguration('workbench.colorTheme')
@@ -582,7 +602,7 @@ function getState(): SimpleSettingsState {
 	const compileRunFlags = vscode.workspace.getConfiguration('c-cpp-compile-run', null).get<string>('cpp-flags');
 	const compilerFlags = cphFlags || compileRunFlags || defaultCompilerFlags;
 	const inlayHintsEnabled = editor.get<boolean | string>('inlayHints.enabled') ?? 'on';
-	const errorLensCodeLensEnabled = vscode.workspace.getConfiguration('errorLens', null).get<boolean>('codeLensEnabled') ?? false;
+	const errorLensEnabled = vscode.workspace.getConfiguration('errorLens', null).get<boolean>('enabled') ?? true;
 	const executableCleanupEnabled = vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('executableCleanupEnabled') ?? true;
 	const executableCleanupDelaySeconds = vscode.workspace.getConfiguration('shortestpath', null).get<number>('executableCleanupDelaySeconds') ?? 60;
 	const colorTheme = workbench.get<string>('colorTheme') ?? 'One Monokai';
@@ -591,10 +611,12 @@ function getState(): SimpleSettingsState {
 		fontLigatures: editor.get<boolean | string>('fontLigatures') === true || editor.get<boolean | string>('fontLigatures') === 'true',
 		fontSize: editor.get<number>('fontSize') ?? 14,
 		autoFormat: editor.get<boolean>('formatOnSave') === true && editor.get<boolean>('formatOnPaste') === true,
+		indentSize: editor.get<number>('tabSize') ?? 4,
+		insertSpaces: editor.get<boolean>('insertSpaces') !== false,
 		cppStandard: findCppStandard(compilerFlags),
 		compilerFlags,
 		clangdVariableTypeHints: inlayHintsEnabled !== false && inlayHintsEnabled !== 'off',
-		errorLensCodeLensEnabled,
+		errorLensEnabled,
 		executableCleanupEnabled,
 		executableCleanupDelaySeconds,
 		colorTheme,
@@ -637,12 +659,32 @@ export function applyCppStandard(flags: string, cppStandard: CppStandard): strin
 	return `-std=${cppStandard}${withoutStandard ? ` ${withoutStandard}` : ''}`;
 }
 
+// clang-format falls back to the LLVM style (2-space indentation) when the
+// workspace has no .clang-format. Keep the workspace file in sync with the
+// indentation chosen in the settings page so typed and formatted code match.
+async function syncClangFormatIndentation(indentSize: number, insertSpaces: boolean): Promise<void> {
+	const workspaceFolder = getAutoFormatWorkspaceFolder();
+	if (!workspaceFolder) {
+		return;
+	}
+	const state = await readAutoFormatState(workspaceFolder);
+	state.indentWidth = indentSize;
+	state.tabWidth = indentSize;
+	state.useTab = insertSpaces ? 'Never' : 'ForIndentation';
+	await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(workspaceFolder, '.clang-format'), Buffer.from(serializeAutoFormat(state), 'utf8'));
+}
+
 async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 	const cppStandard = isCppStandard(value.cppStandard) ? value.cppStandard : 'c++23';
 	const compilerFlags = applyCppStandard(typeof value.compilerFlags === 'string' ? value.compilerFlags : '', cppStandard);
 	const executableCleanupDelaySeconds = typeof value.executableCleanupDelaySeconds === 'number'
 		? Math.max(0, Math.min(86_400, Math.floor(value.executableCleanupDelaySeconds)))
 		: 60;
+	const indentSize = typeof value.indentSize === 'number' && value.indentSize > 0 ? Math.min(8, Math.floor(value.indentSize)) : 4;
+	const insertSpaces = value.insertSpaces !== false;
+	const editorConfiguration = vscode.workspace.getConfiguration('editor', null);
+	const indentationChanged = editorConfiguration.get<number>('tabSize') !== indentSize
+		|| editorConfiguration.get<boolean>('insertSpaces') !== insertSpaces;
 	const settings = vscode.workspace.getConfiguration(undefined, null);
 	await Promise.all([
 		settings.update('editor.fontFamily', typeof value.fontFamily === 'string' ? value.fontFamily : '', vscode.ConfigurationTarget.Global),
@@ -650,10 +692,12 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('editor.fontSize', typeof value.fontSize === 'number' && value.fontSize > 0 ? value.fontSize : 14, vscode.ConfigurationTarget.Global),
 		settings.update('editor.formatOnSave', value.autoFormat === true, vscode.ConfigurationTarget.Global),
 		settings.update('editor.formatOnPaste', value.autoFormat === true, vscode.ConfigurationTarget.Global),
+		settings.update('editor.tabSize', indentSize, vscode.ConfigurationTarget.Global),
+		settings.update('editor.insertSpaces', insertSpaces, vscode.ConfigurationTarget.Global),
 		settings.update('cph.language.cpp.Args', compilerFlags, vscode.ConfigurationTarget.Global),
 		settings.update('c-cpp-compile-run.cpp-flags', compilerFlags, vscode.ConfigurationTarget.Global),
 		settings.update('editor.inlayHints.enabled', value.clangdVariableTypeHints !== false ? 'on' : 'off', vscode.ConfigurationTarget.Global),
-		settings.update('errorLens.codeLensEnabled', value.errorLensCodeLensEnabled === true, vscode.ConfigurationTarget.Global),
+		settings.update('errorLens.enabled', value.errorLensEnabled !== false, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.executableCleanupEnabled', value.executableCleanupEnabled !== false, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.executableCleanupDelaySeconds', executableCleanupDelaySeconds, vscode.ConfigurationTarget.Global),
 		settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' ? value.colorTheme : 'One Monokai', vscode.ConfigurationTarget.Global),
@@ -667,6 +711,9 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('cph.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.antiFraudReminder', value.antiFraudReminder === true, vscode.ConfigurationTarget.Global)
 	]);
+	if (indentationChanged) {
+		await syncClangFormatIndentation(indentSize, insertSpaces);
+	}
 }
 
 export function isCppStandard(value: unknown): value is CppStandard {
@@ -702,6 +749,7 @@ h1 { font-size: 28px; margin: 0 0 8px; } p { color: var(--vscode-descriptionFore
 input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); padding: 7px 9px; border-radius: 3px; font: inherit; }
 input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { display: flex; align-items: center; gap: 10px; }
 .font-preview { color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; font-size: 16px; line-height: 1.65; margin: -4px 0 14px 208px; padding: 10px 12px; white-space: pre; }
+.indent-controls { display: flex; gap: 10px; } .indent-controls input { width: 84px; } .indent-controls select { width: auto; min-width: 96px; }
 .row.disabled { opacity: .6; } .row.disabled input, .row.disabled select { cursor: not-allowed; } .update-actions { display: grid; gap: 8px; } .update-actions button { width: 100%; } .inline-status { display: block; color: var(--vscode-descriptionForeground); font-size: 12px; }
 .fallback-list { display: grid; gap: 7px; }.fallback-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; }.fallback-row .icon { min-width: 28px; padding: 5px; }.add-fallback { margin-top: 8px; }
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); } button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } #saved { color: var(--vscode-testing-iconPassed); }
@@ -723,6 +771,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <div class="row"><div><label>回退字体</label><div class="hint">字形缺失时按顺序回退；可选择非等宽中文或 Emoji 字体。</div></div><div><div id="fallbackFonts" class="fallback-list"></div><button id="addFallback" class="secondary add-fallback" type="button">添加回退字体</button></div></div>
 <div class="row"><div><label for="fontLigatures">启用字体连字</label><div id="fontLigaturesStatus" class="hint" role="status"></div></div><label class="toggle"><input id="fontLigatures" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="fontSize">字体大小</label></div><input id="fontSize" type="number" min="1" step="1"></div>
+<div class="row"><div><label for="indentSize">缩进</label><div class="hint">缩进宽度与缩进字符；同时同步到当前工作目录的 .clang-format，避免自动格式化把代码改成 clang-format 默认的 2 空格。</div></div><div class="indent-controls"><input id="indentSize" type="number" min="1" max="8" step="1"><select id="indentStyle"><option value="spaces">空格</option><option value="tabs">Tab</option></select></div></div>
 <div class="row"><div><label for="newFileDefaultLanguage">新建文件默认语言</label><div class="hint">从 New Tab 新建文件时默认使用的语言。</div></div><select id="newFileDefaultLanguage"><option value="cpp">C++</option><option value="c">C</option><option value="python">Python</option><option value="java">Java</option><option value="rust">Rust</option><option value="javascript">JavaScript</option><option value="typescript">TypeScript</option></select></div>
 </section>
 <section class="card" data-category="cpp">
@@ -750,7 +799,7 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div><div class="row"><div><label>CPH 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 CPH 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="defaultSubmitMethod">CPH 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label for="errorLensEnabled">Error Lens 行内错误提示</label><div class="hint">在出错那一行的行尾直接显示诊断文字；关闭后只保留编辑器自己的波浪线，写代码时依然实时报错。</div></div><label class="toggle"><input id="errorLensEnabled" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="antiFraudReminder">防诈骗提醒</label><div class="hint">打开题目时显示防诈骗提醒。</div></div><label class="toggle"><input id="antiFraudReminder" type="checkbox"><span>启用</span></label></div></section>
 <p id="noResults" class="no-results" hidden>没有匹配的设置。</p>
@@ -930,13 +979,15 @@ function apply(state) {
   if (!selectedFonts.length) selectedFonts = ['monospace'];
   byId('fontLigatures').checked = !!state.fontLigatures;
   byId('fontSize').value = state.fontSize;
+  byId('indentSize').value = state.indentSize;
+  byId('indentStyle').value = state.insertSpaces === false ? 'tabs' : 'spaces';
 	byId('autoFormat').checked = !!state.autoFormat;
   byId('cppStandard').value = state.cppStandard;
 	byId('shortestPathCppSubmissionLanguage').value = state.shortestPathCppSubmissionLanguage;
 	byId('defaultSubmitMethod').value = state.defaultSubmitMethod;
   byId('compilerFlags').value = state.compilerFlags;
   byId('clangdVariableTypeHints').checked = !!state.clangdVariableTypeHints;
-  byId('errorLensCodeLensEnabled').checked = !!state.errorLensCodeLensEnabled;
+  byId('errorLensEnabled').checked = !!state.errorLensEnabled;
   byId('executableCleanupEnabled').checked = !!state.executableCleanupEnabled;
   byId('executableCleanupDelaySeconds').value = state.executableCleanupDelaySeconds;
   const theme = byId('colorTheme'); theme.replaceChildren();
@@ -951,7 +1002,7 @@ function apply(state) {
 	byId('antiFraudReminder').checked = !!state.antiFraudReminder;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, modernUIEnabled: byId('modernUIEnabled').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, antiFraudReminder: byId('antiFraudReminder').checked }; }
+function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, indentSize: Number(byId('indentSize').value), insertSpaces: byId('indentStyle').value === 'spaces', cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, modernUIEnabled: byId('modernUIEnabled').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, antiFraudReminder: byId('antiFraudReminder').checked }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#settingsSearch):not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily)').forEach(control => {

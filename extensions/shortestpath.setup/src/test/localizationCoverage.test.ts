@@ -44,6 +44,8 @@ test('covers the rendered English setup surfaces', () => {
 		'关闭 7 天',
 		'7 天内不再显示',
 		'无法打开支持页面：{0}',
+		'缩进',
+		'Error Lens 行内错误提示',
 	]) {
 		assert.match(localization, new RegExp(`['"]${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]\\s*:`));
 	}
@@ -60,6 +62,80 @@ test('covers the rendered English setup surfaces', () => {
 	] as const) {
 		assert.match(fs.readFileSync(path.join(extensionRoot, 'src', file), 'utf8'), pattern);
 	}
+});
+
+test('keeps indentation and Error Lens wiring in the simplified settings', () => {
+	const extensionRoot = path.resolve(__dirname, '../..');
+	const settings = fs.readFileSync(path.join(extensionRoot, 'src', 'simpleSettings.ts'), 'utf8');
+	// Indentation drives both the editor and the workspace clang-format file, so
+	// the formatter cannot silently fall back to the 2-space LLVM default.
+	assert.match(settings, /settings\.update\('editor\.tabSize', indentSize/);
+	assert.match(settings, /settings\.update\('editor\.insertSpaces', insertSpaces/);
+	assert.match(settings, /state\.indentWidth = indentSize/);
+	assert.match(settings, /state\.tabWidth = indentSize/);
+	assert.match(settings, /state\.useTab = insertSpaces \? 'Never' : 'ForIndentation'/);
+	assert.match(settings, /serializeAutoFormat\(state\)/);
+	// The page exposes the inline-diagnostics switch instead of the code lens one.
+	assert.match(settings, /id="errorLensEnabled"/);
+	assert.match(settings, /id="indentSize"/);
+	assert.match(settings, /id="indentStyle"/);
+	assert.doesNotMatch(settings, /errorLens\.codeLensEnabled/);
+	assert.match(settings, /settings\.update\('errorLens\.enabled'/);
+});
+
+test('writes both workspace config files during first-run setup', () => {
+	const extensionRoot = path.resolve(__dirname, '../..');
+	const extension = fs.readFileSync(path.join(extensionRoot, 'src', 'extension.ts'), 'utf8');
+	// The first-run branch must create .clang-format next to .clangd. Without it
+	// clang-format falls back to the LLVM style and reformats to 2 spaces.
+	assert.match(extension, /createDefaultClangdProjectConfig\(firstRunSelection\.workspaceFolder[\s\S]{0,160}createDefaultClangFormatConfig\(firstRunSelection\.workspaceFolder\)/);
+	// A workspace counts as configured only when both files exist. The old
+	// either/or check hid the prompt from every first-run workspace.
+	assert.match(extension, /function hasOiWorkspaceConfig[\s\S]{0,260}'\.clangd'\)\)\s*&& fs\.existsSync\(path\.join\(workspaceFolder\.uri\.fsPath, '\.clang-format'\)\)/);
+	assert.doesNotMatch(extension, /hasOiWorkspaceConfig[\s\S]{0,260}\|\| fs\.existsSync\(path\.join\(workspaceFolder\.uri\.fsPath, '\.clang-format'\)\)/);
+});
+
+test('backfills .clang-format for installs upgraded from the broken first run', () => {
+	const extensionRoot = path.resolve(__dirname, '../..');
+	const extension = fs.readFileSync(path.join(extensionRoot, 'src', 'extension.ts'), 'utf8');
+	assert.match(extension, /const CLANG_FORMAT_MIGRATION = 'shortestpath\.clangFormat\.v1';/);
+	assert.match(extension, /async function ensureDefaultClangFormatConfig\(\): Promise<boolean>/);
+	assert.match(extension, /createDefaultClangFormatConfig\(workspaceFolder\.uri\.fsPath\)/);
+	assert.match(extension, /if \(!context\.globalState\.get<boolean>\(CLANG_FORMAT_MIGRATION\)\)/);
+	// The flag is set only after the backfill actually ran; a launch without an
+	// open folder must leave the migration pending instead of consuming it.
+	assert.match(extension, /if \(await ensureDefaultClangFormatConfig\(\)\) \{\s*await context\.globalState\.update\(CLANG_FORMAT_MIGRATION, true\);/);
+});
+
+test('describes the OI workspace completion prompt without over-claiming', () => {
+	const extensionRoot = path.resolve(__dirname, '../..');
+	const extension = fs.readFileSync(path.join(extensionRoot, 'src', 'extension.ts'), 'utf8');
+	const localization = fs.readFileSync(path.join(extensionRoot, 'src', 'localization.ts'), 'utf8');
+	// hasOiWorkspaceConfig fires when either file is missing, so the wording has
+	// to hold for a partially configured workspace as well.
+	assert.match(extension, /OI 项目配置不完整。要补全/);
+	assert.match(extension, /OI 项目配置已补全。/);
+	// No orphaned English entries for the old "create both from scratch" wording.
+	assert.doesNotMatch(localization, /尚未包含 OI 项目配置/);
+	assert.doesNotMatch(localization, /已在“\{0\}”中创建/);
+	assert.match(localization, /'“\{0\}”的 OI 项目配置不完整。要补全 \.clangd 和 \.clang-format 吗？'/);
+});
+
+test('keeps a single source for the default .clang-format and compiler flags', () => {
+	const extensionRoot = path.resolve(__dirname, '../..');
+	const extension = fs.readFileSync(path.join(extensionRoot, 'src', 'extension.ts'), 'utf8');
+	const settings = fs.readFileSync(path.join(extensionRoot, 'src', 'simpleSettings.ts'), 'utf8');
+	// extension.ts must consume the settings-page model rather than keeping its
+	// own copy; a second copy is exactly how the two paths drift apart.
+	assert.doesNotMatch(extension, /BasedOnStyle: Google/);
+	assert.doesNotMatch(extension, /D_GLIBCXX_DEBUG/);
+	assert.match(extension, /defaultClangFormatConfig\(\)/);
+	assert.match(extension, /defaultCompilerFlagsFor\(cppStandard\)/);
+	// simpleSettings owns both defaults and exports them.
+	assert.match(settings, /export function defaultClangFormatConfig\(\): string \{/);
+	assert.match(settings, /return serializeAutoFormat\(defaultAutoFormatState\);/);
+	assert.match(settings, /export function defaultCompilerFlagsFor\(cppStandard: CppStandard\): string \{/);
+	assert.match(settings, /export const defaultCompilerFlags = defaultCompilerFlagsFor\('c\+\+23'\);/);
 });
 
 test('keeps the Buy Me a Coffee entry dismissible for seven days', () => {

@@ -57,6 +57,16 @@ export function rebaseManagedQueryDriver(argument: string, compiler: string): st
 	return `${prefix}${rebasedDrivers.join(',')}`;
 }
 
+// Frozen fingerprint of the .clangd body ShortestPath wrote *before* it started
+// emitting `managedClangdConfigMarker`. The marker and this fingerprint landed in
+// the same change: files written from then on are recognised by the marker, and
+// this pattern exists only to keep recognising the ones written before it.
+//
+// Do NOT "keep this in sync" with the template in extension.ts. It has to stay
+// pinned to the pre-marker body. Widening or updating it to track the current
+// template does not help current files (the marker already covers them) and can
+// only cost you the older ones, whose Compiler: line would then be silently
+// never rebased.
 function isLegacyGeneratedClangdConfig(content: string): boolean {
 	return /^CompileFlags:\r?\n  Add:\r?\n    - -std=c\+\+(?:11|14|17|20|23)\r?\n    - -Wall\r?\n    - -Wextra\r?\n    - "-Drsize_t=size_t"\r?\n    - "-D__STDC_WANT_LIB_EXT1__=1"\r?\n    - "-D__float128=long double"\r?\n    - -U__SIZEOF_FLOAT128__\r?\n  BuiltinHeaders: QueryDriver\r?\n  Compiler: ".+"\r?\n\r?\nCompletion:\r?\n  HeaderInsertion: Never\r?\n\r?\nIndex:\r?\n  Background: Build\r?\n$/.test(content);
 }

@@ -191,8 +191,8 @@ const english: Readonly<Record<string, string>> = {
 	,'没有匹配的设置。': 'No matching settings.'
 	,'高级设置': 'Advanced Settings'
 	,'请先打开一个本地文件夹，再初始化 OI 项目配置。': 'Open a local folder before initializing OI project configuration.'
-	,'已在“{0}”中创建 .clangd 和 .clang-format。': 'Created .clangd and .clang-format in “{0}”.'
-	,'“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？': '“{0}” does not contain OI project configuration. Create .clangd and .clang-format?'
+	,'“{0}”的 OI 项目配置已补全。': 'Completed the OI project configuration in “{0}”.'
+	,'“{0}”的 OI 项目配置不完整。要补全 .clangd 和 .clang-format 吗？': '“{0}” does not have a complete OI project configuration. Complete .clangd and .clang-format?'
 	,'初始化 OI 配置': 'Initialize OI Configuration'
 	,'暂不初始化': 'Not Now'
 	,'ShortestPath 所处运行路径包含空格，可能出现意外错误，开发者不会处理因包含空格而导致的 bug。': 'The ShortestPath runtime path contains spaces, which may cause unexpected errors. Bugs caused by spaces in the path will not be handled.'
@@ -542,6 +542,11 @@ const english: Readonly<Record<string, string>> = {
 	,'配合 Competitive Champion 使用 IDE': 'Use the IDE with Competitive Champion'
 	,'在外部浏览器中查看如何配合 Competitive Champion 使用 IDE。': 'Read how to use the IDE with Competitive Champion in your external browser.'
 	,'无法打开文档页面：{0}': 'Could not open the documentation page: {0}'
+	,'缩进': 'Indentation'
+	,'缩进宽度与缩进字符；同时同步到当前工作目录的 .clang-format，避免自动格式化把代码改成 clang-format 默认的 2 空格。': 'Indentation width and character. This is also written to the .clang-format file in the current working folder so automatic formatting does not fall back to clang-format\'s default 2-space indentation.'
+	,'空格': 'Spaces'
+	,'Error Lens 行内错误提示': 'Error Lens Inline Diagnostics'
+	,'在出错那一行的行尾直接显示诊断文字；关闭后只保留编辑器自己的波浪线，写代码时依然实时报错。': 'Shows diagnostic text inline at the end of the offending line. When off, only the editor\'s own squiggles remain; diagnostics are still reported live while you type.'
 };
 
 export function localize(value: string): string {
