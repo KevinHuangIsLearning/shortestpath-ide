@@ -7,8 +7,8 @@
 	"editor.cursorBlinking": "smooth",
 	"editor.fontSize": 14,
 	"files.autoSave": "onFocusChange",
-	"editor.formatOnSave": true,
-	"editor.formatOnPaste": true,
+	"editor.formatOnSave": false,
+	"editor.formatOnPaste": false,
 	"editor.inlayHints.enabled": "on",
 	"window.systemColorTheme": "auto",
 	"editor.mouseWheelZoom": true

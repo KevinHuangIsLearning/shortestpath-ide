@@ -138,6 +138,18 @@ test('keeps a single source for the default .clang-format and compiler flags', (
 	assert.match(settings, /export const defaultCompilerFlags = defaultCompilerFlagsFor\('c\+\+23'\);/);
 });
 
+test('ships auto formatting disabled in the recommended settings', () => {
+	const extensionRoot = path.resolve(__dirname, '../..');
+	const recommended = JSON.parse(fs.readFileSync(path.join(extensionRoot, 'resources', 'recommended-settings.json'), 'utf8')) as Record<string, unknown>;
+	assert.strictEqual(recommended['editor.formatOnSave'], false);
+	assert.strictEqual(recommended['editor.formatOnPaste'], false);
+	// The main process and the setup extension both read this one file, so it is the
+	// only place the default may live. The settings page has to keep deriving its
+	// toggle from the live configuration instead of hardcoding a default of its own.
+	const settings = fs.readFileSync(path.join(extensionRoot, 'src', 'simpleSettings.ts'), 'utf8');
+	assert.match(settings, /autoFormat: editor\.get<boolean>\('formatOnSave'\) === true && editor\.get<boolean>\('formatOnPaste'\) === true,/);
+});
+
 test('keeps the Buy Me a Coffee entry dismissible for seven days', () => {
 	const extensionRoot = path.resolve(__dirname, '../..');
 	const settings = fs.readFileSync(path.join(extensionRoot, 'src', 'simpleSettings.ts'), 'utf8');
