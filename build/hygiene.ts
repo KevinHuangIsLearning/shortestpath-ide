@@ -314,8 +314,20 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 function createGitIndexVinyls(paths: string[]): Promise<VinylFile[]> {
 	const repositoryPath = process.cwd();
 
+	// `git rm --cached` removes a path from the index but leaves the file on
+	// disk, so the working tree alone cannot tell a staged deletion from a
+	// staged change. Ask the index which staged paths still have content.
+	const stagedWithContent = new Set(
+		cp.execSync('git diff --cached --name-only --diff-filter=d', { encoding: 'utf8' }).split(/\r?\n/)
+	);
+
 	const fns = paths.map((relativePath) => () =>
 		new Promise<VinylFile | null>((c, e) => {
+			if (!stagedWithContent.has(relativePath)) {
+				// ignore deletions
+				return c(null);
+			}
+
 			const fullPath = path.join(repositoryPath, relativePath);
 
 			fs.stat(fullPath, (err, stat) => {
