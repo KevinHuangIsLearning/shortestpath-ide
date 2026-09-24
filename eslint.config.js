@@ -178,6 +178,26 @@ export default defineConfig(
 			]
 		}
 	},
+	// The setup extension's Linux installer is this fork's own file, so it carries
+	// the ShortestPath header rather than the Microsoft one required by the shared
+	// configuration above. windows.js keeps its Microsoft header.
+	{
+		files: [
+			'extensions/shortestpath.setup/resources/linux.js',
+		],
+		rules: {
+			'header/header': [
+				2,
+				'block',
+				[
+					'---------------------------------------------------------------------------------------------',
+					' *  Copyright (c) 2026 ShortestPath IDE contributors.',
+					' *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.',
+					' *--------------------------------------------------------------------------------------------'
+				]
+			]
+		}
+	},
 	{
 		files: [
 			'src/vs/workbench/contrib/shortestpath/**/shortestPathNewTabInput*.ts',
