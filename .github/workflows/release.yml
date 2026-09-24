@@ -89,6 +89,16 @@ jobs:
           if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 20MB) {
             throw "The bundled MinGW Lite archive was not downloaded correctly."
           }
+      - name: Add bundled clangd
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/clangd/clangd/releases/download/22.1.6/clangd-windows-22.1.6.zip'
+          $destination = 'resources\oi-defaults\toolchains\clangd-windows-22.1.6.zip'
+          curl.exe -fL --retry 3 --connect-timeout 30 $url --output $destination
+          if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 20MB) {
+            throw "The bundled clangd archive was not downloaded correctly."
+          }
       - name: Build Windows package
         shell: pwsh
         run: npm run gulp vscode-win32-x64-min
@@ -237,9 +247,93 @@ jobs:
           path: artifacts/ShortestPath-IDE-macos-arm64.zip
           if-no-files-found: error
 
+  build-linux:
+    name: Build Linux x64
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      VSCODE_ARCH: x64
+      npm_config_arch: x64
+      npm_config_foreground_scripts: "true"
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: |
+          npmrc=$(cat .npmrc)
+          trap 'printf "%s" "$npmrc" > .npmrc' EXIT
+          sed -i '/^build_from_source=/d' .npmrc
+          npm ci
+          printf "%s" "$npmrc" > .npmrc
+          trap - EXIT
+          npm rebuild @vscode/policy-watcher @vscode/spdlog @vscode/sqlite3 native-keymap --build-from-source --foreground-scripts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Build bundled OI extensions
+        run: npm run compile-oi-extensions
+      - name: Build Linux package
+        run: npm run gulp vscode-linux-x64-min
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Archive Linux application
+        run: |
+          app="../VSCode-linux-x64"
+          test -f "$app/shortestpath" || {
+            echo "Packaged executable was not found: $app/shortestpath" >&2
+            exit 1
+          }
+          for entry in \
+            "divyanshuagrawal.competitive-programming-helper/dist/extension.js" \
+            "usernamehw.errorlens/dist/extension.js" \
+            "shortestpath.setup/out/extension.js" \
+            "shortestpath.oj/out/extension.js" \
+            "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
+            "llvm-vs-code-extensions.vscode-clangd/out/bundle.js"; do
+            test -f "$app/resources/app/extensions/$entry" || {
+              echo "Required extension entry file was not packaged: $entry" >&2
+              exit 1
+            }
+          done
+          mkdir -p artifacts
+          tar -czf artifacts/ShortestPath-IDE-linux-x64.tar.gz \
+            -C .. --transform 's,^VSCode-linux-x64,ShortestPath-IDE-linux-x64,' VSCode-linux-x64
+      - name: Install Debian packaging tools
+        run: sudo apt-get update && sudo apt-get install -y fakeroot
+      - name: Build Linux deb package
+        run: |
+          npm run gulp -- vscode-linux-x64-prepare-deb
+          npm run gulp -- vscode-linux-x64-build-deb
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Stage Linux deb package
+        run: |
+          set -e
+          deb=$(ls .build/linux/deb/amd64/deb/*.deb)
+          version=$(dpkg-deb -f "$deb" Version)
+          expected=$(node -p "require('./product.json').shortestPathVersion")
+          case "$version" in
+            "$expected"-*) ;;
+            *) echo "Unexpected deb version $version (expected $expected-*)." >&2; exit 1 ;;
+          esac
+          cp "$deb" artifacts/ShortestPath-IDE-linux-x64.deb
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-x64
+          path: |
+            artifacts/ShortestPath-IDE-linux-x64.tar.gz
+            artifacts/ShortestPath-IDE-linux-x64.deb
+          if-no-files-found: error
+
   publish-release:
     name: Publish GitHub Release
-    needs: [build-windows, build-macos]
+    needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
       # `gh release create` derives the repository from the local Git checkout.

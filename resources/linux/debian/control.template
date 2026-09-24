@@ -5,14 +5,17 @@ Depends: @@DEPENDS@@
 Recommends: @@RECOMMENDS@@
 Priority: optional
 Architecture: @@ARCHITECTURE@@
-Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
-Homepage: https://code.visualstudio.com/
+Maintainer: KevinHuangIsLearning <KevinHuangIsLearning@users.noreply.github.com>
+Homepage: https://github.com/KevinHuangIsLearning/shortestpath-ide
 Installed-Size: @@INSTALLEDSIZE@@
 Provides: visual-studio-@@NAME@@
 Conflicts: visual-studio-@@NAME@@
 Replaces: visual-studio-@@NAME@@
-Description: Code editing. Redefined.
- ShortestPath IDE is a new choice of tool that combines the simplicity of
- a code editor with what developers need for the core edit-build-debug cycle.
- See https://code.visualstudio.com/docs/setup/linux for installation
- instructions and FAQ.
+Description: IDE for competitive programming (OI / ICPC)
+ ShortestPath IDE is an integrated development environment for competitive
+ programming, built on Code - OSS. It bundles a contest workflow with problem
+ import, sample testing, and one-click submission, plus a first-run wizard that
+ configures the C++ toolchain.
+ .
+ See https://github.com/KevinHuangIsLearning/shortestpath-ide for download and
+ installation instructions.

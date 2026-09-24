@@ -90,6 +90,17 @@ jobs:
             throw "The bundled MinGW Lite archive was not downloaded correctly."
           }
 
+      - name: Add bundled clangd
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/clangd/clangd/releases/download/22.1.6/clangd-windows-22.1.6.zip'
+          $destination = 'resources\oi-defaults\toolchains\clangd-windows-22.1.6.zip'
+          curl.exe -fL --retry 3 --connect-timeout 30 $url --output $destination
+          if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 20MB) {
+            throw "The bundled clangd archive was not downloaded correctly."
+          }
+
       - name: Package ShortestPath IDE
         shell: pwsh
         run: npm run gulp vscode-win32-x64-min

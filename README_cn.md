@@ -68,6 +68,13 @@ npm run compile-oi-extensions
 npm run gulp vscode-win32-x64-min
 ```
 
+构建 Linux x64 安装包：
+
+```bash
+npm run compile-oi-extensions
+npm run gulp vscode-linux-x64-min
+```
+
 ## 使用的开源项目与许可证
 
 ShortestPath IDE 的仓库许可证为 [GPL-3.0-or-later](LICENSE)。本项目包含、修改或捆绑的开源组件仍适用其各自许可证；以下列表用于标注主要来源，并不是完整的第三方依赖清单。

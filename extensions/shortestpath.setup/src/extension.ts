@@ -729,7 +729,11 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 		const toolchainRoot = path.join(context.globalStorageUri.fsPath, 'toolchains');
 		const source = selectDownloadSource(preset, undefined);
 		const installer = loadPlatformInstaller(context);
-		if (installer.getPortableAssets || !installer.createCommand) {
+		// Only a platform with no shell installer at all is sent back to the
+		// first-run page. Windows qualifies: its whole toolchain arrives through
+		// that page. Linux also ships portable assets (clangd), but its compiler
+		// comes from the distribution, so it has to reach the terminal below.
+		if (!installer.createCommand) {
 			const restartLabel = localize('立即重新启动设置');
 			const restart = await vscode.window.showInformationMessage(
 				localize('便携工具链由开箱配置页下载。请重新启动开箱配置以完成下载。'),
