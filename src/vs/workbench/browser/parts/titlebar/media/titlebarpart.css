@@ -106,6 +106,12 @@
 	margin-left: 4px;
 }
 
+.monaco-workbench.windows:not(.web) .part.titlebar > .titlebar-container > .titlebar-left,
+.monaco-workbench.web .part.titlebar > .titlebar-container > .titlebar-left {
+	box-sizing: border-box;
+	padding-left: 8px;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-left {
 	order: 0;
 	width: 20%;
