@@ -68,19 +68,47 @@ test('keeps indentation and Error Lens wiring in the simplified settings', () =>
 	const extensionRoot = path.resolve(__dirname, '../..');
 	const settings = fs.readFileSync(path.join(extensionRoot, 'src', 'simpleSettings.ts'), 'utf8');
 	// Indentation drives both the editor and the workspace clang-format file, so
-	// the formatter cannot silently fall back to the 2-space LLVM default.
+	// the formatter cannot silently fall back to the 2-space LLVM default. The call
+	// site is the part worth pinning: asserting the helper body on its own still
+	// passes when the helper is never reached.
 	assert.match(settings, /settings\.update\('editor\.tabSize', indentSize/);
 	assert.match(settings, /settings\.update\('editor\.insertSpaces', insertSpaces/);
-	assert.match(settings, /state\.indentWidth = indentSize/);
-	assert.match(settings, /state\.tabWidth = indentSize/);
-	assert.match(settings, /state\.useTab = insertSpaces \? 'Never' : 'ForIndentation'/);
-	assert.match(settings, /serializeAutoFormat\(state\)/);
+	assert.match(settings, /await syncClangFormatIndentation\(indentSize, insertSpaces\);/);
+	// Gating the sync on the editor configuration left real divergences in place:
+	// the file can disagree with the editor while the editor already matches the form.
+	assert.doesNotMatch(settings, /indentationChanged/);
 	// The page exposes the inline-diagnostics switch instead of the code lens one.
 	assert.match(settings, /id="errorLensEnabled"/);
 	assert.match(settings, /id="indentSize"/);
 	assert.match(settings, /id="indentStyle"/);
 	assert.doesNotMatch(settings, /errorLens\.codeLensEnabled/);
 	assert.match(settings, /settings\.update\('errorLens\.enabled'/);
+});
+
+test('edits only the indentation keys of an existing .clang-format', () => {
+	// Behavioural rather than textual: the defect this guards is "the whole file is
+	// rewritten", which no source pattern can distinguish from a safe edit. This
+	// runs the compiled helper, so it exercises the code that actually ships.
+	const compiled = fs.readFileSync(path.join(__dirname, '..', 'simpleSettings.js'), 'utf8');
+	const source = /function applyClangFormatIndentation\(content, indentSize, useTab\) \{[\s\S]*?\n\}/.exec(compiled)?.[0];
+	assert.ok(source, 'applyClangFormatIndentation is missing from the compiled output');
+	const apply = vm.runInNewContext(`${source}\napplyClangFormatIndentation`) as (content: string, indentSize: number, useTab: string) => string | undefined;
+
+	// YAML keeps its comments, its foreign options, and their original order; the
+	// missing keys are appended rather than the file being regenerated.
+	const yaml = 'BasedOnStyle: LLVM\n# keep me\nIndentWidth: 2\nSortIncludes: false\nIncludeBlocks: Preserve\n';
+	assert.strictEqual(
+		apply(yaml, 4, 'Never'),
+		'BasedOnStyle: LLVM\n# keep me\nIndentWidth: 4\nSortIncludes: false\nIncludeBlocks: Preserve\nTabWidth: 4\nUseTab: Never\n'
+	);
+
+	// clang-format also accepts JSON, which must stay JSON.
+	const json = apply('{\n  "IndentWidth": 2,\n  "SortIncludes": false\n}\n', 4, 'ForIndentation');
+	assert.ok(json);
+	assert.deepStrictEqual(JSON.parse(json), { IndentWidth: 4, SortIncludes: false, TabWidth: 4, UseTab: 'ForIndentation' });
+
+	// A file that cannot be parsed safely is left alone instead of being corrupted.
+	assert.strictEqual(apply('{ "IndentWidth": ', 4, 'Never'), undefined);
 });
 
 test('writes both workspace config files during first-run setup', () => {

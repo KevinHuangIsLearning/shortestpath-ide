@@ -660,18 +660,50 @@ export function applyCppStandard(flags: string, cppStandard: CppStandard): strin
 }
 
 // clang-format falls back to the LLVM style (2-space indentation) when the
-// workspace has no .clang-format. Keep the workspace file in sync with the
-// indentation chosen in the settings page so typed and formatted code match.
+// workspace has no .clang-format, so the workspace file has to follow the
+// indentation chosen here. Only the three indentation keys are touched: the file
+// may carry options and comments this model knows nothing about, and regenerating
+// it from `serializeAutoFormat` would silently drop them. Returns undefined when
+// the file cannot be edited safely.
+function applyClangFormatIndentation(content: string, indentSize: number, useTab: string): string | undefined {
+	if (content.trimStart().startsWith('{')) {
+		// clang-format also accepts a JSON config, which YAML key edits would corrupt.
+		try {
+			const parsed = JSON.parse(content) as Record<string, unknown>;
+			return `${JSON.stringify({ ...parsed, IndentWidth: indentSize, TabWidth: indentSize, UseTab: useTab }, null, 2)}\n`;
+		} catch {
+			return undefined;
+		}
+	}
+	const replacements: [string, string | number][] = [['IndentWidth', indentSize], ['TabWidth', indentSize], ['UseTab', useTab]];
+	let next = content;
+	for (const [key, value] of replacements) {
+		const pattern = new RegExp(`^${key}:.*$`, 'm');
+		next = pattern.test(next) ? next.replace(pattern, `${key}: ${value}`) : `${next.replace(/\n*$/, '\n')}${key}: ${value}\n`;
+	}
+	return next;
+}
+
 async function syncClangFormatIndentation(indentSize: number, insertSpaces: boolean): Promise<void> {
 	const workspaceFolder = getAutoFormatWorkspaceFolder();
 	if (!workspaceFolder) {
 		return;
 	}
-	const state = await readAutoFormatState(workspaceFolder);
-	state.indentWidth = indentSize;
-	state.tabWidth = indentSize;
-	state.useTab = insertSpaces ? 'Never' : 'ForIndentation';
-	await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(workspaceFolder, '.clang-format'), Buffer.from(serializeAutoFormat(state), 'utf8'));
+	const file = vscode.Uri.joinPath(workspaceFolder, '.clang-format');
+	let content: string | undefined;
+	try {
+		content = Buffer.from(await vscode.workspace.fs.readFile(file)).toString('utf8');
+	} catch {
+		content = undefined;
+	}
+	const useTab = insertSpaces ? 'Never' : 'ForIndentation';
+	const next = content === undefined
+		? serializeAutoFormat({ ...defaultAutoFormatState, indentWidth: indentSize, tabWidth: indentSize, useTab })
+		: applyClangFormatIndentation(content, indentSize, useTab);
+	if (next === undefined || next === content) {
+		return;
+	}
+	await vscode.workspace.fs.writeFile(file, Buffer.from(next, 'utf8'));
 }
 
 async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
@@ -682,9 +714,6 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		: 60;
 	const indentSize = typeof value.indentSize === 'number' && value.indentSize > 0 ? Math.min(8, Math.floor(value.indentSize)) : 4;
 	const insertSpaces = value.insertSpaces !== false;
-	const editorConfiguration = vscode.workspace.getConfiguration('editor', null);
-	const indentationChanged = editorConfiguration.get<number>('tabSize') !== indentSize
-		|| editorConfiguration.get<boolean>('insertSpaces') !== insertSpaces;
 	const settings = vscode.workspace.getConfiguration(undefined, null);
 	await Promise.all([
 		settings.update('editor.fontFamily', typeof value.fontFamily === 'string' ? value.fontFamily : '', vscode.ConfigurationTarget.Global),
@@ -711,9 +740,10 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('cph.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.antiFraudReminder', value.antiFraudReminder === true, vscode.ConfigurationTarget.Global)
 	]);
-	if (indentationChanged) {
-		await syncClangFormatIndentation(indentSize, insertSpaces);
-	}
+	// Unconditional on purpose: the editor configuration is not a reliable proxy
+	// for the workspace file, which can already disagree with it. The sync is a
+	// no-op unless the indentation keys would actually change.
+	await syncClangFormatIndentation(indentSize, insertSpaces);
 }
 
 export function isCppStandard(value: unknown): value is CppStandard {
