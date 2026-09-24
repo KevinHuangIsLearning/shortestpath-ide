@@ -117,22 +117,31 @@ test('writes both workspace config files during first-run setup', () => {
 	// The first-run branch must create .clang-format next to .clangd. Without it
 	// clang-format falls back to the LLVM style and reformats to 2 spaces.
 	assert.match(extension, /createDefaultClangdProjectConfig\(firstRunSelection\.workspaceFolder[\s\S]{0,160}createDefaultClangFormatConfig\(firstRunSelection\.workspaceFolder\)/);
-	// A workspace counts as configured only when both files exist. The old
-	// either/or check hid the prompt from every first-run workspace.
-	assert.match(extension, /function hasOiWorkspaceConfig[\s\S]{0,260}'\.clangd'\)\)\s*&& fs\.existsSync\(path\.join\(workspaceFolder\.uri\.fsPath, '\.clang-format'\)\)/);
-	assert.doesNotMatch(extension, /hasOiWorkspaceConfig[\s\S]{0,260}\|\| fs\.existsSync\(path\.join\(workspaceFolder\.uri\.fsPath, '\.clang-format'\)\)/);
+	// The prompt is keyed on .clang-format alone: a foreign C++ project carries one
+	// without a .clangd and must not be asked, while a fresh folder and a workspace
+	// left behind by the old first run both lack it and must be asked. The body is
+	// pinned exactly, so re-adding a .clangd requirement fails this test.
+	assert.match(extension, /function hasOiWorkspaceConfig\(workspaceFolder: vscode\.WorkspaceFolder\): boolean \{\s*return fs\.existsSync\(path\.join\(workspaceFolder\.uri\.fsPath, '\.clang-format'\)\);\s*\}/);
 });
 
 test('backfills .clang-format for installs upgraded from the broken first run', () => {
 	const extensionRoot = path.resolve(__dirname, '../..');
 	const extension = fs.readFileSync(path.join(extensionRoot, 'src', 'extension.ts'), 'utf8');
 	assert.match(extension, /const CLANG_FORMAT_MIGRATION = 'shortestpath\.clangFormat\.v1';/);
-	assert.match(extension, /async function ensureDefaultClangFormatConfig\(\): Promise<boolean>/);
-	assert.match(extension, /createDefaultClangFormatConfig\(workspaceFolder\.uri\.fsPath\)/);
-	assert.match(extension, /if \(!context\.globalState\.get<boolean>\(CLANG_FORMAT_MIGRATION\)\)/);
-	// The flag is set only after the backfill actually ran; a launch without an
-	// open folder must leave the migration pending instead of consuming it.
-	assert.match(extension, /if \(await ensureDefaultClangFormatConfig\(\)\) \{\s*await context\.globalState\.update\(CLANG_FORMAT_MIGRATION, true\);/);
+	assert.match(extension, /async function repairLegacyClangFormatConfig\(\): Promise<boolean>/);
+	assert.match(extension, /createDefaultClangFormatConfig\(folder\)/);
+	// Only a workspace ShortestPath already set up is repaired, so a foreign C++
+	// project never gets a .clang-format written into it.
+	assert.match(extension, /if \(!fs\.existsSync\(path\.join\(folder, '\.clangd'\)\) \|\| fs\.existsSync\(path\.join\(folder, '\.clang-format'\)\)\)/);
+	// Per workspace, not global: a global flag repaired only the first workspace
+	// ever opened and left every other one broken.
+	assert.match(extension, /if \(!context\.workspaceState\.get<boolean>\(CLANG_FORMAT_MIGRATION\)\)/);
+	assert.doesNotMatch(extension, /globalState\.(get|update)<boolean>\(CLANG_FORMAT_MIGRATION\)/);
+	// The flag is set only after the repair actually ran; a launch without an open
+	// folder must leave it pending instead of consuming it.
+	assert.match(extension, /if \(await repairLegacyClangFormatConfig\(\)\) \{\s*await context\.workspaceState\.update\(CLANG_FORMAT_MIGRATION, true\);/);
+	// An unwritable folder must not take the whole extension down with it.
+	assert.match(extension, /try \{\s*if \(await repairLegacyClangFormatConfig\(\)\) \{/);
 });
 
 test('describes the OI workspace completion prompt without over-claiming', () => {

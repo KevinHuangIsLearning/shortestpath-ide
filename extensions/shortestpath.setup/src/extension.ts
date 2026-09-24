@@ -180,27 +180,30 @@ function getSingleLocalWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
 	return workspaceFolders[0];
 }
 
-// Both files must be present before a workspace counts as configured. The
-// first-run flow used to write only .clangd, and treating that as "already
-// configured" silently suppressed the prompt that would have added
-// .clang-format. Without it clang-format falls back to the LLVM style, which
-// reformats every file to 2-space indentation.
+// .clang-format is the file the OI setup has to add, and it is also the file a
+// foreign C++ project already carries. Keying the prompt on it therefore asks
+// about a fresh folder and about a workspace left behind by the first-run build
+// that only wrote .clangd, while leaving somebody else's project alone.
 function hasOiWorkspaceConfig(workspaceFolder: vscode.WorkspaceFolder): boolean {
-	return fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clangd'))
-		&& fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clang-format'));
+	return fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clang-format'));
 }
 
-// Older builds wrote only .clangd during first-run setup, so workspaces that
-// went through that flow never received a .clang-format and clang-format
-// silently fell back to the LLVM style (2-space indentation). Backfill the file
-// once for existing installs. Nothing is overwritten: the create helper returns
-// early when the file already exists.
-async function ensureDefaultClangFormatConfig(): Promise<boolean> {
+// Older builds wrote only .clangd during first-run setup, so workspaces that went
+// through that flow never received a .clang-format and clang-format silently fell
+// back to the LLVM style (2-space indentation). Repair that exact signature.
+// Nothing is overwritten: the create helper returns early when the file exists.
+async function repairLegacyClangFormatConfig(): Promise<boolean> {
 	const workspaceFolder = getSingleLocalWorkspaceFolder();
 	if (!workspaceFolder) {
 		return false;
 	}
-	createDefaultClangFormatConfig(workspaceFolder.uri.fsPath);
+	const folder = workspaceFolder.uri.fsPath;
+	// Only a workspace ShortestPath already set up is ours to repair; writing a
+	// .clang-format into somebody else's C++ project is not.
+	if (!fs.existsSync(path.join(folder, '.clangd')) || fs.existsSync(path.join(folder, '.clang-format'))) {
+		return true;
+	}
+	createDefaultClangFormatConfig(folder);
 	return true;
 }
 
@@ -276,11 +279,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await ensureShortestPathFileNameTemplateOverride();
 		await context.globalState.update(FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION, true);
 	}
-	if (!context.globalState.get<boolean>(CLANG_FORMAT_MIGRATION)) {
-		// Stay pending until a single local workspace folder is open; marking it
-		// done without a folder would skip the backfill entirely.
-		if (await ensureDefaultClangFormatConfig()) {
-			await context.globalState.update(CLANG_FORMAT_MIGRATION, true);
+	if (!context.workspaceState.get<boolean>(CLANG_FORMAT_MIGRATION)) {
+		// Per workspace: a global flag repairs only the first workspace ever opened.
+		// Stay pending until a single local folder is open; marking it done without
+		// a folder would skip the repair entirely.
+		try {
+			if (await repairLegacyClangFormatConfig()) {
+				await context.workspaceState.update(CLANG_FORMAT_MIGRATION, true);
+			}
+		} catch {
+			// An unwritable folder must not fail activation; retry on the next launch.
 		}
 	}
 	const updateHiddenFilesContext = () => {
