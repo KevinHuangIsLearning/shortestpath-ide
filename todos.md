@@ -1,6 +1,15 @@
+# Pending
+
+- [ ] 内置 CPH 改成 CPH-NG（https://github.com/langningchen/cph-ng），并迁移原有特色功能；
+- [ ] 添加二合一浏览器插件（导入题目+提交）
+- [ ] 内置浏览器适配插件；
+
+# Finished
+
 - [x] 显示题解、简化设置可以改为在 VSCode 的弹窗中打开（VSCode 新版增加的一个，现在是打开高级设置会在弹窗中打开）。
-- [ ] 添加对于配置了 VJudge 映射的 OJ，在 CPH Plus 插件中添加通过控制浏览器 [Reference](INTEGRATED_BROWSER_API_REFERENCE.md) 的 Vjudge 题解（填写好表单即可）。
+- [x] 添加对于配置了 VJudge 映射的 OJ，在 CPH Plus 插件中添加通过控制浏览器 [Reference](INTEGRATED_BROWSER_API_REFERENCE.md) 的 Vjudge 题解（填写好表单即可）。
     样例脚本（id是对的，可以在vj下正确粘贴代码）：
+
 ```javascript
 // 1. 点击提交按钮打开面板
 const btnSubmit = document.getElementById('btn-submit');
