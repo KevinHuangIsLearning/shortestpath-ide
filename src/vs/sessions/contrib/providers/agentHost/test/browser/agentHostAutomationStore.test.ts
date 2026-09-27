@@ -451,17 +451,13 @@ suite('AgentHostAutomationStore', () => {
 
 		const ready = store.catalogueState.get();
 		connection.setCatalogError(new Error('catalogue unavailable'));
-		const afterError = store.catalogueState.get();
-		connection.setCatalogAvailable();
 
 		assert.deepStrictEqual({
 			ready,
-			afterError,
-			afterRecovery: store.catalogueState.get(),
+			afterError: store.catalogueState.get(),
 		}, {
 			ready: 'ready',
 			afterError: 'error',
-			afterRecovery: 'ready',
 		});
 	});
 

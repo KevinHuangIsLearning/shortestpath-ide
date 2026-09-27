@@ -215,12 +215,6 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 				repositoryIds.add(`${info.owner}/${info.repo}`);
 			}
 		}
-		if (repositoryIds.size === 0 && workspaceFolders.length === 1) {
-			return [{
-				label: workspaceFolders[0].name,
-				folderUri: workspaceFolders[0].uri,
-			}];
-		}
 		return Array.from(repositoryIds)
 			.sort()
 			.map(repoId => ({ label: repoId, repoId }));
