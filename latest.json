@@ -1,6 +1,6 @@
 {
-	"version": "0.3.16",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.16",
+	"version": "0.3.17-hotfix",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.17-hotfix",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "每次更新都要绞尽脑汁写更新日志，直到看见国内某大厂软件的更新日志，我顿时茅塞顿开！\n- 解决了一些已知问题。\n\n- Fixed some known issues."
+	"releaseNote": "- 修复 Windows 便携版在不支持硬链接的磁盘上准备编译环境失败的问题。失败时可选择安装到当前用户的 AppData，或在原位置复制为独立文件。\n- 修复解压中断后重试可能误判工具链已安装，以及迁移工具链后的路径处理。\n\n- Fixed Windows portable toolchain setup failing on drives without hard-link support. On failure, choose installation in the current user’s AppData or copy links as independent files in the original location.\n- Fixed incomplete extractions being mistaken for completed installations on retry and corrected paths after toolchain relocation."
 }
