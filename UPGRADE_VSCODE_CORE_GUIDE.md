@@ -38,4 +38,13 @@ git diff --check
 npm run compile
 ```
 
-编译成功且无错误后，本指南的内核升级流程完成。
+## 5. 合并到 main
+
+编译成功后，提交升级改动，并将升级分支合并到 `main`：
+
+```bash
+git switch main
+git merge --no-ff upgrade/vscode-<target-tag>
+```
+
+合并完成后，本指南的内核升级流程完成。
