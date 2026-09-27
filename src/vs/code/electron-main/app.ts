@@ -206,12 +206,24 @@ interface IShortestPathPortableAsset {
 	readonly directoryToRemove?: string;
 }
 
+interface IShortestPathPortableSupport {
+	getSpaceSafeCompilerPath(compiler: string, toolchainRoot: string): string;
+	getRelocationRoot(error: unknown): string | undefined;
+	getRoot(defaultRoot: string): string;
+	saveRoot(defaultRoot: string, root: string): Promise<void>;
+	getRelocatedRoot(defaultRoot: string): string;
+	getRecoveryMessages(locale: string, defaults?: Record<'message' | 'detail' | 'relocate' | 'copy' | 'cancel', string>): Record<'message' | 'detail' | 'relocate' | 'copy' | 'cancel', string>;
+	isComplete(target: string, asset: IShortestPathPortableAsset): boolean;
+	prepare(target: string, requiredFile: string, extract: (staging: string) => Promise<void>): Promise<void>;
+	extractTar(archive: string, target: string, onProgress: (percent: number, detail?: string) => void, options: {
+		onHardlinkError?: (error: Error) => Promise<string | undefined>;
+	}): Promise<void>;
+}
+
 const nodeRequire = createRequire(import.meta.url);
 const fs: typeof import('fs') = nodeRequire('original-fs');
 const { isAbsolute } = nodeRequire('path') as typeof import('path');
-const { finished, pipeline } = nodeRequire('stream/promises') as typeof import('stream/promises');
-const { createZstdDecompress } = nodeRequire('zlib') as typeof import('zlib');
-const tar: typeof import('tar') = nodeRequire('tar');
+const { finished } = nodeRequire('stream/promises') as typeof import('stream/promises');
 
 function isShortestPathSetupRequest(candidate: unknown): candidate is IShortestPathSetupRequest {
 	if (!candidate || typeof candidate !== 'object') {
@@ -973,8 +985,8 @@ export class CodeApplication extends Disposable {
 	}
 
 	private async applyShortestPathWindowsSetup(request: IShortestPathSetupRequest): Promise<void> {
-		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
-		const compiler = join(toolchainRoot, 'winlibs', 'mingw64-ucrt-15', 'bin', 'g++.exe');
+		const toolchainRoot = this.getShortestPathToolchainRoot();
+		const compiler = this.getShortestPathPortableSupport().getSpaceSafeCompilerPath(join(toolchainRoot, 'winlibs', 'mingw64-ucrt-15', 'bin', 'g++.exe'), toolchainRoot);
 		const clangd = join(toolchainRoot, 'clangd', 'clangd_22.1.6', 'bin', 'clangd.exe');
 		const existingFileExcludes = this.configurationService.getValue<Record<string, boolean>>('files.exclude') ?? {};
 		const fileExcludes: Record<string, boolean> = { ...existingFileExcludes };
@@ -1062,7 +1074,7 @@ export class CodeApplication extends Disposable {
 		const source = typeof sourceId === 'string'
 			? preset.downloadSources?.find(candidate => candidate.id === sourceId && !candidate.unavailable)
 			: undefined;
-		const toolchainRoot = join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
+		const toolchainRoot = this.getShortestPathToolchainRoot();
 		const installer = this.getShortestPathPlatformInstaller();
 		const assets = stage === 'toolchain' || !stage ? installer.getPortableAssets?.({ toolchainRoot, source, stage }) : undefined;
 		if (assets?.length) {
@@ -1111,47 +1123,96 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
+	private getShortestPathPortableSupport(): IShortestPathPortableSupport {
+		return nodeRequire(join(this.environmentMainService.appRoot, 'extensions', 'shortestpath.setup', 'out', 'portableToolchainSupport.js')) as IShortestPathPortableSupport;
+	}
+
+	private getShortestPathDefaultToolchainRoot(): string {
+		return join(this.environmentMainService.userDataPath, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
+	}
+
+	private getShortestPathToolchainRoot(): string {
+		return this.getShortestPathPortableSupport().getRoot(this.getShortestPathDefaultToolchainRoot());
+	}
+
+	private async chooseShortestPathHardlinkRecovery(): Promise<string | undefined> {
+		const support = this.getShortestPathPortableSupport();
+		const messages = support.getRecoveryMessages(this.environmentMainService.args.locale ?? 'zh-cn', {
+			message: localize('shortestpath.hardlink.message', "Unable to create the hard links required by the compiler toolchain at this location."),
+			detail: localize('shortestpath.hardlink.detail', "Install in AppData: Automatically install the toolchain under %LOCALAPPDATA%\\ShortestPath-Toolchains; the IDE stays in place. Copy Both Files: Stay here and store hard links as separate files, using more disk space."),
+			relocate: localize('shortestpath.hardlink.relocate', "Install in AppData"),
+			copy: localize('shortestpath.hardlink.copy', "Copy Both Files"),
+			cancel: localize('shortestpath.hardlink.cancel', "Cancel")
+		});
+		const result = await dialog.showMessageBox({
+			type: 'warning',
+			message: messages.message,
+			detail: messages.detail,
+			buttons: [messages.relocate, messages.copy, messages.cancel],
+			defaultId: 1,
+			cancelId: 2,
+			noLink: true
+		});
+		if (result.response === 1) {
+			return 'copy';
+		}
+		if (result.response !== 0) {
+			return undefined;
+		}
+		return support.getRelocatedRoot(this.getShortestPathDefaultToolchainRoot());
+	}
+
 	private async installShortestPathPortableAssets(toolchainRoot: string, assets: readonly IShortestPathPortableAsset[], reportProgress: (message: string) => void): Promise<{ readonly success: boolean; readonly message: string }> {
-		try {
-			await fs.promises.mkdir(toolchainRoot, { recursive: true });
-			for (const asset of assets) {
-				const targetPath = join(toolchainRoot, asset.targetDirectory);
-				const bundledArchivePath = asset.bundledArchivePath
-					? join(this.environmentMainService.appRoot, asset.bundledArchivePath)
-					: undefined;
-				const useBundledArchive = !!bundledArchivePath && fs.existsSync(bundledArchivePath);
-				const archivePath = useBundledArchive ? bundledArchivePath : join(toolchainRoot, asset.archiveName);
-				if (fs.existsSync(join(targetPath, asset.requiredFile))) {
-					reportProgress(`${asset.id} is already installed; skipping extraction.`);
+		while (true) {
+			try {
+				await fs.promises.mkdir(toolchainRoot, { recursive: true });
+				for (const asset of assets) {
+					const targetPath = join(toolchainRoot, asset.targetDirectory);
+					const bundledArchivePath = asset.bundledArchivePath
+						? join(this.environmentMainService.appRoot, asset.bundledArchivePath)
+						: undefined;
+					const useBundledArchive = !!bundledArchivePath && fs.existsSync(bundledArchivePath);
+					const archivePath = useBundledArchive ? bundledArchivePath : join(toolchainRoot, asset.archiveName);
+					if (this.getShortestPathPortableSupport().isComplete(targetPath, asset)) {
+						reportProgress(`${asset.id} is already installed; skipping extraction.`);
+						await this.removeShortestPathAssetDirectory(targetPath, asset, reportProgress);
+						continue;
+					}
+					if (useBundledArchive) {
+						reportProgress(`Installing bundled ${asset.id}…`);
+					} else {
+						reportProgress(`Downloading ${asset.id}… 0%`);
+						await this.downloadShortestPathAsset(asset.urls, archivePath, asset.id, reportProgress);
+					}
+					let lastReportedPercent = -1;
+					reportProgress(`Extracting ${asset.id}… 0%`);
+					await this.getShortestPathPortableSupport().prepare(targetPath, asset.requiredFile, staging => this.extractShortestPathAsset(archivePath, staging, (percent, detail) => {
+						if (percent === 100 || percent - lastReportedPercent >= 2) {
+							lastReportedPercent = percent;
+							reportProgress(`Extracting ${asset.id}… ${percent}%${detail ? ` (${detail})` : ''}`);
+						}
+					}));
+					if (!fs.existsSync(join(targetPath, asset.requiredFile))) {
+						throw new Error(`${asset.id} archive did not contain ${asset.requiredFile}.`);
+					}
 					await this.removeShortestPathAssetDirectory(targetPath, asset, reportProgress);
+					if (!useBundledArchive) {
+						await fs.promises.unlink(archivePath);
+					}
+				}
+				if (toolchainRoot !== this.getShortestPathToolchainRoot()) {
+					await this.getShortestPathPortableSupport().saveRoot(this.getShortestPathDefaultToolchainRoot(), toolchainRoot);
+				}
+				reportProgress('Portable toolchain installation complete.');
+				return { success: true, message: 'Toolchain download completed.' };
+			} catch (error) {
+				const relocatedRoot = this.getShortestPathPortableSupport().getRelocationRoot(error);
+				if (relocatedRoot) {
+					toolchainRoot = relocatedRoot;
 					continue;
 				}
-				if (useBundledArchive) {
-					reportProgress(`Installing bundled ${asset.id}…`);
-				} else {
-					reportProgress(`Downloading ${asset.id}… 0%`);
-					await this.downloadShortestPathAsset(asset.urls, archivePath, asset.id, reportProgress);
-				}
-				let lastReportedPercent = -1;
-				reportProgress(`Extracting ${asset.id}… 0%`);
-				await this.extractShortestPathAsset(archivePath, targetPath, (percent, detail) => {
-					if (percent === 100 || percent - lastReportedPercent >= 2) {
-						lastReportedPercent = percent;
-						reportProgress(`Extracting ${asset.id}… ${percent}%${detail ? ` (${detail})` : ''}`);
-					}
-				});
-				if (!fs.existsSync(join(targetPath, asset.requiredFile))) {
-					throw new Error(`${asset.id} archive did not contain ${asset.requiredFile}.`);
-				}
-				await this.removeShortestPathAssetDirectory(targetPath, asset, reportProgress);
-				if (!useBundledArchive) {
-					await fs.promises.unlink(archivePath);
-				}
+				return { success: false, message: toErrorMessage(error) };
 			}
-			reportProgress('Portable toolchain installation complete.');
-			return { success: true, message: 'Toolchain download completed.' };
-		} catch (error) {
-			return { success: false, message: toErrorMessage(error) };
 		}
 	}
 
@@ -1169,20 +1230,9 @@ export class CodeApplication extends Disposable {
 	private async extractShortestPathAsset(archivePath: string, targetPath: string, onProgress: (percent: number, detail?: string) => void): Promise<void> {
 		await fs.promises.mkdir(targetPath, { recursive: true });
 		if (archivePath.endsWith('.tar.zst')) {
-			const totalBytes = (await fs.promises.stat(archivePath)).size;
-			let receivedBytes = 0;
-			const input = fs.createReadStream(archivePath);
-			input.on('data', (chunk: string | Buffer) => {
-				receivedBytes += Buffer.byteLength(chunk);
-				const percent = totalBytes > 0 ? Math.floor(receivedBytes * 100 / totalBytes) : 0;
-				onProgress(percent, `${this.formatShortestPathBytes(receivedBytes)} / ${this.formatShortestPathBytes(totalBytes)}`);
+			await this.getShortestPathPortableSupport().extractTar(archivePath, targetPath, onProgress, {
+				onHardlinkError: isWindows ? () => this.chooseShortestPathHardlinkRecovery() : undefined
 			});
-			await pipeline(
-				input,
-				createZstdDecompress(),
-				tar.x({ cwd: targetPath, strict: true })
-			);
-			onProgress(100, `${this.formatShortestPathBytes(totalBytes)} / ${this.formatShortestPathBytes(totalBytes)}`);
 			return;
 		}
 		return extractZip(archivePath, targetPath, {

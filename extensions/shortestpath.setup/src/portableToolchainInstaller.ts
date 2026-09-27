@@ -7,10 +7,12 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as https from 'node:https';
 import * as path from 'node:path';
-import { createReadStream, createWriteStream } from 'node:fs';
+import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
-import * as tar from 'tar';
 import * as yauzl from 'yauzl';
+import * as portableToolchain from './portableToolchainSupport';
+
+export { portableToolchain };
 
 export type PortableAsset = {
 	readonly id: string;
@@ -25,6 +27,7 @@ export type PortableAsset = {
 export type PortableInstallResult = {
 	readonly success: boolean;
 	readonly message: string;
+	readonly relocateTo?: string;
 };
 
 export type PortableInstallOptions = {
@@ -32,9 +35,8 @@ export type PortableInstallOptions = {
 	readonly toolchainRoot: string;
 	readonly assets: readonly PortableAsset[];
 	readonly reportProgress: (message: string) => void;
+	readonly onHardlinkError?: (error: Error) => Promise<string | undefined>;
 };
-
-const { createZstdDecompress } = require('node:zlib') as { createZstdDecompress?: () => NodeJS.ReadWriteStream };
 
 export async function installPortableAssets(options: PortableInstallOptions): Promise<PortableInstallResult> {
 	try {
@@ -45,6 +47,10 @@ export async function installPortableAssets(options: PortableInstallOptions): Pr
 		options.reportProgress('Portable toolchain installation complete.');
 		return { success: true, message: 'Toolchain download completed.' };
 	} catch (error) {
+		const relocateTo = portableToolchain.getRelocationRoot(error);
+		if (relocateTo) {
+			return { success: false, message: toErrorMessage(error), relocateTo };
+		}
 		return { success: false, message: toErrorMessage(error) };
 	}
 }
@@ -52,7 +58,7 @@ export async function installPortableAssets(options: PortableInstallOptions): Pr
 async function installPortableAsset(options: PortableInstallOptions, asset: PortableAsset): Promise<void> {
 	const targetPath = path.join(options.toolchainRoot, asset.targetDirectory);
 	const requiredPath = path.join(targetPath, asset.requiredFile);
-	if (fs.existsSync(requiredPath)) {
+	if (portableToolchain.isComplete(targetPath, asset)) {
 		options.reportProgress(`${asset.id} is already installed; skipping extraction.`);
 		await removeAssetDirectory(targetPath, asset, options.reportProgress);
 		return;
@@ -77,7 +83,7 @@ async function installPortableAsset(options: PortableInstallOptions, asset: Port
 		}
 
 		options.reportProgress(`Extracting ${asset.id}… 0%`);
-		await extractAsset(archivePath, targetPath, asset.id, options.reportProgress);
+		await portableToolchain.prepare(targetPath, asset.requiredFile, staging => extractAsset(archivePath, staging, asset.id, options.reportProgress, options.onHardlinkError));
 		if (!fs.existsSync(requiredPath)) {
 			throw new Error(`${asset.id} archive did not contain ${asset.requiredFile}.`);
 		}
@@ -131,7 +137,6 @@ async function downloadFromUrl(url: string, targetPath: string, label: string, r
 	await new Promise<void>((resolve, reject) => {
 		let timeout: ReturnType<typeof setTimeout> | undefined;
 		let timeoutMessage = 'Download connection timed out.';
-		let request: import('node:http').ClientRequest | undefined;
 		let responseStream: import('node:http').IncomingMessage | undefined;
 		let settled = false;
 		const finish = (error?: unknown) => {
@@ -156,7 +161,7 @@ async function downloadFromUrl(url: string, targetPath: string, label: string, r
 
 		reportProgress(`Connecting to download source for ${label}…`);
 		resetTimeout('Download connection timed out.', 45_000);
-		request = requestFunction(parsed, response => {
+		const request = requestFunction(parsed, response => {
 			responseStream = response;
 			const location = response.headers.location;
 			if (location && response.statusCode && response.statusCode >= 300 && response.statusCode < 400) {
@@ -197,22 +202,12 @@ async function downloadFromUrl(url: string, targetPath: string, label: string, r
 	});
 }
 
-async function extractAsset(archivePath: string, targetPath: string, label: string, reportProgress: (message: string) => void): Promise<void> {
+async function extractAsset(archivePath: string, targetPath: string, label: string, reportProgress: (message: string) => void, onHardlinkError?: (error: Error) => Promise<string | undefined>): Promise<void> {
 	await fs.promises.mkdir(targetPath, { recursive: true });
 	if (archivePath.endsWith('.tar.zst')) {
-		if (!createZstdDecompress) {
-			throw new Error('This Node.js runtime cannot extract .tar.zst archives.');
-		}
-		const totalBytes = (await fs.promises.stat(archivePath)).size;
-		let receivedBytes = 0;
-		const input = createReadStream(archivePath);
-		input.on('data', (chunk: Buffer | string) => {
-			receivedBytes += Buffer.byteLength(chunk);
-			const percent = totalBytes > 0 ? Math.floor(receivedBytes * 100 / totalBytes) : 0;
-			reportProgress(`Extracting ${label}… ${percent}% (${formatBytes(receivedBytes)} / ${formatBytes(totalBytes)})`);
-		});
-		await pipeline(input, createZstdDecompress(), tar.x({ cwd: targetPath, strict: true }));
-		reportProgress(`Extracting ${label}… 100% (${formatBytes(totalBytes)} / ${formatBytes(totalBytes)})`);
+		await portableToolchain.extractTar(archivePath, targetPath, (percent, detail) => {
+			reportProgress(`Extracting ${label}… ${percent}%${detail ? ` (${detail})` : ''}`);
+		}, { onHardlinkError });
 		return;
 	}
 	if (archivePath.endsWith('.zip')) {
