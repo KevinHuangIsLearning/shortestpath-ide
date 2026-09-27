@@ -25,7 +25,7 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 
 /**
  * The data + callbacks a {@link ChatGroupView} needs from its owning
@@ -156,7 +156,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		this._contentContainer = $('.chat-group-view-content');
 		this.element.appendChild(this._contentContainer);
-		this._remoteHostUnavailableEmptyState = this._register(new RemoteHostUnavailableEmptyState());
+		this._remoteHostUnavailableEmptyState = this._register(this._instantiationService.createInstance(RemoteHostUnavailableEmptyState));
 		this._contentContainer.appendChild(this._remoteHostUnavailableEmptyState.domNode);
 
 		this._register(this._compositeBar.onDidChangeVisibility(() => this._layoutChildren()));
@@ -180,6 +180,14 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this.element.setAttribute('role', 'region');
 		this.element.setAttribute('aria-label', localize('chatGroupAriaLabel', "Chat Group {0} of {1}", index + 1, count));
 		this._compositeBar.setAriaLabel(localize('chatGroupTabsAriaLabel', "Chats, Group {0} of {1}", index + 1, count));
+	}
+
+	startFocusedChatTitleEditing(): boolean {
+		return this._compositeBar.startFocusedTabEditing();
+	}
+
+	startChatTitleEditing(chatResource: URI): boolean {
+		return this._compositeBar.startTabEditing(chatResource);
 	}
 
 	/** Sets (or clears) the group this view renders. */
@@ -230,30 +238,41 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			if (archived) {
 				const action = getChatSessionArchiveActionPresentation(this._archiveActionWording.read(reader)).unarchive;
 				return {
-					message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
-					action: {
-						label: action.title.value,
-						run: () => this._commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, context.session),
+					archived: true,
+					content: {
+						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
+						action: {
+							label: action.title.value,
+							run: () => this._commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, context.session),
+						},
 					},
 				};
 			}
-			return { message: localize('sessionReadOnlyBanner.message', "This chat is read-only") };
+			return { archived: false, content: { message: localize('sessionReadOnlyBanner.message', "This chat is read-only") } };
 		});
 
 		const surface = derived<IChatGroupSurface>(reader => {
 			const readOnly = readOnlyContent.read(reader);
-			if (readOnly) {
-				return { banner: readOnly, recovery: undefined };
+			if (readOnly?.archived) {
+				return { banner: readOnly.content, recovery: undefined };
 			}
 
+			// Keep the banner while history loads to avoid flashing the centered recovery state.
 			const view = currentView.read(reader);
-			const recovery = view?.hasVisibleTranscriptContent.read(reader)
+			const transcriptSettled = view === undefined || !view.isLoadingTranscript.read(reader);
+			const recovery = !transcriptSettled || view?.hasVisibleTranscriptContent.read(reader)
 				? undefined
 				: this._connection.recoveryContent.read(reader);
 			if (recovery) {
 				return { banner: undefined, recovery };
 			}
-			return { banner: this._connection.bannerContent.read(reader), recovery: undefined };
+			// Explain connection-related read-only state before falling back to the generic notice.
+			const connectionBanner = this._connection.bannerContent.read(reader);
+			if (connectionBanner) {
+				return { banner: connectionBanner, recovery: undefined };
+			}
+
+			return { banner: readOnly?.content, recovery: undefined };
 		});
 
 		this._contextDisposables.add(autorun(reader => {
@@ -347,8 +366,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		return this._currentView.value?.submitInput() ?? Promise.resolve(false);
 	}
 
-	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
-		this._currentView.value?.selectWorkspace(folderUri, options);
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
+		return this._currentView.value?.selectWorkspace(folderUri, options) ?? 'notReady';
 	}
 
 	selectNoWorkspace(): void {

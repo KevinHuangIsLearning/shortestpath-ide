@@ -1,7 +1,7 @@
 {
 	"nameShort": "ShortestPath",
 	"nameLong": "ShortestPath IDE",
-	"extensionApiVersion": "1.133.0",
+	"extensionApiVersion": "1.139.1",
 	"applicationName": "shortestpath",
 	"dataFolderName": ".shortestpath-ide",
 	"sharedDataFolderName": ".shortestpath-ide-shared",
@@ -29,6 +29,7 @@
 	"darwinBundleIdentifier": "com.shortestpath.ide",
 	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
 	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
+	"linuxDesktopName": "shortestpath",
 	"linuxIconName": "shortestpath",
 	"licenseFileName": "LICENSE",
 	"reportIssueUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/issues/new",
