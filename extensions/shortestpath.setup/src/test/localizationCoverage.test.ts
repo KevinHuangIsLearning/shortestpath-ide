@@ -267,7 +267,7 @@ test('keeps first-run preparation in the editor-tab setup flow', () => {
 	assert.match(extension, /shortestpath\.installToolchainStage/);
 	assert.match(extension, /shortestpath\.applyFirstRunSetup/);
 	assert.match(extension, /await removeLegacyWindowsCompilerLocale\(context\)/);
-	assert.match(extension, /'toolchains', 'winlibs', 'mingw64-ucrt-15', 'share', 'locale'/);
+	assert.match(extension, /getToolchainRoot\(context\), 'winlibs', 'mingw64-ucrt-15', 'share', 'locale'/);
 	assert.equal(windowsPreset.downloadSources, undefined);
 	assert.match(windowsInstaller, /bundledArchivePath: 'resources\/oi-defaults\/toolchains\/clangd-windows-/);
 	assert.match(windowsInstaller, /bundledArchivePath: `resources\/oi-defaults\/toolchains\/\$\{mingwArchiveName\}`/);

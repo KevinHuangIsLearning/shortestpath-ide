@@ -53,6 +53,7 @@ test('removes compiler locale data when an existing portable toolchain is prepar
 	try {
 		await mkdir(path.join(compilerRoot, 'bin'), { recursive: true });
 		await writeFile(path.join(compilerRoot, 'bin', 'g++.exe'), '');
+		await writeFile(path.join(toolchainRoot, 'winlibs', '.shortestpath-complete'), '1');
 		await mkdir(path.join(localeRoot, 'zh_CN', 'LC_MESSAGES'), { recursive: true });
 		await writeFile(path.join(localeRoot, 'zh_CN', 'LC_MESSAGES', 'gcc.mo'), 'localized');
 		await writeFile(path.join(localeRoot, 'locale.alias'), 'alias');
@@ -142,7 +143,7 @@ test('main-process portable installer keeps locale cleanup in both preparation p
 	const methodEnd = appSource.indexOf('private async extractShortestPathAsset', methodStart);
 	const installerMethod = appSource.slice(methodStart, methodEnd);
 	assert.ok(methodStart >= 0 && methodEnd > methodStart);
-	const installedBranch = installerMethod.indexOf('if (fs.existsSync(join(targetPath, asset.requiredFile)))');
+	const installedBranch = installerMethod.indexOf('if (this.getShortestPathPortableSupport().isComplete(targetPath, asset))');
 	const cleanupExisting = installerMethod.indexOf('await this.removeShortestPathAssetDirectory(targetPath, asset, reportProgress);', installedBranch);
 	const skipExtraction = installerMethod.indexOf('continue;', cleanupExisting);
 	assert.ok(installedBranch >= 0 && cleanupExisting > installedBranch && skipExtraction > cleanupExisting);

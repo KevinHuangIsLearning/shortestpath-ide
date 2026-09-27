@@ -5,7 +5,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { createHash } from 'crypto';
 import { execFile, spawn } from 'child_process';
 import * as vscode from 'vscode';
 import { defaultClangFormatConfig, defaultCompilerFlagsFor, registerSimpleSettings } from './simpleSettings';
@@ -15,8 +14,8 @@ import { registerCphSettings } from './cphSettings';
 import { registerGettingStarted } from './gettingStarted';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
 import { localize, localizeFormat } from './localization';
-import { getPortableDataRoot, managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
-import { installPortableAssets, type PortableAsset } from './portableToolchainInstaller';
+import { managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
+import { installPortableAssets, portableToolchain, type PortableAsset } from './portableToolchainInstaller';
 
 type PlatformPreset = {
 	pages?: PresetPage[];
@@ -319,7 +318,7 @@ async function removeLegacyWindowsCompilerLocale(context: vscode.ExtensionContex
 	if (process.platform !== 'win32') {
 		return;
 	}
-	const localePath = path.join(context.globalStorageUri.fsPath, 'toolchains', 'winlibs', 'mingw64-ucrt-15', 'share', 'locale');
+	const localePath = path.join(getToolchainRoot(context), 'winlibs', 'mingw64-ucrt-15', 'share', 'locale');
 	if (fs.existsSync(localePath)) {
 		await fs.promises.rm(localePath, { recursive: true, force: true });
 	}
@@ -432,8 +431,9 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	}
 
 	if (installerStarted) {
-		compiler = await findPreferredCompiler(preset.compilerCandidates);
-		clangd = await findFirstExecutable(preset.clangdCandidates);
+		const installedPreset = loadPreset(context);
+		compiler = await findPreferredCompiler(installedPreset.compilerCandidates);
+		clangd = await findFirstExecutable(installedPreset.clangdCandidates);
 	}
 	if (compiler && await isAppleClang(compiler)) {
 		await vscode.window.showWarningMessage(
@@ -564,35 +564,7 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
  * quoting it. Run through a no-space drive-root junction instead.
  */
 function getSpaceSafePortableCompilerPath(context: vscode.ExtensionContext, compiler: string): string {
-	if (!/\s/.test(compiler)) {
-		return compiler;
-	}
-	const dataRoot = getPortableDataRoot(context.globalStorageUri.fsPath);
-	if (!dataRoot) {
-		return compiler;
-	}
-	const volumeRoot = path.parse(dataRoot).root;
-	if (!volumeRoot) {
-		return compiler;
-	}
-	const hash = createHash('sha256').update(dataRoot.toLowerCase()).digest('hex').slice(0, 12);
-	const alias = path.join(volumeRoot, `.shortestpath-toolchain-${hash}`);
-	try {
-		if (fs.existsSync(alias)) {
-			if (normalizeWindowsPath(fs.realpathSync(alias)) !== normalizeWindowsPath(dataRoot)) {
-				return compiler;
-			}
-		} else {
-			fs.symlinkSync(dataRoot, alias, 'junction');
-		}
-		return path.join(alias, path.relative(dataRoot, compiler));
-	} catch {
-		return compiler;
-	}
-}
-
-function normalizeWindowsPath(value: string): string {
-	return value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
+	return portableToolchain.getSpaceSafeCompilerPath(compiler, getToolchainRoot(context));
 }
 
 async function enableBundledConptyWhenUnset(): Promise<void> {
@@ -615,10 +587,28 @@ function isFirstRunSelection(candidate: unknown): candidate is FirstRunSelection
 		&& path.isAbsolute(value.workspaceFolder);
 }
 
+function getToolchainRoot(context: vscode.ExtensionContext): string {
+	return portableToolchain.getRoot(path.join(context.globalStorageUri.fsPath, 'toolchains'));
+}
+
+async function chooseHardlinkRecovery(context: vscode.ExtensionContext): Promise<string | undefined> {
+	const messages = portableToolchain.getRecoveryMessages(vscode.env.language);
+	const relocate = localize(messages.relocate);
+	const copy = localize(messages.copy);
+	const choice = await vscode.window.showWarningMessage(localize(messages.message), { modal: true, detail: localize(messages.detail) }, relocate, copy);
+	if (choice === copy) {
+		return 'copy';
+	}
+	if (choice !== relocate) {
+		return undefined;
+	}
+	return portableToolchain.getRelocatedRoot(path.join(context.globalStorageUri.fsPath, 'toolchains'));
+}
+
 function loadPreset(context: vscode.ExtensionContext): PlatformPreset {
 	const name = getPlatformName() + '.json';
 	const preset = JSON.parse(fs.readFileSync(path.join(context.extensionPath, 'resources', name), 'utf8')) as PlatformPreset;
-	const toolchainRoot = path.join(context.globalStorageUri.fsPath, 'toolchains');
+	const toolchainRoot = getToolchainRoot(context);
 	return {
 		...preset,
 		compilerCandidates: preset.compilerCandidates.map(candidate => candidate.replaceAll('{{TOOLCHAIN_ROOT}}', toolchainRoot)),
@@ -677,11 +667,19 @@ function selectDownloadSource(preset: PlatformPreset, sourceId: unknown): Downlo
 }
 
 async function runInstallerStage(context: vscode.ExtensionContext, source: DownloadSource | undefined, stage: string, reportProgress: (message: string) => void): Promise<ToolchainInstallResult> {
-	const toolchainRoot = path.join(context.globalStorageUri.fsPath, 'toolchains');
+	const toolchainRoot = getToolchainRoot(context);
 	const installer = loadPlatformInstaller(context);
 	const assets = stage === 'toolchain' ? installer.getPortableAssets?.({ toolchainRoot, source, stage, locale: vscode.env.language }) : undefined;
 	if (assets?.length) {
-		const result = await installPortableAssets({ appRoot: vscode.env.appRoot, toolchainRoot, assets, reportProgress });
+		const options = { appRoot: vscode.env.appRoot, toolchainRoot, assets, reportProgress, onHardlinkError: process.platform === 'win32' ? () => chooseHardlinkRecovery(context) : undefined };
+		let result = await installPortableAssets(options);
+		while (result.relocateTo) {
+			const root = result.relocateTo;
+			result = await installPortableAssets({ ...options, toolchainRoot: root });
+			if (result.success) {
+				await portableToolchain.saveRoot(path.join(context.globalStorageUri.fsPath, 'toolchains'), root);
+			}
+		}
 		if (!result.success || !installer.createProcess) {
 			return result;
 		}
@@ -726,7 +724,7 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 		localize('暂不处理')
 	);
 	if (choice === localize('安装并修复')) {
-		const toolchainRoot = path.join(context.globalStorageUri.fsPath, 'toolchains');
+		const toolchainRoot = getToolchainRoot(context);
 		const source = selectDownloadSource(preset, undefined);
 		const installer = loadPlatformInstaller(context);
 		// Only a platform with no shell installer at all is sent back to the
