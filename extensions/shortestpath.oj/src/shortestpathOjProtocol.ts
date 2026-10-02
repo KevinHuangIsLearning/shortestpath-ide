@@ -3,6 +3,10 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { validatePublicProblemContent } from './publicProblemValidation';
+import type { BridgeCorrectionSnapshot, PublicProblemContent, SolveTarget } from './generated/ide-bridge-contract';
+
+export const bridgeProtocolV2 = 'shortestpath-oj-v2';
 export const bridgePort = 21474;
 export const bridgePath = '/shortestpath-oj';
 export const bridgeProtocol = 'shortestpath-oj-v1';
@@ -87,6 +91,10 @@ export type ProblemCapabilities = {
 };
 
 export type ImportedProblem = {
+	target?: SolveTarget;
+	publicContent?: PublicProblemContent;
+	localTest?: { enabled: boolean; reason: string };
+	accountId?: string;
 	ref: string;
 	title: string;
 	url: string;
@@ -124,7 +132,7 @@ export type WebsiteError = {
 };
 
 export type ProtocolRequest = {
-	version: 1;
+	version: 1 | 2;
 	id: string;
 	type: string;
 	sessionId?: string;
@@ -132,7 +140,7 @@ export type ProtocolRequest = {
 };
 
 export type ProtocolResponse = {
-	version: 1;
+	version: 1 | 2;
 	id: string;
 	replyTo: string;
 	type: string;
@@ -173,6 +181,7 @@ export type EditorialResult =
 		simpleContent: MarkdownContent;
 		content: MarkdownContent;
 		solutionCode: string;
+		subtaskSolutions?: Array<{ title: string; kind: string; appliesToSubtasks: string[]; acceptedSubtasks: string[]; solution: string; acCode: string }>;
 		updatedAt?: string;
 	};
 
@@ -192,6 +201,9 @@ export type SubmissionWatchResult = {
 };
 
 export type SubmissionDetail = {
+	testPoint?: string;
+	testPointScore?: number;
+	outcome?: number;
 	seq: number;
 	caseName: string;
 	status: string;
@@ -205,6 +217,8 @@ export type SubmissionDetail = {
 };
 
 export type SubmissionSnapshot = {
+	generation?: number;
+	resultHidden?: boolean;
 	submissionId: string;
 	language: string;
 	status: string;
@@ -227,6 +241,8 @@ export type SubmissionSnapshot = {
 };
 
 export type StressTask = {
+	counterExampleTruncated?: boolean;
+	interactionTrace?: string;
 	taskId: string;
 	submissionId: string;
 	status: string;
@@ -265,6 +281,7 @@ export type StressStartResult = {
 };
 
 export type IncomingEvent =
+	| { type: 'correction.snapshot'; data: { task: BridgeCorrectionSnapshot } }
 	| { type: 'submission.progress'; data: SubmissionSnapshot }
 	| { type: 'submission.finished'; data: SubmissionSnapshot }
 	| { type: 'stress.progress'; data: { task: StressTask } }
@@ -274,9 +291,9 @@ export function problemKey(problem: Pick<ImportedProblem, 'ref'> | string): stri
 	return typeof problem === 'string' ? problem : problem.ref;
 }
 
-export function parseMessage(value: unknown): ProtocolRequest | ProtocolResponse {
+export function parseMessage(value: unknown, expectedVersion: 1 | 2 = 1): ProtocolRequest | ProtocolResponse {
 	const message = record(value, '消息必须是 JSON 对象。');
-	if (message.version !== protocolVersion) {
+	if (message.version !== expectedVersion) {
 		throw new ProtocolValidationError('unsupported_version', '不支持的协议版本。');
 	}
 	const id = nonEmptyString(message.id, 'id');
@@ -294,17 +311,17 @@ export function parseMessage(value: unknown): ProtocolRequest | ProtocolResponse
 		if (!message.ok && error === undefined) {
 			throw new ProtocolValidationError('invalid_message', '失败响应必须包含 error。');
 		}
-		return { version: 1, id, replyTo, type, sessionId, ok: message.ok, data: message.data, error };
+		return { version: expectedVersion, id, replyTo, type, sessionId, ok: message.ok, data: message.data, error };
 	}
 	if (message.ok !== undefined) {
 		throw new ProtocolValidationError('invalid_message', '请求或事件不能包含 ok。');
 	}
-	return { version: 1, id, type, sessionId, data: message.data };
+	return { version: expectedVersion, id, type, sessionId, data: message.data };
 }
 
-export function parseProblemBindData(value: unknown): ImportedProblem {
+export function parseProblemBindData(value: unknown, version: 1 | 2 = 1): ImportedProblem {
 	const data = record(value, 'problem.bind.data 无效。');
-	const problem = parseProblem(data.problem);
+	const problem = parseProblem(data.problem, version);
 	const compatibilityWarnings: string[] = [];
 	let stateIncompatible = false;
 	let state: ProblemState;
@@ -410,6 +427,10 @@ export function parseEditorialResult(value: unknown): EditorialResult {
 		simpleContent: markdown(data.simpleContent, 'simpleContent'),
 		content: markdown(data.content, 'content'),
 		solutionCode: stringValue(data.solutionCode, 'solutionCode'),
+		...(data.subtaskSolutions === undefined ? {} : { subtaskSolutions: array(data.subtaskSolutions, 'subtaskSolutions').map(value => {
+			const solution = record(value, 'subtaskSolution');
+			return { title: optionalString(solution.title, 'title') ?? '', kind: stringValue(solution.kind, 'kind'), appliesToSubtasks: stringArray(solution.applies_to_subtasks ?? [], 'applies_to_subtasks'), acceptedSubtasks: stringArray(solution.accepted_subtasks ?? [], 'accepted_subtasks'), solution: optionalString(solution.solution, 'solution') ?? '', acCode: optionalString(solution.ac_code, 'ac_code') ?? '' };
+		}) }),
 		updatedAt: optionalString(data.updatedAt, 'updatedAt'),
 	};
 }
@@ -470,12 +491,18 @@ export function parseStressStartResult(value: unknown): StressStartResult {
 	};
 }
 
-export function parseIncomingEvent(type: string, value: unknown): IncomingEvent {
+export function parseIncomingEvent(type: string, value: unknown, version: 1 | 2 = 1): IncomingEvent {
 	const data = record(value, `${type}.data 无效。`);
 	switch (type) {
+		case 'correction.snapshot': {
+			const task = record(data.task, 'correction.task');
+			if (!Number.isSafeInteger(task.task_id) || !Number.isSafeInteger(task.submission_id) || typeof task.status !== 'string') { throw new ProtocolValidationError('invalid_request', '订正快照无效。'); }
+			return { type, data: { task: task as unknown as BridgeCorrectionSnapshot } };
+		}
 		case 'submission.progress':
 			return { type, data: parseSubmissionSnapshot(data, false) };
 		case 'submission.finished':
+			if (version === 1 && data.judgedAt === null) { throw new ProtocolValidationError('invalid_request', 'submission.finished.judgedAt 不能为 null。'); }
 			return { type, data: parseSubmissionSnapshot(data, true) };
 		case 'stress.progress': {
 			const task = parseStressTask(data.task, 'task');
@@ -585,10 +612,10 @@ export class ProtocolValidationError extends Error {
 	}
 }
 
-function parseProblem(value: unknown): Omit<ImportedProblem, 'state' | 'capabilities' | 'compatibilityWarnings'> {
+function parseProblem(value: unknown, version: 1 | 2 = 1): Omit<ImportedProblem, 'state' | 'capabilities' | 'compatibilityWarnings'> {
 	const problem = record(value, 'problem 无效。');
 	const url = nonEmptyString(problem.url, 'problem.url');
-	if (!shortestPathProblemUrl.test(url)) {
+	if (version === 1 && !shortestPathProblemUrl.test(url)) {
 		throw new ProtocolValidationError('invalid_request', 'problem.url 不是支持的普通训练题地址。');
 	}
 	const topic = record(problem.topic, 'problem.topic');
@@ -609,13 +636,14 @@ function parseProblem(value: unknown): Omit<ImportedProblem, 'state' | 'capabili
 	if (!problemRefPattern.test(ref)) {
 		throw new ProtocolValidationError('invalid_request', 'problem.ref 必须是 topic/group/code 三段规范路径。');
 	}
-	const topicSlug = nonEmptyString(topic.slug, 'problem.topic.slug');
+	const topicSlug = version === 1 ? nonEmptyString(topic.slug, 'problem.topic.slug') : stringValue(topic.slug, 'problem.topic.slug');
 	const urlSegments = problemRefSegmentsFromUrl(url);
 	const refSegments = ref.split('/');
-	if (urlSegments.join('/') !== ref || refSegments[0] !== topicSlug) {
+	if (version === 1 && (urlSegments.join('/') !== ref || refSegments[0] !== topicSlug)) {
 		throw new ProtocolValidationError('invalid_request', 'problem.ref 必须与 problem.url 和 problem.topic.slug 一致。');
 	}
 	return {
+		...(version === 2 ? parseProblemV2(problem, ref, url) : {}),
 		ref,
 		title: nonEmptyString(problem.title, 'problem.title'),
 		url,
@@ -747,7 +775,7 @@ function problemRefSegmentsFromUrl(url: string): string[] {
 	}
 }
 
-function parseCapabilities(value: unknown): ProblemCapabilities {
+export function parseCapabilities(value: unknown): ProblemCapabilities {
 	const capabilities = record(value, 'capabilities 无效。');
 	const submission = record(capabilities.submission, 'capabilities.submission');
 	const stress = capabilities.stress === undefined || capabilities.stress === null
@@ -797,10 +825,7 @@ function parseSubmissionSnapshot(value: unknown, finished: boolean): SubmissionS
 		throw new ProtocolValidationError('invalid_request', 'submission.finished 必须包含 detailState。');
 	}
 	const detailError = data.detailError === undefined ? undefined : parseWebsiteError(data.detailError);
-	if (finished && data.judgedAt === null) {
-		throw new ProtocolValidationError('invalid_request', 'submission.finished.judgedAt 不能为 null。');
-	}
-	if (detailState === 'unavailable' && detailError === undefined) {
+		if (detailState === 'unavailable' && detailError === undefined) {
 		throw new ProtocolValidationError('invalid_request', 'detailState 为 unavailable 时必须包含 detailError。');
 	}
 	if (detailState === 'complete' && detailError !== undefined) {
@@ -810,6 +835,9 @@ function parseSubmissionSnapshot(value: unknown, finished: boolean): SubmissionS
 	const details = detailValues.map((value, index) => {
 		const detail = record(value, `details[${index}]`);
 		return {
+			...(detail.testPoint === undefined ? {} : { testPoint: optionalString(detail.testPoint, 'testPoint') }),
+			...(detail.testPointScore === undefined ? {} : { testPointScore: optionalNumber(detail.testPointScore, 'testPointScore') }),
+			...(detail.outcome === undefined ? {} : { outcome: optionalNumber(detail.outcome, 'outcome') }),
 			seq: nonNegativeInteger(detail.seq, `details[${index}].seq`),
 			caseName: nonEmptyString(detail.caseName, `details[${index}].caseName`),
 			status: nonEmptyString(detail.status, `details[${index}].status`),
@@ -824,6 +852,8 @@ function parseSubmissionSnapshot(value: unknown, finished: boolean): SubmissionS
 	});
 	const userStatus = data.userStatus === undefined ? undefined : record(data.userStatus, 'userStatus');
 	return {
+		generation: optionalNumber(data.generation, 'generation'),
+		resultHidden: data.resultHidden === true,
 		submissionId: decimalString(data.submissionId, 'submissionId'),
 		language: nonEmptyString(data.language, 'language'),
 		status: nonEmptyString(data.status, 'status'),
@@ -863,6 +893,8 @@ function parseStressTask(value: unknown, name: string): StressTask {
 		throw new ProtocolValidationError('invalid_request', `${name}.counterExample 只能用于 found 终态。`);
 	}
 	return {
+		counterExampleTruncated: task.counterExampleTruncated === true,
+		interactionTrace: optionalString(task.interactionTrace, 'interactionTrace'),
 		taskId: decimalString(task.taskId, `${name}.taskId`),
 		submissionId: decimalString(task.submissionId, `${name}.submissionId`),
 		status,
@@ -1023,4 +1055,27 @@ function assertUnique(values: readonly string[], name: string): void {
 	if (new Set(values).size !== values.length) {
 		throw new ProtocolValidationError('invalid_request', `${name} 不能重复。`);
 	}
+}
+
+function parseProblemV2(problem: Record<string, unknown>, ref: string, url: string): Pick<ImportedProblem, 'target' | 'publicContent' | 'localTest' | 'accountId'> {
+	const target = record(problem.target, 'problem.target');
+	const kind = oneOf(target.kind, ['training', 'standalone', 'contest'] as const, 'target.kind');
+	const problemId = decimalString(target.problemId, 'target.problemId');
+	let parsed: SolveTarget;
+	if (kind === 'contest') {
+		parsed = { kind, problemId, contestId: decimalString(target.contestId, 'contestId'), contestRef: nonEmptyString(target.contestRef, 'contestRef'), contestProblemId: decimalString(target.contestProblemId, 'contestProblemId'), problemLabel: nonEmptyString(target.problemLabel, 'problemLabel') };
+		if (ref !== `contest/${parsed.contestRef}/${parsed.problemLabel}`) { throw new ProtocolValidationError('invalid_request', '比赛上下文不一致。'); }
+	} else {
+		parsed = { kind, problemId, problemRef: nonEmptyString(target.problemRef, 'problemRef') };
+		if (parsed.problemRef !== ref || (kind === 'standalone' && !/^upsolving\/id\/[1-9]\d*$/.test(ref))) { throw new ProtocolValidationError('invalid_request', '题目上下文不一致。'); }
+	}
+	const page = new URL(url);
+	if (page.username || page.password || !['https:', 'http:'].includes(page.protocol)) { throw new ProtocolValidationError('invalid_request', '题目地址无效。'); }
+	const content = record(problem.publicContent, 'problem.publicContent');
+	if (content.interaction !== undefined) {
+		const interaction = record(content.interaction, 'interaction');
+		if (interaction.schema_version !== 1) { throw new ProtocolValidationError('unsupported_version', '交互题协议版本不支持。'); }
+	}
+	const localTest = record(problem.localTest, 'localTest');
+	return { target: parsed, publicContent: validatePublicProblemContent(content), localTest: { enabled: booleanValue(localTest.enabled, 'localTest.enabled'), reason: stringValue(localTest.reason, 'localTest.reason') }, accountId: decimalString(problem.accountId, 'accountId') };
 }

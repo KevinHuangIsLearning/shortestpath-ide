@@ -129,7 +129,7 @@ let nlsConfigurationPromise: Promise<INLSConfiguration> | undefined = undefined;
 // No matter the OS, if the array is empty, default back to 'en'.
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
 const userLocale = resolveUserLocale(args['locale'], argvConfig.locale, 'zh-cn');
-const nlsMetadataPath = process.env['VSCODE_DEV'] && fs.existsSync(path.join(import.meta.dirname, '..', 'out-build', 'nls.keys.json'))
+const nlsMetadataPath = process.env['VSCODE_DEV'] && !fs.existsSync(path.join(import.meta.dirname, 'nls.keys.json')) && fs.existsSync(path.join(import.meta.dirname, '..', 'out-build', 'nls.keys.json'))
 	? path.join(import.meta.dirname, '..', 'out-build')
 	: import.meta.dirname;
 if (userLocale) {

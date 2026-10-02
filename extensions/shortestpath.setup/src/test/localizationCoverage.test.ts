@@ -7,6 +7,7 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vm from 'node:vm';
+import * as ts from 'typescript';
 import { test } from 'node:test';
 
 test('covers the rendered English setup surfaces', () => {
@@ -37,7 +38,6 @@ test('covers the rendered English setup surfaces', () => {
 		'未能读取系统字体。请检查系统字体服务后重新打开此页面。',
 		'模板名称',
 		'尚未设置触发前缀',
-		'这个放松源已经添加过了。',
 		'如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。',
 		'打开支持页面',
 		'关闭 7 天',
@@ -53,7 +53,6 @@ test('covers the rendered English setup surfaces', () => {
 
 	for (const [file, pattern] of [
 		['gettingStarted.ts', /showWarningMessage\(localize\('CPH 文件名模板覆盖/],
-		['relaxMode.ts', /showErrorMessage\(localizeFormat\('无法打开放松源/],
 		['simpleSettings.ts', /localizeFormat\('确定删除模板/],
 		['extension.ts', /showInformationMessage\(localize\('ShortestPath IDE 已配置为使用便携工具链/],
 	] as const) {
@@ -148,4 +147,32 @@ test('keeps first-run preparation in the editor-tab setup flow', () => {
 	assert.doesNotMatch(extension, /ProgressLocation\.Notification/);
 	assert.doesNotMatch(extension, /便携工具链由首次启动设置窗口下载/);
 	assert.doesNotMatch(extension, /下载将在设置终端中继续/);
+});
+
+
+test('all native and first-run Chinese localization keys have English translations', () => {
+	const root = path.resolve(__dirname, '../..', 'src');
+	const code = fs.readFileSync(path.join(root, 'localization.ts'), 'utf8');
+	const exports: { dictionary?: Record<string, string> } = {};
+	vm.runInNewContext(ts.transpileModule(code + '\nexport const dictionary = english;', {
+		compilerOptions: { module: ts.ModuleKind.CommonJS }
+	}).outputText, { exports, require: () => ({ env: { language: 'en' } }) });
+	const missing = new Set<string>();
+	for (const file of fs.readdirSync(root).filter(file => file.endsWith('.ts'))) {
+		const source = ts.createSourceFile(file, fs.readFileSync(path.join(root, file), 'utf8'), ts.ScriptTarget.Latest, true);
+		function visit(node: ts.Node): void {
+			if (ts.isCallExpression(node) && ['localize', 'localizeFormat'].includes(node.expression.getText(source)) && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) {
+				const value = node.arguments[0].text;
+				if (/[\u4e00-\u9fff]/.test(value) && !exports.dictionary?.[value]) {
+					missing.add(value);
+				}
+			}
+			ts.forEachChild(node, visit);
+		}
+		visit(source);
+	}
+	assert.deepEqual([...missing], []);
+	const firstRun = fs.readFileSync(path.join(root, 'gettingStarted.ts'), 'utf8');
+	assert.match(firstRun, /dot.setAttribute\('aria-label', data.ui.pageLabels\[index\]\)/);
+	assert.doesNotMatch(firstRun, /class="badge">(?:Toolchain|Configuration|Workspace)</);
 });

@@ -3,7 +3,11 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { randomUUID } from 'crypto';
+import { renderLocalJudgingMarkdown } from './localJudgingMarkdown';
+import { CorrectionView } from './correctionView';
+import { AuxiliaryOperationRecovery } from './auxiliaryOperationRecovery';
+import type { SubmissionCorrectionAvailability, SubmissionCorrectionTaskResponse, SubmissionListResponse } from './generated/api-contract';
+import { createHash, randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import * as http from 'http';
 import * as path from 'path';
@@ -16,7 +20,7 @@ import { defaultProblemSourceRatio, getProblemPanelLayout } from './problemPanel
 import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses } from './problemPanelLifecycle';
 import { ImportAction, OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
 import { mergeSubmissionHistory, sanitizeSubmissionHistoryEntry, SubmissionHistoryEntry, toSubmissionHistoryEntry } from './submissionHistory';
-import { isHeaderSafeSourcePath } from './sourcePath';
+import { isValidSourcePath, encodeSourcePath } from './sourcePath';
 import { appendPreviousStatementVersion, hasProblemStatementChanged, ProblemStatementSnapshot, sanitizeProblemStatementVersions } from './problemStatementVersion';
 import { formatElapsedTimer } from './timerDisplay';
 import { assertUniqueWorkspaceProblemRecordFileNames, getWorkspaceProblemRecordFileName } from './workspaceProblemCache';
@@ -37,11 +41,13 @@ import {
 	MarkdownContent,
 	ProblemHint,
 	ProblemState,
+	ProblemCapabilities,
 	StressContext,
 	StressTask,
 	SubmissionLanguage,
 	SubmissionSnapshot,
 	parseEditorialResult,
+	parseStressStartResult,
 	restoreCachedProblemCompatibilityWarnings,
 	bridgePort,
 } from './shortestpathOjProtocol';
@@ -53,6 +59,7 @@ const workspaceFolderRequiredMessage = localize('请先在 ShortestPath IDE 中�
 const workspaceCachesNeedingRewrite = new WeakSet<WorkspaceProblemCache>();
 let workspaceCacheMutationTail = Promise.resolve();
 let workspaceCacheMigration: Promise<void> | undefined;
+let persistPendingSubmissionAttempts: () => Promise<void> = async () => {};
 
 async function openUrl(url: string): Promise<void> {
 	const commands = await vscode.commands.getCommands();
@@ -126,6 +133,8 @@ function renderMarkdownContent(content: MarkdownContent, baseUrl: string): strin
 }
 type CphProblemForSubmission = { url?: unknown; srcPath?: unknown };
 type SubmissionAttempt = {
+	accountId?: string;
+	contextKey?: string;
 	operationId: string;
 	language: string;
 	sourceCode: string;
@@ -162,6 +171,8 @@ type ProblemPanelActions = {
 	like(problem: ImportedProblem, hintId: string, target: 'question' | 'answer', liked: boolean): Promise<LikeResult>;
 	editorial(problem: ImportedProblem): Promise<EditorialResult | undefined>;
 	submit(problem: ImportedProblem): Promise<void>;
+	correct(problem: ImportedProblem, submissionId: string): Promise<void>;
+	refreshHistory(problem: ImportedProblem): Promise<void>;
 	watchSubmission(problem: ImportedProblem, submissionId: string): Promise<void>;
 	loadStress(problem: ImportedProblem): Promise<StressContext>;
 	startStress(problem: ImportedProblem, submissionId: string, rounds: number): Promise<StressTask>;
@@ -199,10 +210,7 @@ class ShortestPathOjProblemPanel {
 	) { }
 
 	showProblem(problem: ImportedProblem, connected: boolean, sourcePath?: string, fromWebsite = false): void {
-		if (fromWebsite) {
-			this.showAntiFraudReminder();
-		}
-		if (!this.state || this.state.problem.ref !== problem.ref || hasProblemStatementChanged(this.state.problem, problem)) {
+		if (!this.state || recoveryContext(this.state.problem) !== recoveryContext(problem) || hasProblemStatementChanged(this.state.problem, problem)) {
 			this.longRunningOperationNoticeCount = 0;
 			this.longRunningOperationNoticeVisible = false;
 			this.clearOperationToast();
@@ -294,17 +302,7 @@ class ShortestPathOjProblemPanel {
 		}
 	}
 
-	private showAntiFraudReminder(): void {
-		if (!vscode.workspace.getConfiguration('shortestpath.oj').get<boolean>('antiFraudReminder', false)) {
-			return;
-		}
-		const rickrollUrl = vscode.env.language.toLowerCase().startsWith('zh')
-			? 'https://player.bilibili.com/player.html?isOutside=true&aid=80433022&bvid=BV1GJ411x7h7&cid=137649199&p=1'
-			: 'https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J';
-		void openUrl(rickrollUrl).catch(error => console.error('Failed to open the ShortestPath OJ anti-fraud reminder.', error));
-	}
-
-	updateProblemState(problemRef: string, state: ProblemState): void {
+	updateProblemState(problemRef: string, state: ProblemState, capabilities?: ProblemCapabilities): void {
 		if (!this.state || this.state.problem.ref !== problemRef) {
 			return;
 		}
@@ -312,6 +310,7 @@ class ShortestPathOjProblemPanel {
 			return;
 		}
 		this.state.problem = applyProblemState(this.state.problem, state);
+		if (capabilities) { this.state.problem.capabilities = capabilities; }
 		this.state.editorialRemainingReceivedAtMs = Date.now();
 		this.render();
 	}
@@ -321,8 +320,13 @@ class ShortestPathOjProblemPanel {
 		if (!state || state.problem.ref !== problemRef) {
 			return;
 		}
+		if (event.type === 'correction.snapshot') { return; }
 		if (event.type === 'submission.progress' || event.type === 'submission.finished') {
 			const snapshot = event.data;
+			const previous = state.submissions.get(snapshot.submissionId);
+			const previousGeneration = previous?.generation ?? 1;
+			if ((snapshot.generation ?? 1) < previousGeneration) { return; }
+			if ((snapshot.generation ?? 1) > previousGeneration) { state.finishedSubmissions.delete(snapshot.submissionId); }
 			const wasFinished = state.finishedSubmissions.has(snapshot.submissionId);
 			if (event.type === 'submission.progress' && wasFinished) {
 				return;
@@ -879,6 +883,12 @@ class ShortestPathOjProblemPanel {
 						this.endOperation(state, 'submit');
 					}
 					return;
+				case 'correct':
+					if (typeof value.submissionId === 'string') { await this.actions.correct(state.problem, value.submissionId); }
+					return;
+				case 'refreshHistory':
+					await this.actions.refreshHistory(state.problem);
+					return;
 				case 'watchSubmission':
 					if (typeof value.submissionId !== 'string' || !/^\d+$/.test(value.submissionId)) {
 						throw new Error(localize('提交 ID 必须是十进制字符串。'));
@@ -937,7 +947,7 @@ class ShortestPathOjProblemPanel {
 								}
 							}
 						}
-						if (this.unknownStressStarts.has(state.problem.ref)) {
+						if (!state.problem.target && this.unknownStressStarts.has(state.problem.ref)) {
 							const choice = await this.confirm('上一次对拍启动结果未知。再次发起可能创建另一个任务，是否继续？', '继续', '取消');
 							if (!choice) {
 								return;
@@ -945,6 +955,7 @@ class ShortestPathOjProblemPanel {
 							this.unknownStressStarts.delete(state.problem.ref);
 						}
 						{
+							if (state.problem.target && !await this.confirm(state.stressContext.billingDescription, localize('确认发起'), localize('取消'))) { return; }
 							const task = await this.actions.startStress(state.problem, value.submissionId, value.rounds);
 							state.stressTasks.set(task.taskId, task);
 							this.unknownStressStarts.delete(state.problem.ref);
@@ -959,7 +970,7 @@ class ShortestPathOjProblemPanel {
 					}
 					{
 						const task = state.stressTasks.get(value.taskId);
-						if (!task?.counterExample || !isStressFinished(task.status)) {
+						if (!task?.counterExample || task.counterExampleTruncated || task.interactionTrace || !isStressFinished(task.status)) {
 							throw new Error(localize('当前对拍任务还没有可添加的反例。'));
 						}
 						if (state.addingStressCounterExamples.has(task.taskId) || state.addedStressCounterExamples.has(task.taskId)) {
@@ -1097,7 +1108,7 @@ class ShortestPathOjProblemPanel {
 	}
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(context: vscode.ExtensionContext): Promise<{ bridge: ShortestPathOjLocalBridge; auxiliaryOperations: AuxiliaryOperationRecovery }> {
 	const activationStartedAt = Date.now();
 	const output = vscode.window.createOutputChannel('ShortestPath OJ');
 	const log = (message: string) => output.appendLine(`[+${Date.now() - activationStartedAt}ms] ${message}`);
@@ -1108,7 +1119,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// The action closures are created before their bridge and panel dependencies are assigned.
 	// eslint-disable-next-line prefer-const
 	let bridge: ShortestPathOjLocalBridge;
-	const unknownSubmissions = new Map<string, SubmissionAttempt>();
+	const correctionView = new CorrectionView();
+	const auxiliaryOperations = new AuxiliaryOperationRecovery(context.workspaceState);
+	context.subscriptions.push(correctionView);
+	const unknownSubmissions = new Map<string, SubmissionAttempt>(Object.entries(context.workspaceState.get<Record<string, SubmissionAttempt>>('shortestpath.oj.pendingSubmissions.v2', {})));
+	persistPendingSubmissionAttempts = async () => { await context.workspaceState.update('shortestpath.oj.pendingSubmissions.v2', Object.fromEntries([...unknownSubmissions].filter(([, attempt]) => attempt.accountId))); };
 	const unknownStressStarts = new Set<string>();
 	const panel = new ShortestPathOjProblemPanel(context.extensionUri, template, {
 		answer: (problem, hintId) => bridge.requestHintAnswer(problem.ref, hintId),
@@ -1127,12 +1142,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		submit: async problem => {
 			await submitProblem(problem, bridge, panel, unknownSubmissions);
 		},
+		correct: async (problem, submissionId) => {
+			const response = await bridge.requestAuxiliary(problem.ref, 'correction.context.request', { submissionId }) as { availability?: SubmissionCorrectionAvailability; latest?: { task?: SubmissionCorrectionTaskResponse['task'] } };
+			if (response.latest?.task) {
+				correctionView.show(response.latest.task);
+				await bridge.requestAuxiliary(problem.ref, 'correction.watch.request', { taskId: String(response.latest.task.task_id) });
+				if (!['exhausted', 'approach_wrong', 'unrelated_submission', 'stale', 'timeout', 'system_error'].includes(response.latest.task.status) || !await panel.confirm(localize('已有订正任务已结束，是否重新订正？'), localize('重新订正'), localize('取消'))) { return; }
+			}
+			const availability = response.availability;
+			if (!availability || availability.state !== 'available' || availability.remaining_seconds > 0) { throw new Error(availability?.message ?? localize('AI 订正暂不可用。')); }
+			const notice = `${availability.assistance_effect_description}\n${availability.cost_description}\n${localize('源码与题目内容将由外部 AI 服务处理，请确认继续。')}`;
+			if (!await panel.confirm(notice, localize('确认订正'), localize('取消'))) { return; }
+			const result = await auxiliaryOperations.start(bridge, problem, 'correction', submissionId, { policyVersion: 'ai-correction-v2', acknowledgedCost: true, acknowledgedRankingEffect: true }) as SubmissionCorrectionTaskResponse;
+			correctionView.show(result.task);
+		},
+		refreshHistory: async problem => {
+			const result = await bridge.requestAuxiliary(problem.ref, 'submission.list.request', { page: 1 }) as SubmissionListResponse;
+			for (const item of result.items) { await bridge.requestSubmissionWatch(problem.ref, String(item.id)); }
+		},
 		watchSubmission: async (problem, submissionId) => {
 			await bridge.requestSubmissionWatch(problem.ref, submissionId);
 		},
-		loadStress: problem => bridge.requestStressContext(problem.ref),
+		loadStress: async problem => {
+			const result = await bridge.requestStressContext(problem.ref);
+			return problem.target ? auxiliaryOperations.restoreDiagnostics(bridge, problem, result) : result;
+		},
 		startStress: async (problem, submissionId, rounds) => {
-			const result = await bridge.requestStressStart(problem.ref, submissionId, rounds);
+			const result = problem.target
+				? parseStressStartResult(await auxiliaryOperations.start(bridge, problem, 'diagnostic', submissionId, { acknowledgedCost: true }))
+				: await bridge.requestStressStart(problem.ref, submissionId, rounds);
 			return result.task;
 		},
 		addStressCounterExample: (problem, task) => addStressCounterExampleToCph(problem, task),
@@ -1179,9 +1217,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				const previous = cache.problems[problem.ref];
 				const statementChanged = previous !== undefined && hasProblemStatementChanged(previous, problem);
 				const previousSourcePath = cache.sourcePaths[problem.ref];
-				if (previous && statementChanged) {
+				if (previous && (statementChanged || previous.accountId !== problem.accountId || recoveryContext(previous) !== recoveryContext(problem))) {
 					cache.previousStatements[problem.ref] = appendPreviousStatementVersion(cache.previousStatements[problem.ref] ?? [], previous);
-					delete cache.sourcePaths[problem.ref];
 					delete cache.submissions[problem.ref];
 					delete cache.editorials[problem.ref];
 					for (const hintId of hintAnswerCache.keys()) {
@@ -1189,11 +1226,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 							hintAnswerCache.delete(hintId);
 						}
 					}
-					unknownSubmissions.delete(problem.ref);
 					unknownStressStarts.delete(problem.ref);
 				}
 				cache.problems[problem.ref] = problem;
-				const cph = await forwardSamplesToCph(problem, statementChanged ? undefined : previousSourcePath, signal);
+				const cph = await forwardSamplesToCph(problem, previousSourcePath, signal);
 				signal.throwIfAborted();
 				if (cph.sourcePath) {
 					cache.sourcePaths[problem.ref] = cph.sourcePath;
@@ -1209,7 +1245,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			const sourcePath = (await readWorkspaceProblemCache()).sourcePaths[problem.ref];
 			panel.showProblem(problem, true, sourcePath, true);
 		},
-		async updateProblemState(problemRef, state) {
+		async updateProblemState(problemRef, state, capabilities) {
 			const applied = await mutateWorkspaceProblemCache(cache => {
 				const problem = cache.problems[problemRef];
 				if (!problem) {
@@ -1219,24 +1255,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					return false;
 				}
 				cache.problems[problemRef] = applyProblemState(problem, state);
+				if (capabilities) { cache.problems[problemRef].capabilities = capabilities; }
 				return true;
 			}, applied => applied);
 			if (applied) {
-				panel.updateProblemState(problemRef, state);
+				panel.updateProblemState(problemRef, state, capabilities);
 			}
 		},
 		handleEvent(problemRef, event) {
+			if (event.type === 'correction.snapshot') { correctionView.show(event.data.task); return; }
 			panel.handleEvent(problemRef, event);
 		},
 		handleDisconnect(problemRef) {
+			correctionView.dispose();
 			panel.setDisconnected(problemRef);
 		},
-	}, bridgePort);
+	}, bridgePort, '127.0.0.1', 125_000, 1000, getAllowedBridgeOrigins());
 	context.subscriptions.push(
 		bridge.onLongRunningRequest((problemRef, active) => panel.setLongRunningOperationNotice(problemRef, active)),
 		bridge.onTrace(log),
 	);
-	bridge.onListening(() => log(`WebSocket bridge listening at ws://127.0.0.1:${bridgePort}/shortestpath-oj with shortestpath-oj-v1.`));
+	bridge.onListening(() => log(`WebSocket bridge listening at ws://127.0.0.1:${bridgePort}/shortestpath-oj with shortestpath-oj-v2/v1.`));
 	bridge.onError(error => {
 		log(`WebSocket bridge error: ${error.message}`);
 		if (isAddressInUseError(error)) {
@@ -1291,6 +1330,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 		await submitProblem(problem, bridge, panel, unknownSubmissions);
 	}));
+	return { bridge, auxiliaryOperations };
 }
 
 function getWorkspaceCacheDirectoryUri(): vscode.Uri {
@@ -1399,7 +1439,7 @@ async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> 
 					continue;
 				}
 				cache.problems[problem.ref] = problem;
-				if (typeof record.sourcePath === 'string' && isHeaderSafeSourcePath(record.sourcePath)) {
+				if (typeof record.sourcePath === 'string' && isValidSourcePath(record.sourcePath)) {
 					cache.sourcePaths[problem.ref] = record.sourcePath;
 				} else if (record.sourcePath !== undefined) {
 					needsRewrite = true;
@@ -1467,7 +1507,7 @@ async function readLegacyWorkspaceProblemCache(): Promise<WorkspaceProblemCache 
 		}
 		if (value.sourcePaths && typeof value.sourcePaths === 'object') {
 			for (const [problemRef, sourcePath] of Object.entries(value.sourcePaths)) {
-				if (typeof sourcePath === 'string' && isHeaderSafeSourcePath(sourcePath)) {
+				if (typeof sourcePath === 'string' && isValidSourcePath(sourcePath)) {
 					sourcePaths[problemRef] = sourcePath;
 				} else {
 					historyWasSanitized = true;
@@ -1564,6 +1604,10 @@ async function submitCphProblem(
 	await submitProblem(problem, bridge, panel, unknownSubmissions, value.srcPath);
 }
 
+function recoveryContext(problem: ImportedProblem): string {
+	return JSON.stringify([new URL(problem.url).origin, problem.accountId, problem.target ?? problem.ref]);
+}
+
 async function submitProblem(
 	problem: ImportedProblem,
 	bridge: ShortestPathOjLocalBridge,
@@ -1571,27 +1615,47 @@ async function submitProblem(
 	unknownSubmissions: Map<string, SubmissionAttempt>,
 	explicitSourcePath?: string,
 ): Promise<void> {
-	if (problem.capabilities.submission.languages.length === 0) {
+	if (!problem.capabilities.submission.enabled || problem.capabilities.submission.languages.length === 0) {
 		throw new Error(localize('网页未提供可用的提交语言，无法发起提交。'));
 	}
 	if (!bridge.isBound(problem.ref)) {
 		throw new Error(localize('题目网页未连接，请从网站重新在 ShortestPath IDE 中打开。'));
 	}
-	const retry = unknownSubmissions.get(problem.ref);
+	let retry = unknownSubmissions.get(recoveryContext(problem));
+	if (retry && (retry.accountId !== problem.accountId || retry.contextKey !== recoveryContext(problem))) {
+		unknownSubmissions.delete(recoveryContext(problem));
+		await persistPendingSubmissionAttempts();
+		retry = undefined;
+	}
 	if (retry) {
+		if (problem.target) {
+			const receipt = await bridge.requestAuxiliary(problem.ref, 'operation.status.request', { kind: 'submission', operationId: retry.operationId }) as { state: string; submission_id?: number };
+			if (receipt.state === 'applied' && receipt.submission_id) {
+				await bridge.requestSubmissionWatch(problem.ref, String(receipt.submission_id));
+				unknownSubmissions.delete(recoveryContext(problem));
+				await persistPendingSubmissionAttempts();
+				panel.focusTab('submissions');
+				return;
+			}
+		}
 		const choice = await panel.confirm(`上一次提交结果未知。重试将原样提交 ${retry.sourcePath}，并复用同一个操作 ID。`, '重试', '新建提交');
 		if (choice) {
 			await sendSubmissionAttempt(problem, bridge, panel, unknownSubmissions, retry);
 			return;
 		}
-		unknownSubmissions.delete(problem.ref);
+		unknownSubmissions.delete(recoveryContext(problem));
 	}
 	const sourcePath = explicitSourcePath ?? (await readWorkspaceProblemCache()).sourcePaths[problem.ref];
 	if (!sourcePath) {
 		throw new Error(localize('请先将题目导入 CPH Plus 再从题目面板提交。'));
 	}
 	const safeSourcePath = await validateWorkspaceSourcePath(sourcePath);
-	const document = await vscode.workspace.openTextDocument(vscode.Uri.file(safeSourcePath));
+	let document: vscode.TextDocument | undefined;
+	for (const open of vscode.workspace.textDocuments) {
+		if (open.uri.scheme !== 'file') { continue; }
+		try { if (await fs.realpath(open.uri.fsPath) === safeSourcePath) { document = open; break; } } catch { /* Closed or removed files cannot be submitted. */ }
+	}
+	document ??= await vscode.workspace.openTextDocument(vscode.Uri.file(path.resolve(sourcePath)));
 	if (!(await document.save())) {
 		throw new Error(localize('提交前请先保存源文件。'));
 	}
@@ -1604,6 +1668,8 @@ async function submitProblem(
 		return;
 	}
 	const attempt: SubmissionAttempt = {
+		accountId: problem.accountId,
+		contextKey: recoveryContext(problem),
 		operationId: randomUUID(),
 		language: language.id,
 		sourceCode,
@@ -1619,14 +1685,17 @@ async function sendSubmissionAttempt(
 	unknownSubmissions: Map<string, SubmissionAttempt>,
 	attempt: SubmissionAttempt,
 ): Promise<void> {
-	unknownSubmissions.set(problem.ref, attempt);
+	unknownSubmissions.set(recoveryContext(problem), attempt);
+	await persistPendingSubmissionAttempts();
 	let result;
 	try {
 		result = await bridge.requestSubmission(problem.ref, attempt.operationId, attempt.language, attempt.sourceCode);
-		unknownSubmissions.delete(problem.ref);
+		unknownSubmissions.delete(recoveryContext(problem));
+		await persistPendingSubmissionAttempts();
 	} catch (error) {
 		if (!(error instanceof OutcomeUnknownError)) {
-			unknownSubmissions.delete(problem.ref);
+			unknownSubmissions.delete(recoveryContext(problem));
+			await persistPendingSubmissionAttempts();
 		}
 		throw error;
 	}
@@ -1687,11 +1756,11 @@ function forwardSamplesToCph(problem: ImportedProblem, sourcePath: string | unde
 	const payload = JSON.stringify({
 		name: problem.title,
 		url: problem.url,
-		interactive: false,
+		interactive: Boolean(problem.publicContent?.interaction),
 		memoryLimit: problem.limits.memoryMB,
 		timeLimit: problem.limits.timeMs,
 		group: parts.slice(0, -1).join('/'),
-		tests: problem.samples.map(sample => ({ input: sample.input, output: sample.output })),
+		tests: problem.localTest?.enabled === false ? [] : problem.samples.map(sample => ({ input: sample.input, output: sample.output })),
 	});
 	return new Promise(resolve => {
 		let settled = false;
@@ -1719,9 +1788,10 @@ function forwardSamplesToCph(problem: ImportedProblem, sourcePath: string | unde
 			'Content-Type': 'application/json',
 			'Content-Length': Buffer.byteLength(payload),
 			'X-ShortestPath-OJ': 'true',
+			...(problem.target ? { 'X-ShortestPath-Context': createHash('sha256').update(JSON.stringify([new URL(problem.url).origin, problem.target])).digest('hex') } : {}),
 		};
-		if (sourcePath && isHeaderSafeSourcePath(sourcePath)) {
-			headers['X-ShortestPath-Source-Path'] = sourcePath;
+		if (sourcePath && isValidSourcePath(sourcePath)) {
+			headers['X-ShortestPath-Source-Path-Encoded'] = encodeSourcePath(sourcePath);
 		}
 		request = http.request({ hostname: '127.0.0.1', port: 27121, method: 'POST', path: '/', headers }, response => {
 			const chunks: Buffer[] = [];
@@ -1733,14 +1803,15 @@ function forwardSamplesToCph(problem: ImportedProblem, sourcePath: string | unde
 				}
 				try {
 					const result = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { sourcePath?: unknown };
-					finish(typeof result.sourcePath === 'string' && isHeaderSafeSourcePath(result.sourcePath) ? { succeeded: true, sourcePath: result.sourcePath } : { succeeded: false });
+					finish(typeof result.sourcePath === 'string' && isValidSourcePath(result.sourcePath) ? { succeeded: true, sourcePath: result.sourcePath } : { succeeded: false });
 				} catch {
 					finish({ succeeded: false });
 				}
 			});
 		});
 		signal.addEventListener('abort', abort, { once: true });
-		timeout = setTimeout(() => request.destroy(), 5000);
+		// First import may wait for the user to choose a language.
+		timeout = setTimeout(() => request.destroy(), 120_000);
 		request.once('error', () => finish({ succeeded: false }));
 		request.end(payload);
 	});
@@ -1778,7 +1849,7 @@ async function addStressCounterExampleToCph(problem: ImportedProblem, task: Stre
 				'Content-Type': 'application/json',
 				'Content-Length': Buffer.byteLength(payload),
 				'X-ShortestPath-OJ-Add-Test': 'true',
-				'X-ShortestPath-Source-Path': sourcePath,
+				'X-ShortestPath-Source-Path-Encoded': encodeSourcePath(sourcePath),
 			},
 		}, response => {
 			const chunks: Buffer[] = [];
@@ -1869,7 +1940,7 @@ function renderProblemViewSections(
 				? `<div class="operation-notice" role="status">${localize('操作长时间没有响应，可能是因为触发了安全验证，请到浏览器处理。')}</div>`
 				: '',
 		status: `<div class="connection ${state.connected ? 'connected' : 'disconnected'}">${escapeHtml(state.statusMessage)}</div>`,
-		submissionButton: `<button type="button" data-command="submit"${state.connected && !state.operationsInFlight.has('submit') ? '' : ' disabled'}>${state.operationsInFlight.has('submit') ? localize('正在提交…') : localize('提交代码')}</button>`,
+		submissionButton: `<button type="button" data-command="submit"${state.connected && state.problem.capabilities.submission.enabled && !state.operationsInFlight.has('submit') ? '' : ' disabled'}>${state.operationsInFlight.has('submit') ? localize('正在提交…') : localize('提交代码')}</button>`,
 		information: renderInformation(statementProblem),
 		statement: renderStatement(problem, state.previousStatements, state.statementVersionIndex),
 		hints: renderHints(state),
@@ -2019,7 +2090,7 @@ function renderStatement(problem: ImportedProblem, previousStatements: ProblemSt
 			return `${io}${explanation}`;
 		})
 		.join('');
-	return `${statement}${samples ? `<section class="samples"><h2>样例</h2>${samples}</section>` : ''}`;
+	return `${statement}${renderPublicContent(selected)}${!selected.publicContent?.interaction && samples ? `<section class="samples"><h2>样例</h2>${samples}</section>` : ''}`;
 }
 
 function renderStatementVersionControl(previousStatements: ProblemStatementSnapshot[], statementVersionIndex: number): string {
@@ -2137,6 +2208,7 @@ function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProb
 <section class="editorial-section"><h2>提示回顾</h2>${hintsHtml}</section>
 <section class="editorial-section"><h2>简化题解</h2><div data-render-math data-i18n-ignore>${renderMarkdownContent(editorial.simpleContent, baseUrl)}</div></section>
 <section class="editorial-section"><h2>详细题解</h2><div data-render-math data-i18n-ignore>${renderMarkdownContent(editorial.content, baseUrl)}</div></section>
+${(editorial.subtaskSolutions ?? []).map(solution => `<section class="editorial-section" data-i18n-ignore><h2>${escapeHtml(solution.title || solution.kind)}</h2><p>${escapeHtml(solution.appliesToSubtasks.join(', '))}</p>${renderProblemMarkdown(solution.solution, baseUrl)}${solution.acCode ? renderProblemMarkdown('```cpp\n' + solution.acCode + '\n```', baseUrl) : ''}</section>`).join('')}
 </div>
 <div class="editorial-resizer" role="separator" aria-label="调整题解和参考代码宽度" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="80" tabindex="0"></div>
 <div class="editorial-code"><h2>参考代码</h2>${codeHtml}</div>
@@ -2249,25 +2321,26 @@ function renderSubmissions(state: ProblemPanelState): string {
 			const liveSubmission = isLiveSubmission(item);
 			const stage = liveSubmission ? describeSubmissionStage(item.stage, item.detailState) : undefined;
 			const statusClass = describeSubmissionStatus(item.status);
-			const status = renderSubmissionStatus(item.status, statusClass);
+			const status = item.resultHidden ? localize('比赛结果暂未公开') : renderSubmissionStatus(item.status, statusClass);
 			const localHistoryNotice = !liveSubmission ? '<p class="submission-history-notice">此提交来自本地保存的历史记录，未存储具体评测信息，因此没有更多可用信息。</p>' : '';
 			const detailNotice = liveSubmission && item.detailState === 'unavailable' ? `<p class="warning">结果已结束，详情暂不可用：${escapeHtml(item.detailError?.message ?? '')}</p>` : '';
 			const compileError = liveSubmission && item.compileErrorMessage ? `<pre class="error"><code>${escapeHtml(item.compileErrorMessage)}</code></pre>` : '';
-			const details = liveSubmission && item.details.length ? `<table><thead><tr><th>#</th><th>测试点</th><th>状态</th><th>时间</th><th>内存</th></tr></thead><tbody>${item.details.map(detail => {
+			const details = liveSubmission && item.details.length ? `<table><thead><tr><th>#</th><th>测试点</th><th>状态</th><th>时间</th><th>内存</th><th>测试组</th><th>分值</th><th>得分比例</th></tr></thead><tbody>${item.details.map(detail => {
 				const detailStatus = describeSubmissionDetailStatus(detail.status);
 				const detailStatusHtml = detailStatus.statusClass ? renderSubmissionStatus(detailStatus.label, detailStatus.statusClass) : escapeHtml(detailStatus.label);
-				return `<tr><td>${detail.seq}</td><td>${escapeHtml(detail.caseName)}</td><td>${detailStatusHtml}</td><td>${detail.timeMs} ms</td><td>${detail.memoryKB} KB</td></tr>`;
+				return `<tr><td>${detail.seq}</td><td>${escapeHtml(detail.caseName)}</td><td>${detailStatusHtml}</td><td>${detail.timeMs} ms</td><td>${detail.memoryKB} KB</td><td>${escapeHtml(detail.testPoint ?? '')}</td><td>${detail.testPointScore ?? '—'}</td><td>${detail.outcome === undefined ? '—' : `${detail.outcome * 100}%`}</td></tr>`;
 			}).join('')}</tbody></table>` : '';
 			const disconnected = liveSubmission && state.disconnectedSubmissions.has(item.submissionId) ? '<p class="warning">评测转发已断开；后端任务状态未知，请重新连接并恢复观察。</p>' : '';
 			const showStressHint = liveSubmission && shouldShowStressHint(state, item);
 			const stressSection = showStressHint ? renderSubmissionStress(state, item) : '';
 			const shouldOpen = index === 0;
 			const stagePrefix = stage ? `${escapeHtml(stage)} · ` : '';
-			const summary = `<span class="submission-summary-title">提交 ${escapeHtml(item.submissionId)} · ${status}</span><span class="submission-summary-meta">${stagePrefix}${item.score} 分 · ${item.maxTimeMs} ms · ${item.maxMemoryKB} KB</span>`;
-			const body = `${localHistoryNotice}${disconnected}${detailNotice}${compileError}${details}${stressSection}`;
+			const summary = `<span class="submission-summary-title">提交 ${escapeHtml(item.submissionId)} · ${status}</span><span class="submission-summary-meta">${item.resultHidden ? localize('结果公开后可刷新观察') : `${stagePrefix}${item.score} 分 · ${item.maxTimeMs} ms · ${item.maxMemoryKB} KB`}</span>`;
+			const correctionAction = state.problem.target && !item.resultHidden ? `<button type="button" data-command="correct" data-submission-id="${escapeAttribute(item.submissionId)}"${state.connected ? '' : ' disabled'}>${localize('AI 订正')}</button>` : '';
+			const body = `${correctionAction}${localHistoryNotice}${disconnected}${detailNotice}${compileError}${details}${stressSection}`;
 			return body ? `<details class="submission" data-persist-key="submission:${escapeAttribute(item.submissionId)}"${shouldOpen ? ' open' : ''}><summary>${summary}</summary><div class="submission-body">${body}</div></details>` : `<article class="submission submission-record">${summary}</article>`;
 		}).join('');
-	return `<section class="submissions"><h2>评测</h2><form id="watch-submission" hidden><input name="submissionId" inputmode="numeric" placeholder="已有提交 ID"><button type="submit"${state.connected ? '' : ' disabled'}>恢复观察</button></form>${items || '<p>暂无评测记录。</p>'}</section>`;
+	return `<section class="submissions"><h2>评测</h2>${state.problem.target ? `<button type="button" data-command="refreshHistory"${state.connected ? '' : ' disabled'}>${localize('刷新提交记录')}</button>` : ''}<form id="watch-submission" hidden><input name="submissionId" inputmode="numeric" placeholder="已有提交 ID"><button type="submit"${state.connected ? '' : ' disabled'}>恢复观察</button></form>${items || '<p>暂无评测记录。</p>'}</section>`;
 }
 
 function renderSubmissionStatus(status: string, statusClass: ReturnType<typeof describeSubmissionStatus>): string {
@@ -2288,11 +2361,11 @@ function renderSubmissionStress(state: ProblemPanelState, submission: Submission
 			const progress = active && task.roundsExecuted === 0
 				? '<progress></progress><span>运行中，网站尚未提供轮数进度</span>'
 				: `<progress max="${task.roundsPlanned}" value="${Math.min(task.roundsExecuted, task.roundsPlanned)}"></progress><span>${task.roundsExecuted} / ${task.roundsPlanned}</span>`;
-			const canAddCounterExample = Boolean(task.counterExample) && isStressFinished(task.status);
+			const canAddCounterExample = Boolean(task.counterExample) && !task.counterExampleTruncated && !task.interactionTrace && isStressFinished(task.status);
 			const counterExampleAction = canAddCounterExample ? `<button type="button" data-command="addStressCounterExample" data-task-id="${escapeAttribute(task.taskId)}"${state.addingStressCounterExamples.has(task.taskId) || state.addedStressCounterExamples.has(task.taskId) ? ' disabled' : ''}>${state.addedStressCounterExamples.has(task.taskId) ? '已添加到 CPH' : state.addingStressCounterExamples.has(task.taskId) ? '正在添加到 CPH…' : '添加到 CPH'}</button>` : '';
 			const counterExample = task.counterExample ? `<details><summary>反例</summary><h4>输入</h4><pre><code>${escapeHtml(task.counterExample.input)}</code></pre><h4>期望输出</h4><pre><code>${escapeHtml(task.counterExample.expected)}</code></pre><h4>实际输出</h4><pre><code>${escapeHtml(task.counterExample.actual)}</code></pre></details>${counterExampleAction}` : '';
 			const disconnected = state.disconnectedStressTasks.has(task.taskId) ? '<p class="warning">对拍转发已断开；后端任务仍可能继续，请重新连接并刷新对拍上下文。</p>' : '';
-			return `<div class="stress-task"><h4>对拍任务 ${escapeHtml(task.taskId)} · ${escapeHtml(task.status)}</h4><div class="progress">${progress}</div>${disconnected}${task.errorMessage ? `<p class="error">${escapeHtml(task.errorMessage)}</p>` : ''}${counterExample}</div>`;
+			return `<div class="stress-task"><h4>对拍任务 ${escapeHtml(task.taskId)} · ${escapeHtml(task.status)}</h4><div class="progress">${progress}</div>${disconnected}${task.errorMessage ? `<p class="error">${escapeHtml(task.errorMessage)}</p>` : ''}${task.counterExampleTruncated ? `<p class="warning">${localize('反例已截断，只能查看，不能加入本地测试。')}</p>` : ''}${task.interactionTrace ? `<details><summary>${localize('交互轨迹')}</summary><pre data-i18n-ignore>${escapeHtml(task.interactionTrace)}</pre></details>` : ''}<p>${localize('费用')} ${task.billing.amount} ${escapeHtml(task.billing.currency)} · ${localize('退款')} ${task.billing.refundAmount}</p>${counterExample}</div>`;
 		}).join('');
 	}
 	const defaultRounds = state.stressContext?.defaultRounds ?? state.problem.capabilities.stress.defaultRounds ?? 120;
@@ -2318,7 +2391,7 @@ function shouldShowStressHint(state: ProblemPanelState, submission: SubmissionSn
 	if ([...state.stressTasks.values()].some(task => task.submissionId === submission.submissionId)) {
 		return true;
 	}
-	if (!isWrongAnswerStatus(submission.status)) {
+	if (!isWrongAnswerStatus(submission.status) && submission.status !== 'RE' && submission.status !== 'Runtime Error') {
 		return false;
 	}
 	return true;
@@ -2387,4 +2460,43 @@ function escapeHtml(value: string): string {
 
 function escapeAttribute(value: string): string {
 	return escapeHtml(value).replace(/"/g, '&quot;');
+}
+
+function getAllowedBridgeOrigins(): ReadonlySet<string> {
+	const origins = new Set(['https://shortestpath.cn']);
+	const devOrigin = process.env.SHORTESTPATH_OJ_DEV_ORIGIN;
+	if (devOrigin) {
+		const url = new URL(devOrigin);
+		if (['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) && ['http:', 'https:'].includes(url.protocol) && url.origin === devOrigin) { origins.add(devOrigin); }
+	}
+	return origins;
+}
+
+function renderPublicContent(problem: ImportedProblem): string {
+	const content = problem.publicContent;
+	if (!content) { return ''; }
+	const section = (title: string, markdown: string) => `<section><h2>${escapeHtml(title)}</h2><div data-i18n-ignore>${renderProblemMarkdown(markdown, problem.url)}</div></section>`;
+	const parts: string[] = [];
+	if (content.scoring_rules) { parts.push(section(localize('评分规则'), content.scoring_rules)); }
+	const interaction = content.interaction;
+	if (interaction) {
+		const eventMarkdown = (events: typeof interaction.session_start) => events.map(event => `**${event.from === 'solver' ? localize('用户输出') : localize('交互器回复')}**\n\n\`\`\`text\n${event.format}\n\`\`\`\n\n${event.description ?? ''}`).join('\n\n');
+		parts.push(section(localize('交互协议'), [eventMarkdown(interaction.session_start), eventMarkdown(interaction.case_start), ...interaction.phases.map(phase => `### ${phase.name}\n\n${phase.condition}\n\n${eventMarkdown(phase.events)}`), interaction.flush, interaction.termination, interaction.failure].filter(Boolean).join('\n\n')));
+		parts.push(section(localize('限制要求'), [...interaction.budgets.map(budget => `${budget.scope} ${budget.name}：${budget.limit}\n\n${budget.cost ?? ''}`), interaction.requirements].join('\n\n')));
+		const samples = interaction.samples.map((sample, index) => {
+			const hidden = (sample.hidden_states ?? []).map(state => `<div class="interaction-hidden" data-i18n-ignore><strong>${localize('固定隐藏内容')} ${state.case}</strong><pre><code>${escapeHtml(state.content)}</code></pre></div>`).join('');
+			const trace = sample.events.map(event => `<div data-message-from="${event.from === 'solver' ? 'solver' : 'interactor'}" data-i18n-ignore><strong>${event.from === 'solver' ? localize('用户输出') : localize('交互器回复')}</strong><pre><code>${escapeHtml(event.text)}</code></pre>${event.note ? renderProblemMarkdown(event.note, problem.url) : ''}</div>`).join('');
+			return `<article><h3>${localizeFormat('样例 {0}', String(index + 1))}</h3>${hidden}${trace}<div data-i18n-ignore>${renderProblemMarkdown(sample.explanation, problem.url)}</div></article>`;
+		}).join('');
+		parts.push(`<section><h2>${localize('交互样例')}</h2>${samples}</section>`);
+	}
+	const runtime = content.judge_runtime;
+	if (runtime) {
+		const declarations = runtime.components.flatMap(component => [...component.entrypoints, ...component.judge_api]).map(entry => `\`\`\`cpp\n${entry.signature}\n\`\`\``).join('\n\n');
+		if (declarations) { parts.push(section(localize('公开评测接口'), declarations)); }
+		for (const header of runtime.public_headers) { parts.push(section(header.name, `\`\`\`cpp\n${header.content}\n\`\`\``)); }
+	}
+	if (content.local_judging) { parts.push(section(localize('本地评测'), renderLocalJudgingMarkdown(content.local_judging))); }
+	if (problem.localTest?.enabled === false) { parts.push(`<p class="warning">${escapeHtml(problem.localTest.reason)}</p>`); }
+	return parts.join('');
 }

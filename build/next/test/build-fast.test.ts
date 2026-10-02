@@ -74,6 +74,13 @@ suite('build-fast planning', () => {
 		);
 	});
 
+	test('preserves localized output by rebuilding indices and client modules together', () => {
+		const changed = ['src/main.ts'];
+		assert.strictEqual(createBuildPlan(savedState(), environment, changed, outputsPresent, false).client, 'incremental');
+		assert.strictEqual(createBuildPlan(savedState(), environment, changed, outputsPresent, false, true).client, 'full');
+		assert.strictEqual(createBuildPlan(savedState(), environment, [], outputsPresent, false, true).client, 'skip');
+	});
+
 	test('routes client, extension, and Copilot changes independently', () => {
 		assert.deepStrictEqual(
 			createBuildPlan(savedState(), environment, [

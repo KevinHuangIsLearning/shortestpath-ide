@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { localize, localizeFormat, localizeWebviewHtml } from './localization';
-import { unlockRelaxMode } from './relaxMode';
 import { getSystemFonts } from './systemFonts';
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
@@ -37,7 +36,6 @@ type SimpleSettingsState = {
 	useExtensionMarketplace: boolean;
 	shortestPathCppSubmissionLanguage: string;
 	defaultSubmitMethod: string;
-	antiFraudReminder: boolean;
 	themes: ThemeOption[];
 };
 
@@ -538,8 +536,6 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 				void vscode.window.showErrorMessage(message);
 				await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status: 'failed', message });
 			}
-		} else if (message?.type === 'unlockRelaxMode') {
-			await unlockRelaxMode(context);
 		} else if (message?.type === 'buyMeACoffee') {
 			await openBuyMeACoffeePage();
 		} else if (message?.type === 'dismissBuyMeACoffee') {
@@ -562,8 +558,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('window.autoDetectColorScheme')
 			|| event.affectsConfiguration('workbench.experimental.modernUI')
 			|| event.affectsConfiguration('files.autoSave')
-			|| event.affectsConfiguration('shortestpath.useExtensionMarketplace')
-			|| event.affectsConfiguration('shortestpath.oj.antiFraudReminder'))) {
+			|| event.affectsConfiguration('shortestpath.useExtensionMarketplace'))) {
 			void panel.webview.postMessage({ type: 'state', value: getState() });
 		}
 	});
@@ -606,7 +601,6 @@ function getState(): SimpleSettingsState {
 		useExtensionMarketplace: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('useExtensionMarketplace') ?? false,
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'ask',
 		defaultSubmitMethod: vscode.workspace.getConfiguration('cph.general', null).get<string>('defaultSubmitMethod') ?? 'ask',
-		antiFraudReminder: vscode.workspace.getConfiguration('shortestpath.oj', null).get<boolean>('antiFraudReminder') ?? false,
 		themes: getThemeOptions(colorTheme)
 	};
 }
@@ -664,8 +658,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('shortestpath.newFile.defaultLanguage', typeof value.newFileDefaultLanguage === 'string' && value.newFileDefaultLanguage ? value.newFileDefaultLanguage : 'cpp', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.useExtensionMarketplace', value.useExtensionMarketplace === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global),
-		settings.update('cph.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global),
-		settings.update('shortestpath.oj.antiFraudReminder', value.antiFraudReminder === true, vscode.ConfigurationTarget.Global)
+		settings.update('cph.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global)
 	]);
 }
 
@@ -752,7 +745,6 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <section class="card" data-category="tools"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label for="antiFraudReminder">防诈骗提醒</label><div class="hint">打开题目时显示防诈骗提醒。</div></div><label class="toggle"><input id="antiFraudReminder" type="checkbox"><span>启用</span></label></div></section>
 <p id="noResults" class="no-results" hidden>没有匹配的设置。</p>
 <div class="actions"><button id="advanced" class="secondary">高级设置</button><span id="saved" aria-live="polite"></span></div>
 </div>
@@ -948,10 +940,9 @@ function apply(state) {
   byId('autoSave').value = state.autoSave;
 	byId('newFileDefaultLanguage').value = state.newFileDefaultLanguage;
 	byId('useExtensionMarketplace').checked = !!state.useExtensionMarketplace;
-	byId('antiFraudReminder').checked = !!state.antiFraudReminder;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, modernUIEnabled: byId('modernUIEnabled').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, antiFraudReminder: byId('antiFraudReminder').checked }; }
+function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, modernUIEnabled: byId('modernUIEnabled').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#settingsSearch):not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily)').forEach(control => {
@@ -965,16 +956,7 @@ byId('fontLigatures').addEventListener('change', () => setPreview());
 byId('addFallback').addEventListener('click', () => { if (systemFonts.length) { selectedFonts.push(systemFonts[0]); renderFonts(); setPreview(); save(0); } });
 byId('cppStandard').addEventListener('change', () => { const flags = byId('compilerFlags'); const standard = byId('cppStandard').value; const withoutStandard = flags.value.replace(/(^|\\s)-std=(?:gnu\\+\\+|c\\+\\+)\\d+\\b/g, ' ').replace(/\\s+/g, ' ').trim(); flags.value = '-std=' + standard + (withoutStandard ? ' ' + withoutStandard : ''); save(0); });
 document.querySelectorAll('.category').forEach(button => button.addEventListener('click', () => { selectedCategory = button.dataset.category; document.querySelectorAll('.category').forEach(item => item.classList.toggle('active', item === button)); updateSettingsFilter(); }));
-byId('settingsSearch').addEventListener('input', () => {
-  const search = byId('settingsSearch').value.trim().toLocaleLowerCase();
-  if (search === 'relax') {
-    vscode.postMessage({ type: 'unlockRelaxMode' });
-    byId('settingsSearch').value = '';
-    updateSettingsFilter();
-    return;
-  }
-  updateSettingsFilter();
-});
+byId('settingsSearch').addEventListener('input', () => updateSettingsFilter());
 byId('advanced').addEventListener('click', () => vscode.postMessage({ type: 'advanced' }));
 byId('configureLocale').addEventListener('click', () => vscode.postMessage({ type: 'configureLocale' }));
 byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));

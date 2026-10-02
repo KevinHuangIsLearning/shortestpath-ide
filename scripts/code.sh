@@ -84,9 +84,8 @@ function code() {
 		fi
 		OI_LAUNCH_ARGS+=("--extensions-dir=$OI_EXTENSIONS_DIR")
 	fi
-	# Development builds do not generate the production NLS metadata. Use the
-	# built-in English messages unless a locale was explicitly requested.
-	if [[ "$HAS_LOCALE" == false ]]; then
+	# Plain transpilation uses English. Localized output respects the saved locale.
+	if [[ "$HAS_LOCALE" == false && ! -s "$ROOT/out/nls.keys.json" ]]; then
 		OI_LAUNCH_ARGS+=("--locale=en")
 	fi
 

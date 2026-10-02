@@ -522,6 +522,7 @@ async function saveState(context: vscode.ExtensionContext, page: SaveMessage['pa
 
 function getFirstRunHtml(info: FirstRunSetupInfo): string {
 	const ui = {
+		pageLabels: [localize('环境准备'), localize('工具链'), localize('确认配置'), localize('选择工作目录')],
 		choiceTitle: info.choiceTitle,
 		choiceText: info.choiceText,
 		permission: localize('准备环境需要确认，可能要求管理员权限。'),
@@ -619,17 +620,17 @@ button { appearance: none; font: inherit; color: inherit; cursor: pointer; }
 <div class="actions"><button id="skip" class="btn ghost">${ui.skip}</button><button id="continue" class="btn primary">${ui.continue}</button></div>
 </section>
 <section class="page" data-page="download">
-<div class="page-head"><div class="badge">Toolchain</div><h1 id="download-title">${ui.downloadTitle}</h1><p id="download-status" class="status">${ui.preparing}</p></div>
+<div class="page-head"><div class="badge">${localize('工具链')}</div><h1 id="download-title">${ui.downloadTitle}</h1><p id="download-status" class="status">${ui.preparing}</p></div>
 <div class="page-body centered"><div class="pane card progress-panel" id="progress-panel"><div class="progress-track"><div class="progress-bar"></div></div><p id="progress-description" class="hint" aria-live="polite">${ui.preparing}</p></div></div>
 <div class="actions"><span class="note">${ui.downloadNote}</span><span><button id="retry" class="btn secondary" hidden>${ui.retry}</button><button id="download-next" class="btn primary" hidden>${ui.next}</button></span></div>
 </section>
 <section class="page" data-page="configuration">
-<div class="page-head"><div class="badge">Configuration</div><h1>${ui.configurationTitle}</h1><p class="lead">${ui.configurationText}</p></div>
+<div class="page-head"><div class="badge">${localize('配置')}</div><h1>${ui.configurationTitle}</h1><p class="lead">${ui.configurationText}</p></div>
 <div class="page-body centered"><div class="pane card"><div class="row"><div class="row-label">${localize('默认 C++ 语言版本')}</div><select id="cpp-standard"><option value="c++11">C++11</option><option value="c++14">C++14</option><option value="c++17">C++17</option><option value="c++20">C++20</option><option value="c++23">C++23</option></select></div></div></div>
 	<div class="actions"><span></span><button id="configuration-next" class="btn primary">${ui.next}</button></div>
 </section>
 <section class="page" data-page="workspace">
-<div class="page-head"><div class="badge">Workspace</div><h1>${ui.workspaceTitle}</h1><p class="lead">${ui.workspaceText}</p></div>
+<div class="page-head"><div class="badge">${localize('工作目录')}</div><h1>${ui.workspaceTitle}</h1><p class="lead">${ui.workspaceText}</p></div>
 <div class="page-body centered"><div class="pane card"><div class="row"><div class="row-label">${ui.workspaceLabel}</div><div class="workspace-picker"><input id="workspace-folder" type="text" readonly><button id="workspace-pick" class="btn secondary" type="button">${ui.chooseFolder}</button></div></div></div></div>
 	<div class="actions"><span class="note">${ui.workspaceNote}</span><button id="workspace-finish" class="btn primary">${ui.applyAndOpen}</button></div>
 </section>
@@ -644,7 +645,7 @@ let stageIndex = 0;
 let activeStage = '';
 let toolchainReady = false;
 const page = name => document.querySelector('.page[data-page="' + name + '"]');
-function updateDots() { byId('progress').replaceChildren(...pages.map((name, index) => { const dot = document.createElement('span'); dot.className = 'dot' + (index === pageIndex ? ' active' : ''); dot.setAttribute('aria-label', name); return dot; })); }
+function updateDots() { byId('progress').replaceChildren(...pages.map((name, index) => { const dot = document.createElement('span'); dot.className = 'dot' + (index === pageIndex ? ' active' : ''); dot.setAttribute('aria-label', data.ui.pageLabels[index]); return dot; })); }
 function show(name) { pages.forEach(value => page(value).classList.toggle('visible', value === name)); pageIndex = pages.indexOf(name); updateDots(); }
 function setProgress(message) { byId('progress-description').textContent = message; }
 function localizeProgress(message) { return message; }

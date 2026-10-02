@@ -230,7 +230,7 @@ async function doSetupNLS(): Promise<INLSConfiguration | undefined> {
 	}
 
 	if (
-		process.env['VSCODE_DEV'] ||	// no NLS support in dev mode
+		(process.env['VSCODE_DEV'] && messagesFile && !fs.existsSync(messagesFile)) ||
 		!messagesFile					// no NLS messages file
 	) {
 		return undefined;

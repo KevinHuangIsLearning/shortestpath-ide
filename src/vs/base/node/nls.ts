@@ -5,6 +5,7 @@
 
 import { join } from '../common/path.js';
 import { promises } from 'fs';
+import { createHash } from 'crypto';
 import { mark } from '../common/performance.js';
 import { ILanguagePack, ILanguagePacks, INLSConfiguration } from '../../nls.js';
 import { Promises } from './pfs.js';
@@ -41,7 +42,6 @@ export interface IResolveNLSConfigurationContext {
 
 export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPath, commit, nlsMetadataPath }: IResolveNLSConfigurationContext): Promise<INLSConfiguration> {
 	mark('code/willGenerateNls');
-	const languagePackCommit = commit ?? 'dev';
 
 	if (
 		userLocale === 'pseudo' ||
@@ -75,6 +75,8 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 		}
 
 		const languagePackId = `${languagePack.hash}.${resolvedLanguage}`;
+		// Development indices change between builds without a product commit.
+		const languagePackCommit = commit ?? `dev-${createHash('sha256').update(await promises.readFile(join(nlsMetadataPath, 'nls.keys.json'))).update(await promises.readFile(join(nlsMetadataPath, 'nls.messages.json'))).digest('hex')}`;
 		const globalLanguagePackCachePath = join(userDataPath, 'clp', languagePackId);
 		const commitLanguagePackCachePath = join(globalLanguagePackCachePath, languagePackCommit);
 		const languagePackMessagesFile = join(commitLanguagePackCachePath, 'nls.messages.json');
@@ -204,8 +206,9 @@ async function getLanguagePackConfigurations(userDataPath: string, nlsMetadataPa
 				}
 				if (translations['vscode'] && await Promises.exists(translations['vscode'])) {
 					const version = manifest.version ?? 'builtin';
+					const translationHash = createHash('sha256').update(await promises.readFile(translations['vscode'])).digest('hex');
 					const builtInPack: ILanguagePack = {
-						hash: `builtin-${builtInLanguagePack.languageId}-${version}`,
+						hash: `builtin-${builtInLanguagePack.languageId}-${version}-${translationHash}`,
 						label: localization.localizedLanguageName ?? builtInLanguagePack.languageId,
 						extensions: [{ extensionIdentifier: { id: builtInLanguagePack.extensionId }, version }],
 						translations

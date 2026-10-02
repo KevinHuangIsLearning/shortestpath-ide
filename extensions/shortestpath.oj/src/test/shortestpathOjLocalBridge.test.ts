@@ -239,6 +239,27 @@ test('keeps the previous active session when a later import fails', async () => 
 	}
 });
 
+test('first import can wait beyond the former 15 second language-selection deadline', { timeout: 25_000 }, async () => {
+	const bridge = new ShortestPathOjLocalBridge({
+		async importProblem(_problem, signal) {
+			await new Promise(resolve => setTimeout(resolve, 16_000));
+			signal.throwIfAborted();
+			return 'created';
+		},
+		async updateProblemState() { },
+		handleEvent() { },
+		handleDisconnect() { },
+	}, 0);
+	const socket = await openSocket(await bridge.listeningPort());
+	try {
+		const result = await sendRequest(socket, 'problem.bind', bindPayload);
+		assert.deepEqual({ ok: result.ok, active: bridge.getActiveSession()?.problemRef }, { ok: true, active: bindPayload.problem.ref });
+	} finally {
+		socket.terminate();
+		await bridge.close();
+	}
+});
+
 test('times out a hanging bind without blocking the next bind', async () => {
 	let importCount = 0;
 	let activeImports = 0;

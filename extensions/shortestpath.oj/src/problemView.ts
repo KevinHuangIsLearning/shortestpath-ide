@@ -491,6 +491,10 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			}
 			resetSubmitConfirmation(button);
 			vscode.postMessage({ command });
+		} else if (command === 'correct') {
+			vscode.postMessage({ command, submissionId: button.dataset.submissionId });
+		} else if (command === 'refreshHistory') {
+			vscode.postMessage({ command });
 		} else if (command === 'answer') {
 			vscode.postMessage({ command, hintId: button.dataset.hintId });
 		} else if (command === 'like') {

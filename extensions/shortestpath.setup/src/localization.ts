@@ -32,6 +32,35 @@ const english: Readonly<Record<string, string>> = {
 	"配置提交脚本": "Configure submission scripts",
 	"按 OJ 配置提交页面 URL 和 JavaScript，点击 CPH 提交按钮时打开并填写表单。": "Configure a submission URL and JavaScript per OJ, then fill the form using the CPH submission button.",
 
+	"选择目录": "Choose Folder",
+	"配置": "Configuration",
+	"请选择有效的 C++ 版本和工作目录。": "Choose a valid C++ version and workspace folder.",
+	"编译环境尚未准备完成。请完成安装后重试。": "The build environment is not ready. Finish installation and try again.",
+	"准备环境需要确认，可能要求管理员权限。": "Preparing the environment requires confirmation and may require administrator privileges.",
+	"稍后配置": "Set Up Later",
+	"继续": "Continue",
+	"正在准备编译环境。": "Preparing the Build Environment",
+	"请保持此页面打开。准备完成后可继续配置。": "Keep this page open. Continue with configuration once preparation finishes.",
+	"重试": "Retry",
+	"安装进度": "Installation Progress",
+	"设置写入个人配置，不影响其他编辑器。": "Settings are saved to your personal profile without affecting other editors.",
+	"选择工作目录。": "Choose a Workspace Folder",
+	"我们会在此目录创建 .clangd，并在完成后直接打开它。": "We will create .clangd in this folder and open it when setup finishes.",
+	"工作目录": "Workspace Folder",
+	"已有 .clangd 不会被覆盖。": "An existing .clangd file will be preserved.",
+	"应用配置并打开工作目录": "Apply Settings and Open Folder",
+	"请选择工作目录。": "Choose a workspace folder.",
+	"正在准备编译环境…": "Preparing the build environment…",
+	"编译环境已准备就绪。点击“下一步”继续配置。": "The build environment is ready. Click “Next” to continue.",
+	"我们会按原有步骤准备编译环境，然后进入配置确认。": "We will prepare the build environment, then confirm the configuration.",
+	"下载源": "Download Source",
+	"我们会准备编译环境，并选择 C++ 语言版本，然后打开工作台。": "We will prepare the build environment and select a C++ version, then open the workbench.",
+	"选择默认的 C++ 语言版本。": "Choose the default C++ language version.",
+	"工具链": "Toolchain",
+	"环境准备": "Environment Preparation",
+	"确认配置": "Confirm Configuration",
+	"选择工作目录": "Choose Workspace Folder",
+
 	'开始使用': 'Get Started',
 	'开箱配置': 'Initial Setup',
 	'准备编译环境': 'Prepare Build Environment',
@@ -56,8 +85,6 @@ const english: Readonly<Record<string, string>> = {
 	'自动格式化': 'Automatic Formatting',
 	'CPH 设置': 'CPH Settings',
 	'工具链诊断': 'Toolchain Diagnostics',
-	'放松模式设置': 'Relax Mode Settings',
-	'放松模式': 'Relax Mode',
 	'在线评测映射': 'Online Judge Mappings',
 	'VJudge 映射': 'VJudge Mappings',
 	'保存': 'Save',
@@ -103,24 +130,8 @@ const english: Readonly<Record<string, string>> = {
 	'文件': 'Files',
 	'格式化': 'Formatting',
 	'模板': 'Templates',
-	'放松设置': 'Relax Settings',
-	'隐藏模式': 'Hide Mode',
-	'恢复默认源': 'Restore Default Sources',
-	'添加新的放松源': 'Add a Relax Source',
-	'名称（可选）': 'Name (optional)',
-	'网站地址': 'Website URL',
-	'加入放松源': 'Add Source',
 	'打开': 'Open',
-	'移除': 'Remove',
-	'内置放松源': 'Built-in source',
-	'自定义放松源': 'Custom source',
-	'尚未启动': 'Not started',
-	'已启动': 'Started',
-	'放松模式已启动': 'Relax mode is active',
-	'放松模式尚未启动': 'Relax mode is not active',
-	'自定义快捷键': 'Customize Shortcut',
-	'启动/显示放松模式': 'Start / Show Relax Mode',
-	'隐藏放松模式': 'Hide Relax Mode'
+	'移除': 'Remove'
 	,'设置': 'Settings'
 	,'搜索设置': 'Search Settings'
 	,'全部': 'All'
@@ -186,8 +197,6 @@ const english: Readonly<Record<string, string>> = {
 	,'在诊断位置上方显示 Error Lens 的代码透镜。': 'Show the Error Lens code lens above diagnostic locations.'
 	,'检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。': 'Check whether CPH, Compile Run, clangd, and the compiler are available and configured consistently.'
 	,'打开诊断页': 'Open Diagnostics'
-	,'防诈骗提醒': 'Anti-fraud Reminder'
-	,'打开题目时显示防诈骗提醒。': 'Show an anti-fraud reminder when opening a problem.'
 	,'没有匹配的设置。': 'No matching settings.'
 	,'高级设置': 'Advanced Settings'
 	,'请先打开一个本地文件夹，再初始化 OI 项目配置。': 'Open a local folder before initializing OI project configuration.'
@@ -315,16 +324,6 @@ const english: Readonly<Record<string, string>> = {
 	,'当前字体不是等宽字体，请选择': 'The current font is not monospaced. Please choose one.'
 	,'正在检测系统等宽字体…': 'Detecting system monospaced fonts…'
 	,'当前字体不支持连字，无法启用。': 'The current font does not support ligatures and cannot be enabled.'
-	,'放松模式 🌿': 'Relax Mode 🌿'
-	,'写题累了就放松一会儿。点击一个放松源，它会在 Integrated Browser 中打开。': 'Take a break when you are tired from solving problems. Click a source to open it in the Integrated Browser.'
-	,'今日放松宣言：编译器可以等，快乐不能等。': 'Today’s reminder: the compiler can wait, happiness cannot.'
-	,'放松源': 'Relax Sources'
-	,'默认源和自定义源都只会在 IDE 自己的浏览器标签中打开。': 'Both built-in and custom sources open only in the IDE’s own browser tabs.'
-	,'还没有放松源，先添加一个吧。': 'There are no relax sources yet. Add one to get started.'
-	,'这里可以把 IDE 变成一个合法放松入口。普通编辑器、终端和题目功能不会被改变。': 'This turns the IDE into a permitted place to relax. Editors, terminals, and problem features are unchanged.'
-	,'启动后可以用快捷键一键隐藏/显示；隐藏时不会关闭放松源或 Integrated Browser 标签。': 'After starting, use the shortcut to hide or show it. Hiding does not close relax sources or Integrated Browser tabs.'
-	,'放松源在哪里管理？': 'Where are relax sources managed?'
-	,'进入放松模式主页后，可以添加任意 HTTP / HTTPS 网站。默认已经准备好 bilibili.com 和 poki.com。': 'From the Relax Mode home page, you can add any HTTP or HTTPS website. bilibili.com and poki.com are ready by default.'
 	,'题面来源': 'Problem Source'
 	,'留空时使用 CPH 设置中的默认题面来源。': 'Leave blank to use the default problem source from CPH Settings.'
 	,'使用默认值': 'Use Default'
@@ -473,7 +472,6 @@ const english: Readonly<Record<string, string>> = {
 	,'自动格式化：': 'Automatic Formatting: '
 	,'CPH 文件名：': 'CPH File Names: '
 	,'正在检测': 'Detecting'
-	,'默认快捷键：Cmd/Ctrl + Alt + F。点击“自定义快捷键”可在 VS Code 键盘快捷方式中修改。': 'Default shortcut: Cmd/Ctrl + Alt + F. Select “Customize Shortcut” to change it in VS Code Keyboard Shortcuts.'
 	,'例如：知乎、猫猫图片': 'For example: Zhihu or cat pictures'
 	,'设置分类': 'Settings Categories'
 	,'当前代码字体不是等宽字体，请选择': 'The current code font is not monospaced. Choose another font.'
@@ -502,7 +500,6 @@ const english: Readonly<Record<string, string>> = {
 	,'CPH 默认命名': 'CPH default naming'
 	,'（未设置）': '(not set)'
 	,'CPH 文件名模板覆盖必须是一个 JSON 对象，OJ 简称为键、模板字符串为值。': 'CPH file-name template overrides must be a JSON object whose keys are OJ abbreviations and whose values are template strings.'
-	,'无法打开放松源：{0}': 'Could not open the relax source: {0}'
 	,'无法读取 {0}.json。请检查 JSON 格式。': 'Could not read {0}.json. Check its JSON syntax.'
 	,'确定删除模板“{0}”吗？删除后会立即保存到 {1}.json。': 'Delete snippet “{0}”? The change will be saved to {1}.json immediately.'
 	,'未命名模板': 'Untitled Snippet'
@@ -529,7 +526,6 @@ const english: Readonly<Record<string, string>> = {
 	,'Exclude（逗号分隔，可选）': 'Exclude (comma-separated, optional)'
 	,'新模板': 'New Snippet'
 	,'尚未设置触发前缀': 'No prefix set'
-	,'这个放松源已经添加过了。': 'This relax source has already been added.'
 	,'如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。': 'If ShortestPath IDE has been useful to you, please consider supporting its continued maintenance and updates.'
 	,'打开支持页面': 'Open Support Page'
 	,'关闭 7 天': 'Hide for 7 Days'

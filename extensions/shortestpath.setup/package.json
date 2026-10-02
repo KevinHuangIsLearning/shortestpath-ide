@@ -92,10 +92,6 @@
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "shortestpath.relaxMode.toggleVisibility",
-				"title": "%command.toggleRelaxVisibility%"
-			},
-			{
 				"command": "shortestpath.configureCph",
 				"title": "%command.configureCph%"
 			},
@@ -138,12 +134,6 @@
 			}
 		],
 		"menus": {
-			"commandPalette": [
-				{
-					"command": "shortestpath.relaxMode.toggleVisibility",
-					"when": "shortestpath.relaxMode.unlocked"
-				}
-			],
 			"view/title": [
 				{
 					"command": "shortestpath.showAllFiles",
@@ -156,20 +146,6 @@
 					"group": "navigation@10"
 				}
 			]
-		},
-		"keybindings": [
-			{
-				"command": "shortestpath.relaxMode.toggleVisibility",
-				"key": "ctrl+alt+f",
-				"mac": "cmd+alt+f",
-				"when": "!isAuxiliaryWindow"
-			},
-			{
-				"command": "shortestpath.relaxMode.minimizeWindow",
-				"key": "ctrl+alt+f",
-				"mac": "cmd+alt+f",
-				"when": "isAuxiliaryWindow && activeEditor == workbench.editor.browser"
-			}
-		]
+		}
 	}
 }

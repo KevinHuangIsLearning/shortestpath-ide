@@ -3,12 +3,14 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ideBridgeFeatures, ideSchemaRevision } from './generated/ide-bridge-contract';
 import { randomUUID } from 'crypto';
 import { AddressInfo } from 'net';
 import { RawData, WebSocket, WebSocketServer } from 'ws';
 import {
 	bridgePath,
 	bridgeProtocol,
+	bridgeProtocolV2,
 	EditorialResult,
 	HintAnswerResult,
 	ImportedProblem,
@@ -21,6 +23,8 @@ import {
 	parseMessage,
 	parseProblemBindData,
 	parseProblemStateSyncData,
+	parseCapabilities,
+	ProblemCapabilities,
 	parseStressContext,
 	parseStressStartResult,
 	parseSubmissionResult,
@@ -39,16 +43,16 @@ import {
 const maximumMessageBytes = 8 * 1024 * 1024;
 const regularRequestTimeoutMs = 2 * 60_000;
 const submissionRequestTimeoutMs = 15 * 60_000;
-const defaultImportTimeoutMs = 15_000;
+const defaultImportTimeoutMs = 125_000;
 const allowedBrowserOrigins = new Set(['https://shortestpath.cn']);
-const incomingEventTypes = new Set(['submission.progress', 'submission.finished', 'stress.progress', 'stress.finished']);
+const incomingEventTypes = new Set(['submission.progress', 'submission.finished', 'stress.progress', 'stress.finished', 'correction.snapshot']);
 
 export type ImportAction = 'created' | 'updated';
 
 export type LocalBridgeHandlers = {
 	importProblem(problem: ImportedProblem, signal: AbortSignal): Promise<ImportAction>;
 	activateProblem?(problem: ImportedProblem): Promise<void> | void;
-	updateProblemState(problemRef: string, state: ProblemState): Promise<void>;
+	updateProblemState(problemRef: string, state: ProblemState, capabilities?: ProblemCapabilities): Promise<void>;
 	handleEvent(problemRef: string, event: IncomingEvent): Promise<void> | void;
 	handleDisconnect(problemRef: string): Promise<void> | void;
 };
@@ -70,6 +74,8 @@ type PendingRequest = {
 };
 
 type BridgeConnection = {
+	version: 1 | 2;
+	origin: string;
 	id: number;
 	socket: WebSocket;
 	pending: Map<string, PendingRequest>;
@@ -107,16 +113,17 @@ export class ShortestPathOjLocalBridge {
 		host = '127.0.0.1',
 		private readonly importTimeoutMs = defaultImportTimeoutMs,
 		private readonly longRunningRequestDelayMs = 1_000,
+		private readonly allowedOrigins: ReadonlySet<string> = allowedBrowserOrigins,
 	) {
 		this.server = new WebSocketServer({
 			host,
 			port,
 			path: bridgePath,
 			maxPayload: maximumMessageBytes,
-			handleProtocols: protocols => protocols.has(bridgeProtocol) ? bridgeProtocol : false,
-			verifyClient: (info: { origin: string }) => allowedBrowserOrigins.has(info.origin),
+			handleProtocols: protocols => protocols.has(bridgeProtocolV2) ? bridgeProtocolV2 : protocols.has(bridgeProtocol) ? bridgeProtocol : false,
+			verifyClient: (info: { origin: string }) => this.allowedOrigins.has(info.origin),
 		});
-		this.server.on('connection', socket => this.accept(socket));
+		this.server.on('connection', (socket, request) => this.accept(socket, request.headers.origin ?? ''));
 	}
 
 	onError(listener: (error: Error) => void): void {
@@ -236,7 +243,7 @@ export class ShortestPathOjLocalBridge {
 		const response = await this.request(
 			problemRef,
 			'stress.start.request',
-			{ submissionId, rounds },
+			{ submissionId, rounds, operationId: randomUUID(), acknowledgedCost: true },
 			'stress.start.result',
 			true,
 		);
@@ -249,8 +256,12 @@ export class ShortestPathOjLocalBridge {
 		});
 	}
 
-	private accept(socket: WebSocket): void {
-		const connection: BridgeConnection = { id: this.nextConnectionId++, socket, pending: new Map(), queue: Promise.resolve() };
+	async requestAuxiliary(problemRef: string, type: string, data: object, sideEffect = false): Promise<unknown> {
+		return (await this.request(problemRef, type, data, `${type.replace(/\.request$/, '')}.result`, sideEffect)).data;
+	}
+
+	private accept(socket: WebSocket, origin: string): void {
+		const connection: BridgeConnection = { origin, version: socket.protocol === bridgeProtocolV2 ? 2 : 1, id: this.nextConnectionId++, socket, pending: new Map(), queue: Promise.resolve() };
 		this.connections.add(connection);
 		this.trace(`Connection #${connection.id} opened.`);
 		socket.on('message', (data, isBinary) => {
@@ -287,7 +298,7 @@ export class ShortestPathOjLocalBridge {
 		}
 		let message: ProtocolRequest | ProtocolResponse;
 		try {
-			message = parseMessage(raw);
+			message = parseMessage(raw, connection.version);
 		} catch (error) {
 			if (this.rejectMalformedResponse(connection, raw, error)) {
 				return;
@@ -301,6 +312,10 @@ export class ShortestPathOjLocalBridge {
 			return;
 		}
 		this.trace(`Connection #${connection.id} received ${message.type}.`);
+		if (message.type === 'bridge.hello' && connection.version === 2) {
+			this.send(connection, { id: randomUUID(), replyTo: message.id, type: 'bridge.hello.result', ok: true, data: { protocolMajor: 2, schemaRevision: ideSchemaRevision, features: ideBridgeFeatures } });
+			return;
+		}
 		if (message.type === 'problem.bind') {
 			this.bindQueue = this.bindQueue
 				.catch(() => undefined)
@@ -329,11 +344,15 @@ export class ShortestPathOjLocalBridge {
 		}
 		let problem: ImportedProblem;
 		try {
-			problem = parseProblemBindData(request.data);
+			problem = parseProblemBindData(request.data, connection.version);
 		} catch (error) {
 			this.trace(`Connection #${connection.id} rejected problem.bind: ${errorMessage(error)}`);
 			this.sendProtocolFailure(connection, request, 'problem.bind.result', error);
 			return;
+		}
+		if (new URL(problem.url).origin !== connection.origin) {
+				this.sendFailure(connection, request.id, 'problem.bind.result', undefined, 'invalid_request', '题目地址不属于允许的站点。');
+				return;
 		}
 		this.trace(`Connection #${connection.id} binding ${problem.ref}.`);
 		const current = this.activeSession;
@@ -346,7 +365,7 @@ export class ShortestPathOjLocalBridge {
 			this.sendFailure(connection, request.id, 'problem.bind.result', undefined, 'request_failed', errorMessage(error));
 			return;
 		}
-		const sessionId = reactivated ? current.sessionId : randomUUID();
+		const sessionId = reactivated && connection.version === 1 ? current.sessionId : randomUUID();
 		const replaced = current !== undefined && !reactivated;
 		const next: InternalActiveSession = { sessionId, problemRef: problem.ref, connection };
 		try {
@@ -386,7 +405,9 @@ export class ShortestPathOjLocalBridge {
 		}
 		try {
 			const state = parseProblemStateSyncData(request.data);
-			await this.handlers.updateProblemState(active.problemRef, state);
+			const data = request.data as { capabilities?: unknown };
+			const capabilities = connection.version === 2 && data.capabilities ? parseCapabilities(data.capabilities) : undefined;
+			await this.handlers.updateProblemState(active.problemRef, state, capabilities);
 			this.sendSuccess(connection, request.id, 'problem.state.sync.result', active.sessionId, {});
 		} catch (error) {
 			this.sendProtocolFailure(connection, request, 'problem.state.sync.result', error, active.sessionId);
@@ -399,7 +420,7 @@ export class ShortestPathOjLocalBridge {
 			return;
 		}
 		try {
-			const event = parseIncomingEvent(request.type, request.data);
+			const event = parseIncomingEvent(request.type, request.data, connection.version);
 			await this.handlers.handleEvent(active.problemRef, event);
 		} catch {
 			// Events are one-way snapshots. Invalid events are ignored and never acknowledged.
@@ -418,8 +439,14 @@ export class ShortestPathOjLocalBridge {
 		if (!active || active.problemRef !== problemRef || active.connection.socket.readyState !== WebSocket.OPEN) {
 			return Promise.reject(new Error('题目网页未连接，请从网站重新在 ShortestPath IDE 中打开。'));
 		}
-		if (type === 'submission.request' && [...active.connection.pending.values()].some(pending => pending.expectedType === 'submission.result')) {
+		if (type === 'submission.request' && [...active.connection.pending.values()].some(pending => ['submission.result', 'submission.create.result'].includes(pending.expectedType))) {
 			return Promise.reject(new Error('当前会话已有一个提交请求正在处理。'));
+		}
+		if (active.connection.version === 2) {
+			const aliases: Record<string, string> = { 'submission.request': 'submission.create.request', 'stress.context.request': 'diagnostic.context.request', 'stress.start.request': 'diagnostic.start.request' };
+			timeoutMs = Math.min(timeoutMs, 60_000);
+			type = aliases[type] ?? type;
+			expectedType = `${type.replace(/\.request$/, '')}.result`;
 		}
 		const id = randomUUID();
 		return new Promise<ProtocolResponse>((resolve, reject) => {
@@ -480,7 +507,7 @@ export class ShortestPathOjLocalBridge {
 			return;
 		}
 		if (!response.ok) {
-			pending.reject(new WebsiteRequestError(response.error!));
+			pending.reject(pending.sideEffect && response.error?.code === 'outcome_unknown' ? new OutcomeUnknownError() : new WebsiteRequestError(response.error!));
 			return;
 		}
 		pending.resolve(response);
@@ -618,7 +645,9 @@ export class ShortestPathOjLocalBridge {
 
 	private send(connection: BridgeConnection, message: object, callback?: (error?: Error) => void): void {
 		if (connection.socket.readyState === WebSocket.OPEN) {
-			connection.socket.send(JSON.stringify(message), callback);
+			const envelope = message as Record<string, unknown>;
+			const kind = envelope.replyTo ? 'response' : looksLikeEvent(String(envelope.type)) || String(envelope.type).startsWith('session.') ? 'event' : 'request';
+			connection.socket.send(JSON.stringify({ ...envelope, version: connection.version, ...(connection.version === 2 ? { kind } : {}) }), callback);
 		} else {
 			callback?.(new Error('WebSocket is not open.'));
 		}

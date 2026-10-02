@@ -6,6 +6,8 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createNLSCollector, finalizeNLS, nlsPlugin, postProcessNLS } from './nls-plugin.ts';
+import { adjustSourceMap } from './private-to-property.ts';
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 
@@ -35,6 +37,49 @@ export async function transpileFile(srcPath: string, destPath: string): Promise<
 
 	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
 	await fs.promises.writeFile(destPath, adjustEsmUrl(result.code));
+}
+
+/** Generate matching indexed calls and metadata for localized desktop development. */
+export async function transpileLocalizedFiles(srcDir: string, outDir: string, files: readonly string[]): Promise<void> {
+	srcDir = await fs.promises.realpath(srcDir);
+	const collector = createNLSCollector();
+	const result = await esbuild.build({
+		entryPoints: files.map(file => path.join(srcDir, file)),
+		outbase: srcDir,
+		outdir: outDir,
+		bundle: false,
+		format: 'esm',
+		target: transformOptions.target,
+		tsconfigRaw: transformOptions.tsconfigRaw,
+		sourcemap: 'linked',
+		sourcesContent: false,
+		write: false,
+		plugins: [nlsPlugin({ baseDir: srcDir, collector })],
+		logLevel: 'warning',
+	});
+	const { indexMap } = await finalizeNLS(collector, outDir);
+	const outputs = new Map(result.outputFiles.map(file => [file.path, file]));
+	const transformed = new Map<string, ReturnType<typeof postProcessNLS>>();
+	for (const file of result.outputFiles) {
+		if (file.path.endsWith('.js')) {
+			transformed.set(file.path, postProcessNLS(file.text, indexMap, true));
+		}
+	}
+	await mapWithConcurrency(result.outputFiles, MAX_CONCURRENT_FILE_OPERATIONS, async file => {
+		let content = file.text;
+		if (file.path.endsWith('.js')) {
+			content = adjustEsmUrl(transformed.get(file.path)!.code);
+		} else if (file.path.endsWith('.js.map')) {
+			const jsPath = file.path.slice(0, -'.map'.length);
+			const processed = transformed.get(jsPath)!;
+			if (processed.edits.length > 0) {
+				const original = outputs.get(jsPath)!;
+				content = JSON.stringify(adjustSourceMap(JSON.parse(content), original.text, processed.edits));
+			}
+		}
+		await fs.promises.mkdir(path.dirname(file.path), { recursive: true });
+		await fs.promises.writeFile(file.path, content);
+	});
 }
 
 export async function copyFile(srcPath: string, destPath: string): Promise<void> {

@@ -38,6 +38,7 @@ import { getProblemName } from './submit';
 import { spawn } from 'child_process';
 import { getJudgeViewProvider } from './extension';
 import {
+    decodeShortestPathSourcePath,
     words_in_text,
     toPascalCase,
     replaceFileNamePlaceholders,
@@ -122,7 +123,7 @@ export const setupCompanionServer = () => {
             const { headers } = req;
             const waitForProblemCreation = headers['x-shortestpath-oj'] === 'true';
             const addShortestPathTest = headers['x-shortestpath-oj-add-test'] === 'true';
-            const preferredSourcePath = typeof headers['x-shortestpath-source-path'] === 'string' ? headers['x-shortestpath-source-path'] : undefined;
+            const preferredSourcePath = decodeShortestPathSourcePath(headers['x-shortestpath-source-path-encoded'], headers['x-shortestpath-source-path']);
 
             if (headers['cph-submit'] == 'true') {
                 res.write(JSON.stringify(savedResponse));
@@ -170,7 +171,8 @@ export const setupCompanionServer = () => {
                         res.end();
                         return;
                     }
-                    const result = await handleNewProblem(problem, preferredSourcePath);
+                    const contextHash = typeof headers['x-shortestpath-context'] === 'string' && /^[a-f0-9]{64}$/.test(headers['x-shortestpath-context']) ? headers['x-shortestpath-context'] : undefined;
+                    const result = await handleNewProblem(problem, preferredSourcePath, contextHash);
                     res.statusCode = result.created ? 200 : 422;
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.end(JSON.stringify(result));
@@ -394,7 +396,7 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
 };
 
 /** Handle the `problem` sent by Competitive Companion, such as showing the webview, opening an editor, managing layout etc. */
-const handleNewProblem = async (problem: Problem, preferredSourcePath?: string): Promise<ProblemCreationResult> => {
+const handleNewProblem = async (problem: Problem, preferredSourcePath?: string, contextHash?: string): Promise<ProblemCreationResult> => {
     globalThis.reporter.sendTelemetryEvent(telmetry.GET_PROBLEM_FROM_COMPANION);
     // If webview may be focused, close it, to prevent layout bug.
     if (vscode.window.activeTextEditor == undefined) {
@@ -525,7 +527,8 @@ const handleNewProblem = async (problem: Problem, preferredSourcePath?: string):
         );
     }
 
-    const problemFileName = getProblemFileName(problem, extn);
+    const titleFileName = getProblemFileName(problem, extn);
+    const problemFileName = contextHash ? `${path.parse(titleFileName).name}_${contextHash.slice(0, 24)}.${extn}` : titleFileName;
     const srcPath = getPreferredSourcePath(folder, preferredSourcePath) ?? path.join(folder, problemFileName);
 
     // Add fields absent in competitive companion.

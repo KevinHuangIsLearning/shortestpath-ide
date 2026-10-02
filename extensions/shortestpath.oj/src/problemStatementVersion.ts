@@ -36,13 +36,13 @@ function parseProblemStatementSnapshot(value: unknown): ProblemStatementSnapshot
 	}
 	const candidate = value as Partial<ImportedProblem>;
 	try {
-		return parseProblemBindData({ problem: candidate, state: candidate.state, capabilities: candidate.capabilities });
+		return parseProblemBindData({ problem: candidate, state: candidate.state, capabilities: candidate.capabilities }, candidate.target ? 2 : 1);
 	} catch {
 		return undefined;
 	}
 }
 
-function getProblemStatementFingerprint(problem: ImportedProblem): Pick<ImportedProblem, 'title' | 'url' | 'topic' | 'flags' | 'statement' | 'samples' | 'limits' | 'judge' | 'metadata'> {
+function getProblemStatementFingerprint(problem: ImportedProblem) {
 	return {
 		title: problem.title,
 		url: problem.url,
@@ -53,5 +53,14 @@ function getProblemStatementFingerprint(problem: ImportedProblem): Pick<Imported
 		limits: problem.limits,
 		judge: problem.judge,
 		metadata: problem.metadata,
+		publicContent: problem.publicContent ? {
+			interaction: problem.publicContent.interaction,
+			judge_runtime: problem.publicContent.judge_runtime,
+			scoring_rules: problem.publicContent.scoring_rules,
+			local_judging: problem.publicContent.local_judging ? {
+				...problem.publicContent.local_judging,
+				files: problem.publicContent.local_judging.files.map(({ url: _url, ...file }) => file),
+			} : undefined,
+		} : undefined,
 	};
 }
