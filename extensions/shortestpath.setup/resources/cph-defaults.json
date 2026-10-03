@@ -1,10 +1,10 @@
 {
-	"cph.general.vjudgeOpenInBrowser": true,
-	"cph.general.defaultProblemSource": "vjudge",
-	"cph.general.vjudgeBrowserSplitRatio": 65,
-	"cph.general.vjudgeUrlSuffix": "#author=translator:1281309:zh",
-	"cph.general.fileNameTemplate": "{ojName}/{contestId}/{problemId}.{ext}",
-	"cph.general.fileNameTemplateOverrides": {
+	"judger.general.vjudgeOpenInBrowser": true,
+	"judger.general.defaultProblemSource": "vjudge",
+	"judger.general.vjudgeBrowserSplitRatio": 65,
+	"judger.general.vjudgeUrlSuffix": "#author=translator:1281309:zh",
+	"judger.general.fileNameTemplate": "{ojName}/{contestId}/{problemId}.{ext}",
+	"judger.general.fileNameTemplateOverrides": {
 		"CSES": "{ojName}/{problemId}_{slug}.{ext}",
 		"AT": "{ojName}/{contestId}/{problemId}.{ext}",
 		"CF": "{ojName}/{contestId}/{problemId}.{ext}",
@@ -13,7 +13,7 @@
 		"VJ": "{ojName}/{problemId}{slug}.{ext}",
 		"牛客": "NowCoder/{problemId}.{ext}"
 	},
-	"cph.general.vjudgeOjNames": {
+	"judger.general.vjudgeOjNames": {
 		"CodeForces": {
 			"urlTemplate": "https://codeforces.com/problemset/problem/{contestId}/{problemId}",
 			"problemIdRegex": "^(\\d+)([A-Z]\\d*)$"
@@ -58,7 +58,7 @@
 			"urlTemplate": "https://ac.nowcoder.com/acm/problem/{problemId}"
 		}
 	},
-	"cph.general.ojMapping": {
+	"judger.general.ojMapping": {
 		"codeforces.com": {
 			"oj": "CF",
 			"ojName": "Codeforces",
@@ -143,16 +143,16 @@
 			"problemIdRegex": "problem\\/(\\d+)"
 		}
 	},
-	"cph.general.saveLocation": "",
-	"cph.general.timeOut": 3000,
-	"cph.general.hideStderrorWhenCompiledOK": false,
-	"cph.general.ignoreSTDERROR": false,
-	"cph.general.defaultOnlineJudge": false,
-	"cph.general.includeProblemIndex": false,
-	"cph.general.autoShowJudge": true,
-	"cph.general.useShortAtCoderName": false,
-	"cph.general.useShortCodeForcesName": false,
-	"cph.general.useShortLuoguName": false,
-	"cph.general.defaultLanguage": "cpp",
-	"cph.general.collectProblemsInRoot": true
+	"judger.general.saveLocation": "",
+	"judger.general.timeOut": 3000,
+	"judger.general.hideStderrorWhenCompiledOK": false,
+	"judger.general.ignoreSTDERROR": false,
+	"judger.general.defaultOnlineJudge": false,
+	"judger.general.includeProblemIndex": false,
+	"judger.general.autoShowJudge": true,
+	"judger.general.useShortAtCoderName": false,
+	"judger.general.useShortCodeForcesName": false,
+	"judger.general.useShortLuoguName": false,
+	"judger.general.defaultLanguage": "cpp",
+	"judger.general.collectProblemsInRoot": true
 }

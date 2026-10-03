@@ -26,12 +26,12 @@ test('covers the rendered English setup surfaces', () => {
 		'控制短小 if / else 是否可以保持在同一行。',
 		'行长与缩进',
 		'大括号、指针与代码块',
-		'Competitive Programming Helper（CPH）',
+		'ShortestPath Judger',
 		'clangd 扩展',
 		'未发现可用的系统等宽字体，无法选择主要字体。',
 		'✓ 已自动保存 · 切换窗口时',
-		'CPH 默认命名',
-		'CPH 文件名模板覆盖必须是一个 JSON 对象，OJ 简称为键、模板字符串为值。',
+		'Judger 默认命名',
+		'Judger 文件名模板覆盖必须是一个 JSON 对象，OJ 简称为键、模板字符串为值。',
 		'无法读取 {0}.json。请检查 JSON 格式。',
 		'Open VSX 是独立的第三方插件市场。其内容不由 ShortestPath IDE 审核、担保或提供支持；安装第三方扩展可能执行代码并访问你的工作区数据。',
 		'未能读取系统字体。请检查系统字体服务后重新打开此页面。',
@@ -55,7 +55,7 @@ test('covers the rendered English setup surfaces', () => {
 	assert.match(localization, /value!==node\.getAttribute\(attribute\)/);
 
 	for (const [file, pattern] of [
-		['gettingStarted.ts', /showWarningMessage\(localize\('CPH 文件名模板覆盖/],
+		['gettingStarted.ts', /showWarningMessage\(localize\('Judger 文件名模板覆盖/],
 		['relaxMode.ts', /showErrorMessage\(localizeFormat\('无法打开放松源/],
 		['simpleSettings.ts', /localizeFormat\('确定删除模板/],
 		['extension.ts', /showInformationMessage\(localize\('ShortestPath IDE 已配置为使用便携工具链/],

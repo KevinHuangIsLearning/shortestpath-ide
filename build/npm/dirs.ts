@@ -29,7 +29,7 @@ export const dirs = [
 	'extensions/danielpinto8zz6.c-cpp-compile-run',
 	'extensions/debug-auto-launch',
 	'extensions/debug-server-ready',
-	'extensions/divyanshuagrawal.competitive-programming-helper',
+	'extensions/shortestpath.judger',
 	'extensions/shortestpath.oj',
 	'extensions/usernamehw.errorlens',
 	'extensions/emmet',

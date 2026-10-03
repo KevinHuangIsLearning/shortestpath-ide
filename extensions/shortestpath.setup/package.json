@@ -16,6 +16,7 @@
 			"supported": true
 		}
 	},
+	"extensionDependencies": ["shortestpath.judger"],
 	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment", "onCommand:shortestpath.redetectToolchain", "onCommand:shortestpath.repairToolchain", "onCommand:shortestpath.openSettings", "onCommand:shortestpath.configureCph", "onCommand:shortestpath.configureCppSnippets", "onCommand:shortestpath.configureAutoFormat", "onCommand:shortestpath.openGettingStarted", "onCommand:shortestpath.openToolchainDiagnostics"],
 	"main": "./out/extension.js",
 	"scripts": {

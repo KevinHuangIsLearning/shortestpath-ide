@@ -572,7 +572,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('editor.formatOnPaste')
 			|| event.affectsConfiguration('editor.tabSize')
 			|| event.affectsConfiguration('editor.insertSpaces')
-			|| event.affectsConfiguration('cph.language.cpp.Args')
+			|| event.affectsConfiguration('judger.language.cpp.Args')
 			|| event.affectsConfiguration('c-cpp-compile-run.cpp-flags')
 			|| event.affectsConfiguration('editor.inlayHints.enabled')
 			|| event.affectsConfiguration('errorLens.enabled')
@@ -598,7 +598,7 @@ function getState(): SimpleSettingsState {
 	const files = vscode.workspace.getConfiguration('files', null);
 	const workbench = vscode.workspace.getConfiguration('workbench', null);
 	const windowConfiguration = vscode.workspace.getConfiguration('window', null);
-	const cphFlags = vscode.workspace.getConfiguration('cph.language.cpp', null).get<string>('Args');
+	const cphFlags = vscode.workspace.getConfiguration('judger.language.cpp', null).get<string>('Args');
 	const compileRunFlags = vscode.workspace.getConfiguration('c-cpp-compile-run', null).get<string>('cpp-flags');
 	const compilerFlags = cphFlags || compileRunFlags || defaultCompilerFlags;
 	const inlayHintsEnabled = editor.get<boolean | string>('inlayHints.enabled') ?? 'on';
@@ -627,7 +627,7 @@ function getState(): SimpleSettingsState {
 		newFileDefaultLanguage: vscode.workspace.getConfiguration('shortestpath.newFile', null).get<string>('defaultLanguage') ?? 'cpp',
 		useExtensionMarketplace: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('useExtensionMarketplace') ?? false,
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'ask',
-		defaultSubmitMethod: vscode.workspace.getConfiguration('cph.general', null).get<string>('defaultSubmitMethod') ?? 'ask',
+		defaultSubmitMethod: vscode.workspace.getConfiguration('judger.general', null).get<string>('defaultSubmitMethod') ?? 'ask',
 		antiFraudReminder: vscode.workspace.getConfiguration('shortestpath.oj', null).get<boolean>('antiFraudReminder') ?? false,
 		themes: getThemeOptions(colorTheme)
 	};
@@ -723,7 +723,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('editor.formatOnPaste', value.autoFormat === true, vscode.ConfigurationTarget.Global),
 		settings.update('editor.tabSize', indentSize, vscode.ConfigurationTarget.Global),
 		settings.update('editor.insertSpaces', insertSpaces, vscode.ConfigurationTarget.Global),
-		settings.update('cph.language.cpp.Args', compilerFlags, vscode.ConfigurationTarget.Global),
+		settings.update('judger.language.cpp.Args', compilerFlags, vscode.ConfigurationTarget.Global),
 		settings.update('c-cpp-compile-run.cpp-flags', compilerFlags, vscode.ConfigurationTarget.Global),
 		settings.update('editor.inlayHints.enabled', value.clangdVariableTypeHints !== false ? 'on' : 'off', vscode.ConfigurationTarget.Global),
 		settings.update('errorLens.enabled', value.errorLensEnabled !== false, vscode.ConfigurationTarget.Global),
@@ -737,7 +737,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('shortestpath.newFile.defaultLanguage', typeof value.newFileDefaultLanguage === 'string' && value.newFileDefaultLanguage ? value.newFileDefaultLanguage : 'cpp', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.useExtensionMarketplace', value.useExtensionMarketplace === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global),
-		settings.update('cph.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global),
+		settings.update('judger.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.antiFraudReminder', value.antiFraudReminder === true, vscode.ConfigurationTarget.Global)
 	]);
 	// Unconditional on purpose: the editor configuration is not a reliable proxy
@@ -811,9 +811,9 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <section class="card" data-category="cpp">
 <div class="row"><div><label for="cppStandard">C++ 版本</label></div><select id="cppStandard"><option>c++11</option><option>c++14</option><option>c++17</option><option>c++20</option><option>c++23</option></select></div>
 <div class="row"><div><label for="shortestPathCppSubmissionLanguage">ShortestPath OJ 提交语言</label><div class="hint">“每次询问”会在 C++ 提交前选择 C++14 或 C++20。</div></div><select id="shortestPathCppSubmissionLanguage"><option value="ask">每次询问</option><option value="cpp14">C++14</option><option value="cpp20">C++20</option></select></div>
-<div class="row"><div><label for="compilerFlags">编译选项</label><div class="hint">同时应用到 CPH 和 C/C++ Compile Run。</div></div><input id="compilerFlags" type="text"></div>
+<div class="row"><div><label for="compilerFlags">编译选项</label><div class="hint">同时应用到 Judger 和 C/C++ Compile Run。</div></div><input id="compilerFlags" type="text"></div>
 <div class="row"><div><label for="clangdVariableTypeHints">clangd 变量类型提示</label><div class="hint">在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。</div></div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="executableCleanupEnabled">自动清理生成文件</label><div class="hint">同时作用于 CPH 和 C/C++ Compile Run。</div></div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="executableCleanupEnabled">自动清理生成文件</label><div class="hint">同时作用于 Judger 和 C/C++ Compile Run。</div></div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="executableCleanupDelaySeconds">生成文件保留时间</label><div class="hint">程序运行结束后自动删除 exe。单位：秒；0 表示立即删除。</div></div><input id="executableCleanupDelaySeconds" type="number" min="0" max="86400" step="1"></div>
 </section>
 <section class="card" data-category="appearance">
@@ -826,11 +826,11 @@ int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <section class="card" data-category="tools"><div class="row"><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>开始使用</label><div class="hint">分步引导配置字体、主题、语言版本等偏好。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div><div class="row"><div><label>CPH 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 CPH 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label for="defaultSubmitMethod">CPH 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label>Judger 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 Judger 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 Judger</button></div><div class="row"><div><label>Judger 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 Judger 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label for="defaultSubmitMethod">Judger 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="errorLensEnabled">Error Lens 行内错误提示</label><div class="hint">在出错那一行的行尾直接显示诊断文字；关闭后只保留编辑器自己的波浪线，写代码时依然实时报错。</div></div><label class="toggle"><input id="errorLensEnabled" type="checkbox"><span>启用</span></label></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
+<section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 Judger、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label for="antiFraudReminder">防诈骗提醒</label><div class="hint">打开题目时显示防诈骗提醒。</div></div><label class="toggle"><input id="antiFraudReminder" type="checkbox"><span>启用</span></label></div></section>
 <p id="noResults" class="no-results" hidden>没有匹配的设置。</p>
 <div class="actions"><button id="advanced" class="secondary">高级设置</button><span id="saved" aria-live="polite"></span></div>

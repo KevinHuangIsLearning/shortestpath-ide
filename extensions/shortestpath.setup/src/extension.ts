@@ -213,7 +213,7 @@ async function initializeOiWorkspace(context: vscode.ExtensionContext): Promise<
 		return;
 	}
 
-	const configuredCompiler = vscode.workspace.getConfiguration('cph.language.cpp').get<string>('Command');
+	const configuredCompiler = vscode.workspace.getConfiguration('judger.language.cpp').get<string>('Command');
 	const compiler = configuredCompiler || await findPreferredCompiler(loadPreset(context).compilerCandidates) || 'g++';
 	createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, 'c++23');
 	createDefaultClangFormatConfig(workspaceFolder.uri.fsPath);
@@ -332,7 +332,7 @@ function warnAboutPortablePathWithSpaces(): void {
 }
 
 async function ensureShortestPathOjMapping(): Promise<void> {
-	const configuration = vscode.workspace.getConfiguration('cph.general', null);
+	const configuration = vscode.workspace.getConfiguration('judger.general', null);
 	const globalValue = configuration.inspect<Record<string, unknown>>('ojMapping')?.globalValue;
 	if (!globalValue) {
 		return;
@@ -345,7 +345,7 @@ async function ensureShortestPathOjMapping(): Promise<void> {
 }
 
 async function ensureShortestPathFileNameTemplateOverride(): Promise<void> {
-	const configuration = vscode.workspace.getConfiguration('cph.general', null);
+	const configuration = vscode.workspace.getConfiguration('judger.general', null);
 	const globalValue = configuration.inspect<Record<string, string>>('fileNameTemplateOverrides')?.globalValue;
 	if (!globalValue || globalValue.ShortestPath) {
 		return;
@@ -382,19 +382,19 @@ async function repairToolchain(context: vscode.ExtensionContext): Promise<void> 
 	const clangd = await findFirstExecutable(preset.clangdCandidates);
 	if (compiler && clangd && !await isAppleClang(compiler)) {
 		// Repair only toolchain-related settings; do not overwrite the user's editor
-		// and CPH preferences with the first-run preset.
+		// and Judger preferences with the first-run preset.
 		const configuration = vscode.workspace.getConfiguration(undefined, null);
-		const flags = configuration.get<string>('cph.language.cpp.Args')
+		const flags = configuration.get<string>('judger.language.cpp.Args')
 			?? configuration.get<string>('c-cpp-compile-run.cpp-flags')
 			?? '';
 		const settings: Record<string, unknown> = {
-			'cph.language.cpp.Command': compiler,
+			'judger.language.cpp.Command': compiler,
 			'c-cpp-compile-run.cpp-compiler': compiler,
 			'clangd.path': clangd,
 			'clangd.arguments': clangdArgumentsForCompiler(compiler)
 		};
 		if (flags) {
-			settings['cph.language.cpp.Args'] = flags;
+			settings['judger.language.cpp.Args'] = flags;
 			settings['c-cpp-compile-run.cpp-flags'] = flags;
 		}
 		await updateGlobalSettings(settings);
@@ -416,7 +416,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	let installerStarted = false;
 	const configuration = vscode.workspace.getConfiguration(undefined, null);
 	const preservedCompilerFlags = firstRunSelection?.mode === 'repair'
-		? configuration.inspect<string>('cph.language.cpp.Args')?.globalValue
+		? configuration.inspect<string>('judger.language.cpp.Args')?.globalValue
 			?? configuration.inspect<string>('c-cpp-compile-run.cpp-flags')?.globalValue
 		: undefined;
 
@@ -455,12 +455,12 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		if (process.platform === 'win32' && vscode.env.isAppPortable) {
 			compiler = getSpaceSafePortableCompilerPath(context, compiler);
 		}
-		settings['cph.language.cpp.Command'] = compiler;
+		settings['judger.language.cpp.Command'] = compiler;
 		settings['c-cpp-compile-run.output-location'] = '.';
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
 		if (firstRunSelection?.mode !== 'repair' || preservedCompilerFlags !== undefined) {
 			const compilerFlags = preservedCompilerFlags ?? defaultCompilerFlagsFor(cppStandard);
-			settings['cph.language.cpp.Args'] = compilerFlags;
+			settings['judger.language.cpp.Args'] = compilerFlags;
 			settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
 		}
 		if (firstRunSelection) {
@@ -514,7 +514,7 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 	const settings: Record<string, unknown> = {};
 
 	if (compilerExists) {
-		for (const key of ['cph.language.cpp.Command', 'c-cpp-compile-run.cpp-compiler']) {
+		for (const key of ['judger.language.cpp.Command', 'c-cpp-compile-run.cpp-compiler']) {
 			const value = configuration.inspect<string>(key)?.globalValue;
 			if (value && rebaseManagedToolchainPath(value, compiler, clangd) === compiler && value !== compiler) {
 				settings[key] = compiler;

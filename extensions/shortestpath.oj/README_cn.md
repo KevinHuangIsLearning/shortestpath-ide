@@ -1,7 +1,7 @@
 # ShortestPath OJ 集成
 
 此内置扩展按 ShortestPath OJ 官方开发者接入文档实现网站与 ShortestPath IDE 的本地互通，
-并保持独立于 CPH Plus。
+并保持独立于 ShortestPath Judger。
 
 扩展启动后监听：
 
@@ -20,7 +20,7 @@ WebSocket 子协议固定为 `shortestpath-oj-v1`。网页通过 `problem.bind` 
 shortestpath://shortestpath.shortestpath-oj/wake
 ```
 
-导入后的题面显示在 IDE 右侧，样例交给 CPH Plus。题目缓存与 CPH Plus 创建的源文件映射
+导入后的题面显示在 IDE 右侧，样例交给 ShortestPath Judger。题目缓存与 ShortestPath Judger 创建的源文件映射
 按题目分别保存在当前工作区的 `.shortestpath/<题目路径>.json`（例如
 `.shortestpath/ACOMB.found.A.json`）。旧版汇总缓存会在首次读取时自动迁移。断线后扩展不会自动重放网站操作；
 请回到题目网页重新点击“在 ShortestPath IDE 中打开”。

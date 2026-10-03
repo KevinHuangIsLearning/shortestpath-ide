@@ -1,0 +1,140 @@
+/*
+ * Part of ShortestPath Judger. Licensed under GPL-3.0-or-later.
+ *
+ * Chrome for the design-preview harness (preview.tsx / preview.html) only.
+ * This file is NOT copied into the shipped webview bundle: it only gives the
+ * fixture page a dark theme to stand on and a frame to sit in.
+ *
+ * A plain browser has no --vscode-* variables, and the real webview also gets
+ * a default stylesheet from the host that styles scrollbars. Both are declared
+ * here so the fixture renders the same way the shipped panel does.
+ */
+:root {
+    --vscode-foreground: #cccccc;
+    --vscode-descriptionForeground: #9d9d9d;
+    --vscode-disabledForeground: #6e6e6e;
+    --vscode-sideBar-background: #252526;
+    --vscode-editor-background: #1e1e1e;
+    --vscode-editorWidget-background: #252526;
+    --vscode-editorWidget-border: #454545;
+    --vscode-editorHoverWidget-background: #252526;
+    --vscode-editorHoverWidget-border: #454545;
+    --vscode-editorHoverWidget-foreground: #cccccc;
+    --vscode-textCodeBlock-background: #1e1e1e;
+    --vscode-input-background: #3c3c3c;
+    --vscode-input-foreground: #cccccc;
+    --vscode-input-border: #3c3c3c;
+    --vscode-button-background: #0e639c;
+    --vscode-button-foreground: #ffffff;
+    --vscode-button-hoverBackground: #1177bb;
+    --vscode-button-secondaryBackground: #3a3d41;
+    --vscode-button-secondaryForeground: #ffffff;
+    --vscode-button-secondaryHoverBackground: #45494e;
+    --vscode-list-hoverBackground: #2a2d2e;
+    --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
+    --vscode-panel-border: #3c3c3c;
+    --vscode-widget-border: #454545;
+    --vscode-widget-shadow: rgba(0, 0, 0, 0.36);
+    --vscode-menu-background: #252526;
+    --vscode-menu-border: #454545;
+    --vscode-menu-foreground: #cccccc;
+    --vscode-menu-selectionBackground: #094771;
+    --vscode-menu-selectionForeground: #ffffff;
+    --vscode-notifications-background: #252526;
+    --vscode-notifications-border: #454545;
+    --vscode-notifications-foreground: #cccccc;
+    --vscode-testing-iconPassed: #73c991;
+    --vscode-testing-iconFailed: #f14c4c;
+    --vscode-testing-iconQueued: #cca700;
+    --vscode-editorWarning-foreground: #cca700;
+    --vscode-errorForeground: #f14c4c;
+    --vscode-textLink-foreground: #3794ff;
+    --vscode-textLink-activeForeground: #4daafc;
+    --vscode-focusBorder: #007fd4;
+    --vscode-progressBar-background: #0e70c0;
+    --vscode-checkbox-background: #3c3c3c;
+    --vscode-statusBarItem-warningBackground: #cca700;
+    --vscode-statusBarItem-warningForeground: #000000;
+    --vscode-statusBarItem-warningHoverBackground: #d7b136;
+    --vscode-diffEditor-insertedTextBackground: rgba(155, 185, 85, 0.2);
+    --vscode-diffEditor-removedTextBackground: rgba(255, 0, 0, 0.2);
+    --vscode-scrollbarSlider-background: rgba(121, 121, 121, 0.4);
+    --vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
+    --vscode-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --vscode-editor-font-family: 'SF Mono', Menlo, Consolas, monospace;
+    /* The host injects this from editor.fontSize; the panel is sized from it. */
+    --vscode-editor-font-size: 14px;
+}
+
+/* The host injects scrollbar styling into a real webview; a plain browser does
+   not, so the fixture declares the same rules for itself. */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 5px;
+    background: var(--vscode-scrollbarSlider-background);
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--vscode-scrollbarSlider-hoverBackground);
+    background-clip: padding-box;
+}
+
+html,
+body,
+#app {
+    height: auto;
+}
+
+body {
+    overflow: auto;
+    padding: 24px;
+    background: var(--vscode-editor-background);
+}
+
+.preview-root {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.preview-root h1 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.preview-note,
+.preview-caption {
+    margin: 0;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.preview-row {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.preview-panel {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* The fixture frame stands in for the side bar / editor area the panel really
+   lives in, so the shell's own height handling is exercised. */
+.preview-surface {
+    height: 560px;
+    overflow: hidden;
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 8px;
+    background: var(--vscode-sideBar-background);
+}

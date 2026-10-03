@@ -29,6 +29,7 @@ const english: Readonly<Record<string, string>> = {
 	'已复制': 'Copied',
 	'提示': 'Hint',
 	'解题报告': 'Editorial',
+	'正在迁移配置': 'Migrating configuration',
 	'正在加载解题报告…': 'Loading editorial…',
 	'加载中…': 'Loading…',
 	'正在提交…': 'Submitting…',
@@ -87,9 +88,9 @@ const english: Readonly<Record<string, string>> = {
 	, '请先打开当前提示后再查看答案。': 'Open the current hint before viewing its answer.'
 	, '网站尚未确认提示答案可查看。': 'The website has not confirmed that the hint answer is available.'
 	, '测评中': 'Judging'
-	, '已添加到 CPH': 'Added to CPH'
-	, '正在添加到 CPH…': 'Adding to CPH…'
-	, '添加到 CPH': 'Add to CPH'
+	, '已添加到 Judger': 'Added to Judger'
+	, '正在添加到 Judger…': 'Adding to Judger…'
+	, '添加到 Judger': 'Add to Judger'
 	, '确认查看': 'View Anyway'
 	, '确认查看吗？': 'View the editorial?'
 	, '取消': 'Cancel'
@@ -102,17 +103,17 @@ const english: Readonly<Record<string, string>> = {
 	, '请选择可用提交并填写正整数轮数。': 'Select an available submission and enter a positive number of rounds.'
 	, '当前对拍任务还没有可添加的反例。': 'The current stress-test task has no counterexample to add.'
 	, '当前连接尚未导入题目。': 'No problem has been imported from the current connection.'
-	, '当前 CPH 活动题目不是 ShortestPath OJ 题目。': 'The active CPH problem is not a ShortestPath OJ problem.'
+	, '当前 Judger 活动题目不是 ShortestPath OJ 题目。': 'The active Judger problem is not a ShortestPath OJ problem.'
 	, '网页未提供可用的提交语言，无法发起提交。': 'The webpage did not provide an available submission language.'
 	, '题目网页未连接，请从网站重新在 ShortestPath IDE 中打开。': 'The problem webpage is disconnected. Reopen it in ShortestPath IDE from the website.'
-	, '请先将题目导入 CPH Plus 再从题目面板提交。': 'Import the problem into CPH Plus before submitting from the problem panel.'
+	, '请先将题目导入 ShortestPath Judger 再从题目面板提交。': 'Import the problem into ShortestPath Judger before submitting from the problem panel.'
 	, '提交前请先保存源文件。': 'Save the source file before submitting.'
 	, '源文件为空。': 'The source file is empty.'
 	, '提交源码必须位于当前工作区。': 'The submission source file must be inside the current workspace.'
-	, '请先将题目添加到 CPH。': 'Add the problem to CPH first.'
+	, '请先将题目添加到 Judger。': 'Add the problem to Judger first.'
 	, '当前对拍任务没有反例。': 'The current stress-test task has no counterexample.'
-	, '无法将反例添加到 CPH。': 'Could not add the counterexample to CPH.'
-	, '无法连接 CPH，请确认 CPH Plus 已启用。': 'Could not connect to CPH. Make sure CPH Plus is enabled.'
+	, '无法将反例添加到 Judger。': 'Could not add the counterexample to Judger.'
+	, '无法连接 Judger，请确认 ShortestPath Judger 已启用。': 'Could not connect to Judger. Make sure ShortestPath Judger is enabled.'
 	, '网页提供的题目状态不兼容，已关闭计时、提示和题解等辅助功能。': 'The problem state provided by the webpage is incompatible. Timer, hints, editorial, and related features have been disabled.'
 	, '网页提供的功能信息不兼容，已关闭提交、对拍等增强功能。': 'The capability information provided by the webpage is incompatible. Submission, stress testing, and related features have been disabled.'
 	, '选择 ShortestPath OJ 提交语言': 'Select ShortestPath OJ Submission Language'

@@ -20,6 +20,7 @@ import { isHeaderSafeSourcePath } from './sourcePath';
 import { appendPreviousStatementVersion, hasProblemStatementChanged, ProblemStatementSnapshot, sanitizeProblemStatementVersions } from './problemStatementVersion';
 import { formatElapsedTimer } from './timerDisplay';
 import { assertUniqueWorkspaceProblemRecordFileNames, getWorkspaceProblemRecordFileName } from './workspaceProblemCache';
+import { getOwnedProblemRecordPath, listProblemRecords, ProblemRecordFileSystem, writeProblemRecordAtomically, snapshotLegacyProblemRecords, cleanLegacyProblemRecords, LegacyRecordSnapshot } from './workspaceProblemRecordStorage';
 import { migrateLegacyWorkspaceCache } from './workspaceProblemCacheMigration';
 import {
 	applyEditorialLikeResult,
@@ -51,6 +52,8 @@ const legacyWorkspaceCacheFileName = 'oj-problems.json';
 const workspaceProblemRecordVersion = 2;
 const workspaceFolderRequiredMessage = localize('请先在 ShortestPath IDE 中打开一个文件夹，再从网站导入题目。');
 const workspaceCachesNeedingRewrite = new WeakSet<WorkspaceProblemCache>();
+const workspaceCacheRoots = new WeakMap<WorkspaceProblemCache, vscode.Uri>();
+const workspaceLegacyRecordSnapshots = new WeakMap<WorkspaceProblemCache, LegacyRecordSnapshot[]>();
 let workspaceCacheMutationTail = Promise.resolve();
 let workspaceCacheMigration: Promise<void> | undefined;
 
@@ -368,6 +371,11 @@ class ShortestPathOjProblemPanel {
 		this.render();
 	}
 
+	getTimerForJudger(url: string, sourcePath: string): ProblemState['timer'] | undefined {
+		if (this.state?.problem.url !== url || this.state.sourcePath !== sourcePath) { return undefined; }
+		return { ...this.state.problem.state.timer };
+	}
+
 	reveal(): void {
 		if (!this.state) {
 			return;
@@ -531,9 +539,7 @@ class ShortestPathOjProblemPanel {
 		if (editorial.state !== 'available') {
 			return;
 		}
-		if (this.panel) {
-			this.panel.dispose();
-		}
+		// The editorial modal overlays the statement without disposing its tab.
 		const title = `${localize('解题报告')}: ${problem.title}`;
 		if (this.editorialPanel) {
 			this.editorialPanel.title = title;
@@ -541,8 +547,7 @@ class ShortestPathOjProblemPanel {
 			this.editorialPanel.reveal(this.editorialPanel.viewColumn, false);
 			return;
 		}
-		// Keep the problem and editorial as tabs in the source editor group. This
-		// avoids a forced split while leaving users free to move either tab later.
+		// Anchor the modal to the bound source without changing the statement group.
 		const viewColumn = this.findBoundSourceEditorColumn() ?? this.findCodeEditorColumn();
 		const panel = vscode.window.createWebviewPanel(
 			'shortestpath.ojEditorial',
@@ -1202,7 +1207,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				return { action, cph };
 			}, true);
 			if (!cph.succeeded) {
-				output.appendLine(`CPH Plus did not accept samples for ${problem.ref}.`);
+				output.appendLine(`ShortestPath Judger did not accept samples for ${problem.ref}.`);
 			}
 			return action;
 		},
@@ -1269,6 +1274,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowserDirect', async () => {
 		await openUrl('https://shortestpath.cn/login');
 	}));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.getTimerForJudger', async (url: string, sourcePath: string) => {
+		const activeTimer = panel.getTimerForJudger(url, sourcePath);
+		if (activeTimer) { return activeTimer; }
+		const cache = await readWorkspaceProblemCache();
+		const problem = Object.values(cache.problems).find(item => item.url === url && cache.sourcePaths[item.ref] === sourcePath);
+		return problem ? { ...problem.state.timer } : undefined;
+	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblemForCph', async (url: string) => {
 		const cache = await readWorkspaceProblemCache();
 		const problem = Object.values(cache.problems).find(item => item.url === url);
@@ -1288,10 +1300,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.submitProblemForUrl', async (url: string) => {
 		const problem = Object.values((await readWorkspaceProblemCache()).problems).find(item => item.url === url);
 		if (!problem) {
-			throw new Error(localize('请先将题目导入 CPH Plus 再从题目面板提交。'));
+			throw new Error(localize('请先将题目导入 ShortestPath Judger 再从题目面板提交。'));
 		}
 		await submitProblem(problem, bridge, panel, unknownSubmissions);
 	}));
+	// Migrate unopened problems too, rather than waiting for a later submission/save.
+	const migrateWorkspaceRecords = () => {
+		if (!vscode.workspace.workspaceFolders?.length) { return; }
+		void (async () => {
+			const sources = await snapshotLegacyProblemRecords(getWorkspaceCacheDirectoryUri().fsPath, getProblemRecordFileSystem());
+			let aggregateExists = false;
+			try { await vscode.workspace.fs.stat(getLegacyWorkspaceCacheUri()); aggregateExists = true; }
+			catch (error) { if (!(error instanceof vscode.FileSystemError) || error.code !== 'FileNotFound') { throw error; } }
+			if (!sources.length && !aggregateExists) { return; }
+			await vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				title: localize('正在迁移配置'),
+				cancellable: false,
+			}, async () => mutateWorkspaceProblemCache(() => undefined, true));
+		})().catch(error => log(`Unable to migrate workspace problem records: ${String(error)}`));
+	};
+	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(migrateWorkspaceRecords));
+	migrateWorkspaceRecords();
 }
 
 function getWorkspaceCacheDirectoryUri(): vscode.Uri {
@@ -1306,8 +1336,34 @@ function getLegacyWorkspaceCacheUri(): vscode.Uri {
 	return vscode.Uri.joinPath(getWorkspaceCacheDirectoryUri(), legacyWorkspaceCacheFileName);
 }
 
-function getWorkspaceProblemRecordUri(problemRef: string): vscode.Uri {
-	return vscode.Uri.joinPath(getWorkspaceCacheDirectoryUri(), getWorkspaceProblemRecordFileName(problemRef));
+async function getProblemOwnedRecordUri(problemRef: string, sourcePath?: string, root = getWorkspaceCacheDirectoryUri()): Promise<vscode.Uri> {
+	let directory: string | undefined;
+	if (sourcePath) {
+		const judger = vscode.extensions.getExtension('shortestpath.judger');
+		if (judger) {
+			await judger.activate();
+			directory = await vscode.commands.executeCommand<string>('judger.getProblemDirectory', sourcePath);
+		}
+	}
+	assertWorkspaceCacheRoot(root);
+	return getProblemRecordStorageUri(getOwnedProblemRecordPath(root.fsPath, problemRef, directory), root);
+}
+
+function getProblemRecordStorageUri(file: string, root = getWorkspaceCacheDirectoryUri()): vscode.Uri {
+	const relative = path.relative(root.fsPath, file);
+	return !relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative)
+		? vscode.Uri.joinPath(root, ...relative.split(path.sep)) : vscode.Uri.file(file);
+}
+
+function getProblemRecordFileSystem(root = getWorkspaceCacheDirectoryUri()): ProblemRecordFileSystem {
+	return {
+		readDirectory: async directory => vscode.workspace.fs.readDirectory(getProblemRecordStorageUri(directory, root)),
+		readFile: async file => vscode.workspace.fs.readFile(getProblemRecordStorageUri(file, root)),
+		writeFile: async (file, contents) => vscode.workspace.fs.writeFile(getProblemRecordStorageUri(file, root), contents),
+		rename: async (from, to) => vscode.workspace.fs.rename(getProblemRecordStorageUri(from, root), getProblemRecordStorageUri(to, root), { overwrite: true }),
+		delete: async file => vscode.workspace.fs.delete(getProblemRecordStorageUri(file, root), { recursive: false, useTrash: false }),
+		isMissing: error => error instanceof vscode.FileSystemError && error.code === 'FileNotFound',
+	};
 }
 
 function createEmptyWorkspaceProblemCache(): WorkspaceProblemCache {
@@ -1321,6 +1377,12 @@ function createEmptyWorkspaceProblemCache(): WorkspaceProblemCache {
 	};
 }
 
+function assertWorkspaceCacheRoot(root: vscode.Uri): void {
+	if (getWorkspaceCacheDirectoryUri().toString() !== root.toString()) {
+		throw new Error('Workspace changed during OJ cache migration; retry in the current workspace.');
+	}
+}
+
 async function readWorkspaceProblemCache(): Promise<WorkspaceProblemCache> {
 	await ensureWorkspaceCacheMigration();
 	return readWorkspaceProblemCacheFiles();
@@ -1331,12 +1393,17 @@ async function ensureWorkspaceCacheMigration(): Promise<void> {
 		await workspaceCacheMigration;
 		return;
 	}
+	const root = getWorkspaceCacheDirectoryUri();
+	const legacyUri = vscode.Uri.joinPath(root, legacyWorkspaceCacheFileName);
+	let legacyContents: Uint8Array | undefined;
 	const migration = (async () => {
 		await migrateLegacyWorkspaceCache({
 			readCurrent: readWorkspaceProblemCacheFiles,
 			readLegacy: async () => {
 				try {
-					return await readLegacyWorkspaceProblemCache();
+					assertWorkspaceCacheRoot(root);
+					legacyContents = await vscode.workspace.fs.readFile(legacyUri);
+					return await readLegacyWorkspaceProblemCache(new TextDecoder().decode(legacyContents));
 				} catch (error) {
 					console.warn(`Unable to migrate ${legacyWorkspaceCacheFileName}; leaving it unchanged.`, error);
 					return undefined;
@@ -1350,6 +1417,8 @@ async function ensureWorkspaceCacheMigration(): Promise<void> {
 							cache.sourcePaths[problemRef] = legacyCache.sourcePaths[problemRef];
 						}
 						cache.submissions[problemRef] = legacyCache.submissions[problemRef] ?? [];
+						cache.previousStatements[problemRef] = legacyCache.previousStatements[problemRef] ?? [];
+						if (legacyCache.editorials[problemRef]) { cache.editorials[problemRef] = legacyCache.editorials[problemRef]; }
 					}
 				}
 				return cache;
@@ -1357,7 +1426,9 @@ async function ensureWorkspaceCacheMigration(): Promise<void> {
 			writeCurrent: writeWorkspaceProblemCache,
 			deleteLegacy: async () => {
 				try {
-					await vscode.workspace.fs.delete(getLegacyWorkspaceCacheUri(), { recursive: false, useTrash: false });
+					assertWorkspaceCacheRoot(root);
+					if (!legacyContents || !Buffer.from(await vscode.workspace.fs.readFile(legacyUri)).equals(Buffer.from(legacyContents))) { return; }
+					await vscode.workspace.fs.delete(legacyUri, { recursive: false, useTrash: false });
 				} catch (error) {
 					if (!(error instanceof vscode.FileSystemError) || error.code !== 'FileNotFound') {
 						throw error;
@@ -1377,16 +1448,17 @@ async function ensureWorkspaceCacheMigration(): Promise<void> {
 }
 
 async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> {
+	const cache = createEmptyWorkspaceProblemCache();
+	const root = getWorkspaceCacheDirectoryUri();
+	workspaceCacheRoots.set(cache, root);
 	try {
-		const cache = createEmptyWorkspaceProblemCache();
+		workspaceLegacyRecordSnapshots.set(cache, await snapshotLegacyProblemRecords(root.fsPath, getProblemRecordFileSystem(root)));
 		let needsRewrite = false;
-		const entries = await vscode.workspace.fs.readDirectory(getWorkspaceCacheDirectoryUri());
-		for (const [name, type] of entries) {
-			if (type !== vscode.FileType.File || name === legacyWorkspaceCacheFileName || !name.endsWith('.json')) {
-				continue;
-			}
+		const records = await listProblemRecords(root.fsPath, getProblemRecordFileSystem(root));
+		for (const { name, file, legacy } of records) {
+			const uri = getProblemRecordStorageUri(file, root);
 			try {
-				const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(getWorkspaceCacheDirectoryUri(), name)));
+				const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
 				if (!content.trim()) {
 					continue;
 				}
@@ -1395,11 +1467,13 @@ async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> 
 					continue;
 				}
 				const problem = restoreCachedProblemCompatibilityWarnings(record.problem as ImportedProblem);
-				if (name !== getWorkspaceProblemRecordUri(problem.ref).path.split('/').at(-1)) {
+				if (name !== (legacy ? getWorkspaceProblemRecordFileName(problem.ref) : `oj-${getWorkspaceProblemRecordFileName(problem.ref)}`)) {
 					console.warn(`Ignoring ShortestPath OJ cache record with mismatched file name: ${name}`);
 					continue;
 				}
 				cache.problems[problem.ref] = problem;
+				delete cache.sourcePaths[problem.ref];
+				delete cache.editorials[problem.ref];
 				if (typeof record.sourcePath === 'string' && isHeaderSafeSourcePath(record.sourcePath)) {
 					cache.sourcePaths[problem.ref] = record.sourcePath;
 				} else if (record.sourcePath !== undefined) {
@@ -1420,8 +1494,9 @@ async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> 
 						needsRewrite = true;
 					}
 				}
-				needsRewrite ||= record.version !== workspaceProblemRecordVersion || problem !== record.problem || submissions.changed || previousStatements.changed;
+				needsRewrite ||= legacy || record.version !== workspaceProblemRecordVersion || problem !== record.problem || submissions.changed || previousStatements.changed;
 			} catch (error) {
+				if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') { continue; }
 				console.warn(`Ignoring unreadable ShortestPath OJ cache record: ${name}`, error);
 			}
 		}
@@ -1431,15 +1506,14 @@ async function readWorkspaceProblemCacheFiles(): Promise<WorkspaceProblemCache> 
 		return cache;
 	} catch (error) {
 		if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
-			return createEmptyWorkspaceProblemCache();
+			return cache;
 		}
 		throw error;
 	}
 }
 
-async function readLegacyWorkspaceProblemCache(): Promise<WorkspaceProblemCache | undefined> {
+async function readLegacyWorkspaceProblemCache(content: string): Promise<WorkspaceProblemCache | undefined> {
 	try {
-		const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(getLegacyWorkspaceCacheUri()));
 		if (!content.trim()) {
 			return undefined;
 		}
@@ -1520,9 +1594,13 @@ function sanitizeSubmissionHistory(value: unknown): { entries: SubmissionHistory
 }
 
 async function writeWorkspaceProblemCache(cache: WorkspaceProblemCache): Promise<void> {
-	await vscode.workspace.fs.createDirectory(getWorkspaceCacheDirectoryUri());
+	const root = workspaceCacheRoots.get(cache) ?? getWorkspaceCacheDirectoryUri();
+	assertWorkspaceCacheRoot(root);
+	await vscode.workspace.fs.createDirectory(root);
+	const fileSystem = getProblemRecordFileSystem(root);
+	const sources = workspaceLegacyRecordSnapshots.get(cache) ?? [];
 	assertUniqueWorkspaceProblemRecordFileNames(Object.keys(cache.problems));
-	await Promise.all(Object.entries(cache.problems).map(async ([problemRef, problem]) => {
+	const records = await Promise.all(Object.entries(cache.problems).map(async ([problemRef, problem]) => {
 		const record: WorkspaceProblemRecord = {
 			version: workspaceProblemRecordVersion,
 			problem,
@@ -1531,8 +1609,17 @@ async function writeWorkspaceProblemCache(cache: WorkspaceProblemCache): Promise
 			editorial: cache.editorials[problemRef],
 			previousStatements: cache.previousStatements[problemRef] ?? [],
 		};
-		await vscode.workspace.fs.writeFile(getWorkspaceProblemRecordUri(problemRef), new TextEncoder().encode(`${JSON.stringify(record, undefined, '\t')}\n`));
+		const uri = await getProblemOwnedRecordUri(problemRef, record.sourcePath, root);
+		await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
+		const contents = `${JSON.stringify(record, undefined, '\t')}\n`;
+		await writeProblemRecordAtomically(fileSystem, uri.fsPath, contents);
+		return { problemRef, uri, contents };
 	}));
+	// Relative locations survive moving a workspace, including custom Judger storage roots.
+	const index = records.map(({ problemRef, uri }) => ({ problemRef, path: path.relative(root.fsPath, uri.fsPath) }));
+	assertWorkspaceCacheRoot(root);
+	await writeProblemRecordAtomically(fileSystem, path.join(root.fsPath, 'oj-index.json'), JSON.stringify(index));
+	await cleanLegacyProblemRecords(root.fsPath, fileSystem, sources, index, new Map(records.map(record => [record.problemRef, record.contents])));
 	workspaceCachesNeedingRewrite.delete(cache);
 }
 
@@ -1556,11 +1643,11 @@ async function submitCphProblem(
 	unknownSubmissions: Map<string, SubmissionAttempt>,
 ): Promise<void> {
 	if (typeof value.url !== 'string' || typeof value.srcPath !== 'string') {
-		throw new Error(localize('当前 CPH 活动题目不是 ShortestPath OJ 题目。'));
+		throw new Error(localize('当前 Judger 活动题目不是 ShortestPath OJ 题目。'));
 	}
 	const problem = Object.values((await readWorkspaceProblemCache()).problems).find(item => item.url === value.url);
 	if (!problem) {
-		throw new Error(localize('当前 CPH 活动题目不是 ShortestPath OJ 题目。'));
+		throw new Error(localize('当前 Judger 活动题目不是 ShortestPath OJ 题目。'));
 	}
 	await submitProblem(problem, bridge, panel, unknownSubmissions, value.srcPath);
 }
@@ -1589,7 +1676,7 @@ async function submitProblem(
 	}
 	const sourcePath = explicitSourcePath ?? (await readWorkspaceProblemCache()).sourcePaths[problem.ref];
 	if (!sourcePath) {
-		throw new Error(localize('请先将题目导入 CPH Plus 再从题目面板提交。'));
+		throw new Error(localize('请先将题目导入 ShortestPath Judger 再从题目面板提交。'));
 	}
 	const safeSourcePath = await validateWorkspaceSourcePath(sourcePath);
 	const document = await vscode.workspace.openTextDocument(vscode.Uri.file(safeSourcePath));
@@ -1750,7 +1837,7 @@ function forwardSamplesToCph(problem: ImportedProblem, sourcePath: string | unde
 async function addStressCounterExampleToCph(problem: ImportedProblem, task: StressTask): Promise<void> {
 	const sourcePath = (await readWorkspaceProblemCache()).sourcePaths[problem.ref];
 	if (!sourcePath) {
-		throw new Error(localize('请先将题目添加到 CPH。'));
+		throw new Error(localize('请先将题目添加到 Judger。'));
 	}
 	if (!task.counterExample) {
 		throw new Error(localize('当前对拍任务没有反例。'));
@@ -1789,14 +1876,14 @@ async function addStressCounterExampleToCph(problem: ImportedProblem, task: Stre
 					finish();
 					return;
 				}
-				finish(new Error(Buffer.concat(chunks).toString('utf8') || localize('无法将反例添加到 CPH。')));
+				finish(new Error(Buffer.concat(chunks).toString('utf8') || localize('无法将反例添加到 Judger。')));
 			});
 		});
 		const timeout = setTimeout(() => {
 			request.destroy();
-			finish(new Error(localize('无法连接 CPH，请确认 CPH Plus 已启用。')));
+			finish(new Error(localize('无法连接 Judger，请确认 ShortestPath Judger 已启用。')));
 		}, 5000);
-		request.once('error', () => finish(new Error(localize('无法连接 CPH，请确认 CPH Plus 已启用。'))));
+		request.once('error', () => finish(new Error(localize('无法连接 Judger，请确认 ShortestPath Judger 已启用。'))));
 		request.end(payload);
 	});
 }
@@ -2301,7 +2388,7 @@ function renderSubmissionStress(state: ProblemPanelState, submission: Submission
 				? '<progress></progress><span>运行中，网站尚未提供轮数进度</span>'
 				: `<progress max="${task.roundsPlanned}" value="${Math.min(task.roundsExecuted, task.roundsPlanned)}"></progress><span>${task.roundsExecuted} / ${task.roundsPlanned}</span>`;
 			const canAddCounterExample = Boolean(task.counterExample) && isStressFinished(task.status);
-			const counterExampleAction = canAddCounterExample ? `<button type="button" data-command="addStressCounterExample" data-task-id="${escapeAttribute(task.taskId)}"${state.addingStressCounterExamples.has(task.taskId) || state.addedStressCounterExamples.has(task.taskId) ? ' disabled' : ''}>${state.addedStressCounterExamples.has(task.taskId) ? '已添加到 CPH' : state.addingStressCounterExamples.has(task.taskId) ? '正在添加到 CPH…' : '添加到 CPH'}</button>` : '';
+			const counterExampleAction = canAddCounterExample ? `<button type="button" data-command="addStressCounterExample" data-task-id="${escapeAttribute(task.taskId)}"${state.addingStressCounterExamples.has(task.taskId) || state.addedStressCounterExamples.has(task.taskId) ? ' disabled' : ''}>${state.addedStressCounterExamples.has(task.taskId) ? '已添加到 Judger' : state.addingStressCounterExamples.has(task.taskId) ? '正在添加到 Judger…' : '添加到 Judger'}</button>` : '';
 			const counterExample = task.counterExample ? `<details><summary>反例</summary><h4>输入</h4><pre><code>${escapeHtml(task.counterExample.input)}</code></pre><h4>期望输出</h4><pre><code>${escapeHtml(task.counterExample.expected)}</code></pre><h4>实际输出</h4><pre><code>${escapeHtml(task.counterExample.actual)}</code></pre></details>${counterExampleAction}` : '';
 			const disconnected = state.disconnectedStressTasks.has(task.taskId) ? '<p class="warning">对拍转发已断开；后端任务仍可能继续，请重新连接并刷新对拍上下文。</p>' : '';
 			return `<div class="stress-task"><h4>对拍任务 ${escapeHtml(task.taskId)} · ${escapeHtml(task.status)}</h4><div class="progress">${progress}</div>${disconnected}${task.errorMessage ? `<p class="error">${escapeHtml(task.errorMessage)}</p>` : ''}${counterExample}</div>`;

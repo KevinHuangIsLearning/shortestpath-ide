@@ -898,8 +898,9 @@ th, td {
 	color: var(--vscode-charts-purple, #b180d7);
 }
 
+/* Blue, so a TLE reads the same in the submission list and in the Judger. */
 .submission-status.time-limit-exceeded {
-	color: var(--vscode-editorWarning-foreground, #cca700);
+	color: var(--vscode-charts-blue, #3b8eea);
 }
 
 .submission-body {
