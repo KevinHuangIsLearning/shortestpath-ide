@@ -420,7 +420,7 @@ class ShortestPathOjProblemPanel {
 		this.editorialPanel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(this.state.editorial, this.state.problem, this.editorialPanel.webview, this.extensionUri, this.state.connected));
 	}
 
-	private refreshEditorialLike(hintId: string): void {
+	private refreshEditorialLike(hintId: string, target: 'question' | 'answer'): void {
 		const editorial = this.state?.editorial;
 		if (!this.editorialPanel || !editorial || editorial.state !== 'available') {
 			return;
@@ -432,6 +432,7 @@ class ShortestPathOjProblemPanel {
 		void this.editorialPanel.webview.postMessage({
 			type: 'editorialLike',
 			hintId,
+			target,
 			questionLiked: hint.questionLiked,
 			answerLiked: hint.answerLiked,
 			questionLikeCount: hint.questionLikeCount,
@@ -572,10 +573,10 @@ class ShortestPathOjProblemPanel {
 						this.state.cachedEditorial = this.state.editorial;
 						void this.actions.saveEditorial(this.state.problem, this.state.editorial).catch(error => console.error('Failed to save ShortestPath OJ editorial likes.', error));
 					}
-					this.refreshEditorialLike(value.hintId);
+					this.refreshEditorialLike(value.hintId, value.target);
 				} catch (error) {
 					console.error('Failed to update ShortestPath OJ editorial like.', error);
-					void this.editorialPanel?.webview.postMessage({ type: 'editorialLikeError', hintId: value.hintId });
+					void this.editorialPanel?.webview.postMessage({ type: 'editorialLikeError', hintId: value.hintId, target: value.target });
 				}
 			}
 		});
@@ -2190,51 +2191,62 @@ editorialResizer.addEventListener('keydown', (event) => {
 	}
 });
 updateEditorialLayout();
+const pendingEditorialLikes = new Map();
+const updateEditorialLikeButton = (button, liked, count) => {
+	button.dataset.liked = String(liked);
+	button.classList.toggle('liked', liked);
+	button.setAttribute('aria-label', (liked ? '取消点赞' : '点赞') + '提示' + (button.dataset.target === 'question' ? '问题' : '答案') + '，当前 ' + count + ' 赞');
+	const countElement = button.querySelector('.like-count');
+	if (countElement) {
+		countElement.textContent = String(count);
+	}
+};
 window.addEventListener('message', (event) => {
 	const message = event.data;
-	if (!message || message.type !== 'editorialLike' || typeof message.hintId !== 'string') {
-		if (message && message.type === 'editorialLikeError' && typeof message.hintId === 'string') {
-			document.querySelectorAll('[data-command="like"]').forEach((element) => {
-				if (element instanceof HTMLButtonElement && element.dataset.hintId === message.hintId) {
-					element.disabled = false;
-					element.classList.remove('loading');
-				}
-			});
-		}
+	if (!message || (message.type !== 'editorialLike' && message.type !== 'editorialLikeError') || typeof message.hintId !== 'string') {
 		return;
 	}
-	document.querySelectorAll('[data-command="like"]').forEach((element) => {
-		if (!(element instanceof HTMLButtonElement) || element.dataset.hintId !== message.hintId) {
+	document.querySelectorAll('[data-command="like"]').forEach((button) => {
+		if (!(button instanceof HTMLButtonElement) || button.dataset.hintId !== message.hintId) {
 			return;
 		}
-		const isQuestion = element.dataset.target === 'question';
-		const liked = isQuestion ? message.questionLiked : message.answerLiked;
-		const count = isQuestion ? message.questionLikeCount : message.answerLikeCount;
-		if (typeof liked !== 'boolean' || typeof count !== 'number') {
+		const pending = pendingEditorialLikes.get(button);
+		const completesRequest = button.dataset.target === message.target;
+		if (pending && !completesRequest) {
 			return;
 		}
-		element.dataset.liked = String(liked);
-		element.disabled = false;
-		element.classList.remove('loading');
-		element.classList.toggle('liked', liked);
-		element.setAttribute('aria-label', (liked ? '取消点赞' : '点赞') + '提示' + (isQuestion ? '问题' : '答案') + '，当前 ' + count + ' 赞');
-		const countElement = element.querySelector('.like-count');
-		if (countElement) {
-			countElement.textContent = String(count);
+		if (message.type === 'editorialLikeError') {
+			if (!pending || !completesRequest) {
+				return;
+			}
+			updateEditorialLikeButton(button, pending.liked, pending.count);
+		} else {
+			const isQuestion = button.dataset.target === 'question';
+			const liked = isQuestion ? message.questionLiked : message.answerLiked;
+			const count = isQuestion ? message.questionLikeCount : message.answerLikeCount;
+			if (typeof liked !== 'boolean' || typeof count !== 'number') {
+				return;
+			}
+			updateEditorialLikeButton(button, liked, count);
+		}
+		if (pending && completesRequest) {
+			pendingEditorialLikes.delete(button);
+			button.disabled = false;
 		}
 	});
 });
 document.addEventListener('click', (event) => {
 	const button = event.target.closest('[data-command="like"]');
-	if (!button) {
+	if (!(button instanceof HTMLButtonElement) || button.disabled || pendingEditorialLikes.has(button)) {
 		return;
 	}
 	const hintId = button.dataset.hintId;
 	const target = button.dataset.target;
 	const liked = button.dataset.liked === 'true';
+	const count = Number(button.querySelector('.like-count').textContent);
+	pendingEditorialLikes.set(button, { liked, count });
+	updateEditorialLikeButton(button, !liked, Math.max(0, count + (liked ? -1 : 1)));
 	button.disabled = true;
-	button.classList.add('loading');
-	button.innerHTML = '<span aria-hidden="true">…</span>';
 	vscode.postMessage({ command: 'like', hintId, target, liked: !liked });
 });
 </script>
