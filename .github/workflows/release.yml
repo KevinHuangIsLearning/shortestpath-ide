@@ -1,6 +1,12 @@
 name: Release ShortestPath IDE
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing Release-v* or Beta-v* tag to rebuild'
+        required: true
+        type: string
   push:
     tags:
       - 'Release-v*'
@@ -9,8 +15,26 @@ on:
 permissions:
   contents: write
 
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+
 jobs:
+  validate-release:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate tag name
+        run: |
+          case "$RELEASE_TAG" in
+            Release-v?*|Beta-v?*) ;;
+            *) echo 'Expected a Release-v* or Beta-v* tag.' >&2; exit 1 ;;
+          esac
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+
   build-windows:
+    needs: validate-release
     name: Build Windows x64
     runs-on: windows-latest
     timeout-minutes: 90
@@ -23,19 +47,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           lfs: true
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
       - name: Verify ShortestPath release version
-        if: startsWith(github.ref_name, 'Release-v')
+        if: startsWith(env.RELEASE_TAG, 'Release-v')
         shell: bash
         run: |
-          expected_version="${GITHUB_REF_NAME#Release-v}"
+          expected_version="${RELEASE_TAG#Release-v}"
           declared_version="$(node -p "require('./product.json').shortestPathVersion")"
           if [[ "$declared_version" != "$expected_version" ]]; then
-            echo "product.json shortestPathVersion ($declared_version) must match $GITHUB_REF_NAME" >&2
+            echo "product.json shortestPathVersion ($declared_version) must match $RELEASE_TAG" >&2
             exit 1
           fi
       - name: Locate Visual Studio C++ toolchain
@@ -193,6 +218,7 @@ jobs:
           if-no-files-found: error
 
   build-macos:
+    needs: validate-release
     name: Build macOS ARM64
     runs-on: macos-14
     timeout-minutes: 90
@@ -205,6 +231,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           lfs: true
       - uses: actions/setup-node@v7
         with:
@@ -256,10 +283,14 @@ jobs:
           if-no-files-found: error
 
   build-linux:
+    needs: validate-release
     name: Build Linux x64
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     env:
+      # Electron 43 headers combine deprecated and visibility attributes that GCC rejects.
+      CC: clang-15
+      CXX: clang++-15
       VSCODE_ARCH: x64
       npm_config_arch: x64
       npm_config_foreground_scripts: "true"
@@ -268,6 +299,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           lfs: true
       - uses: actions/setup-node@v7
         with:
@@ -276,7 +308,9 @@ jobs:
       - name: Install native build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libkrb5-dev libxkbfile-dev
+          sudo apt-get install -y clang-15 pkg-config libkrb5-dev libxkbfile-dev
+          "$CC" --version
+          "$CXX" --version
       - name: Install dependencies
         run: |
           npmrc=$(cat .npmrc)
@@ -350,6 +384,8 @@ jobs:
     steps:
       # `gh release create` derives the repository from the local Git checkout.
       - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
       - uses: actions/download-artifact@v8
         with:
           path: release
@@ -358,7 +394,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${{ github.ref_name }}"
+          tag="$RELEASE_TAG"
           latest_asset=()
           if [[ "$tag" == Release-v* ]]; then
             version="${tag#Release-v}"
