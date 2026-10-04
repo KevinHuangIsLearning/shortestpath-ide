@@ -85,7 +85,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $url = 'https://github.com/redpanda-cpp/mingw-lite/releases/download/15.2.0-r8/mingw64-ucrt-15.2.0-r8.tar.zst'
           $destination = 'resources\oi-defaults\toolchains\mingw64-ucrt-15.2.0-r8.tar.zst'
+          New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
           curl.exe -fL --retry 3 --connect-timeout 30 $url --output $destination
+          if ($LASTEXITCODE -ne 0) {
+            throw "MinGW Lite download failed with exit code $LASTEXITCODE."
+          }
           if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 20MB) {
             throw "The bundled MinGW Lite archive was not downloaded correctly."
           }
@@ -95,7 +99,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $url = 'https://github.com/clangd/clangd/releases/download/22.1.6/clangd-windows-22.1.6.zip'
           $destination = 'resources\oi-defaults\toolchains\clangd-windows-22.1.6.zip'
+          New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
           curl.exe -fL --retry 3 --connect-timeout 30 $url --output $destination
+          if ($LASTEXITCODE -ne 0) {
+            throw "clangd download failed with exit code $LASTEXITCODE."
+          }
           if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 20MB) {
             throw "The bundled clangd archive was not downloaded correctly."
           }
@@ -265,6 +273,10 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libkrb5-dev libxkbfile-dev
       - name: Install dependencies
         run: |
           npmrc=$(cat .npmrc)
