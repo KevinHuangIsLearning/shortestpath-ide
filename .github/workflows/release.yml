@@ -319,7 +319,17 @@ jobs:
           npm ci
           printf "%s" "$npmrc" > .npmrc
           trap - EXIT
-          npm rebuild @vscode/policy-watcher @vscode/spdlog @vscode/sqlite3 native-keymap --build-from-source --foreground-scripts
+          # Dropping `build_from_source` also turns off node-pty's source build: its
+          # install script keeps the prebuilds it ships for every platform unless that
+          # flag is set. Nothing in build/.moduleignore removes them, so the packaged
+          # tree would carry win32/darwin/arm64 `*.node` files, and
+          # `vscode-linux-x64-prepare-deb` feeds every unpacked `*.node` to
+          # dpkg-shlibdeps, which cannot resolve the aarch64 libraries of
+          # prebuilds/linux-arm64/pty.node against the amd64 sysroot. Rebuilding from
+          # source deletes the prebuilds directory and produces
+          # node-pty/build/Release/pty.node, which is what .moduleignore and the
+          # reference dependency list expect.
+          npm rebuild node-pty @vscode/policy-watcher @vscode/spdlog @vscode/sqlite3 native-keymap --build-from-source --foreground-scripts
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Build bundled OI extensions
