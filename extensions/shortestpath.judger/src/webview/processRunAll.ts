@@ -1,8 +1,9 @@
+import { retainExecutable } from '../executableCleanup';
 import { AuxiliaryPrograms } from '../auxiliaryPrograms';
 import { problemLanguage } from '../problemOptions';
 import { Problem } from '../types';
 import { runSingleAndSave } from './processRunSingle';
-import { compileFile } from '../compiler';
+import { compileFile, getBinSaveLocation } from '../compiler';
 import { wasKillRequested } from '../executions';
 import { getLanguage } from '../utils';
 import { getJudgeViewProvider } from '../extension';
@@ -13,6 +14,8 @@ import { getJudgeViewProvider } from '../extension';
  **/
 export default async (problem: Problem) => {
     globalThis.logger.log('Run all started', problem);
+    const executable = retainExecutable(getBinSaveLocation(problem.srcPath, problemLanguage(getLanguage(problem.srcPath), problem)), problem.srcPath);
+    try {
     const didCompile = await compileFile(problem.srcPath, { instrumentation: !problem.interactorPath, language: problemLanguage(getLanguage(problem.srcPath), problem) });
     if (!didCompile) {
         for (const test of problem.tests.filter(test => !test.disabled)) {
@@ -35,4 +38,5 @@ export default async (problem: Problem) => {
     } finally { artifacts.dispose(); }
     globalThis.logger.log('Run all finished');
     return !wasKillRequested();
+    } finally { executable.dispose(); }
 };

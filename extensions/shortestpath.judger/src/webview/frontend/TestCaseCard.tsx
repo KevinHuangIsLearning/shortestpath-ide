@@ -141,7 +141,7 @@ export default function TestCaseCard(props: {
                         </span>
                     )}
                 </span>
-                <span className="toolbar-spacer" />
+                <span className="case-actions">
                 <span className="time">
                     {running ? (
                         <button
@@ -185,6 +185,7 @@ export default function TestCaseCard(props: {
                         <i className="codicon codicon-ellipsis" aria-hidden="true" />
                     </button>
                 )}
+                </span>
             </div>
             <div
                 id={props.detailsId}

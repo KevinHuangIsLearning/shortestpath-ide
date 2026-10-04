@@ -36,7 +36,9 @@ type ShowHintModalMessage = {
 	html: string;
 };
 
-type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHintModalMessage | undefined;
+type HintLikeMessage = { type: 'hintLike' | 'hintLikeError'; hintId: string; target: 'question' | 'answer'; liked?: boolean; count?: number };
+
+type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHintModalMessage | HintLikeMessage | undefined;
 
 (() => {
 	const vscode = acquireVsCodeApi();
@@ -235,6 +237,30 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 
 	/* ---- Modal infrastructure ---- */
 	const modalOverlay = document.getElementById('oj-modal-overlay');
+	const pendingHintLikes = new Map<string, { liked: boolean; count: number }>();
+	const setHintLike = (button: HTMLButtonElement, liked: boolean, count: number): void => {
+		button.dataset.liked = String(liked);
+		button.classList.toggle('liked', liked);
+		const label = (liked ? '取消点赞' : '点赞') + '提示' + (button.dataset.target === 'question' ? '问题' : '答案') + '，当前 ' + count + ' 赞';
+		button.setAttribute('aria-label', label);
+		const countElement = button.querySelector('.like-count');
+		if (countElement) { countElement.textContent = String(count); }
+	};
+	window.addEventListener('message', (event: MessageEvent<HintLikeMessage>) => {
+		const message = event.data;
+		if (message?.type !== 'hintLike' && message?.type !== 'hintLikeError') { return; }
+		const key = `${message.hintId}:${message.target}`;
+		const previous = pendingHintLikes.get(key);
+		pendingHintLikes.delete(key);
+		document.querySelectorAll<HTMLButtonElement>('[data-command="like"]').forEach(button => {
+			if (button.dataset.hintId !== message.hintId || button.dataset.target !== message.target) { return; }
+			if (message.type === 'hintLike' && typeof message.liked === 'boolean' && typeof message.count === 'number') { setHintLike(button, message.liked, message.count); }
+			else if (previous) { setHintLike(button, previous.liked, previous.count); }
+			button.disabled = button.dataset.likeEnabled === 'false';
+			button.removeAttribute('aria-busy');
+		});
+	});
+
 	const pendingConfirms = new Map<string, (result: boolean) => void>();
 	const dismissPendingConfirms = (): void => {
 		for (const [id, resolve] of pendingConfirms) {
@@ -305,7 +331,7 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 	};
 
 	window.addEventListener('message', (event: MessageEvent) => {
-		const message = event.data as ConfirmRequest | ShowHintModalMessage | undefined;
+		const message = event.data as ConfirmRequest | ShowHintModalMessage | HintLikeMessage | undefined;
 		if (message && message.type === 'confirm') {
 			void showConfirmDialog(message.message, message.confirmLabel, message.cancelLabel).then(result => {
 				vscode.postMessage({ command: 'confirmResult', confirmId: message.id, result });
@@ -318,6 +344,13 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			modal.className = 'modal hint-modal';
 			modal.innerHTML = message.html;
 			showModal(modal);
+			modal.querySelectorAll<HTMLButtonElement>('[data-command="like"]').forEach(button => {
+				const pending = pendingHintLikes.get(`${button.dataset.hintId}:${button.dataset.target}`);
+				if (!pending) { return; }
+				setHintLike(button, !pending.liked, Math.max(0, pending.count + (pending.liked ? -1 : 1)));
+				button.disabled = true;
+				button.setAttribute('aria-busy', 'true');
+			});
 			return;
 		}
 	});
@@ -494,11 +527,19 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		} else if (command === 'answer') {
 			vscode.postMessage({ command, hintId: button.dataset.hintId });
 		} else if (command === 'like') {
+			const key = `${button.dataset.hintId}:${button.dataset.target}`;
+			if (pendingHintLikes.has(key)) { return; }
+			const liked = button.dataset.liked === 'true';
+			const count = Number(button.querySelector('.like-count')?.textContent ?? 0);
+			pendingHintLikes.set(key, { liked, count });
+			setHintLike(button, !liked, Math.max(0, count + (liked ? -1 : 1)));
+			button.disabled = true;
+			button.setAttribute('aria-busy', 'true');
 			vscode.postMessage({
 				command,
 				hintId: button.dataset.hintId,
 				target: button.dataset.target,
-				liked: button.dataset.liked !== 'true',
+				liked: !liked,
 			});
 		} else if (command === 'addStressCounterExample') {
 			vscode.postMessage({ command, taskId: button.dataset.taskId });

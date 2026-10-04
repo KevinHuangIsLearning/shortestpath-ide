@@ -7,12 +7,10 @@ import { EditorContributionInstantiation, registerEditorContribution } from '../
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { InlineChatController } from './inlineChatController.js';
 import * as InlineChatActions from './inlineChatActions.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { InlineChatNotebookContribution } from './inlineChatNotebook.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { IInlineChatSessionService } from './inlineChatSessionService.js';
-import { InlineChatEnabler, InlineChatEscapeToolContribution, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
-import { IInlineChatSessionResolver, InlineChatSessionResolver } from './inlineChatSessionResolver.js';
+import { InlineChatEnabler, InlineChatEscapeToolContribution } from './inlineChatSessionServiceImpl.js';
+import './inlineChat.shared.contribution.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 import { InlineChatDefaultModel } from './inlineChatDefaultModel.js';
@@ -27,8 +25,6 @@ registerAction2(InlineChatActions.RephraseInlineChatSessionAction);
 
 // --- browser
 
-registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
-registerSingleton(IInlineChatSessionResolver, InlineChatSessionResolver, InstantiationType.Delayed);
 
 // --- actions ---
 

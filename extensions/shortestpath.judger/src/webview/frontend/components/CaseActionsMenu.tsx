@@ -1,7 +1,9 @@
 /*
  * Part of ShortestPath Judger. Licensed under GPL-3.0-or-later.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { caseMenuLayout, MenuAnchor } from '../caseMenuLayout';
+export type { MenuAnchor } from '../caseMenuLayout';
 import { t } from '../i18n';
 import { useMenuDismiss } from '../useMenuDismiss';
 import { CaseAction, CaseMode } from '../../../types';
@@ -10,7 +12,7 @@ import { CaseAction, CaseMode } from '../../../types';
  * Where a card's "⋯" button sits, in viewport coordinates. The menu is drawn at
  * the panel root rather than inside the card, because the card scrolls.
  */
-export type MenuAnchor = { right: number; top: number; bottom: number };
+
 
 /** What the menu needs to know about the testcase it belongs to. */
 export type CaseMenuState = {
@@ -66,18 +68,20 @@ export default function CaseActionsMenu(props: {
     // of the panel. The height is capped at the room actually left on that side,
     // so a menu opened from the last visible row scrolls instead of running off
     // the edge.
-    const opensUp = props.anchor.top > window.innerHeight / 2;
-    const style: React.CSSProperties = {
-        right: Math.max(8, window.innerWidth - props.anchor.right),
-        maxHeight: opensUp
-            ? props.anchor.top - 12
-            : window.innerHeight - props.anchor.bottom - 12,
-    };
-    if (opensUp) {
-        style.bottom = window.innerHeight - props.anchor.top + 4;
-    } else {
-        style.top = props.anchor.bottom + 4;
-    }
+    const style: React.CSSProperties = caseMenuLayout(props.anchor, window.innerWidth, window.innerHeight);
+    // The saved anchor becomes stale when the viewport or testcase list moves.
+    useEffect(() => {
+        const close = (event: Event) => {
+            if (event.type === 'scroll' && event.target instanceof Element && event.target.closest('.case-menu')) { return; }
+            props.onClose();
+        };
+        window.addEventListener('resize', close);
+        window.addEventListener('scroll', close, true);
+        return () => {
+            window.removeEventListener('resize', close);
+            window.removeEventListener('scroll', close, true);
+        };
+    }, [props.onClose]);
 
     const fileField = field === 'input' ? props.state.inputIsFile : props.state.outputIsFile;
 

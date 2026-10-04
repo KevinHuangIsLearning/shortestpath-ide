@@ -114,3 +114,21 @@ test('unsupported indexed version does not hide a valid flat source', async () =
 		assert.ok((await listProblemRecords(root, fileSystem)).some(record => record.legacy));
 	} finally { await fs.rm(root, { recursive: true, force: true }); }
 });
+
+test('unchanged index and records cause no replacement events; changed paths publish once', async () => {
+    const { writeProblemRecordIfChanged } = await import('../workspaceProblemRecordStorage');
+    let contents = '[{"problemRef":"p","path":"old"}]';
+    const writes: string[] = [];
+    const fileSystem = {
+        readFile: async () => Buffer.from(contents),
+        writeFile: async (file: string, value: Uint8Array) => { writes.push(file); contents = Buffer.from(value).toString(); },
+        rename: async (_: string, file: string) => { writes.push(file); },
+        isMissing: () => false,
+    } as unknown as import('../workspaceProblemRecordStorage').ProblemRecordFileSystem;
+    await writeProblemRecordIfChanged(fileSystem, '/oj-index.json', contents);
+    assert.deepEqual(writes, []);
+    await writeProblemRecordIfChanged(fileSystem, '/oj-index.json', '[{"problemRef":"p","path":"new"}]');
+    assert.equal(writes.length, 2);
+    await writeProblemRecordIfChanged(fileSystem, '/oj-index.json', contents);
+    assert.equal(writes.length, 2);
+});

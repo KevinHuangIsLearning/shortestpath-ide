@@ -20,7 +20,7 @@ import { isHeaderSafeSourcePath } from './sourcePath';
 import { appendPreviousStatementVersion, hasProblemStatementChanged, ProblemStatementSnapshot, sanitizeProblemStatementVersions } from './problemStatementVersion';
 import { formatElapsedTimer } from './timerDisplay';
 import { assertUniqueWorkspaceProblemRecordFileNames, getWorkspaceProblemRecordFileName } from './workspaceProblemCache';
-import { getOwnedProblemRecordPath, listProblemRecords, ProblemRecordFileSystem, writeProblemRecordAtomically, snapshotLegacyProblemRecords, cleanLegacyProblemRecords, LegacyRecordSnapshot } from './workspaceProblemRecordStorage';
+import { getOwnedProblemRecordPath, listProblemRecords, ProblemRecordFileSystem, writeProblemRecordIfChanged, snapshotLegacyProblemRecords, cleanLegacyProblemRecords, LegacyRecordSnapshot } from './workspaceProblemRecordStorage';
 import { migrateLegacyWorkspaceCache } from './workspaceProblemCacheMigration';
 import {
 	applyEditorialLikeResult,
@@ -808,22 +808,29 @@ class ShortestPathOjProblemPanel {
 					}
 					break;
 				case 'like':
-					if (typeof value.hintId !== 'string' || (value.target !== 'question' && value.target !== 'answer') || typeof value.liked !== 'boolean') {
-						return;
-					}
+					if (typeof value.hintId !== 'string' || (value.target !== 'question' && value.target !== 'answer') || typeof value.liked !== 'boolean') { return; }
 					{
 						const operationKey = `like:${value.hintId}:${value.target}`;
-						if (!this.beginOperation(state, operationKey)) {
-							return;
-						}
+						if (state.operationsInFlight.has(operationKey)) { return; }
+						state.operationsInFlight.add(operationKey);
 						try {
-							state.problem = applyLikeResult(state.problem, await this.actions.like(state.problem, value.hintId, value.target, value.liked));
-						} finally {
-							this.endOperation(state, operationKey);
-						}
-						this.refreshHintModal(value.hintId);
+							const result = await this.actions.like(state.problem, value.hintId, value.target, value.liked);
+							state.problem = applyLikeResult(state.problem, result);
+							if (state.editorial) {
+								state.editorial = applyEditorialLikeResult(state.editorial, result);
+								state.cachedEditorial = state.editorial;
+								void this.actions.saveEditorial(state.problem, state.editorial).catch(error => console.error('Failed to save ShortestPath OJ hint likes.', error));
+								this.refreshEditorialLike(value.hintId, value.target);
+							}
+							if (this.state === state) { void this.panel?.webview.postMessage({ type: 'hintLike', hintId: value.hintId, target: value.target, liked: result.liked, count: value.target === 'question' ? result.questionLikeCount : result.answerLikeCount }); }
+						} catch (error) {
+							if (this.state === state) {
+								void this.panel?.webview.postMessage({ type: 'hintLikeError', hintId: value.hintId, target: value.target });
+								this.showOperationToast(error instanceof Error ? localize(error.message) : String(error));
+							}
+						} finally { state.operationsInFlight.delete(operationKey); }
 					}
-					break;
+					return;
 				case 'editorial':
 					{
 						if (state.cachedEditorial?.state === 'available') {
@@ -1612,13 +1619,13 @@ async function writeWorkspaceProblemCache(cache: WorkspaceProblemCache): Promise
 		const uri = await getProblemOwnedRecordUri(problemRef, record.sourcePath, root);
 		await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
 		const contents = `${JSON.stringify(record, undefined, '\t')}\n`;
-		await writeProblemRecordAtomically(fileSystem, uri.fsPath, contents);
+		await writeProblemRecordIfChanged(fileSystem, uri.fsPath, contents);
 		return { problemRef, uri, contents };
 	}));
 	// Relative locations survive moving a workspace, including custom Judger storage roots.
 	const index = records.map(({ problemRef, uri }) => ({ problemRef, path: path.relative(root.fsPath, uri.fsPath) }));
 	assertWorkspaceCacheRoot(root);
-	await writeProblemRecordAtomically(fileSystem, path.join(root.fsPath, 'oj-index.json'), JSON.stringify(index));
+	await writeProblemRecordIfChanged(fileSystem, path.join(root.fsPath, 'oj-index.json'), JSON.stringify(index));
 	await cleanLegacyProblemRecords(root.fsPath, fileSystem, sources, index, new Map(records.map(record => [record.problemRef, record.contents])));
 	workspaceCachesNeedingRewrite.delete(cache);
 }
@@ -2156,7 +2163,7 @@ const likeSvgFilled = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height
 
 function renderLikeButton(hintId: string, target: 'question' | 'answer', likes: { liked: boolean; count: number }, enabled: boolean, loading = false): string {
 	const label = `${likes.liked ? '取消点赞' : '点赞'}提示${target === 'question' ? '问题' : '答案'}，当前 ${likes.count} 赞`;
-	return `<button type="button" class="like-btn${likes.liked ? ' liked' : ''}${loading ? ' loading' : ''}" data-command="like" data-hint-id="${escapeAttribute(hintId)}" data-target="${target}" data-liked="${likes.liked}" aria-label="${escapeAttribute(label)}"${enabled && !loading ? '' : ' disabled'}>${loading ? '<span aria-hidden="true">…</span>' : `<span class="like-icon like-icon-outline" aria-hidden="true">${likeSvgOutlined}</span><span class="like-icon like-icon-filled" aria-hidden="true">${likeSvgFilled}</span><span class="like-count" aria-hidden="true">${likes.count}</span>`}</button>`;
+	return `<button type="button" class="like-btn${likes.liked ? ' liked' : ''}" data-command="like" data-hint-id="${escapeAttribute(hintId)}" data-target="${target}" data-liked="${likes.liked}" data-like-enabled="${enabled}" aria-label="${escapeAttribute(label)}"${loading ? ' aria-busy="true"' : ''}${enabled && !loading ? '' : ' disabled'}><span class="like-icon like-icon-outline" aria-hidden="true">${likeSvgOutlined}</span><span class="like-icon like-icon-filled" aria-hidden="true">${likeSvgFilled}</span><span class="like-count" aria-hidden="true">${likes.count}</span></button>`;
 }
 
 function renderHintModal(state: ProblemPanelState, hint: ProblemHint): string {

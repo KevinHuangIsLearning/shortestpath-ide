@@ -1,3 +1,4 @@
+import { retainExecutable } from '../executableCleanup';
 import { sameTestcase } from '../testcasePresentation';
 import { isShortestPathProblem } from '../problemTimer';
 import { webviewBootstrap } from '../webviewBootstrap';
@@ -48,6 +49,7 @@ import {
 } from '../preferences';
 import {
     compileFile,
+    getBinSaveLocation,
     runningCompilers,
     setOnlineJudgeEnv,
     onlineJudgeEnv,
@@ -632,8 +634,9 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
         this.ordinaryRunRunning = true;
         clearKillRequested();
         const problem = getProblem(srcPath);
+        const executable = retainExecutable(getBinSaveLocation(srcPath, problem ? problemLanguage(getLanguage(srcPath), problem) : getLanguage(srcPath)), srcPath);
         try { await compileFile(srcPath, { instrumentation: !problem?.interactorPath, language: problem ? problemLanguage(getLanguage(srcPath), problem) : getLanguage(srcPath) }); }
-        finally { this.ordinaryRunRunning = false; this.extensionToJudgeViewMessage({ command: 'not-running' }); }
+        finally { executable.dispose(); this.ordinaryRunRunning = false; this.extensionToJudgeViewMessage({ command: 'not-running' }); }
     }
 
     public async runAll(problem: Problem) {

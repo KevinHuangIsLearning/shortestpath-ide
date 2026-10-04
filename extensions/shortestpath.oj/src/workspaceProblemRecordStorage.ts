@@ -118,3 +118,11 @@ export async function cleanLegacyProblemRecords(
 		} catch (error) { if (!fileSystem.isMissing(error)) { console.warn('Unable to clean migrated OJ record.', error); } }
 	}
 }
+
+/** Avoid filesystem replacement events for records and indexes whose contents did not change. */
+export async function writeProblemRecordIfChanged(fileSystem: ProblemRecordFileSystem, file: string, contents: string): Promise<void> {
+	try {
+		if (new TextDecoder().decode(await fileSystem.readFile(file)) === contents) { return; }
+	} catch (error) { if (!fileSystem.isMissing(error)) { throw error; } }
+	await writeProblemRecordAtomically(fileSystem, file, contents);
+}

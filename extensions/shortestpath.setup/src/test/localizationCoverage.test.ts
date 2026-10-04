@@ -46,6 +46,8 @@ test('covers the rendered English setup surfaces', () => {
 		'无法打开支持页面：{0}',
 		'缩进',
 		'Error Lens 行内错误提示',
+		'首页',
+		'扩展',
 	]) {
 		assert.match(localization, new RegExp(`['"]${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]\\s*:`));
 	}

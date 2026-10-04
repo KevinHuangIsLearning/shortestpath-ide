@@ -755,8 +755,8 @@ function getHtml(state: SimpleSettingsState, showBuyMeACoffee: boolean): string 
 	// Built as plain concatenation rather than a nested template literal so the
 	// page's own template stays free of escaped backticks.
 	const buyMeACoffeeHtml = showBuyMeACoffee
-		? '<section class="card buy-me-a-coffee" id="buyMeACoffee">'
-		+ '<div class="row"><div><label>请我喝杯咖啡</label><div class="hint">如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。</div></div>'
+		? '<section class="card buy-me-a-coffee" id="buyMeACoffee" data-category="about">'
+		+ '<div class="row" data-home><div><label>请我喝杯咖啡</label><div class="hint">如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。</div></div>'
 		+ '<div class="buy-me-a-coffee-actions"><button id="openBuyMeACoffee" type="button">打开支持页面</button>'
 		+ '<button id="dismissBuyMeACoffee" class="secondary" type="button" title="7 天内不再显示">关闭 7 天</button></div></div>'
 		+ '</section>'
@@ -770,10 +770,10 @@ function getHtml(state: SimpleSettingsState, showBuyMeACoffee: boolean): string 
 <title>ShortestPath IDE 设置</title>
 <style>
 body { color: var(--vscode-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); margin: 0; height: 100vh; overflow: hidden; }
-main { box-sizing: border-box; display: grid; grid-template-columns: 190px minmax(0, 760px); gap: 34px; height: 100vh; max-width: 1010px; margin: 0 auto; padding: 32px 28px; }
-.sidebar { align-self: start; padding-top: 8px; }.sidebar-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; }.settings-search { margin-bottom: 12px; }.categories { display: grid; gap: 3px; }.category { width: 100%; border: 0; border-radius: 4px; padding: 7px 9px; color: var(--vscode-foreground); background: transparent; text-align: left; font: inherit; cursor: pointer; }.category:hover, .category.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); }.settings-content { min-width: 0; overflow-y: auto; padding-right: 4px; }
+main { box-sizing: border-box; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 0; height: 100vh; max-width: 1120px; margin: 0 auto; }
+.sidebar { padding: 24px 16px; overflow-y: auto; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-editorWidget-border); }.sidebar-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; }.settings-search { margin-bottom: 12px; }.categories { display: grid; gap: 3px; }.category { width: 100%; border: 0; border-radius: 7px; padding: 10px 12px; color: var(--vscode-foreground); background: transparent; text-align: left; font: inherit; cursor: pointer; }.category:hover, .category.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); }.settings-content { min-width: 0; overflow-y: auto; padding: 32px; }
 h1 { font-size: 28px; margin: 0 0 8px; } p { color: var(--vscode-descriptionForeground); margin: 0 0 28px; }
-.card { border: 1px solid var(--vscode-editorWidget-border); border-radius: 8px; padding: 4px 20px; margin: 14px 0; }
+.card { border: 1px solid var(--vscode-editorWidget-border); background: var(--vscode-editorWidget-background); border-radius: 10px; padding: 4px 20px; margin: 14px 0; }
 .row { display: grid; grid-template-columns: 190px 1fr; gap: 18px; align-items: center; padding: 15px 0; border-bottom: 1px solid var(--vscode-editorWidget-border); }
 .row:last-child { border: 0; } label { font-weight: 600; } .hint { color: var(--vscode-descriptionForeground); font-size: 12px; margin-top: 4px; }
 input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); padding: 7px 9px; border-radius: 3px; font: inherit; }
@@ -783,55 +783,67 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 .row.disabled { opacity: .6; } .row.disabled input, .row.disabled select { cursor: not-allowed; } .update-actions { display: grid; gap: 8px; } .update-actions button { width: 100%; } .inline-status { display: block; color: var(--vscode-descriptionForeground); font-size: 12px; }
 .fallback-list { display: grid; gap: 7px; }.fallback-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; }.fallback-row .icon { min-width: 28px; padding: 5px; }.add-fallback { margin-top: 8px; }
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); } button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } #saved { color: var(--vscode-testing-iconPassed); }
-section.card[hidden], .row[hidden] { display: none; } .no-results { color: var(--vscode-descriptionForeground); margin: 28px 0; } @media (max-width: 720px) { body { height: auto; overflow: auto; } main { display: block; height: auto; padding: 24px 18px 48px; }.sidebar { position: static; margin-bottom: 22px; }.settings-content { overflow: visible; padding-right: 0; }.categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }.row { grid-template-columns: 1fr; gap: 8px; }.font-preview { margin-left: 0; } }
+section.card[hidden], .row[hidden], .font-preview[hidden] { display: none; } .no-results { color: var(--vscode-descriptionForeground); margin: 28px 0; } @media (max-width: 720px) { body { height: auto; overflow: auto; } main { display: block; height: auto; padding: 24px 18px 48px; }.sidebar { position: static; margin-bottom: 22px; }.settings-content { overflow: visible; padding-right: 0; }.categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }.sidebar { border-right: 0; border-bottom: 1px solid var(--vscode-editorWidget-border); padding: 16px; }.settings-content { padding: 24px 0 0; }.row { grid-template-columns: 1fr; gap: 8px; }.font-preview { margin-left: 0; } }
 .buy-me-a-coffee { border-color: var(--vscode-focusBorder); background: var(--vscode-editorWidget-background); }.buy-me-a-coffee label { color: var(--vscode-textLink-foreground); font-size: 15px; }.buy-me-a-coffee-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.buy-me-a-coffee-actions button { white-space: nowrap; }
 .documentation { border-color: var(--vscode-focusBorder); background: var(--vscode-editorWidget-background); }.documentation label { color: var(--vscode-textLink-foreground); font-size: 15px; }
 </style>
 </head>
 <body><main>
-<aside class="sidebar"><div class="sidebar-title">设置</div><input id="settingsSearch" class="settings-search" type="search" placeholder="搜索设置"><nav class="categories" aria-label="设置分类"><button class="category active" data-category="all">全部</button><button class="category" data-category="editor">编辑器</button><button class="category" data-category="cpp">C++ 与 clangd</button><button class="category" data-category="appearance">外观与保存</button><button class="category" data-category="tools">工具</button></nav></aside>
+<aside class="sidebar"><div class="sidebar-title">设置</div><input id="settingsSearch" class="settings-search" type="search" placeholder="搜索设置" aria-label="搜索设置"><nav class="categories" aria-label="设置分类">
+<button class="category active" data-category="home" aria-pressed="true">首页</button>
+<button class="category" data-category="appearance" aria-pressed="false">外观</button>
+<button class="category" data-category="editor" aria-pressed="false">编辑器</button>
+<button class="category" data-category="cpp" aria-pressed="false">编译与语言</button>
+<button class="category" data-category="judger" aria-pressed="false">评测与提交</button>
+<button class="category" data-category="cleanup" aria-pressed="false">文件清理</button>
+<button class="category" data-category="extensions" aria-pressed="false">扩展</button>
+<button class="category" data-category="tools" aria-pressed="false">工具与诊断</button>
+<button class="category" data-category="about" aria-pressed="false">关于与帮助</button>
+</nav></aside>
 <div class="settings-content">
-<h1>ShortestPath IDE 设置</h1><p>只保留竞赛编程常用选项。更改会自动保存；其他设置可在高级设置中调整。</p>
-<section class="card documentation"><div class="row"><div><label>使用文档</label><div class="hint">在外部浏览器中查看 ShortestPath IDE 的功能说明与使用教程。</div></div><button id="openDocumentation">查看文档</button></div></section>
+<h1 id="categoryTitle">首页</h1><p>只保留竞赛编程常用选项。更改会自动保存；其他设置可在高级设置中调整。</p>
+<section class="card documentation" data-category="about"><div class="row" data-home><div><label>使用文档</label><div class="hint">在外部浏览器中查看 ShortestPath IDE 的功能说明与使用教程。</div></div><button id="openDocumentation">查看文档</button></div></section>
 ${buyMeACoffeeHtml}
 <section class="card" data-category="editor">
-<div class="row"><div><label for="fontFamily">代码字体</label><div class="hint">仅可从检测到的系统等宽字体中选择，不支持手动输入。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" disabled aria-describedby="fontLoadStatus"><option>正在读取系统字体…</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div></div></div>
+<div class="row" data-home><div><label for="fontFamily">代码字体</label><div class="hint">仅可从检测到的系统等宽字体中选择，不支持手动输入。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" disabled aria-describedby="fontLoadStatus"><option>正在读取系统字体…</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div></div></div>
 <div id="fontPreview" class="font-preview">#include &lt;bits/stdc++.h&gt;
 int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
 <div class="row"><div><label>回退字体</label><div class="hint">字形缺失时按顺序回退；可选择非等宽中文或 Emoji 字体。</div></div><div><div id="fallbackFonts" class="fallback-list"></div><button id="addFallback" class="secondary add-fallback" type="button">添加回退字体</button></div></div>
 <div class="row"><div><label for="fontLigatures">启用字体连字</label><div id="fontLigaturesStatus" class="hint" role="status"></div></div><label class="toggle"><input id="fontLigatures" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="fontSize">字体大小</label></div><input id="fontSize" type="number" min="1" step="1"></div>
+<div class="row" data-home><div><label for="fontSize">字体大小</label></div><input id="fontSize" type="number" min="1" step="1"></div>
 <div class="row"><div><label for="indentSize">缩进</label><div class="hint">缩进宽度与缩进字符；同时同步到当前工作目录的 .clang-format，避免自动格式化把代码改成 clang-format 默认的 2 空格。</div></div><div class="indent-controls"><input id="indentSize" type="number" min="1" max="8" step="1"><select id="indentStyle"><option value="spaces">空格</option><option value="tabs">Tab</option></select></div></div>
 <div class="row"><div><label for="newFileDefaultLanguage">新建文件默认语言</label><div class="hint">从 New Tab 新建文件时默认使用的语言。</div></div><select id="newFileDefaultLanguage"><option value="cpp">C++</option><option value="c">C</option><option value="python">Python</option><option value="java">Java</option><option value="rust">Rust</option><option value="javascript">JavaScript</option><option value="typescript">TypeScript</option></select></div>
 </section>
 <section class="card" data-category="cpp">
-<div class="row"><div><label for="autoFormat">启用自动格式化</label><div class="hint">同时控制保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="autoFormat" type="checkbox"><span>启用</span></label></div>
+<div class="row" data-home><div><label for="autoFormat">启用自动格式化</label><div class="hint">同时控制保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="autoFormat" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label>自动格式化规则</label><div class="hint">配置当前工作目录的 .clang-format。</div></div><button id="autoFormatSettings" class="secondary">配置格式化规则</button></div>
 </section>
 <section class="card" data-category="cpp">
-<div class="row"><div><label for="cppStandard">C++ 版本</label></div><select id="cppStandard"><option>c++11</option><option>c++14</option><option>c++17</option><option>c++20</option><option>c++23</option></select></div>
-<div class="row"><div><label for="shortestPathCppSubmissionLanguage">ShortestPath OJ 提交语言</label><div class="hint">“每次询问”会在 C++ 提交前选择 C++14 或 C++20。</div></div><select id="shortestPathCppSubmissionLanguage"><option value="ask">每次询问</option><option value="cpp14">C++14</option><option value="cpp20">C++20</option></select></div>
-<div class="row"><div><label for="compilerFlags">编译选项</label><div class="hint">同时应用到 Judger 和 C/C++ Compile Run。</div></div><input id="compilerFlags" type="text"></div>
+<div class="row" data-home><div><label for="cppStandard">C++ 版本</label></div><select id="cppStandard"><option>c++11</option><option>c++14</option><option>c++17</option><option>c++20</option><option>c++23</option></select></div>
+<div class="row" data-category="judger"><div><label for="shortestPathCppSubmissionLanguage">ShortestPath OJ 提交语言</label><div class="hint">“每次询问”会在 C++ 提交前选择 C++14 或 C++20。</div></div><select id="shortestPathCppSubmissionLanguage"><option value="ask">每次询问</option><option value="cpp14">C++14</option><option value="cpp20">C++20</option></select></div>
+<div class="row" data-home><div><label for="compilerFlags">编译选项</label><div class="hint">同时应用到 Judger 和 C/C++ Compile Run。</div></div><input id="compilerFlags" type="text"></div>
 <div class="row"><div><label for="clangdVariableTypeHints">clangd 变量类型提示</label><div class="hint">在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。</div></div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox"><span>启用</span></label></div>
+</section>
+<section class="card" data-category="cleanup">
 <div class="row"><div><label for="executableCleanupEnabled">自动清理生成文件</label><div class="hint">同时作用于 Judger 和 C/C++ Compile Run。</div></div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="executableCleanupDelaySeconds">生成文件保留时间</label><div class="hint">程序运行结束后自动删除 exe。单位：秒；0 表示立即删除。</div></div><input id="executableCleanupDelaySeconds" type="number" min="0" max="86400" step="1"></div>
 </section>
 <section class="card" data-category="appearance">
-<div class="row"><div><label for="colorTheme">主题</label></div><select id="colorTheme"></select></div>
+<div class="row" data-home><div><label for="colorTheme">主题</label></div><select id="colorTheme"></select></div>
 <div class="row"><div><label>显示语言</label><div class="hint">当前：<span id="displayLanguage"></span>。选择后将按 VS Code 的正常流程确认并重启。</div></div><button id="configureLocale" class="secondary">切换显示语言</button></div>
 <div class="row"><div><label for="autoDetectColorScheme">同步系统主题</label></div><label class="toggle"><input id="autoDetectColorScheme" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="modernUIEnabled">现代界面</label><div class="hint">启用 Workbench › Experimental: Modern UI，使用浮动面板和更新后的工作台样式。</div></div><label class="toggle"><input id="modernUIEnabled" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="autoSave">自动保存</label></div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
+<div class="row" data-category="editor" data-home><div><label for="autoSave">自动保存</label></div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
 </section>
-<section class="card" data-category="tools"><div class="row"><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox"><span>启用</span></label></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>开始使用</label><div class="hint">分步引导配置字体、主题、语言版本等偏好。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>Judger 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 Judger 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 Judger</button></div><div class="row"><div><label>Judger 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 Judger 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label for="defaultSubmitMethod">Judger 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label for="errorLensEnabled">Error Lens 行内错误提示</label><div class="hint">在出错那一行的行尾直接显示诊断文字；关闭后只保留编辑器自己的波浪线，写代码时依然实时报错。</div></div><label class="toggle"><input id="errorLensEnabled" type="checkbox"><span>启用</span></label></div></section>
+<section class="card" data-category="extensions"><div class="row" data-home><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox"><span>启用</span></label></div></section>
+<section class="card" data-category="about"><div class="row"><div><label>开始使用</label><div class="hint">分步引导配置字体、主题、语言版本等偏好。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div></section>
+<section class="card" data-category="editor"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
+<section class="card" data-category="judger"><div class="row"><div><label>Judger 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 Judger 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 Judger</button></div><div class="row"><div><label>Judger 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 Judger 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div></section>
+<section class="card" data-category="judger"><div class="row" data-home><div><label for="defaultSubmitMethod">Judger 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div></section>
+<section class="card" data-category="about"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div></section>
+<section class="card" data-category="editor"><div class="row"><div><label for="errorLensEnabled">Error Lens 行内错误提示</label><div class="hint">在出错那一行的行尾直接显示诊断文字；关闭后只保留编辑器自己的波浪线，写代码时依然实时报错。</div></div><label class="toggle"><input id="errorLensEnabled" type="checkbox"><span>启用</span></label></div></section>
 <section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 Judger、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label for="antiFraudReminder">防诈骗提醒</label><div class="hint">打开题目时显示防诈骗提醒。</div></div><label class="toggle"><input id="antiFraudReminder" type="checkbox"><span>启用</span></label></div></section>
+<section class="card" data-category="judger"><div class="row"><div><label for="antiFraudReminder">防诈骗提醒</label><div class="hint">打开题目时显示防诈骗提醒。</div></div><label class="toggle"><input id="antiFraudReminder" type="checkbox"><span>启用</span></label></div></section>
 <p id="noResults" class="no-results" hidden>没有匹配的设置。</p>
 <div class="actions"><button id="advanced" class="secondary">高级设置</button><span id="saved" aria-live="polite"></span></div>
 </div>
@@ -846,26 +858,38 @@ let fontLoadComplete = false;
 let fontDetectionInProgress = false;
 let fontDetectionGeneration = 0;
 let selectedFonts = [];
-let selectedCategory = 'all';
+const savedNavigation = vscode.getState() || {};
+let selectedCategory = savedNavigation.category || 'home';
+const categoryButtons = Array.from(document.querySelectorAll('.category'));
+if (!categoryButtons.some(button => button.dataset.category === selectedCategory)) selectedCategory = 'home';
 const normalizeFont = font => font.trim().replace(/^['"]|['"]$/g, '');
 const serializeFontStack = fonts => fonts.map(font => font === 'monospace' ? font : /\s/.test(font) ? '"' + font + '"' : font).join(', ');
 function updateSettingsFilter() {
   const search = byId('settingsSearch').value.trim().toLocaleLowerCase();
   let visibleRows = 0;
+  categoryButtons.forEach(button => {
+    const active = !search && button.dataset.category === selectedCategory;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  byId('categoryTitle').textContent = search ? '搜索结果' : categoryButtons.find(button => button.dataset.category === selectedCategory).textContent;
   document.querySelectorAll('section.card[data-category]').forEach(card => {
-    const categoryMatches = selectedCategory === 'all' || card.dataset.category === selectedCategory;
     let cardHasVisibleRow = false;
     card.querySelectorAll('.row').forEach(row => {
-      const searchMatches = !search || row.textContent.toLocaleLowerCase().includes(search);
-      const visible = categoryMatches && searchMatches;
+      const category = row.dataset.category || card.dataset.category;
+      const visible = search ? row.textContent.toLocaleLowerCase().includes(search) : selectedCategory === 'home' ? row.hasAttribute('data-home') : category === selectedCategory;
       row.hidden = !visible;
       cardHasVisibleRow ||= visible;
       if (visible) visibleRows++;
     });
     card.hidden = !cardHasVisibleRow;
+    const preview = card.querySelector('.font-preview');
+    if (preview) preview.hidden = card.querySelector('label[for="fontFamily"]').closest('.row').hidden;
   });
   byId('noResults').hidden = visibleRows > 0;
+  vscode.setState({ category: selectedCategory, search: byId('settingsSearch').value });
 }
+
 function setPreview() { byId('fontPreview').style.fontFamily = serializeFontStack(selectedFonts); byId('fontPreview').style.fontVariantLigatures = byId('fontLigatures').checked ? 'normal' : 'none'; }
 function addOptions(select, fonts, label) { const group = document.createElement('optgroup'); group.label = label; fonts.forEach(font => { const option = document.createElement('option'); option.value = font; option.textContent = font; option.style.fontFamily = serializeFontStack([font]); group.append(option); }); select.append(group); }
 function isMonospaceFont(font, context) { context.font = '16px ' + serializeFontStack([font]); return Math.abs(context.measureText('iiiiiiiiii').width - context.measureText('WWWWWWWWWW').width) < 0.01; }
@@ -1045,7 +1069,8 @@ byId('fontFamily').addEventListener('change', async () => { selectedFonts[0] = b
 byId('fontLigatures').addEventListener('change', () => setPreview());
 byId('addFallback').addEventListener('click', () => { if (systemFonts.length) { selectedFonts.push(systemFonts[0]); renderFonts(); setPreview(); save(0); } });
 byId('cppStandard').addEventListener('change', () => { const flags = byId('compilerFlags'); const standard = byId('cppStandard').value; const withoutStandard = flags.value.replace(/(^|\\s)-std=(?:gnu\\+\\+|c\\+\\+)\\d+\\b/g, ' ').replace(/\\s+/g, ' ').trim(); flags.value = '-std=' + standard + (withoutStandard ? ' ' + withoutStandard : ''); save(0); });
-document.querySelectorAll('.category').forEach(button => button.addEventListener('click', () => { selectedCategory = button.dataset.category; document.querySelectorAll('.category').forEach(item => item.classList.toggle('active', item === button)); updateSettingsFilter(); }));
+categoryButtons.forEach(button => button.addEventListener('click', () => { selectedCategory = button.dataset.category; byId('settingsSearch').value = ''; updateSettingsFilter(); byId('categoryTitle').scrollIntoView({ block: 'start' }); }));
+byId('settingsSearch').value = savedNavigation.search || '';
 byId('settingsSearch').addEventListener('input', () => {
   const search = byId('settingsSearch').value.trim().toLocaleLowerCase();
   if (search === 'relax') {
@@ -1099,7 +1124,7 @@ main { max-width: 800px; margin: 0 auto; padding: 40px 28px 64px 250px; } .setti
 .card { border: 1px solid var(--vscode-editorWidget-border); border-radius: 8px; padding: 4px 20px; margin: 14px 0; } h2 { font-size: 15px; margin: 18px 0 2px; color: var(--vscode-descriptionForeground); }
 .row { display: grid; grid-template-columns: 290px 1fr; gap: 18px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--vscode-editorWidget-border); } .row:last-child { border: 0; } label { font-weight: 600; } .hint { color: var(--vscode-descriptionForeground); font-size: 12px; margin-top: 4px; }
 input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 3px; padding: 7px 9px; font: inherit; } input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { display: flex; align-items: center; gap: 10px; }
-button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } #saved { color: var(--vscode-testing-iconPassed); } code { font-family: var(--vscode-editor-font-family); } section.card[hidden], .row[hidden] { display: none; } @media(max-width:900px) { main { padding-left: 28px; }.settings-sidebar { position: static; width: auto; margin: 20px 28px 0; }.settings-sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } #saved { color: var(--vscode-testing-iconPassed); } code { font-family: var(--vscode-editor-font-family); } section.card[hidden], .row[hidden], .font-preview[hidden] { display: none; } @media(max-width:900px) { main { padding-left: 28px; }.settings-sidebar { position: static; width: auto; margin: 20px 28px 0; }.settings-sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style></head><body><main>
 <h1>自动格式化</h1><p>配置会实时保存到当前工作目录的 <code>.clang-format</code>，并可选择同时启用保存和粘贴时格式化。</p>
 <section class="card"><div class="row"><div><label for="enabled">启用自动格式化</label><div class="hint">同时开启保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="enabled" type="checkbox"><span>启用</span></label></div></section>

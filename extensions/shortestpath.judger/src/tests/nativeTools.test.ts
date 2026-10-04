@@ -34,7 +34,7 @@ describe('independent native tools', () => {
 			path.join(directory, file),
 		);
 		fs.writeFileSync(files[0], '41');
-		execFileSync(runner, [binary, ...files, '1000', '0', '16777216'], {
+		execFileSync(runner, [binary, ...files, '1000', '0', '16777216', '10000'], {
 			timeout: 3000,
 		});
 		const success = JSON.parse(fs.readFileSync(files[3], 'utf8'));
@@ -46,7 +46,7 @@ describe('independent native tools', () => {
 			success.memoryBytes > 0,
 		]).toEqual(['42', 0, false, true, true]);
 		fs.writeFileSync(files[0], '-1');
-		execFileSync(runner, [binary, ...files, '30', '0', '16777216'], { timeout: 3000 });
+		execFileSync(runner, [binary, ...files, '30', '0', '16777216', '5000'], { timeout: 3000 });
 		expect(JSON.parse(fs.readFileSync(files[3], 'utf8')).timeOut).toBe(
 			true,
 		);
@@ -59,11 +59,11 @@ describe('independent native tools', () => {
 		execFileSync('c++', [source, '-o', binary]);
 		const files = ['input', 'output', 'error', 'metrics'].map(file => path.join(directory, file));
 		fs.writeFileSync(files[0], '');
-		execFileSync(runner, [binary, ...files, '3000', '0', String(16 * 1024 * 1024)], { timeout: 5000 });
+		execFileSync(runner, [binary, ...files, '3000', '0', String(16 * 1024 * 1024), '30000'], { timeout: 5000 });
 		const success = JSON.parse(fs.readFileSync(files[3], 'utf8'));
 		expect([fs.statSync(files[1]).size, success.code, success.signal]).toEqual([9 * 1024 * 1024, 0, 0]);
 		fs.unlinkSync(files[1]); fs.unlinkSync(files[2]);
-		execFileSync(runner, [binary, ...files, '3000', '0', '1024'], { timeout: 5000 });
+		execFileSync(runner, [binary, ...files, '3000', '0', '1024', '30000'], { timeout: 5000 });
 		expect(fs.statSync(files[1]).size).toBeGreaterThan(1024);
 		expect(fs.statSync(files[1]).size).toBeLessThanOrEqual(1025);
 	}, 20000);

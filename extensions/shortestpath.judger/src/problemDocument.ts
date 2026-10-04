@@ -7,6 +7,8 @@ import { Problem } from './types';
 import { invalidProblemPatchFields } from './problemValidation';
 import localize from './i18n';
 
+export const testcaseDocumentUri = (srcPath: string, id: number, field: 'input' | 'output') => vscode.Uri.from({ scheme: 'judger-data', path: `/testcases/${id}.${field === 'input' ? 'in' : 'out'}`, query: encodeURIComponent(srcPath) });
+
 export const problemDocumentUri = (srcPath: string) => vscode.Uri.from({ scheme: 'judger-data', path: '/problem.json', query: encodeURIComponent(srcPath) });
 
 export function validateProblemDocument(text: string, previous: Problem): Problem {
@@ -54,14 +56,34 @@ export function registerProblemDocuments(context: vscode.ExtensionContext, chang
         if (!problem) { throw vscode.FileSystemError.FileNotFound(uri); }
         return problem;
     };
+    const testcase = (uri: vscode.Uri, problem: Problem) => {
+        const match = /^\/testcases\/(\d+)\.(in|out)$/.exec(uri.path);
+        const field = match?.[2] === 'in' ? 'input' : 'output';
+        const test = match && problem.tests.find(test => test.id === Number(match[1]));
+        if (!test) { throw vscode.FileSystemError.FileNotFound(uri); }
+        if (test[field === 'input' ? 'inputPath' : 'outputPath']) { throw vscode.FileSystemError.NoPermissions(); }
+        return { test, field } as const;
+    };
+    const contents = (uri: vscode.Uri) => {
+        const problem = read(uri);
+        if (uri.path === '/problem.json') { return JSON.stringify(problem, null, 2); }
+        const { test, field } = testcase(uri, problem);
+        return test[field];
+    };
     const forbidden = () => { throw vscode.FileSystemError.NoPermissions(); };
     context.subscriptions.push(vscode.workspace.registerFileSystemProvider('judger-data', {
         onDidChangeFile: emitter.event,
         watch: () => new vscode.Disposable(() => {}),
-        stat: uri => ({ type: vscode.FileType.File, size: Buffer.byteLength(JSON.stringify(read(uri))), ctime: 0, mtime: Date.now() }),
-        readFile: uri => Buffer.from(JSON.stringify(read(uri), null, 2)),
+        stat: uri => ({ type: vscode.FileType.File, size: Buffer.byteLength(contents(uri)), ctime: 0, mtime: Date.now() }),
+        readFile: uri => Buffer.from(contents(uri)),
         writeFile: (uri, content) => {
-            const problem = validateProblemDocument(Buffer.from(content).toString('utf8'), read(uri));
+            let problem = read(uri);
+            const text = Buffer.from(content).toString('utf8');
+            if (uri.path === '/problem.json') { problem = validateProblemDocument(text, problem); }
+            else {
+                const { test, field } = testcase(uri, problem);
+                problem = { ...problem, tests: problem.tests.map(item => item.id === test.id ? { ...item, [field]: text } : item) };
+            }
             saveProblem(problem.srcPath, problem);
             const normalized = getProblem(problem.srcPath)!;
             changed(normalized);

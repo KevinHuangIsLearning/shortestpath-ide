@@ -9,7 +9,8 @@ import * as vscode from 'vscode';
 import { executeSubmissionScript } from '../browserSubmission';
 
 type Message = { id: number; method: string; sessionId?: string; params: Record<string, unknown> };
-function mockBrowser(failScript = false, navigateDuringStatus = false) {
+function mockBrowser(failScript = false, navigateDuringStatus = false, delayedRun = false) {
+	const began = Date.now();
 	const listeners = new Set<(message: unknown) => void>();
 	const closeListeners = new Set<() => void>();
 	const sent: Message[] = [];
@@ -31,7 +32,7 @@ function mockBrowser(failScript = false, navigateDuringStatus = false) {
             }
 			if (message.method === 'Target.getTargets') { result = { targetInfos: [{ type: 'page', targetId: 'page' }] }; }
 			if (message.method === 'Target.attachToTarget') { result = { sessionId: 'attached' }; }
-			if (message.method === 'Runtime.evaluate') { result = failScript && message.params.awaitPromise ? { exceptionDetails: { exception: { description: 'Script error' } } } : { result: { value: String(message.params.expression).startsWith('window[') ? { state: 'done' } : true } }; }
+			if (message.method === 'Runtime.evaluate') { result = failScript && message.params.awaitPromise ? { exceptionDetails: { exception: { description: 'Script error' } } } : { result: { value: String(message.params.expression).startsWith('window[') ? { state: delayedRun && Date.now() - began < 25000 ? 'waiting' : delayedRun && Date.now() - began < 50000 ? 'running' : 'done' } : true } }; }
 			for (const listener of [...listeners]) { listener({ id: message.id, sessionId: message.sessionId, result }); }
 		}),
 		close: jest.fn(async () => {}),
@@ -91,4 +92,47 @@ test('userscript status polling survives a navigation destroying its execution c
     await executeSubmissionScript({ urlTemplate: 'https://example.com/submit', script: '// ==UserScript==\n// @name navigate\n// @match https://example.com/*\n// @grant none\n// ==/UserScript==\n' }, {});
     expect(browser.sent.filter(message => String(message.params.expression).startsWith('window['))).toHaveLength(2);
     expect(browser.session.close).toHaveBeenCalledTimes(1);
+});
+
+test('VJudge starts filling when the button exists without waiting for full page load', async () => {
+    const { vjudgeSubmitScript } = await import('../submissionTemplates');
+    const browser = mockBrowser();
+    await executeSubmissionScript({ urlTemplate: 'https://vjudge.net/problem/UVA-1', script: vjudgeSubmitScript }, { code: 'int main(){}' });
+    const readiness = browser.sent.find(message => message.method === 'Runtime.evaluate')!;
+    const expression = String(readiness.params.expression);
+    const ready = new Function('location', 'document', `return ${expression};`);
+    expect(ready({ href: 'https://vjudge.net/problem/UVA-1' }, { readyState: 'interactive', getElementById: () => ({ disabled: false }) })).toBe(true);
+    expect(ready({ href: 'https://vjudge.net/problem/UVA-1' }, { readyState: 'complete', getElementById: () => null })).toBe(false);
+    expect(expression).not.toContain('readyState');
+});
+
+ test('userscripts poll completion immediately without a full-load gate', async () => {
+    const browser = mockBrowser();
+    await executeSubmissionScript({ urlTemplate: 'https://example.com/submit', script: '// ==UserScript==\n// @name early\n// @match https://example.com/*\n// @run-at document-start\n// @grant none\n// ==/UserScript==\n' }, {});
+    const evaluations = browser.sent.filter(message => message.method === 'Runtime.evaluate');
+    expect(evaluations).toHaveLength(1);
+    expect(String(evaluations[0].params.expression)).toMatch(/^window\[/);
+});
+
+test('plain custom scripts can run once DOM parsing finishes', async () => {
+    const browser = mockBrowser();
+    await executeSubmissionScript({ urlTemplate: 'https://example.com', script: 'fill()' }, {});
+    const expression = String(browser.sent.find(message => message.method === 'Runtime.evaluate')!.params.expression);
+    const ready = new Function('location', 'document', `return ${expression};`);
+    expect(ready({ href: 'https://example.com' }, { readyState: 'interactive' })).toBe(true);
+    expect(ready({ href: 'https://example.com' }, { readyState: 'loading' })).toBe(false);
+    expect(ready({ href: 'about:blank' }, { readyState: 'complete' })).toBe(false);
+});
+
+ test('custom idle scripts retain separate load and execution time budgets', async () => {
+    jest.useFakeTimers();
+    try {
+        const browser = mockBrowser(false, false, true);
+        const result = executeSubmissionScript({ urlTemplate: 'https://example.com/submit', script: '// ==UserScript==\n// @name slow idle\n// @match https://example.com/*\n// @run-at document-idle\n// @grant none\n// ==/UserScript==\n' }, {});
+        const assertion = expect(result).resolves.toBeUndefined();
+        await jest.advanceTimersByTimeAsync(50100);
+        await assertion;
+        expect(browser.session.close).toHaveBeenCalledTimes(1);
+        expect(browser.listeners.size + browser.closeListeners.size).toBe(0);
+    } finally { jest.useRealTimers(); }
 });

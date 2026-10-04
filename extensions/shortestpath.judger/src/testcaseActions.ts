@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { CaseAction, CaseMode, Problem, RunResult, TestCase } from './types';
 import { getProbSaveLocation } from './parser';
 import localize from './i18n';
+import { testcaseDocumentUri } from './problemDocument';
 
 export type CaseChange = { action: CaseAction; testcase: TestCase };
 
@@ -43,6 +44,11 @@ export async function testcaseAction(problem: Problem, id: number, action: CaseA
         const field = action;
         const fileKey = field === 'input' ? 'inputPath' : 'outputPath';
         const file = testcase[fileKey];
+        if (mode === 'open') {
+            const target = file ? vscode.Uri.file(file) : testcaseDocumentUri(problem.srcPath, id, field);
+            await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target), { viewColumn: vscode.ViewColumn.Beside });
+            return;
+        }
         if (mode === 'choose') {
             const selected = await vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false });
             if (!selected?.[0]) { return; }
@@ -64,7 +70,6 @@ export async function testcaseAction(problem: Problem, id: number, action: CaseA
             }
             target ??= await materialize(testcase[field], `${id}.${field === 'input' ? 'in' : 'out'}`);
             testcase[fileKey] = target; testcase[field] = '';
-            if (mode === 'open') { await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target), { viewColumn: vscode.ViewColumn.Beside }); }
         }
     } else if (action === 'compare' && result) {
         const answer = testcase.outputPath ?? await materialize(testcase.output, `${id}.expected`);

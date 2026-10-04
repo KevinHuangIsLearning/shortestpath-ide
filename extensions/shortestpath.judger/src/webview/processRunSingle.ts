@@ -1,3 +1,4 @@
+import { retainExecutable } from '../executableCleanup';
 import { AuxiliaryPrograms } from '../auxiliaryPrograms';
 import { problemLanguage, effectiveTimeLimit } from '../problemOptions';
 import { Problem, RunResult } from '../types';
@@ -52,6 +53,7 @@ export const runSingleAndSave = async (
     }
 
 
+    const executable = skipCompile ? undefined : retainExecutable(binPath, srcPath);
     const cancellation = beginTestcase(srcPath, id);
     try {
     if (!skipCompile) {
@@ -145,5 +147,5 @@ export const runSingleAndSave = async (
         const stopped: RunResult = { id, verdict: 'STOP', pass: false, stdout: '', stderr: '', code: null, signal: 'SIGTERM', time: 0, timeOut: false };
         getJudgeViewProvider().extensionToJudgeViewMessage({ command: 'run-single-result', problem, result: stopped });
         return stopped;
-    } finally { cancellation.dispose(); }
+    } finally { cancellation.dispose(); executable?.dispose(); }
 };

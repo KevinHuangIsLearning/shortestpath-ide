@@ -14,13 +14,11 @@
  * servers with no connected renderer, not about windows that never chat.
  */
 
-import { IAgentHostByokLmHandler } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
-import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import './agentHost.shared.contribution.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { registerWorkbenchContribution2, IWorkbenchContribution, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentHostAllowSignedOutWhenUsableContribution } from './agentHostAllowSignedOutWhenUsableContribution.js';
-import { AgentHostByokLmHandler } from './agentHostByokLmHandler.js';
 import { AgentHostContribution } from './agentHostChatContribution.js';
 import { AgentHostCopilotCliSettingsContribution } from './agentHostCopilotCliSettingsContribution.js';
 import { AgentHostExistingSessionHarnessPickerEnablement } from './agentHostExistingSessionHarnessPickerEnablement.js';
@@ -57,5 +55,3 @@ registerWorkbenchContribution2(AgentHostCopilotCliSettingsContribution.ID, Agent
 registerWorkbenchContribution2(AgentHostAllowSignedOutWhenUsableContribution.ID, AgentHostAllowSignedOutWhenUsableContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSignedOutModelsNotificationContribution.ID, AgentHostSignedOutModelsNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSdkSetupNotificationContribution.ID, AgentHostSdkSetupNotificationContribution, WorkbenchPhase.AfterRestored);
-
-registerSingleton(IAgentHostByokLmHandler, AgentHostByokLmHandler, InstantiationType.Delayed);

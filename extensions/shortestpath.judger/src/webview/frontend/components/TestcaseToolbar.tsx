@@ -12,13 +12,14 @@ export default function TestcaseToolbar(props: {
     counts: Record<StatusFilter, number>;
     total: number;
     onFilterChange: (filter: StatusFilter) => void;
-    onImport: () => void;
+    onImport: (source: 'zip' | 'files' | 'folder' | 'json') => void;
     onAdd: () => void;
     dropHintDismissed?: boolean;
     onDismissDropHint?: () => void;
 }) {
+    const [importMenuOpen, setImportMenuOpen] = useState(false);
     const [addMenuOpen, setAddMenuOpen] = useState(false);
-    useMenuDismiss(() => setAddMenuOpen(false), '[data-testcase-add-anchor]');
+    useMenuDismiss(() => { setAddMenuOpen(false); setImportMenuOpen(false); }, '[data-testcase-add-anchor]');
     const hidden = props.total - props.counts[props.filter];
 
     return (
@@ -55,20 +56,31 @@ export default function TestcaseToolbar(props: {
                     aria-haspopup="menu"
                     aria-expanded={addMenuOpen}
                     data-testcase-add-anchor="true"
-                    onClick={() => setAddMenuOpen(open => !open)}
+                    onClick={() => { setAddMenuOpen(open => !open); setImportMenuOpen(false); }}
                 >
                     <i className="codicon codicon-add" aria-hidden="true"></i>
                 </button>
                 {addMenuOpen && (
                     <div className="menu testcase-add-menu" role="menu">
+                        {importMenuOpen ? <>
+                            <button type="button" className="btn btn-block" role="menuitem" onClick={() => setImportMenuOpen(false)}>
+                                <i className="codicon codicon-chevron-left" aria-hidden="true" />{t('importTestcases')}
+                            </button>
+                            {(['zip', 'files', 'folder', 'json'] as const).map(source => (
+                                <button key={source} type="button" className="btn btn-block" role="menuitem" onClick={() => { setAddMenuOpen(false); setImportMenuOpen(false); props.onImport(source); }}>
+                                    {t(({ zip: 'fromZip', files: 'fromFiles', folder: 'fromFolder', json: 'importJsonTestcases' })[source])}
+                                </button>
+                            ))}
+                        </> : <>
                         <button type="button" className="btn btn-block" role="menuitem" onClick={() => { setAddMenuOpen(false); props.onAdd(); }}>
                             <i className="codicon codicon-add" aria-hidden="true" />
                             {t('newTestcase')}
                         </button>
-                        <button type="button" className="btn btn-block" role="menuitem" onClick={() => { setAddMenuOpen(false); props.onImport(); }}>
+                        <button type="button" className="btn btn-block" role="menuitem" onClick={() => setImportMenuOpen(true)}>
                             <i className="codicon codicon-folder-opened" aria-hidden="true" />
                             {t('importTestcases')}
                         </button>
+                        </>}
                     </div>
                 )}
             </div>

@@ -98,20 +98,26 @@ export async function executeSubmissionScript(template: SubmissionTemplate, valu
         }
         const navigation = await send('Page.navigate', { url }, sid);
 		if (navigation.errorText) { throw new Error(navigation.errorText); }
-		const deadline = Date.now() + 30000;
-		let loaded = false;
-		while (Date.now() < deadline) {
-			try {
-				const ready = await send('Runtime.evaluate', { expression: 'location.href !== "about:blank" && document.readyState === "complete"', returnByValue: true }, sid);
-				if (ready.result?.value === true) { loaded = true; break; }
-			} catch (error) {
-				if (!(error instanceof Error) || !/context|navigat/i.test(error.message)) { throw error; }
+		// Userscript bootstrap owns @run-at; polling must not wait for window.load.
+		if (!userscript) {
+			const deadline = Date.now() + 30000;
+			let loaded = false;
+			while (Date.now() < deadline) {
+				try {
+					const ready = await send('Runtime.evaluate', { expression: template.script === vjudgeSubmitScript
+						? 'location.href !== "about:blank" && !!document.getElementById("btn-submit") && !document.getElementById("btn-submit").disabled'
+						: 'location.href !== "about:blank" && document.readyState !== "loading"', returnByValue: true }, sid);
+					if (ready.result?.value === true) { loaded = true; break; }
+				} catch (error) {
+					if (!(error instanceof Error) || !/context|navigat/i.test(error.message)) { throw error; }
+				}
+				await new Promise(resolve => setTimeout(resolve, 100));
 			}
-			await new Promise(resolve => setTimeout(resolve, 100));
+			if (!loaded) { throw new Error(localize('judger.browserSubmit.loadTimeout', 'Timed out waiting for the submission page to load.')); }
 		}
-		if (!loaded) { throw new Error(localize('judger.browserSubmit.loadTimeout', 'Timed out waiting for the submission page to load.')); }
         if (userscript) {
-            const deadline = Date.now() + 30000;
+            let deadline = Date.now() + 30000;
+            let started = false;
             let finished = false;
             while (Date.now() < deadline) {
                 if (isolated && scriptContext === undefined) { await new Promise(resolve => setTimeout(resolve, 100)); continue; }
@@ -124,6 +130,8 @@ export async function executeSubmissionScript(template: SubmissionTemplate, valu
                     continue;
                 }
                 const value = status.result?.value as { state?: string; message?: string } | undefined;
+                // Give execution its own budget after the declared run-at event.
+                if (value?.state === 'running' && !started) { started = true; deadline = Date.now() + 30000; }
                 if (value?.state === 'error') { throw new Error(value.message); }
                 if (value?.state === 'done') { finished = true; break; }
                 await new Promise(resolve => setTimeout(resolve, 100));

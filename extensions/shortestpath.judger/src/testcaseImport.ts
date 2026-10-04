@@ -64,8 +64,11 @@ export function scanTestcases(
 	);
 }
 
-/** Validate the entire archive before writing; never follow archive links or overwrite a folder. */
-export function extractTestcaseZip(zipPath: string, destination: string): string {
+/**
+ * Validate before writing; never follow archive links or overwrite a folder.
+ * Report only newly extracted directories so cancelled imports can roll them back without deleting cached data.
+ */
+export function extractTestcaseZip(zipPath: string, destination: string, onCreated?: (directory: string) => void): string {
 	const maxBytes = 128 * 1024 * 1024;
 	if (fs.statSync(zipPath).size > maxBytes) {
 		throw new Error('ZIP exceeds 128 MiB');
@@ -141,5 +144,6 @@ export function extractTestcaseZip(zipPath: string, destination: string): string
 		fs.rmSync(target, { recursive: true, force: true });
 		throw error;
 	}
+	onCreated?.(target);
 	return target;
 }

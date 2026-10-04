@@ -1759,12 +1759,10 @@ with open(sys.argv[2], "r") as f:
                         counts={counts}
                         total={cases.length}
                         onFilterChange={setFilter}
-                        onImport={() =>
-                            sendMessageToVSCode({
-                                command: 'import-testcases',
-                                srcPath: problem.srcPath,
-                            })
-                        }
+                        onImport={(source) => {
+                            if (source === 'json') { setImportPageVisible(true); return; }
+                            sendMessageToVSCode({ command: ({ zip: 'import-testcase-zip', files: 'import-testcase-files', folder: 'import-testcase-folder' } as const)[source], srcPath: problem.srcPath });
+                        }}
                         onAdd={newCase}
                         dropHintDismissed={webviewState.testcaseDropHintDismissed}
                         onDismissDropHint={() => updateWebviewState({ ...webviewState, testcaseDropHintDismissed: true })}

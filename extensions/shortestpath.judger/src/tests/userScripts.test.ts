@@ -55,3 +55,17 @@ describe('submission userscripts', () => {
 		]);
 	});
 });
+
+ test.each(['document-end', 'document-idle'] as const)('preserves custom %s timing', async runAt => {
+    const callbacks = new Map<string, () => void>();
+    const window: Record<string, unknown> = { addEventListener: (event: string, callback: () => void) => callbacks.set(event, callback) };
+    window.top = window;
+    const document = { readyState: 'loading', addEventListener: (event: string, callback: () => void) => callbacks.set(event, callback) };
+    const context = vm.createContext({ window, document, URL, location: { href: 'https://example.com/submit' }, sessionStorage: { getItem: () => null, setItem: () => {} } });
+    vm.runInContext(userScriptBootstrap(parseUserScript(header.replace('document-start', runAt) + 'window.ran = true;'), {}, 'timing'), context);
+    expect(window.ran).toBeUndefined();
+    callbacks.get(runAt === 'document-end' ? 'DOMContentLoaded' : 'load')!();
+    await new Promise(resolve => setImmediate(resolve));
+    expect(window.ran).toBe(true);
+    expect(window.timing).toEqual({ state: 'done' });
+});

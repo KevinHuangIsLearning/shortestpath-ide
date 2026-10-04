@@ -659,7 +659,8 @@ textarea::placeholder {
 }
 
 .case-metadata {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--judger-space-2);
     min-height: var(--judger-row-height);
@@ -692,11 +693,13 @@ textarea::placeholder {
 
 .case-status {
     display: inline-flex;
+    flex: 1 1 120px;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--judger-space-1);
     min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
     font-size: var(--judger-font-size-sm);
     color: var(--judger-fg-muted);
 }
@@ -1358,7 +1361,25 @@ textarea::placeholder {
  */
 .case-menu {
     position: fixed;
+    min-width: 0;
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
     overflow-y: auto;
+}
+
+.case-menu .btn {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    flex-shrink: 0;
+}
+
+.case-actions {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--judger-space-1);
+    grid-column: 4;
+    grid-row: 1;
 }
 
 .feedback-tooltip {
@@ -1900,6 +1921,11 @@ textarea::placeholder {
         gap: var(--judger-space-1);
     }
 
+    .case-status {
+        grid-column: 2 / -1;
+        grid-row: 2;
+    }
+
     .actions-main-row,
     .actions-secondary-row {
         gap: var(--judger-space-1);
@@ -2012,4 +2038,11 @@ textarea::placeholder {
 
 .output-diff-preview-line:not(.diff-match) pre:last-of-type {
     color: var(--judger-text-link);
+}
+
+/* Confirmation keeps its warning fill while the pointer stays on Submit. */
+.btn.btn-yellow,
+.btn.btn-yellow:hover:not(:disabled) {
+    background: var(--vscode-statusBarItem-warningBackground, var(--judger-warn));
+    color: var(--vscode-statusBarItem-warningForeground, #000000);
 }
