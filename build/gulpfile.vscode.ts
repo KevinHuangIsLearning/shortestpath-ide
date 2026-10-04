@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import es from 'event-stream';
 import vfs from 'vinyl-fs';
+import VinylFile from 'vinyl';
 import electron from '@vscode/gulp-electron';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
@@ -29,6 +30,7 @@ import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.t
 import { getRipgrepExcludeFilter } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { isShortestPathElectronLocale } from './lib/electronLocales.ts';
+import { updateDarwinBundleVersion } from './lib/darwinBundleVersion.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
@@ -355,6 +357,15 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				...(platform === 'darwin' ? ['!**/Contents/Applications', '!**/Contents/Applications/**'] : []),
 				...(platform === 'win32' ? ['!**/electron_proxy.exe'] : []),
 			], { dot: true }));
+
+		if (platform === 'darwin') {
+			result = result.pipe(es.mapSync((file: VinylFile) => {
+				if (file.isBuffer()) {
+					file.contents = updateDarwinBundleVersion(file.relative, file.contents, product.nameLong, product.shortestPathVersion);
+				}
+				return file;
+			}));
+		}
 
 		if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/completions/bash/code', { base: '.' })

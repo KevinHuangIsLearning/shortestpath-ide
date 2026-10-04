@@ -12,6 +12,8 @@ export default function ProblemHeader(props: {
     timeSpentMs?: number;
     canMarkAccepted?: boolean;
     accepted: boolean;
+    partialAccepted?: boolean;
+    onSetCompletion?: (completion: 'none' | 'partial' | 'accepted') => void;
     onMarkAccepted: () => void;
     compiling: boolean;
     summary: Summary;
@@ -23,14 +25,21 @@ export default function ProblemHeader(props: {
 }) {
     const { summary } = props;
     const [acceptedArmed, setAcceptedArmed] = useState(false);
+    const [partialArmed, setPartialArmed] = useState(false);
     useEffect(() => {
         setAcceptedArmed(false);
-    }, [props.name, props.href, props.accepted]);
+        setPartialArmed(false);
+    }, [props.name, props.href, props.accepted, props.partialAccepted]);
     useEffect(() => {
         if (!acceptedArmed) { return; }
         const timeout = setTimeout(() => setAcceptedArmed(false), 3000);
         return () => clearTimeout(timeout);
     }, [acceptedArmed]);
+    useEffect(() => {
+        if (!partialArmed) { return; }
+        const timeout = setTimeout(() => setPartialArmed(false), 3000);
+        return () => clearTimeout(timeout);
+    }, [partialArmed]);
     const rateClass = summary.empty
         ? 'pass-rate pass-rate-empty'
         : summary.passed === summary.total
@@ -85,17 +94,31 @@ export default function ProblemHeader(props: {
                         <button
                             type="button"
                             className={`btn mark-accepted-btn ${acceptedArmed ? 'btn-yellow' : 'btn-green'}`}
-                            disabled={props.accepted}
                             onBlur={() => setAcceptedArmed(false)}
                             onClick={() => {
+                                if (props.accepted) { props.onSetCompletion?.('none'); return; }
                                 if (!acceptedArmed) { setAcceptedArmed(true); return; }
                                 setAcceptedArmed(false);
                                 props.onMarkAccepted();
                             }}
-                            title={acceptedArmed ? t('confirmMarkAccepted') : t('markAccepted')}
-                            aria-label={acceptedArmed ? t('confirmMarkAccepted') : t('markAccepted')}
+                            title={props.accepted ? t('cancelAccepted') : acceptedArmed ? t('confirmMarkAccepted') : t('markAccepted')}
+                            aria-label={props.accepted ? t('cancelAccepted') : acceptedArmed ? t('confirmMarkAccepted') : t('markAccepted')}
                         >
-                            {acceptedArmed ? t('confirm') : 'AC'}
+                            {props.accepted ? t('cancelAccepted') : acceptedArmed ? t('confirm') : 'AC'}
+                        </button>
+                    )}
+                    {props.canMarkAccepted !== false && props.onSetCompletion && (
+                        <button type="button" className={`btn ${partialArmed ? 'btn-yellow' : 'btn-black'}`} aria-pressed={props.partialAccepted === true}
+                            title={props.partialAccepted ? t('cancelPartialAccepted') : partialArmed ? t('confirmMarkPartialAccepted') : t('markPartialAccepted')}
+                            aria-label={props.partialAccepted ? t('cancelPartialAccepted') : partialArmed ? t('confirmMarkPartialAccepted') : t('markPartialAccepted')}
+                            onBlur={() => setPartialArmed(false)}
+                            onClick={() => {
+                                if (props.partialAccepted) { props.onSetCompletion?.('none'); return; }
+                                if (!partialArmed) { setPartialArmed(true); return; }
+                                setPartialArmed(false);
+                                props.onSetCompletion?.('partial');
+                            }}>
+                            {props.partialAccepted ? t('cancelPartialAccepted') : partialArmed ? t('confirm') : t('markPartialAccepted')}
                         </button>
                     )}
                     {props.compiling && (

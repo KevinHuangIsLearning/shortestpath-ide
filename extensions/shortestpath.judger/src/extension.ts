@@ -29,7 +29,8 @@ globalThis.logger.debug = (...args: any[]) =>
 
 import * as vscode from 'vscode';
 import { migrateSettings } from './settingsMigration';
-import { setupCompanionServer } from './companion';
+import { setupCompanionServer, handleNewProblem } from './companion';
+import { registerBrowserImport } from './browserImport';
 import runTestCases from './runTestCases';
 import {
 	editorChanged,
@@ -60,6 +61,7 @@ export const getJudgeViewProvider = () => {
 const registerCommands = (context: vscode.ExtensionContext) => {
     globalThis.logger.log('Registering commands');
     registerBrowserSubmission(context);
+    registerBrowserImport(context, handleNewProblem);
     context.subscriptions.push(vscode.commands.registerCommand('judger.getProblemDirectory', (srcPath: string) => getProblemDirectory(srcPath)));
     // Keep existing user keybindings and external callers working after the ID change.
     for (const command of ['runTestCases', 'submitToCodeForces', 'submitToKattis', 'compileWithoutRunning', 'runSubmitScript', 'getSubmitScriptAliases', 'getSubmitScriptDefaults', 'judgeView.focus']) {

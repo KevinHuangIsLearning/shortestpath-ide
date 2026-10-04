@@ -3,6 +3,16 @@
  * Licensed under GPL-3.0-or-later. See LICENSE for license information.
  *--------------------------------------------------------------------------------------------*/
 export const nativeChinese: Record<string, string> = {
+    'judger.browserImport.closed': '浏览器已关闭。',
+    'judger.browserImport.timeout': '题目解析超时。',
+    'judger.browserImport.noPage': '未找到浏览器页面。',
+    'judger.browserImport.empty': 'Competitive Companion 未返回题目。',
+    'judger.browserImport.open': '请先在内置浏览器打开题目。',
+    'judger.browserImport.button': '+ 导入题目',
+	'judger.browserImport.buttonTitle': '通过 Competitive Companion 导入当前页面',
+	'judger.browserImport.progress': '正在通过 Competitive Companion 导入…',
+    'judger.browserImport.error': '无法导入此页面：{0}',
+
 	'judger.migration.progress': '正在迁移配置',
     'judger.run.busy': '请先停止当前运行，再运行测试点。',
     'judger.submit.failed': '提交失败：{0}',

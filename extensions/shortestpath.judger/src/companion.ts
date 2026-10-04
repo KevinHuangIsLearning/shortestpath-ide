@@ -377,7 +377,7 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
 };
 
 /** Handle the `problem` sent by Competitive Companion, such as showing the webview, opening an editor, managing layout etc. */
-const handleNewProblem = async (problem: Problem, preferredSourcePath?: string): Promise<ProblemCreationResult> => {
+export const handleNewProblem = async (problem: Problem, preferredSourcePath?: string): Promise<ProblemCreationResult> => {
     globalThis.reporter.sendTelemetryEvent(telmetry.GET_PROBLEM_FROM_COMPANION);
     // If webview may be focused, close it, to prevent layout bug.
     if (vscode.window.activeTextEditor == undefined) {

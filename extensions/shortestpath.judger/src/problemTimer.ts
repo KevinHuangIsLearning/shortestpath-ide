@@ -11,7 +11,21 @@ export function initializeProblemTimer(problem: Problem, now = Date.now()): Prob
 
 export function elapsedProblemTime(problem: Problem, now = Date.now()): number {
 	if (problem.timeStartedAtUnixMs === undefined) { return Math.max(0, problem.timeSpentMs ?? 0); }
-	return Math.max(0, (problem.timeAcceptedAtUnixMs ?? now) - problem.timeStartedAtUnixMs);
+	return Math.max(0, (problem.timeAcceptedAtUnixMs ?? problem.timePartialAcceptedAtUnixMs ?? now) - problem.timeStartedAtUnixMs);
+}
+
+/** Completion freezes the clock. Switching status or cancelling preserves the frozen duration. */
+export function setProblemCompletion(problem: Problem, completion: 'none' | 'partial' | 'accepted', now = Date.now()): Problem {
+	const initialized = initializeProblemTimer(problem, now);
+	if (completion === 'accepted' && initialized.timeAcceptedAtUnixMs !== undefined || completion === 'partial' && initialized.timePartialAcceptedAtUnixMs !== undefined && initialized.timeAcceptedAtUnixMs === undefined) {
+		return initialized;
+	}
+	const pausedAt = initialized.timeAcceptedAtUnixMs ?? initialized.timePartialAcceptedAtUnixMs;
+	return { ...initialized,
+		timeStartedAtUnixMs: initialized.timeStartedAtUnixMs! + (pausedAt === undefined ? 0 : Math.max(0, now - pausedAt)),
+		timeAcceptedAtUnixMs: completion === 'accepted' ? now : undefined,
+		timePartialAcceptedAtUnixMs: completion === 'partial' ? now : undefined,
+	};
 }
 
 export function isShortestPathProblem(url: string): boolean {

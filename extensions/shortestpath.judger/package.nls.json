@@ -1,4 +1,5 @@
 {
+    "judger.importBrowserProblem.title": "Import Problem from Integrated Browser",
     "judger.general.defaultSubmitMethod.description": "Default method when both native OJ submission and VJudge submission are available.",
     "judger.general.defaultSubmitMethod.ask": "Ask every time.",
     "judger.general.defaultSubmitMethod.vjudge": "Use VJudge.",

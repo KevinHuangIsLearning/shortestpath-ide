@@ -117,6 +117,7 @@ export type Problem = {
     storageRevision?: string;
     timeStartedAtUnixMs?: number;
     timeAcceptedAtUnixMs?: number;
+    timePartialAcceptedAtUnixMs?: number;
     compilerCommand?: string;
     compilerArgs?: string[];
     interpreterCommand?: string;
@@ -343,6 +344,7 @@ export type WebviewToVSEvent =
     | { command: 'testcase-action'; problem: Problem; id: number; action: CaseAction; mode?: CaseMode; result?: RunResult | null }
     | { command: 'drop-testcases'; srcPath: string; paths?: string[]; files?: { name: string; base64: string }[]; folder?: boolean }
     | { command: 'mark-accepted'; srcPath: string }
+    | { command: 'set-completion'; srcPath: string; completion: 'none' | 'partial' | 'accepted' }
     | { command: 'get-oj-timer'; srcPath: string; url: string; requestId: string }
     | { command: 'import-testcases' | 'import-testcase-zip' | 'import-testcase-files' | 'import-testcase-folder'; srcPath: string; pathOrUri?: string }
     | RunAllCommand
@@ -472,7 +474,7 @@ export type StressFinishedCommand = {
 
 export type VSToWebViewMessage =
     | { command: 'oj-timer'; srcPath: string; url: string; requestId: string; timer?: OjTimer }
-    | { command: 'problem-options'; srcPath: string; patch?: Partial<Problem>; clear?: boolean }
+    | { command: 'problem-options'; srcPath: string; patch?: Partial<Problem>; clear?: boolean; completion?: 'none' | 'partial' | 'accepted' }
     | { command: 'testcase-changed'; srcPath: string; action: CaseAction; testcase: TestCase }
     | { command: 'show-json-import'; srcPath: string }
     | { command: 'testcases-imported'; srcPath: string; tests: TestCase[]; replace?: boolean }
@@ -517,7 +519,8 @@ export type CphSubmitResponse = {
 };
 
 export type WebViewpersistenceState = {
-    testcaseDropHintDismissed?: boolean;
+    testcaseDropHintDismissed?: boolean; // Legacy global state is intentionally ignored.
+    testcaseDropHintDismissedFor?: string[];
     dialogCloseDate: number;
     feedbackDialogCloseDate?: number;
     hasSeenFeedbackTooltip?: boolean;

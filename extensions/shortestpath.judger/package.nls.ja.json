@@ -1,4 +1,5 @@
 {
+    "judger.importBrowserProblem.title": "内蔵ブラウザーから問題をインポート",
     "judger.runTestCases.title": "テストケースを実行",
     "judger.submitToCodeForces.title": "CodeForcesに提出",
     "judger.compileWithoutRunning.title": "実行せずにコンパイル",

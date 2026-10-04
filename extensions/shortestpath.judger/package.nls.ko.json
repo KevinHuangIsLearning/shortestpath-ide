@@ -1,4 +1,5 @@
 {
+    "judger.importBrowserProblem.title": "통합 브라우저에서 문제 가져오기",
     "judger.runTestCases.title": "테스트케이스 실행",
     "judger.submitToCodeForces.title": "CodeForces에 제출",
     "judger.compileWithoutRunning.title": "실행하지 않고 컴파일",

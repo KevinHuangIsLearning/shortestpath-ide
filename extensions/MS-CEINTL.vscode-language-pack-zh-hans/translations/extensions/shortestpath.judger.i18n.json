@@ -9,6 +9,7 @@
     "version": "1.0.0",
     "contents": {
         "package": {
+            "judger.importBrowserProblem.title": "从内置浏览器导入题目",
             "judger.runTestCases.title": "运行测试用例",
             "judger.submitToCodeForces.title": "提交到 CodeForces",
             "judger.compileWithoutRunning.title": "编译但不运行",

@@ -1,6 +1,6 @@
 import { retainExecutable } from '../executableCleanup';
 import { sameTestcase } from '../testcasePresentation';
-import { isShortestPathProblem } from '../problemTimer';
+import { isShortestPathProblem, setProblemCompletion } from '../problemTimer';
 import { webviewBootstrap } from '../webviewBootstrap';
 import { problemLanguage } from '../problemOptions';
 import { stopTestcase } from '../testcaseCancellation';
@@ -101,12 +101,15 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                         } catch (error) { globalThis.logger.log('OJ timer unavailable', String(error)); }
                         break;
                     }
-                    case 'mark-accepted': {
+                    case 'mark-accepted':
+                    case 'set-completion': {
                         const current = getProblem(message.srcPath);
-                        if (current && !isShortestPathProblem(current.url) && current.timeAcceptedAtUnixMs === undefined) {
-                            const accepted = { ...current, timeAcceptedAtUnixMs: Date.now() };
-                            saveProblem(accepted.srcPath, accepted);
-                            this.extensionToJudgeViewMessage({ command: 'problem-options', srcPath: accepted.srcPath, patch: { timeAcceptedAtUnixMs: accepted.timeAcceptedAtUnixMs, storageRevision: accepted.storageRevision } });
+                        if (current && !isShortestPathProblem(current.url) && (message.command === 'set-completion' || current.timeAcceptedAtUnixMs === undefined)) {
+                            const completion = message.command === 'mark-accepted' ? 'accepted' : message.completion;
+                            if (!['none', 'partial', 'accepted'].includes(completion)) { break; }
+                            const accepted = setProblemCompletion(current, completion);
+                            saveProblem(accepted.srcPath, accepted, false, true);
+                            this.extensionToJudgeViewMessage({ command: 'problem-options', srcPath: accepted.srcPath, completion, patch: { timeStartedAtUnixMs: accepted.timeStartedAtUnixMs, timePartialAcceptedAtUnixMs: accepted.timePartialAcceptedAtUnixMs, timeAcceptedAtUnixMs: accepted.timeAcceptedAtUnixMs, storageRevision: accepted.storageRevision } });
                         }
                         break;
                     }

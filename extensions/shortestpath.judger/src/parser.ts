@@ -17,7 +17,7 @@ import * as vscode from 'vscode';
 export const getProbSaveLocation = (srcPath: string, legacy = false): string => {
     const savePreference = getSaveLocationPref();
     const srcFileName = path.basename(srcPath);
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const workspaceRoot = legacy ? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath : getSourceWorkspaceRoot(srcPath);
     const storageKey = legacy || !workspaceRoot ? srcPath : path.relative(workspaceRoot, srcPath);
     const hash = crypto
         .createHash('md5')
@@ -29,7 +29,7 @@ export const getProbSaveLocation = (srcPath: string, legacy = false): string => 
         return path.join(savePreference, baseProbName);
     }
     if (!legacy) {
-        const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? path.dirname(srcPath);
+        const rootPath = workspaceRoot ?? path.dirname(srcPath);
         return path.join(rootPath, '.shortestpath', baseProbName);
     }
     if (getCollectProblemsInRoot()) {
@@ -42,6 +42,29 @@ export const getProbSaveLocation = (srcPath: string, legacy = false): string => 
     const cphFolder = path.join(srcFolder, '.cph');
     return path.join(cphFolder, baseProbName);
 };
+
+/** Use the deepest owning folder in a multi-root workspace. */
+function getSourceWorkspaceRoot(srcPath: string): string | undefined {
+    return vscode.workspace.workspaceFolders?.map(folder => folder.uri.fsPath)
+        .filter(root => {
+            const relative = path.relative(root, srcPath);
+            return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+        }).sort((left, right) => right.length - left.length)[0];
+}
+
+/** Recover storage created before the workspace was opened or under the first workspace root. */
+function previousProblemLocations(srcPath: string): string[] {
+    const firstRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const preference = getSaveLocationPref();
+    const previousKeys = [srcPath, ...(firstRoot ? [path.relative(firstRoot, srcPath)] : [])];
+    const locations = previousKeys.flatMap(key => {
+        const hash = crypto.createHash('md5').update(key).digest('hex');
+        const name = `.${path.basename(srcPath)}_${hash}.prob`;
+        if (preference) { return [path.join(preference, name)]; }
+        return [path.join(path.dirname(srcPath), '.shortestpath', name), ...(firstRoot ? [path.join(firstRoot, '.shortestpath', name)] : [])];
+    });
+    return [...new Set([getProbSaveLocation(srcPath, true), ...locations])];
+}
 
 /** Copy managed legacy data into this problem, retaining the old files as migration backups. */
 function migrateManagedTestcases(problem: Problem, current: string, legacy: string): Problem {
@@ -99,31 +122,34 @@ export const getProblem = (srcPath: string): Problem | null => {
         }
         return existing;
     }
-    const legacy = getProbSaveLocation(srcPath, true);
-    if (legacy === current) { return null; }
-    const problem = readStoredProblem(legacy);
-    if (!problem) { return null; }
-    writeStoredProblem(current, migrateManagedTestcases(initializeProblemTimer(problem), current, legacy));
-    return readStoredProblem(current);
+    for (const legacy of previousProblemLocations(srcPath)) {
+        if (legacy === current) { continue; }
+        const problem = readStoredProblem(legacy);
+        if (!problem) { continue; }
+        writeStoredProblem(current, migrateManagedTestcases(initializeProblemTimer(problem), current, legacy));
+        return readStoredProblem(current);
+    }
+    return null;
 };
 
 export const removeProblem = (srcPath: string): void => {
     removeStoredProblem(getProbSaveLocation(srcPath));
-    removeStoredProblem(getProbSaveLocation(srcPath, true));
+    for (const location of previousProblemLocations(srcPath)) { removeStoredProblem(location); }
 };
 
 export const getProblemDirectory = (srcPath: string): string => `${getProbSaveLocation(srcPath)}.judger`;
 
-export const saveProblem = (srcPath: string, problem: Problem, preserveRevision = false): void => {
+export const saveProblem = (srcPath: string, problem: Problem, preserveRevision = false, updateCompletion = false): void => {
     const location = getProbSaveLocation(srcPath);
     const current = readStoredProblem(location);
     // A delayed webview save must not undo AC or restart a persisted timer.
     const initialized = initializeProblemTimer({ ...problem,
         storageRevision: preserveRevision ? current?.storageRevision : crypto.randomUUID(),
-        timeStartedAtUnixMs: current?.timeStartedAtUnixMs ?? problem.timeStartedAtUnixMs,
-        timeAcceptedAtUnixMs: current?.timeAcceptedAtUnixMs ?? problem.timeAcceptedAtUnixMs,
+        timeStartedAtUnixMs: updateCompletion ? problem.timeStartedAtUnixMs : current?.timeStartedAtUnixMs ?? problem.timeStartedAtUnixMs,
+        timeAcceptedAtUnixMs: updateCompletion ? problem.timeAcceptedAtUnixMs : current ? current.timeAcceptedAtUnixMs : problem.timeAcceptedAtUnixMs,
+        timePartialAcceptedAtUnixMs: updateCompletion ? problem.timePartialAcceptedAtUnixMs : current ? current.timePartialAcceptedAtUnixMs : problem.timePartialAcceptedAtUnixMs,
     });
-    Object.assign(problem, { storageRevision: initialized.storageRevision, timeStartedAtUnixMs: initialized.timeStartedAtUnixMs, timeAcceptedAtUnixMs: initialized.timeAcceptedAtUnixMs });
+    Object.assign(problem, { storageRevision: initialized.storageRevision, timeStartedAtUnixMs: initialized.timeStartedAtUnixMs, timeAcceptedAtUnixMs: initialized.timeAcceptedAtUnixMs, timePartialAcceptedAtUnixMs: initialized.timePartialAcceptedAtUnixMs });
     writeStoredProblem(location, initialized);
 };
 

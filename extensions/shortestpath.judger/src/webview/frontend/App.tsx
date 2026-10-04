@@ -1,3 +1,4 @@
+import { dismissProblemDropHint, dropHintProblemKey } from './dropHint';
 import { connectJudgeMessages } from '../../webviewBootstrap';
 import { createOjTimerRequests, elapsedOjTime, elapsedProblemTime, isShortestPathProblem } from '../../problemTimer';
 import { expandAfterRun, sameTestcase } from '../../testcasePresentation';
@@ -145,12 +146,12 @@ function Judge(props: {
     }, [problem.srcPath, problem.url, usesOjTimer]);
     useEffect(() => {
         setTimerNow(Date.now());
-        if (usesOjTimer ? ojTimer?.accepted || ojTimer && !ojTimer.running : problem.timeAcceptedAtUnixMs !== undefined) { return; }
+        if (usesOjTimer ? ojTimer?.accepted || ojTimer && !ojTimer.running : problem.timeAcceptedAtUnixMs !== undefined || problem.timePartialAcceptedAtUnixMs !== undefined) { return; }
         const timer = setInterval(() => {
             setTimerNow(Date.now());
         }, 1000);
         return () => clearInterval(timer);
-    }, [problem.srcPath, problem.timeAcceptedAtUnixMs, usesOjTimer, ojTimer?.accepted, ojTimer?.running]);
+    }, [problem.srcPath, problem.timeAcceptedAtUnixMs, problem.timePartialAcceptedAtUnixMs, usesOjTimer, ojTimer?.accepted, ojTimer?.running]);
     const updateProblem = props.updateProblem;
     const updateCases = props.updateCases;
     const onlineJudgeEnv = props.onlineJudgeEnv;
@@ -391,7 +392,7 @@ function Judge(props: {
                     vscodeState?.hasSeenFeedbackTooltip || false,
                 catCompanionEnabled: vscodeState?.catCompanionEnabled || false,
                 totalLoads: currentLoads,
-                testcaseDropHintDismissed: vscodeState?.testcaseDropHintDismissed ?? false,
+                testcaseDropHintDismissedFor: vscodeState?.testcaseDropHintDismissedFor ?? [],
                 hasSeenCompanionTooltip:
                     vscodeState?.hasSeenCompanionTooltip || false,
                 rateDialogCloseDate:
@@ -1680,6 +1681,8 @@ with open(sys.argv[2], "r") as f:
                     timeSpentMs={usesOjTimer ? elapsedOjTime(ojTimer, timerNow) : elapsedProblemTime(problem, timerNow)}
                     accepted={usesOjTimer ? ojTimer?.accepted === true : problem.timeAcceptedAtUnixMs !== undefined}
                     canMarkAccepted={!usesOjTimer}
+                    partialAccepted={problem.timePartialAcceptedAtUnixMs !== undefined}
+                    onSetCompletion={completion => sendMessageToVSCode({ command: 'set-completion', srcPath: problem.srcPath, completion })}
                     onMarkAccepted={() => sendMessageToVSCode({ command: 'mark-accepted', srcPath: problem.srcPath })}
                     compiling={compiling}
                     summary={summary}
@@ -1764,8 +1767,8 @@ with open(sys.argv[2], "r") as f:
                             sendMessageToVSCode({ command: ({ zip: 'import-testcase-zip', files: 'import-testcase-files', folder: 'import-testcase-folder' } as const)[source], srcPath: problem.srcPath });
                         }}
                         onAdd={newCase}
-                        dropHintDismissed={webviewState.testcaseDropHintDismissed}
-                        onDismissDropHint={() => updateWebviewState({ ...webviewState, testcaseDropHintDismissed: true })}
+                        dropHintDismissed={webviewState.testcaseDropHintDismissedFor?.includes(dropHintProblemKey(problem))}
+                        onDismissDropHint={() => updateWebviewState({ ...webviewState, testcaseDropHintDismissedFor: dismissProblemDropHint(webviewState.testcaseDropHintDismissedFor, problem) })}
                     />
                     <div
                         className="results"
@@ -1929,7 +1932,13 @@ function App() {
                 case 'problem-options': {
                     if (sourceRef.current !== data.srcPath) { break; }
                     if (data.clear) { resultsBySource.current.delete(data.srcPath); setCases(previous => previous.map(value => ({ ...value, result: null }))); }
-                    else { setProblem(previous => previous ? { ...previous, ...data.patch } : previous); }
+                    else { setProblem(previous => {
+                        if (!previous) { return previous; }
+                        const next = { ...previous, ...data.patch };
+                        if (data.completion && data.completion !== 'accepted') { delete next.timeAcceptedAtUnixMs; }
+                        if (data.completion && data.completion !== 'partial') { delete next.timePartialAcceptedAtUnixMs; }
+                        return next;
+                    }); }
                     break;
                 }
                 case 'testcase-changed': {

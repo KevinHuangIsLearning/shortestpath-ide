@@ -126,12 +126,12 @@ export function diffOutput(expected: string, received: string): DiffResult {
     return { isMatch, lines, summary, tokenDiff };
 }
 
-/** Only inspect the first ten lines; cap a single long line as well as the row count. */
+/** Only inspect the first five lines; cap a single long line as well as the row count. */
 export function diffOutputPreview(expected: string, received: string): DiffResult {
     const head = (text: string): string[] => {
         const lines: string[] = [];
         let offset = 0;
-        while (offset < text.length && lines.length < 10) {
+        while (offset < text.length && lines.length < 5) {
             const end = text.indexOf('\n', offset);
             const stop = end < 0 ? text.length : end;
             const length = stop - offset;

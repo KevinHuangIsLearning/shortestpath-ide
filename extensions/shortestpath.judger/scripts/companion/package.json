@@ -1,0 +1,12 @@
+{
+  "name": "shortestpath-companion-build",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "cyrillic-to-translit-js": "3.2.1",
+    "jszip": "3.10.1",
+    "pdfjs-dist": "4.2.67",
+    "snarkdown": "2.0.0",
+    "esbuild": "0.25.5"
+  }
+}

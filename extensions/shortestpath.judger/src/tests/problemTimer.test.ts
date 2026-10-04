@@ -37,3 +37,21 @@ test('OJ responses cannot regress AC or apply an old source binding or previous 
     requests.apply({ ...response, requestId: 'previous:99' });
     expect(receive.mock.calls).toEqual([[timer]]);
 });
+
+
+import { setProblemCompletion } from '../problemTimer';
+test('partial AC freezes and switching to AC or cancelling excludes paused time', () => {
+    const initial = { timeStartedAtUnixMs: 1000 } as Problem;
+    const partial = setProblemCompletion(initial, 'partial', 3000);
+    const accepted = setProblemCompletion(partial, 'accepted', 5000);
+    const resumed = setProblemCompletion(accepted, 'none', 9000);
+    expect([elapsedProblemTime(partial, 4000), elapsedProblemTime(accepted, 8000), elapsedProblemTime(resumed, 10000), resumed.timeAcceptedAtUnixMs, resumed.timePartialAcceptedAtUnixMs]).toEqual([2000, 2000, 3000, undefined, undefined]);
+});
+
+
+test('partial AC survives reload, is idempotent, and cancels at the frozen duration', () => {
+	const partial = setProblemCompletion({ timeStartedAtUnixMs: 1000 } as Problem, 'partial', 3000);
+	const reloaded = JSON.parse(JSON.stringify(partial)) as Problem;
+	const resumed = setProblemCompletion(reloaded, 'none', 9000);
+	expect([elapsedProblemTime(reloaded, 8000), setProblemCompletion(reloaded, 'partial', 7000), elapsedProblemTime(resumed, 10000)]).toEqual([2000, reloaded, 3000]);
+});

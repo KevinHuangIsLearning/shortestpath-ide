@@ -42,6 +42,7 @@
             ]
         },
         "commands": [
+            { "command": "judger.importBrowserProblem", "title": "%judger.importBrowserProblem.title%" },
             {
                 "command": "judger.runTestCases",
                 "title": "%judger.runTestCases.title%",

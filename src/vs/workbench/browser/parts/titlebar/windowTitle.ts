@@ -29,7 +29,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { getWindowById } from '../../../../base/browser/dom.js';
-import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
@@ -307,13 +307,6 @@ export class WindowTitle extends Disposable {
 		const editor = this.editorService.activeEditor;
 		const workspace = this.contextService.getWorkspace();
 		const appName = this.productService.nameLong;
-
-		// A browser editor moved into an auxiliary window is commonly used as a
-		// companion surface. Keep its native window title tied to the IDE instead
-		// of exposing whatever title the remote page supplies.
-		if (editor?.editorId === 'workbench.editor.browser' && this.windowId !== mainWindow.vscodeWindowId) {
-			return appName;
-		}
 
 		// Compute root
 		let root: URI | undefined;

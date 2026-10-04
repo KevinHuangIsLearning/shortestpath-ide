@@ -1,4 +1,5 @@
 import fs from 'fs';
+import crypto from 'crypto';
 import os from 'os';
 import path from 'path';
 jest.mock('vscode', () => ({ workspace: { workspaceFolders: [] } }), { virtual: true });
@@ -81,7 +82,7 @@ test('ordinary saves preserve the start time and cannot undo an AC timestamp', (
     saveProblem(source, original);
     const start = getProblem(source)!.timeStartedAtUnixMs!;
     const stale = { ...original };
-    saveProblem(source, { ...original, timeAcceptedAtUnixMs: start + 4000 });
+    saveProblem(source, { ...original, timeStartedAtUnixMs: start, timeAcceptedAtUnixMs: start + 4000 }, false, true);
     saveProblem(source, stale);
     expect([getProblem(source)!.timeStartedAtUnixMs, getProblem(source)!.timeAcceptedAtUnixMs]).toEqual([start, start + 4000]);
 });
@@ -124,4 +125,61 @@ test('autosave queued before deletion cannot resurrect the problem', () => {
     removeProblem(source);
     expect(saveProblemFromWebview(problem)).toBe(false);
     expect(getProblem(source)).toBeNull();
+});
+
+
+test('multi-root storage uses the source owner and migrates the previous first-root location', () => {
+    const other = path.join(root, 'other'); const owning = path.join(root, 'project');
+    const source = path.join(owning, 'sub', 'main.cpp');
+    const folders = (values: string[]) => Object.defineProperty(vscode.workspace, 'workspaceFolders', { value: values.map(fsPath => ({ uri: { fsPath } })), configurable: true });
+    try {
+        folders([other]);
+        const oldHash = crypto.createHash('md5').update(path.relative(other, source)).digest('hex');
+        const previous = path.join(other, '.shortestpath', `.main.cpp_${oldHash}.prob`);
+        fs.mkdirSync(path.dirname(previous), { recursive: true });
+        fs.writeFileSync(previous, JSON.stringify({ srcPath: source, tests: [] }));
+        folders([other, owning]);
+        expect(path.dirname(getProbSaveLocation(source))).toBe(path.join(owning, '.shortestpath'));
+        expect(getProblem(source)?.srcPath).toBe(source);
+        removeProblem(source);
+        expect(getProblem(source)).toBeNull();
+    } finally { folders([]); }
+});
+
+test('a problem saved before opening its workspace migrates out of the nested directory', () => {
+    const source = path.join(root, 'sub', 'main.cpp');
+    saveProblem(source, { srcPath: source, tests: [], name: 'A', url: '', interactive: false, memoryLimit: 256, timeLimit: 1000, group: '' });
+    const folder = { uri: { fsPath: root } } as vscode.WorkspaceFolder;
+    Object.defineProperty(vscode.workspace, 'workspaceFolders', { value: [folder], configurable: true });
+    try { expect(getProblem(source)?.srcPath).toBe(source); }
+    finally { Object.defineProperty(vscode.workspace, 'workspaceFolders', { value: [], configurable: true }); }
+});
+
+import { setProblemCompletion } from '../problemTimer';
+test('completion mutations persist and reject queued autosaves, including cancellation', () => {
+    const source = path.join(root, 'completion.cpp');
+    saveProblem(source, { srcPath: source, tests: [], timeStartedAtUnixMs: 1000, name: 'A', url: '', interactive: false, memoryLimit: 256, timeLimit: 1000, group: '' });
+    const stale = getProblem(source)!;
+    const accepted = setProblemCompletion(stale, 'accepted', 5000);
+    saveProblem(source, accepted, false, true);
+    expect(saveProblemFromWebview(stale)).toBe(false);
+    const resumed = setProblemCompletion(accepted, 'partial', 9000);
+    saveProblem(source, resumed, false, true);
+    expect(saveProblemFromWebview(accepted)).toBe(false);
+    expect([getProblem(source)!.timeStartedAtUnixMs, getProblem(source)!.timeAcceptedAtUnixMs, getProblem(source)!.timePartialAcceptedAtUnixMs]).toEqual([5000, undefined, 9000]);
+});
+
+
+test('multi-root custom storage recovers the old first-root identity', () => {
+    const first = path.join(root, 'first'), second = path.join(root, 'second');
+    const source = path.join(second, 'main.cpp');
+    (getSaveLocationPref as jest.Mock).mockReturnValue(root);
+    Object.defineProperty(vscode.workspace, 'workspaceFolders', { value: [first, second].map(fsPath => ({ uri: { fsPath } })), configurable: true });
+    try {
+        const hash = crypto.createHash('md5').update(path.relative(first, source)).digest('hex');
+        const previous = path.join(root, `.main.cpp_${hash}.prob`);
+        fs.writeFileSync(previous, JSON.stringify({ srcPath: source, tests: [] }));
+        expect(getProblem(source)?.srcPath).toBe(source);
+        expect(fs.existsSync(`${getProbSaveLocation(source)}.judger/problem.json`)).toBe(true);
+    } finally { Object.defineProperty(vscode.workspace, 'workspaceFolders', { value: [], configurable: true }); }
 });
