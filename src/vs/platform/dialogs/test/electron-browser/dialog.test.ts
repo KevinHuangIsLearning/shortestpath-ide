@@ -37,6 +37,28 @@ suite('Dialog', () => {
 		};
 	}
 
+	for (const shortestPathVersion of ['0.4.0', undefined]) {
+		test(`includes IDE and core versions with IDE version ${shortestPathVersion}`, () => {
+			const productService: IProductService = {
+				_serviceBrand: undefined,
+				...product,
+				shortestPathVersion,
+				version: '1.139.1',
+				target: undefined,
+				darwinUniversalAssetId: undefined
+			};
+			const { details, detailsToCopy } = createNativeAboutDialogDetails(productService, osProperties);
+			const expected = [
+				`ShortestPath IDE Version: ${shortestPathVersion || 'Unknown'}`,
+				'VS Code Version: 1.139.1'
+			];
+			assert.deepStrictEqual({
+				details: details.split('\n').slice(0, 2),
+				detailsToCopy: detailsToCopy.split('\n').slice(0, 2)
+			}, { details: expected, detailsToCopy: expected });
+		});
+	}
+
 	test('formats Copilot canary versions', () => {
 		assert.deepStrictEqual(
 			getCopilotVersionLines('1.0.84-canary.70.gdb75d0d.unsigned', '0.1.23-canary.45.gabcdef.unsigned'),
