@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { formatDuration, Summary } from '../selectors';
 
@@ -24,22 +24,39 @@ export default function ProblemHeader(props: {
     children?: React.ReactNode;
 }) {
     const { summary } = props;
-    const [acceptedArmed, setAcceptedArmed] = useState(false);
-    const [partialArmed, setPartialArmed] = useState(false);
+    const [completionOpen, setCompletionOpen] = useState(false);
+    const completionRef = useRef<HTMLSpanElement>(null);
+    const completionButtonRef = useRef<HTMLButtonElement>(null);
     useEffect(() => {
-        setAcceptedArmed(false);
-        setPartialArmed(false);
-    }, [props.name, props.href, props.accepted, props.partialAccepted]);
+        setCompletionOpen(false);
+    }, [props.name, props.href, props.accepted, props.partialAccepted, props.canMarkAccepted]);
     useEffect(() => {
-        if (!acceptedArmed) { return; }
-        const timeout = setTimeout(() => setAcceptedArmed(false), 3000);
-        return () => clearTimeout(timeout);
-    }, [acceptedArmed]);
-    useEffect(() => {
-        if (!partialArmed) { return; }
-        const timeout = setTimeout(() => setPartialArmed(false), 3000);
-        return () => clearTimeout(timeout);
-    }, [partialArmed]);
+        if (!completionOpen) { return; }
+        completionRef.current?.querySelector<HTMLButtonElement>('.menu button')?.focus();
+        const onPointerDown = (event: MouseEvent) => {
+            if (event.target instanceof Node && !completionRef.current?.contains(event.target)) {
+                setCompletionOpen(false);
+            }
+        };
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setCompletionOpen(false);
+                completionButtonRef.current?.focus();
+            }
+        };
+        document.addEventListener('mousedown', onPointerDown);
+        document.addEventListener('keydown', onKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', onPointerDown);
+            document.removeEventListener('keydown', onKeyDown);
+        };
+    }, [completionOpen]);
+    const setCompletion = (completion: 'none' | 'partial' | 'accepted') => {
+        setCompletionOpen(false);
+        completionButtonRef.current?.focus();
+        if (completion === 'accepted') { props.onMarkAccepted(); }
+        else { props.onSetCompletion?.(completion); }
+    };
     const rateClass = summary.empty
         ? 'pass-rate pass-rate-empty'
         : summary.passed === summary.total
@@ -91,35 +108,40 @@ export default function ProblemHeader(props: {
                 <span className="problem-actions">
                     {props.canMarkAccepted === false && props.accepted && <span className="problem-accepted-indicator">AC</span>}
                     {props.canMarkAccepted !== false && (
-                        <button
-                            type="button"
-                            className={`btn mark-accepted-btn ${acceptedArmed ? 'btn-yellow' : 'btn-green'}`}
-                            onBlur={() => setAcceptedArmed(false)}
-                            onClick={() => {
-                                if (props.accepted) { props.onSetCompletion?.('none'); return; }
-                                if (!acceptedArmed) { setAcceptedArmed(true); return; }
-                                setAcceptedArmed(false);
-                                props.onMarkAccepted();
-                            }}
-                            title={props.accepted ? t('cancelAccepted') : acceptedArmed ? t('confirmMarkAccepted') : t('markAccepted')}
-                            aria-label={props.accepted ? t('cancelAccepted') : acceptedArmed ? t('confirmMarkAccepted') : t('markAccepted')}
-                        >
-                            {props.accepted ? t('cancelAccepted') : acceptedArmed ? t('confirm') : 'AC'}
-                        </button>
-                    )}
-                    {props.canMarkAccepted !== false && props.onSetCompletion && (
-                        <button type="button" className={`btn ${partialArmed ? 'btn-yellow' : 'btn-black'}`} aria-pressed={props.partialAccepted === true}
-                            title={props.partialAccepted ? t('cancelPartialAccepted') : partialArmed ? t('confirmMarkPartialAccepted') : t('markPartialAccepted')}
-                            aria-label={props.partialAccepted ? t('cancelPartialAccepted') : partialArmed ? t('confirmMarkPartialAccepted') : t('markPartialAccepted')}
-                            onBlur={() => setPartialArmed(false)}
-                            onClick={() => {
-                                if (props.partialAccepted) { props.onSetCompletion?.('none'); return; }
-                                if (!partialArmed) { setPartialArmed(true); return; }
-                                setPartialArmed(false);
-                                props.onSetCompletion?.('partial');
+                        <span className="problem-completion" ref={completionRef}
+                            onBlur={event => {
+                                if (!event.currentTarget.contains(event.relatedTarget)) { setCompletionOpen(false); }
                             }}>
-                            {props.partialAccepted ? t('cancelPartialAccepted') : partialArmed ? t('confirm') : t('markPartialAccepted')}
-                        </button>
+                            <button
+                                ref={completionButtonRef}
+                                type="button"
+                                className={`btn btn-black mark-accepted-btn${props.accepted ? ' is-accepted' : ''}`}
+                                onClick={() => setCompletionOpen(open => !open)}
+                                title={t('completionStatus')}
+                                aria-label={t('completionStatus')}
+                                aria-expanded={completionOpen}
+                                aria-controls="problem-completion-menu"
+                            >
+                                {props.accepted && <i className="codicon codicon-check" aria-hidden="true" />}
+                                {props.accepted ? 'AC' : props.partialAccepted ? t('partialAccepted') : t('markAccepted')}
+                                <i className="codicon codicon-chevron-down" aria-hidden="true" />
+                            </button>
+                            {completionOpen && (
+                                <span id="problem-completion-menu" className="menu problem-completion-menu" role="group" aria-label={t('completionStatus')}>
+                                    <button type="button" className="btn btn-block" aria-pressed={props.accepted}
+                                        title={t('markAccepted')} onClick={() => setCompletion('accepted')}>AC</button>
+                                    {props.onSetCompletion && (
+                                        <button type="button" className="btn btn-block" aria-pressed={props.partialAccepted === true && !props.accepted}
+                                            title={t('markPartialAccepted')} onClick={() => setCompletion('partial')}>{t('partialAccepted')}</button>
+                                    )}
+                                    {props.onSetCompletion && (props.accepted || props.partialAccepted) && (
+                                        <button type="button" className="btn btn-block" onClick={() => setCompletion('none')}>
+                                            {props.accepted ? t('cancelAccepted') : t('cancelPartialAccepted')}
+                                        </button>
+                                    )}
+                                </span>
+                            )}
+                        </span>
                     )}
                     {props.compiling && (
                         <span className="compiling-indicator" title={t('compiling')}>

@@ -1944,12 +1944,32 @@ textarea::placeholder {
 	}
 }
 
+.problem-completion {
+	position: relative;
+	display: inline-flex;
+}
+
+.problem-completion-menu {
+	position: absolute;
+	top: calc(100% + var(--judger-space-1));
+	left: 0;
+	max-width: calc(100vw - var(--judger-space-4));
+}
+
+.problem-completion-menu .btn[aria-pressed='true'] {
+	color: var(--judger-pass);
+}
+
 .mark-accepted-btn {
 	min-height: 24px;
 	min-width: 32px;
 	padding: 0 6px;
 	font-size: var(--judger-font-size-xs);
 	font-weight: normal;
+}
+
+.mark-accepted-btn.is-accepted {
+	color: var(--judger-pass);
 }
 
 .problem-actions .pass-rate {
