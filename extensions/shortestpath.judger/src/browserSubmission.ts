@@ -1,8 +1,8 @@
-import { expandLocalHeaders } from './localHeaders';
 /*---------------------------------------------------------------------------------------------
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { expandLocalHeaders } from './localHeaders';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { getCustomSubmitScripts, getOjMapping, getVjudgeOjNames } from './preferences';

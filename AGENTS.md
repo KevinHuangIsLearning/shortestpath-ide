@@ -38,6 +38,8 @@ Diff the services registered by the `workbench.desktop.main.ts` import closure a
 
 Use tabs, single quotes for non-localized strings, braces for control flow, and `async`/`await`. Use PascalCase for types and enum values; camelCase for functions and variables. Localize visible text through `vs/nls`, preserve copyright headers, and register disposables immediately. Run `npm run eslint`, `npm run stylelint`, and `npm run valid-layers-check` where relevant.
 
+Copyright attribution must follow the file's source. Preserve Microsoft/MIT notices in upstream-derived files and third-party notices in bundled code. For newly authored ShortestPath files, use the existing `Copyright (c) 2026 ShortestPath IDE contributors.` and GPL-3.0-or-later header referencing `LICENSE`. Do not copy a Microsoft copyright header merely to satisfy hygiene checks; the checks already accept ShortestPath headers. Retain both notices where a file contains upstream code and ShortestPath modifications.
+
 ## Testing Guidelines
 
 Place tests beside the owning component as `*.test.ts`; integration cases use `*.integrationTest.ts`. Follow existing `suite`/`test` patterns and prefer a clear `assert.deepStrictEqual`. Add regression coverage for fixes; run coverage with `./scripts/test.sh --coverage`.
