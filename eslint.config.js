@@ -166,6 +166,26 @@ export default defineConfig(
 		files: [
 			'extensions/shortestpath.oj/src/**/*.ts',
 			'extensions/shortestpath.setup/src/**/*.ts',
+			'build/lib/darwinBundleVersion.ts',
+			'build/lib/electronLocales.ts',
+			'build/lib/test/darwinBundleVersion.test.ts',
+			'build/lib/test/electronLocales.test.ts',
+			'extensions/shortestpath.judger/src/browserSubmission.ts',
+			'extensions/shortestpath.judger/src/problemDisplay.ts',
+			'extensions/shortestpath.judger/src/submissionTemplates.ts',
+			'extensions/shortestpath.judger/src/tests/browserImport.test.ts',
+			'extensions/shortestpath.judger/src/tests/browserImportButton.test.ts',
+			'extensions/shortestpath.judger/src/tests/browserSubmission.test.ts',
+			'extensions/shortestpath.judger/src/tests/dropHint.test.ts',
+			'extensions/shortestpath.judger/src/tests/problemDisplay.test.ts',
+			'extensions/shortestpath.judger/src/tests/problemHeader.test.tsx',
+			'extensions/shortestpath.judger/src/tests/submissionTemplates.test.ts',
+			'src/vs/base/node/portablePaths.ts',
+			'src/vs/base/test/node/portablePaths.test.ts',
+			'src/vs/platform/environment/node/userLocale.ts',
+			'src/vs/platform/environment/test/node/userLocale.test.ts',
+			'src/vs/workbench/services/localTranscription/test/electron-browser/localTranscriptionService.test.ts',
+			'src/vs/workbench/test/browser/parts/editor/editorGroupView.test.ts',
 			'src/vs/workbench/browser/parts/editor/shortestpath*.ts',
 			'src/vs/workbench/contrib/shortestpath/**/*.ts',
 			'src/vs/workbench/test/browser/parts/editor/shortestpath*.ts',
@@ -186,10 +206,11 @@ export default defineConfig(
 	},
 	// The setup extension's Linux installer is this fork's own file, so it carries
 	// the ShortestPath header rather than the Microsoft one required by the shared
-	// configuration above. windows.js keeps its Microsoft header.
+	// configuration above. Both installers use the ShortestPath header.
 	{
 		files: [
 			'extensions/shortestpath.setup/resources/linux.js',
+			'extensions/shortestpath.setup/resources/windows.js',
 		],
 		rules: {
 			'header/header': [

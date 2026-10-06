@@ -19,7 +19,7 @@ function documentFixture(loading = false, subframe = false) {
 		addEventListener: (name: string, listener: () => void) => events.set(name, listener),
 		removeEventListener: (name: string, listener: () => void) => { if (events.get(name) === listener) { events.delete(name); } },
 		documentElement: { append: (element: any) => elements.push(element) },
-		createElement: () => ({ style: {}, setAttribute: jest.fn(), addEventListener(name: string, listener: any) { (this as any)[name] = listener; }, attachShadow() { return { append: (button: any) => { (this as any).button = button; } }; }, remove() { const index = elements.indexOf(this); if (index >= 0) { elements.splice(index, 1); } } }),
+		createElement: () => ({ style: {}, setAttribute: jest.fn(), addEventListener(name: string, listener: any) { Object.assign(this, { [name]: listener }); }, attachShadow() { return { append: (button: any) => { Object.assign(this, { button }); } }; }, remove() { const index = elements.indexOf(this); if (index >= 0) { elements.splice(index, 1); } } }),
 	};
 	const context = vm.createContext({ window, document, location: { protocol: 'https:' } });
 	const mount = () => vm.runInContext(browserImportButtonScript('+ Import', 'Import title'), context);

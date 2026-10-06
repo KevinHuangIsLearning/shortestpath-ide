@@ -1,5 +1,7 @@
-// Copyright (c) 2026 ShortestPath IDE contributors.
-// Licensed under the GPL-3.0-or-later license. See LICENSE in the project root.
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 #ifndef SHORTESTPATH_JUDGER_STDIO
 #define SHORTESTPATH_JUDGER_STDIO
 #include <cstdio>
@@ -7,7 +9,7 @@
 // freopen on stdin/stdout is intentionally disabled; other streams retain normal behavior.
 namespace shortestpath_judger {
 inline FILE* preserveStdio(const char* file, const char* mode, FILE* stream) {
-    return stream == stdin || stream == stdout ? stream : std::freopen(file, mode, stream);
+	return stream == stdin || stream == stdout ? stream : std::freopen(file, mode, stream);
 }
 }
 // Import the adapter alongside std::freopen for qualified OI source calls.

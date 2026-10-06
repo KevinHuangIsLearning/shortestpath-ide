@@ -10,13 +10,13 @@ export type VjudgeMappingEntry = { vjudgeUrlKey?: string; compositeFormat?: stri
 
 // Only opens the form and fills code. The final submit button is deliberately untouched.
 export const vjudgeSubmitScript = `const waitFor = async (find) => {
-    const deadline = Date.now() + 15000;
-    while (Date.now() < deadline) {
-        const value = find();
-        if (value) return value;
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    throw new Error('VJudge submission form unavailable. Check that you are signed in.');
+	const deadline = Date.now() + 15000;
+	while (Date.now() < deadline) {
+		const value = find();
+		if (value) return value;
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+	throw new Error('VJudge submission form unavailable. Check that you are signed in.');
 };
 (await waitFor(() => document.getElementById('btn-submit'))).click();
 (await waitFor(() => document.querySelector('label[for="submitter-type1"]'))).click();
@@ -26,7 +26,7 @@ editor.setValue({code});`;
 /** Replace once: inserted code or identifiers must never be interpreted as more placeholders. */
 export function replaceSubmissionPlaceholders(template: string, values: SubmissionValues, javascript = false): string {
 	return template.replace(/\{(oj|ojName|contestId|problemId|url|vjudgeUrl|code|language|fileName)\}/g, (token, key: string) => {
-		if (!(key in values)) { return token; }
+		if (!Reflect.has(values, key)) { return token; }
 		return javascript ? JSON.stringify(values[key]) : encodeURIComponent(values[key]);
 	});
 }
@@ -34,7 +34,7 @@ export function replaceSubmissionPlaceholders(template: string, values: Submissi
 export function submissionUrl(template: string, values: SubmissionValues): string {
 	// A whole URL placeholder is already a URL; URL components are encoded individually.
 	const resolved = template.trim().replace(/\{(oj|ojName|contestId|problemId|url|vjudgeUrl|code|language|fileName)\}/g, (token, key: string) => {
-		if (!(key in values)) { return token; }
+		if (!Reflect.has(values, key)) { return token; }
 		return key === 'url' || key === 'vjudgeUrl' ? values[key] : encodeURIComponent(values[key]);
 	});
 	const url = new URL(resolved);

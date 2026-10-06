@@ -20,12 +20,12 @@ function browser(value: unknown, scriptError = false, closeDuringParse = false) 
 			if (closeDuringParse && message.method === 'Runtime.evaluate') { for (const close of [...closeListeners]) { close(); } return; }
 			const result = message.method === 'Target.getTargets' ? { targetInfos: [{ type: 'page', targetId: 'page' }] }
 				: message.method === 'Target.attachToTarget' ? { sessionId: 'attached' }
-				: message.method === 'Page.getFrameTree' ? { frameTree: { frame: { id: 'main' } } }
-				: message.method === 'Page.createIsolatedWorld' ? { executionContextId: 42 }
-				: scriptError ? { exceptionDetails: { text: 'parser failed' } } : { result: { value } };
+					: message.method === 'Page.getFrameTree' ? { frameTree: { frame: { id: 'main' } } }
+						: message.method === 'Page.createIsolatedWorld' ? { executionContextId: 42 }
+							: scriptError ? { exceptionDetails: { text: 'parser failed' } } : { result: { value } };
 			for (const listener of [...listeners]) { listener({ id: message.id, sessionId: message.sessionId, result }); }
 		},
-		close: jest.fn(async () => {}),
+		close: jest.fn(async () => { }),
 	};
 	const tab = { id: 'browser', startCDPSession: async () => session } as vscode.BrowserTab;
 	return { tab, session, sent, listeners, closeListeners };

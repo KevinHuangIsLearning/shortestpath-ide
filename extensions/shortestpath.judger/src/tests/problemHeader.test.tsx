@@ -11,10 +11,10 @@ const renderHeader = (accepted: boolean, partialAccepted: boolean, canMarkAccept
 	// allow-any-unicode-next-line
 	Object.defineProperty(globalThis, 'window', { value: { translations: { completionStatus: '完成状态', partialAccepted: '部分 AC', markAccepted: '标记 AC' } }, configurable: true });
 	try {
-		return renderToStaticMarkup(<ProblemHeader name="External problem title" accepted={accepted} partialAccepted={partialAccepted}
-			canMarkAccepted={canMarkAccepted} onMarkAccepted={() => {}} onSetCompletion={() => {}} compiling={false}
+		return renderToStaticMarkup(<ProblemHeader name={'External problem title'} accepted={accepted} partialAccepted={partialAccepted}
+			canMarkAccepted={canMarkAccepted} onMarkAccepted={() => { }} onSetCompletion={() => { }} compiling={false}
 			summary={{ empty: true, passed: 0, failed: 0, total: 0, pending: 0 }} settingsOpen={false} auxOpen={false}
-			onOpenSettings={() => {}} onToggleAux={() => {}} />);
+			onOpenSettings={() => { }} onToggleAux={() => { }} />);
 	} finally { Reflect.deleteProperty(globalThis, 'window'); }
 };
 
