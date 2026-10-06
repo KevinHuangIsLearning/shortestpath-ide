@@ -8,7 +8,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorsOrder, EditorResourceAccessor, GroupIdentifier, SideBySideEditor } from '../../../../common/editor.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation, IQuickPick } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -35,7 +35,6 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { match } from '../../../../../base/common/glob.js';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, IBrowserEditorWidget, IBrowserUrlSuggestion, IBrowserUrlSuggestionProvider } from '../browserEditor.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -47,6 +46,7 @@ import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { IShortestPathModeService } from '../../../shortestpath/common/shortestPathMode.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -282,60 +282,10 @@ class OpenIntegratedBrowserAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const telemetryService = accessor.get(ITelemetryService);
-		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
-
-		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
-		const resource = BrowserViewUri.forId(generateUuid());
-		const group = await browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
-
-		if (options.reuseUrlFilter) {
-			const filterUri = URI.parse(options.reuseUrlFilter);
-			const matchingEditor = [...browserViewService.getContextualBrowserViews().values()].find((e) => {
-				const editorUri = URI.parse(e.url || '');
-				// URIs default to putting "file" scheme. Check that the scheme is really in the filter.
-				if (filterUri.scheme && options.reuseUrlFilter!.startsWith(`${filterUri.scheme}:`) && filterUri.scheme !== editorUri.scheme) {
-					return false;
-				}
-				if (filterUri.authority && !match(filterUri.authority, editorUri.authority)) {
-					return false;
-				}
-				if (filterUri.path && !match(filterUri.path, editorUri.path)) {
-					return false;
-				}
-				if (filterUri.query) {
-					const filterParams = new URLSearchParams(filterUri.query);
-					const editorParams = new URLSearchParams(editorUri.query);
-					if (![...filterParams].every(([key, value]) => match(value, editorParams.get(key) ?? ''))) {
-						return false;
-					}
-				}
-
-				return true;
-			});
-			if (matchingEditor) {
-				if (options.url) {
-					matchingEditor.navigate(options.url);
-				}
-				// Reveal the existing browser tab where it already lives rather than
-				// relocating it into the docked group (which would move a tab out of a
-				// modal group when `workbench.editor.useModal: 'all'`).
-				await editorService.openEditor(matchingEditor);
-				return;
-			}
-		}
-
-		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
-
-		const editorPane = await editorService.openEditor({ resource, options: { viewState: { url: options.url } } }, group);
-
-		// Lock the group when opening to the side
-		if (options.openToSide && editorPane?.group) {
-			editorPane.group.lock(true);
-		}
+		await accessor.get(IShortestPathModeService).openBrowser(options.url);
 	}
+
 }
 
 class OpenFileInIntegratedBrowserAction extends Action2 {

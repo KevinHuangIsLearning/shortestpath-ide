@@ -191,6 +191,11 @@
 			background-color: var(--vscode-titleBar-activeForeground);
 			opacity: 0.3;
 		}
+
+		.modal-editor-standard-actions {
+			display: flex;
+			align-items: center;
+		}
 	}
 }
 

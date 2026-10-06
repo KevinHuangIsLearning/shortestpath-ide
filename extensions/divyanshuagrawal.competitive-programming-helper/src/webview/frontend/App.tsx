@@ -70,13 +70,6 @@ const t = (key: string): string => {
     return window.translations[key] || key;
 };
 
-const truncateStressText = (text: string): string => {
-    if (text.length <= 100000) {
-        return text;
-    }
-    return `[Truncated]\n${text.slice(0, 100000)}`;
-};
-
 window.console.log = customLogger.bind(window.console, originalConsole.log);
 window.console.error = customLogger.bind(window.console, originalConsole.error);
 window.console.warn = customLogger.bind(window.console, originalConsole.warn);
@@ -121,7 +114,6 @@ function Judge(props: {
     const updateProblem = props.updateProblem;
     const updateCases = props.updateCases;
     const onlineJudgeEnv = props.onlineJudgeEnv;
-    const setOnlineJudgeEnv = props.setOnlineJudgeEnv;
 
     const casesRef = React.useRef(cases);
     useEffect(() => {
@@ -147,16 +139,15 @@ function Judge(props: {
     const [generatedJson, setGeneratedJson] = useState<any | null>(null);
     const [liveUserCount, setLiveUserCount] = useState<number>(0);
     const [extLogs, setExtLogs] = useState<string>('');
-    const [stressGeneratorPath, setStressGeneratorPath] = useState('');
-    const [stressStdPath, setStressStdPath] = useState('');
-    const [stressIterations, setStressIterations] = useState(1000);
-    const [stressRunning, setStressRunning] = useState(false);
+    const [, setStressGeneratorPath] = useState('');
+    const [, setStressStdPath] = useState('');
+    const [, setStressRunning] = useState(false);
     const [stressProgress, setStressProgress] = useState({
         iteration: 0,
         total: 1000,
     });
-    const [stressMessage, setStressMessage] = useState<string | null>(null);
-    const [pendingStressFailure, setPendingStressFailure] =
+    const [, setStressMessage] = useState<string | null>(null);
+    const [, setPendingStressFailure] =
         useState<StressFailureCommand | null>(null);
     const [stressDialogVisible, setStressDialogVisible] = useState(false);
     const stressRunIdRef = React.useRef<number | null>(null);
@@ -166,21 +157,21 @@ function Judge(props: {
     const [largeSampleCheckerPath, setLargeSampleCheckerPath] = useState(
         problem.largeSampleCheckerPath || '',
     );
-    const [largeSampleCheckerEnabled, setLargeSampleCheckerEnabled] = useState(
+    const [largeSampleCheckerEnabled] = useState(
         problem.largeSampleCheckerEnabled ?? false,
     );
-    const [largeSampleEnabled, setLargeSampleEnabled] = useState(
+    const [largeSampleEnabled] = useState(
         problem.largeSampleEnabled !== false,
     );
-    const [largeSampleAnswerMode, setLargeSampleAnswerMode] =
+    const [largeSampleAnswerMode] =
         useState<LargeSampleAnswerMode>(
             problem.largeSampleAnswerMode || 'auto',
         );
-    const [largeSampleRunMode, setLargeSampleRunMode] =
+    const [largeSampleRunMode] =
         useState<LargeSampleRunMode>(
             problem.largeSampleRunMode || 'stop-on-failure',
         );
-    const [largeSampleComparison, setLargeSampleComparison] =
+    const [largeSampleComparison] =
         useState<LargeSampleComparisonOptions>(
             problem.largeSampleComparison || {
                 ignoreTrailingWhitespace: true,
@@ -196,7 +187,7 @@ function Judge(props: {
         LargeSampleScanResultCommand['diagnostics']
     >([]);
     const [largeSampleRunning, setLargeSampleRunning] = useState(false);
-    const [largeSampleRunId, setLargeSampleRunId] = useState<number | null>(
+    const [, setLargeSampleRunId] = useState<number | null>(
         null,
     );
     const largeSampleRunIdRef = React.useRef<number | null>(null);
@@ -221,22 +212,11 @@ function Judge(props: {
         LargeSampleScanResultCommand['cases']
     >([]);
     const largeSampleSkippedCases = problem.largeSampleSkippedCases || [];
-
-    const [checkerVisible, setCheckerVisible] = useState<boolean>(
-        !!problem.customCheckerPath,
-    );
-    const [moreToolsVisible, setMoreToolsVisible] = useState<boolean>(false);
-    const [deleteProblemArmed, setDeleteProblemArmed] =
+    const [, setDeleteProblemArmed] =
         useState<boolean>(false);
     const deleteProblemArmedTimer = React.useRef<ReturnType<
         typeof setTimeout
     > | null>(null);
-    const [submitShortestPathArmed, setSubmitShortestPathArmed] =
-        useState<boolean>(false);
-    const submitShortestPathArmedTimer = React.useRef<ReturnType<
-        typeof setTimeout
-    > | null>(null);
-    const checkerInputRef = React.useRef<HTMLInputElement>(null);
 
     const ordinaryPassed = cases.filter(
         (testCase) => testCase.result?.pass === true,
@@ -281,7 +261,6 @@ function Judge(props: {
             clearTimeout(deleteProblemArmedTimer.current);
             deleteProblemArmedTimer.current = null;
         }
-        setSubmitShortestPathArmed(false);
         setStressGeneratorPath('');
         setStressStdPath('');
         setStressRunning(false);
@@ -291,19 +270,12 @@ function Judge(props: {
         setLargeSampleRunning(false);
         setLargeSampleRunId(null);
         largeSampleRunIdRef.current = null;
-        if (submitShortestPathArmedTimer.current) {
-            clearTimeout(submitShortestPathArmedTimer.current);
-            submitShortestPathArmedTimer.current = null;
-        }
     }, [problem.srcPath]);
 
     useEffect(() => {
         return () => {
             if (submitBrowserHintTimeout.current) {
                 clearTimeout(submitBrowserHintTimeout.current);
-            }
-            if (submitShortestPathArmedTimer.current) {
-                clearTimeout(submitShortestPathArmedTimer.current);
             }
             if (deleteProblemArmedTimer.current) {
                 clearTimeout(deleteProblemArmedTimer.current);
@@ -367,11 +339,6 @@ function Judge(props: {
     const [importPageVisible, setImportPageVisible] = useState(false);
     const [editableStateText, setEditableStateText] = useState(
         JSON.stringify(webviewState, null, 2),
-    );
-    const [showCompanionTooltip, setShowCompanionTooltip] = useState(
-        (webviewState.totalLoads || 0) >= 10 &&
-            !webviewState.hasSeenCompanionTooltip &&
-            !webviewState.catCompanionEnabled,
     );
 
     const updateWebviewState = (newState: WebViewpersistenceState) => {
@@ -755,29 +722,6 @@ function Judge(props: {
         });
     };
 
-    // Deletes the .prob file and closes webview
-    const deleteTcs = () => {
-        if (!deleteProblemArmed) {
-            setDeleteProblemArmed(true);
-            if (deleteProblemArmedTimer.current) {
-                clearTimeout(deleteProblemArmedTimer.current);
-            }
-            deleteProblemArmedTimer.current = setTimeout(() => {
-                setDeleteProblemArmed(false);
-                deleteProblemArmedTimer.current = null;
-            }, 3000);
-            return;
-        }
-        if (deleteProblemArmedTimer.current) {
-            clearTimeout(deleteProblemArmedTimer.current);
-            deleteProblemArmedTimer.current = null;
-        }
-        sendMessageToVSCode({
-            command: 'delete-tcs',
-            problem,
-        });
-    };
-
     const runAll = () => {
         refreshOnlineJudge();
         const largeSampleRunId =
@@ -802,13 +746,6 @@ function Judge(props: {
         });
     };
 
-    const pickStressFile = (role: 'generator' | 'std') => {
-        sendMessageToVSCode({
-            command: 'pick-stress-file',
-            role,
-        });
-    };
-
     const scanLargeSamples = (
         directory: string,
         answerMode: LargeSampleAnswerMode = largeSampleAnswerMode,
@@ -825,14 +762,6 @@ function Judge(props: {
         values: Partial<Problem>,
     ) => {
         updateProblem({ ...problem, ...values });
-    };
-
-    const pickLargeSampleDirectory = () => {
-        sendMessageToVSCode({ command: 'pick-large-sample-directory' });
-    };
-
-    const pickLargeSampleChecker = () => {
-        sendMessageToVSCode({ command: 'pick-large-sample-checker' });
     };
 
     const handleLargeSampleDrop = (
@@ -916,310 +845,6 @@ function Judge(props: {
         }
     }, [problem.srcPath, largeSampleDirectory, largeSampleAnswerMode]);
 
-    const copyStressInstructions = () => {
-        const instructions = [
-            t('generatorInputFormat'),
-            t('generatorOutputFormat'),
-            t('stdInputFormat'),
-            t('stdOutputFormat'),
-            t('targetInputFormat'),
-            t('generatorExampleTitle'),
-            t('generatorExample'),
-        ].join('\n');
-        sendMessageToVSCode({ command: 'copy-text', text: instructions });
-        notify(t('copiedToClipboard'));
-    };
-
-    const viewGeneratorExample = () => {
-        sendMessageToVSCode({
-            command: 'open-stress-example',
-            language: 'cpp',
-            content: t('generatorExample'),
-        });
-    };
-
-    const addStressCounterexample = () => {
-        if (!pendingStressFailure) {
-            return;
-        }
-        const counterexample = {
-            id: pendingStressFailure.testcase.id,
-            result: pendingStressFailure.result,
-            testcase: pendingStressFailure.testcase,
-        };
-        const nextCases = [...cases, counterexample];
-        updateCases(nextCases);
-        sendMessageToVSCode({
-            command: 'save',
-            problem: {
-                ...problem,
-                tests: nextCases.map((testCase) => testCase.testcase),
-            },
-        });
-        setPendingStressFailure(null);
-        setStressMessage(t('counterexampleAdded'));
-        setFocusLast(true);
-    };
-
-    const startStress = () => {
-        refreshOnlineJudge();
-        const runId = Date.now();
-        stressRunIdRef.current = runId;
-        setStressRunning(true);
-        setPendingStressFailure(null);
-        setStressMessage(t('stressStarting'));
-        setStressProgress({ iteration: 0, total: stressIterations });
-        sendMessageToVSCode({
-            command: 'stress-start',
-            runId,
-            problem,
-            generatorPath: stressGeneratorPath,
-            stdPath: stressStdPath,
-            iterations: stressIterations,
-        });
-    };
-
-    const stopStress = () => {
-        sendMessageToVSCode({
-            command: 'stress-stop',
-            runId: stressRunIdRef.current || undefined,
-        });
-        setStressMessage(t('stoppedProcesses'));
-    };
-
-    const closeStressDialog = () => {
-        if (stressRunning) {
-            stopStress();
-        }
-        setStressDialogVisible(false);
-    };
-
-    const renderStressDialog = () => {
-        if (!stressDialogVisible) {
-            return null;
-        }
-
-        return (
-            <div
-                className="stress-dialog-backdrop"
-                role="presentation"
-                onMouseDown={closeStressDialog}
-            >
-                <div
-                    className="stress-dialog"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="stress-dialog-title"
-                    onMouseDown={(event) => event.stopPropagation()}
-                >
-                    <div className="stress-dialog-header">
-                        <h3 id="stress-dialog-title">
-                            <i className="codicon codicon-git-compare"></i>{' '}
-                            {t('stressTesting')}
-                        </h3>
-                        <button
-                            type="button"
-                            className="stress-dialog-close"
-                            title={t('close')}
-                            onClick={closeStressDialog}
-                        >
-                            <i className="codicon codicon-close"></i>
-                        </button>
-                    </div>
-                    <p className="stress-hint">{t('stressDescription')}</p>
-                    <details className="stress-instructions selectable">
-                        <summary>{t('stressInstructions')}</summary>
-                        <div className="stress-example-actions">
-                            <button
-                                type="button"
-                                className="btn btn-black stress-copy-button"
-                                onClick={copyStressInstructions}
-                            >
-                                {t('copy')}
-                            </button>
-                            <button
-                                type="button"
-                                className="btn btn-black stress-copy-button"
-                                onClick={viewGeneratorExample}
-                            >
-                                {t('viewGeneratorExample')}
-                            </button>
-                        </div>
-                        <ul>
-                            <li>{t('generatorInputFormat')}</li>
-                            <li>{t('generatorOutputFormat')}</li>
-                            <li>{t('stdInputFormat')}</li>
-                            <li>{t('stdOutputFormat')}</li>
-                            <li>{t('targetInputFormat')}</li>
-                        </ul>
-                        <p className="stress-example-title">
-                            {t('generatorExampleTitle')}
-                        </p>
-                        <pre className="stress-example selectable">
-                            {t('generatorExample')}
-                        </pre>
-                    </details>
-                    <div className="stress-file-picker">
-                        <input
-                            readOnly
-                            value={stressGeneratorPath}
-                            placeholder={t('generatorPath')}
-                        />
-                        <button
-                            className="btn btn-black"
-                            onClick={() => pickStressFile('generator')}
-                        >
-                            {t('choose')}
-                        </button>
-                    </div>
-                    <div className="stress-file-picker">
-                        <input
-                            readOnly
-                            value={stressStdPath}
-                            placeholder={t('stdPath')}
-                        />
-                        <button
-                            className="btn btn-black"
-                            onClick={() => pickStressFile('std')}
-                        >
-                            {t('choose')}
-                        </button>
-                    </div>
-                    <div className="stress-actions">
-                        <label>
-                            {t('iterations')}{' '}
-                            <input
-                                type="number"
-                                min={1}
-                                max={100000}
-                                value={stressIterations}
-                                onChange={(event) =>
-                                    setStressIterations(
-                                        Number(event.target.value),
-                                    )
-                                }
-                                style={{
-                                    width: '90px',
-                                    marginLeft: '6px',
-                                }}
-                            />
-                        </label>
-                        <button
-                            className="btn btn-green"
-                            disabled={stressRunning}
-                            onClick={startStress}
-                        >
-                            {t('startStress')}
-                        </button>
-                        <button
-                            className="btn btn-red"
-                            disabled={!stressRunning}
-                            onClick={stopStress}
-                        >
-                            {t('stopStress')}
-                        </button>
-                    </div>
-                    {stressMessage && (
-                        <div className="stress-status" role="status" aria-live="polite">
-                            {stressRunning && (
-                                <span
-                                    className="stress-spinner"
-                                    aria-label={t('stressRunning')}
-                                >
-                                    <i className="codicon codicon-loading" />
-                                </span>
-                            )}
-                            <span>{stressMessage}</span>
-                        </div>
-                    )}
-                    {stressRunning && (
-                        <div
-                            className="stress-progress-track"
-                            role="progressbar"
-                            aria-valuemin={0}
-                            aria-valuemax={stressProgress.total}
-                            aria-valuenow={stressProgress.iteration}
-                        >
-                            <div
-                                className="stress-progress-bar"
-                                style={{
-                                    width: `${Math.min(
-                                        100,
-                                        (stressProgress.iteration /
-                                            Math.max(1, stressProgress.total)) *
-                                            100,
-                                    )}%`,
-                                }}
-                            />
-                        </div>
-                    )}
-                    {pendingStressFailure && (
-                        <div className="stress-counterexample">
-                            <p className="stress-status">
-                                {t('stressFound')} ({t('iterations')}{' '}
-                                {pendingStressFailure.iteration})
-                            </p>
-                            <div className="stress-counterexample-field">
-                                <label>{t('inputLabel')}</label>
-                                <textarea
-                                    className="selectable"
-                                    readOnly
-                                    value={truncateStressText(
-                                        pendingStressFailure.testcase.input,
-                                    )}
-                                />
-                            </div>
-                            <div className="stress-counterexample-field">
-                                <label>{t('expectedOutputLabel')}</label>
-                                <textarea
-                                    className="selectable"
-                                    readOnly
-                                    value={truncateStressText(
-                                        pendingStressFailure.testcase.output,
-                                    )}
-                                />
-                            </div>
-                            <div className="stress-counterexample-field">
-                                <label>{t('receivedOutputLabel')}</label>
-                                <textarea
-                                    className="selectable"
-                                    readOnly
-                                    value={truncateStressText(
-                                        pendingStressFailure.result.stdout,
-                                    )}
-                                />
-                            </div>
-                            {pendingStressFailure.result.stderr && (
-                                <div className="stress-counterexample-field">
-                                    <label>{t('standardError')}</label>
-                                    <textarea
-                                        className="selectable"
-                                        readOnly
-                                        value={truncateStressText(
-                                            pendingStressFailure.result.stderr,
-                                        )}
-                                    />
-                                </div>
-                            )}
-                            {pendingStressFailure.result.diff && (
-                                <p className="stress-hint">
-                                    {t('outputDifference')}{' '}
-                                    {pendingStressFailure.result.diff.summary}
-                                </p>
-                            )}
-                            <button
-                                className="btn btn-green"
-                                onClick={addStressCounterexample}
-                            >
-                                {t('addCounterexample')}
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
-    };
-
     const submitKattis = () => {
         sendMessageToVSCode({
             command: 'submitKattis',
@@ -1252,26 +877,8 @@ function Judge(props: {
     };
 
     const submitShortestPath = () => {
-        if (!submitShortestPathArmed) {
-            setSubmitShortestPathArmed(true);
-            if (submitShortestPathArmedTimer.current) {
-                clearTimeout(submitShortestPathArmedTimer.current);
-            }
-            submitShortestPathArmedTimer.current = setTimeout(() => {
-                setSubmitShortestPathArmed(false);
-                submitShortestPathArmedTimer.current = null;
-            }, 3000);
-            return;
-        }
-        if (submitShortestPathArmedTimer.current) {
-            clearTimeout(submitShortestPathArmedTimer.current);
-            submitShortestPathArmedTimer.current = null;
-        }
-        setSubmitShortestPathArmed(false);
-        sendMessageToVSCode({
-            command: 'submitShortestPath',
-            problem,
-        });
+        setWaitingForSubmit(true);
+        sendMessageToVSCode({ command: 'submitShortestPath', problem });
     };
     const debounceFocusLast = () => {
         setTimeout(() => {
@@ -1303,17 +910,6 @@ function Judge(props: {
         return false;
     };
 
-    const toggleOnlineJudgeEnv = () => {
-        const newEnv = !onlineJudgeEnv;
-        setOnlineJudgeEnv(newEnv);
-        let sendEnv = 'false';
-        if (newEnv) sendEnv = 'true';
-        sendMessageToVSCode({
-            command: 'online-judge-env',
-            value: sendEnv,
-        });
-    };
-
     const updateCase = (id: number, input: string, output: string) => {
         const newCases: Case[] = cases.map((testCase) => {
             if (testCase.id === id) {
@@ -1333,13 +929,6 @@ function Judge(props: {
         updateCases(newCases);
     };
 
-    const updateCheckerPath = (path: string) => {
-        updateProblem({
-            ...problem,
-            customCheckerPath: path,
-        });
-    };
-
     const notify = (text: string, duration = 1000) => {
         clearTimeout(notificationTimeout!);
         setNotification(text);
@@ -1347,26 +936,6 @@ function Judge(props: {
             setNotification(null);
             notificationTimeout = undefined;
         }, duration);
-    };
-
-    const toggleChecker = () => {
-        const nextVisible = !checkerVisible;
-        setCheckerVisible(nextVisible);
-        if (nextVisible) {
-            setTimeout(() => {
-                checkerInputRef.current?.focus();
-            }, 100);
-        }
-    };
-
-    const openCheckerFile = () => {
-        const checkerPath = problem.customCheckerPath?.trim();
-        if (checkerPath) {
-            sendMessageToVSCode({
-                command: 'open-file',
-                path: checkerPath,
-            });
-        }
     };
 
     const views: JSX.Element[] = [];
@@ -1480,26 +1049,13 @@ function Judge(props: {
         if (isShortestPathHost) {
             return (
                 <button
-                    className={`btn ${className} ${
-                        submitShortestPathArmed ? 'btn-yellow' : ''
-                    }`}
+                    className={`btn ${className} ${waitingForSubmit ? 'is-waiting' : ''}`}
                     onClick={submitShortestPath}
-                    title={
-                        submitShortestPathArmed
-                            ? t('confirmSubmit')
-                            : t('submit')
-                    }
+                    disabled={waitingForSubmit}
+                    title={t('submit')}
                 >
-                    {submitShortestPathArmed ? (
-                        t('confirmSubmit')
-                    ) : (
-                        <>
-                            <span className="icon">
-                                <i className="codicon codicon-cloud-upload"></i>
-                            </span>{' '}
-                            {t('submit')}
-                        </>
-                    )}
+                    <span className="icon"><i className="codicon codicon-cloud-upload" /></span>{' '}
+                    {waitingForSubmit ? t('submitting') : t('submit')}
                 </button>
             );
         }
@@ -1593,14 +1149,6 @@ function Judge(props: {
         } else {
             return undefined;
         }
-    };
-
-    const showInfoPage = () => {
-        sendMessageToVSCode({
-            command: 'get-ext-logs',
-        });
-        setEditableStateText(JSON.stringify(webviewState, null, 2));
-        setInfoPageVisible(true);
     };
 
     const saveDebugState = () => {
@@ -1706,29 +1254,6 @@ function Judge(props: {
         );
     };
 
-    const renderTimeoutAVSuggestion = () => {
-        if (
-            cases.some((testCase) => {
-                return (
-                    testCase.result?.timeOut ||
-                    testCase.result?.signal == 'SIGTERM'
-                );
-            })
-        ) {
-            return (
-                <div className="timeout-av-suggestion">
-                    <h5>
-                        <i className="codicon codicon-bug"></i>{' '}
-                        {t('antivirusTitle')}
-                    </h5>
-                    <p>{t('antivirusDescription')}</p>
-                </div>
-            );
-        } else {
-            return <></>;
-        }
-    };
-
     const importCases = (newTestcases: { input: string; output: string }[]) => {
         const generatedCases = newTestcases.map((tc, index) => {
             const id = Date.now() + index;
@@ -1756,7 +1281,6 @@ function Judge(props: {
         >
             {notification && <div className="notification">{notification}</div>}
             {renderInfoPage()}
-            {renderStressDialog()}
             <ImportCases
                 t={t}
                 notify={notify}
@@ -1843,6 +1367,19 @@ function Judge(props: {
                     );
                 })}
             </div>
+            <div className="actions case-actions">
+                <div className="actions-main-row">
+                    <button className="btn primary-action" onClick={runAll} title={t('runAll')}>
+                        <span className="icon"><i className="codicon codicon-run-above" /></span>{' '}
+                        <span className="action-text">{t('runAll')}</span>
+                    </button>
+                    <button className="btn btn-new primary-action" onClick={newCase} title={t('newTestcase')}>
+                        <span className="icon"><i className="codicon codicon-add" /></span>
+                        <span className="action-text">{t('new')}</span>
+                    </button>
+                </div>
+                {renderSubmitButton('submit-action')}
+            </div>
             {(largeSampleDirectory || largeSampleStatus) && (
                 <div className="large-sample-inline-status">
                     <span>
@@ -1876,534 +1413,7 @@ function Judge(props: {
                     ))}
                 </div>
             )}
-            <div className="more-tools-shell">
-                <div className="test-tools-row">
-                    <button
-                        className="btn btn-black stress-open-button"
-                        type="button"
-                        onClick={() => setStressDialogVisible(true)}
-                    >
-                        <i className="codicon codicon-git-compare"></i>{' '}
-                        {t('stressTesting')}
-                    </button>
-                    <button
-                        className="btn btn-black stress-open-button"
-                        type="button"
-                        onClick={pickLargeSampleDirectory}
-                    >
-                        <i className="codicon codicon-folder-opened"></i>{' '}
-                        {t('largeSampleChooseDirectory')}
-                    </button>
-                </div>
-                <button
-                    className="more-tools-toggle"
-                    type="button"
-                    aria-expanded={moreToolsVisible}
-                    onClick={() => setMoreToolsVisible(!moreToolsVisible)}
-                >
-                    <i
-                        className={`codicon codicon-chevron-${
-                            moreToolsVisible ? 'up' : 'down'
-                        }`}
-                    ></i>{' '}
-                    {t('moreActions')}
-                </button>
-                <div
-                    className={`more-tools-panel ${
-                        moreToolsVisible ? 'is-open' : ''
-                    }`}
-                    aria-hidden={!moreToolsVisible}
-                >
-                    <div className="margin-10">
-                        <div className="action-container">
-                            <div className="button-grid">
-                                <button
-                                    className={`btn btn-block ${
-                                        deleteProblemArmed
-                                            ? 'btn-red'
-                                            : 'btn-black'
-                                    }`}
-                                    onClick={deleteTcs}
-                                    title={
-                                        deleteProblemArmed
-                                            ? t('confirm')
-                                            : t('delete')
-                                    }
-                                >
-                                    {deleteProblemArmed ? (
-                                        t('confirm')
-                                    ) : (
-                                        <>
-                                            <i className="codicon codicon-trash"></i>{' '}
-                                            {t('delete')}
-                                        </>
-                                    )}
-                                </button>
-                                <button
-                                    className="btn btn-black btn-block"
-                                    title={t('settings')}
-                                    onClick={() =>
-                                        sendMessageToVSCode({
-                                            command: 'open-settings',
-                                        })
-                                    }
-                                >
-                                    <i className="codicon codicon-settings"></i>{' '}
-                                    {t('settings')}
-                                </button>
-                            </div>
-                            <button
-                                className={`btn btn-block ${
-                                    problem.customCheckerPath?.trim()
-                                        ? 'btn-orange'
-                                        : ''
-                                }`}
-                                onClick={toggleChecker}
-                            >
-                                <span className="icon">
-                                    <i
-                                        className={`codicon codicon-chevron-${
-                                            checkerVisible ? 'up' : 'down'
-                                        }`}
-                                    ></i>
-                                </span>{' '}
-                                {problem.customCheckerPath?.trim()
-                                    ? t('customCheckerEnabled')
-                                    : t('customChecker')}
-                            </button>
-                        </div>
-                        {checkerVisible && (
-                            <div className="pad-10 custom-checker-area">
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        gap: '5px',
-                                        alignItems: 'center',
-                                    }}
-                                >
-                                    <input
-                                        type="text"
-                                        className="selectable"
-                                        placeholder={t(
-                                            'customCheckerPathPlaceholder',
-                                        )}
-                                        value={problem.customCheckerPath || ''}
-                                        onChange={(e) =>
-                                            updateCheckerPath(e.target.value)
-                                        }
-                                        ref={checkerInputRef}
-                                        style={{
-                                            flexGrow: 1,
-                                            width: '0',
-                                            padding: '4px 6px',
-                                        }}
-                                    />
-                                    <button
-                                        className="btn-chromeless"
-                                        title="Open the checker script"
-                                        onClick={openCheckerFile}
-                                        disabled={
-                                            !problem.customCheckerPath?.trim()
-                                        }
-                                    >
-                                        <span
-                                            className="icon"
-                                            style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                            }}
-                                        >
-                                            <i className="codicon codicon-link-external"></i>
-                                        </span>
-                                    </button>
-                                </div>
-                                <details style={{ marginTop: '10px' }}>
-                                    <summary
-                                        style={{
-                                            cursor: 'pointer',
-                                            fontSize: '0.9em',
-                                            opacity: 0.8,
-                                        }}
-                                    >
-                                        {t('usageInstructions')}
-                                    </summary>
-                                    <div style={{ marginTop: '10px' }}>
-                                        <small>
-                                            {t('customCheckerDescription')}
-                                            <br />
-                                            <br />
-                                            {t('exitCodes')}
-                                            <br />
-                                            <br />
-                                            {t('invocationFormat')}:
-                                            <br />
-                                            <code>
-                                                {window.pythonCommand}{' '}
-                                                &lt;script-path&gt;
-                                                &lt;input-file&gt;
-                                                &lt;output-file&gt;
-                                            </code>
-                                            <ul
-                                                style={{
-                                                    margin: '10px 0',
-                                                    paddingLeft: '20px',
-                                                }}
-                                            >
-                                                <li>
-                                                    <b>&lt;script-path&gt;</b>:{' '}
-                                                    {t('argScriptPath')}
-                                                </li>
-                                                <li>
-                                                    <b>&lt;input-file&gt;</b>:{' '}
-                                                    {t('argInputFile')}
-                                                </li>
-                                                <li>
-                                                    <b>&lt;output-file&gt;</b>:{' '}
-                                                    {t('argOutputFile')}
-                                                </li>
-                                            </ul>
-                                            {t('expectedBehavior')}
-                                            <br />
-                                            <textarea
-                                                className="selectable"
-                                                readOnly
-                                                value={`with open(sys.argv[1], "r") as f:
-    test_input = f.read()
-with open(sys.argv[2], "r") as f:
-    code_output = f.read()`}
-                                                style={{
-                                                    fontSize: '0.9em',
-                                                    height: '95px',
-                                                    width: '100%',
-                                                    display: 'block',
-                                                }}
-                                            />
-                                            <br />
-                                            <a
-                                                href={`${projectUrl}/blob/main/docs/user-guide.md#custom-checker`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="btn btn-black"
-                                                style={{
-                                                    fontSize: '0.9em',
-                                                    display: 'inline-block',
-                                                }}
-                                            >
-                                                <i className="codicon codicon-book"></i>{' '}
-                                                {t('documentation')}
-                                            </a>
-                                        </small>
-                                    </div>
-                                </details>
-                            </div>
-                        )}
-                        <details className="large-sample-config">
-                            <summary>{t('largeSampleConfiguration')}</summary>
-                            <div className="large-sample-config-body">
-                                <label>
-                                    <input
-                                        type="checkbox"
-                                        checked={!largeSampleEnabled}
-                                        onChange={(event) => {
-                                            const enabled = !event.target.checked;
-                                            setLargeSampleEnabled(enabled);
-                                            updateLargeSampleConfig({
-                                                largeSampleEnabled: enabled,
-                                            });
-                                        }}
-                                    />{' '}
-                                    {t('largeSampleSkip')}
-                                </label>
-                                {largeSampleSkippedCases.length > 0 && (
-                                    <div className="large-sample-skipped-cases">
-                                        {largeSampleSkippedCases.map((name) => (
-                                            <button
-                                                key={name}
-                                                className="btn btn-black"
-                                                onClick={() =>
-                                                    updateLargeSampleConfig({
-                                                        largeSampleSkippedCases:
-                                                            largeSampleSkippedCases.filter(
-                                                                (value) =>
-                                                                    value !== name,
-                                                            ),
-                                                    })
-                                                }
-                                            >
-                                                {t('largeSampleRestore')} {name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                                <label>
-                                    {t('largeSampleAnswerMode')}{' '}
-                                    <select
-                                        value={largeSampleAnswerMode}
-                                        onChange={(event) => {
-                                            const value = event.target.value as LargeSampleAnswerMode;
-                                            setLargeSampleAnswerMode(value);
-                                            updateLargeSampleConfig({ largeSampleAnswerMode: value });
-                                            scanLargeSamples(largeSampleDirectory, value);
-                                        }}
-                                    >
-                                        <option value="auto">{t('largeSampleAuto')}</option>
-                                        <option value="out">.out</option>
-                                        <option value="ans">.ans</option>
-                                    </select>
-                                </label>
-                                <label>
-                                    {t('largeSampleRunMode')}{' '}
-                                    <select
-                                        value={largeSampleRunMode}
-                                        onChange={(event) => {
-                                            const value = event.target.value as LargeSampleRunMode;
-                                            setLargeSampleRunMode(value);
-                                            updateLargeSampleConfig({ largeSampleRunMode: value });
-                                        }}
-                                    >
-                                        <option value="stop-on-failure">{t('largeSampleStopOnFailure')}</option>
-                                        <option value="run-all">{t('largeSampleRunAll')}</option>
-                                    </select>
-                                </label>
-                                <div className="large-sample-config-checks">
-                                    {(
-                                        [
-                                            ['ignoreTrailingWhitespace', 'largeSampleIgnoreTrailing'],
-                                            ['ignoreBlankLines', 'largeSampleIgnoreBlank'],
-                                            ['ignoreOuterWhitespace', 'largeSampleIgnoreOuter'],
-                                            ['tokenCompare', 'largeSampleTokenCompare'],
-                                        ] as Array<[keyof LargeSampleComparisonOptions, string]>
-                                    ).map(([key, label]) => (
-                                        <label key={key}>
-                                            <input
-                                                type="checkbox"
-                                                checked={largeSampleComparison[key]}
-                                                onChange={(event) => {
-                                                    const comparison = {
-                                                        ...largeSampleComparison,
-                                                        [key]: event.target.checked,
-                                                    };
-                                                    setLargeSampleComparison(comparison);
-                                                    updateLargeSampleConfig({ largeSampleComparison: comparison });
-                                                }}
-                                            />{' '}
-                                            {t(label)}
-                                        </label>
-                                    ))}
-                                </div>
-                                <label>
-                                    <input
-                                        type="checkbox"
-                                        checked={largeSampleCheckerEnabled}
-                                        onChange={(event) => {
-                                            setLargeSampleCheckerEnabled(event.target.checked);
-                                            updateLargeSampleConfig({ largeSampleCheckerEnabled: event.target.checked });
-                                        }}
-                                    />{' '}
-                                    {t('largeSampleUseChecker')}
-                                </label>
-                                {largeSampleCheckerEnabled && (
-                                    <div className="large-sample-picker">
-                                        <input
-                                            type="text"
-                                            readOnly
-                                            value={largeSampleCheckerPath}
-                                            placeholder={
-                                                problem.customCheckerPath ||
-                                                t('largeSampleCheckerPlaceholder')
-                                            }
-                                        />
-                                        <button
-                                            className="btn btn-black"
-                                            onClick={pickLargeSampleChecker}
-                                        >
-                                            {t('choose')}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </details>
-                        <small className="footer-button-grid">
-                            <a
-                                role="button"
-                                className="btn btn-black footer-btn-row-2"
-                                title={t('importTooltip')}
-                                onClick={() => setImportPageVisible(true)}
-                            >
-                                <i className="codicon codicon-cloud-upload"></i>{' '}
-                                {t('import')}
-                            </a>
-                            <span
-                                className="footer-btn-row-2"
-                                style={{ position: 'relative' }}
-                            >
-                                {showCompanionTooltip &&
-                                    !webviewState.catCompanionEnabled && (
-                                        <div
-                                            className="feedback-tooltip"
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '6px',
-                                            }}
-                                        >
-                                            <span>{t('companionTooltip')}</span>
-                                            <a
-                                                role="button"
-                                                style={{
-                                                    cursor: 'pointer',
-                                                    color: 'white',
-                                                    opacity: 0.8,
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                }}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    e.preventDefault();
-                                                    setShowCompanionTooltip(
-                                                        false,
-                                                    );
-                                                    updateWebviewState({
-                                                        ...webviewState,
-                                                        hasSeenCompanionTooltip:
-                                                            true,
-                                                    });
-                                                }}
-                                                title="Close"
-                                            >
-                                                <i
-                                                    className="codicon codicon-close"
-                                                    style={{
-                                                        fontSize: '10px',
-                                                    }}
-                                                ></i>
-                                            </a>
-                                        </div>
-                                    )}
-                                <a
-                                    role="button"
-                                    className="btn btn-black"
-                                    title={
-                                        webviewState.catCompanionEnabled
-                                            ? t('disableCatCompanion')
-                                            : t('enableCatCompanion')
-                                    }
-                                    onClick={() => {
-                                        updateWebviewState({
-                                            ...webviewState,
-                                            catCompanionEnabled:
-                                                !webviewState.catCompanionEnabled,
-                                            hasSeenCompanionTooltip: true,
-                                        });
-                                    }}
-                                >
-                                    <i className="codicon codicon-octoface"></i>{' '}
-                                    {t('cat')}
-                                </a>
-                            </span>
-                            <a
-                                href={`${projectUrl}/issues`}
-                                className="btn btn-black footer-btn-row-2"
-                            >
-                                <i className="codicon codicon-github"></i>{' '}
-                                {t('bugs')}
-                            </a>
-                            <a
-                                role="button"
-                                className="btn btn-black footer-btn-row-2"
-                                title={t('aboutCPH')}
-                                onClick={() => showInfoPage()}
-                            >
-                                <i className="codicon codicon-info"></i>{' '}
-                                {t('about')}
-                            </a>
-                        </small>
-                        <div>
-                            <span
-                                onClick={toggleOnlineJudgeEnv}
-                                className={`oj-box ${
-                                    onlineJudgeEnv ? 'oj-enabled' : ''
-                                }`}
-                            >
-                                {onlineJudgeEnv ? '☑' : '☐'}{' '}
-                                <span className="oj-code">
-                                    {t('setOnlineJudge')}
-                                </span>
-                            </span>
-                            {renderTimeoutAVSuggestion()}
-                        </div>
-                        <div className="remote-message">
-                            <p
-                                dangerouslySetInnerHTML={{
-                                    __html: window.remoteMessage || '',
-                                }}
-                            />
-                        </div>
-                        {window.showLiveUserCount && liveUserCount > 0 && (
-                            <div className="liveUserCount">
-                                <i className="codicon codicon-circle-filled color-green"></i>{' '}
-                                {liveUserCount}{' '}
-                                {liveUserCount === 1 ? t('user') : t('users')}{' '}
-                                {t('online')}.
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-            <div className="actions">
-                {webviewState.catCompanionEnabled && (
-                    <CatCompanion
-                        enabled={webviewState.catCompanionEnabled}
-                        total={total}
-                        numPassed={numPassed}
-                    />
-                )}
-                {renderSubmitButton('submit-action')}
-                <div className="actions-main-row">
-                    <div className="split-btn">
-                        <button
-                            className="btn main-btn"
-                            onClick={runAll}
-                            title={t('runAll')}
-                        >
-                            <span className="icon">
-                                <i className="codicon codicon-run-above"></i>
-                            </span>{' '}
-                            <span className="action-text">{t('runAll')}</span>
-                        </button>
-                        <button
-                            className="btn chevron-btn"
-                            title={t('moreActions')}
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const event = new MouseEvent('contextmenu', {
-                                    bubbles: true,
-                                    clientX: e.clientX,
-                                    clientY: e.clientY,
-                                });
-                                e.currentTarget.dispatchEvent(event);
-                            }}
-                            data-vscode-context='{"preventDefaultContextMenuItems": true, "webviewSection": "compile-button"}'
-                        >
-                            <span className="icon">
-                                <i className="codicon codicon-chevron-down"></i>
-                            </span>
-                        </button>
-                    </div>
-                    <button
-                        className="btn btn-new primary-action"
-                        onClick={newCase}
-                        title={t('newTestcase')}
-                    >
-                        <span className="icon">
-                            <i className="codicon codicon-add"></i>
-                        </span>
-                        <span className="action-text">{t('new')}</span>
-                    </button>
-                </div>
-            </div>
+
         </div>
     );
 }

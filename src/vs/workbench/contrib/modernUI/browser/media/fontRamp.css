@@ -75,7 +75,7 @@
 }
 
 /* Editor tab labels use Body 1 for comfortable readability at a normal viewing distance. */
-.modern-ui.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
 	font-size: var(--vscode-fontSize-body1);
 }
 

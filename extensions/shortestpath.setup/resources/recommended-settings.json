@@ -7,9 +7,15 @@
 	"editor.cursorBlinking": "smooth",
 	"editor.fontSize": 14,
 	"files.autoSave": "onFocusChange",
-	"editor.formatOnSave": true,
-	"editor.formatOnPaste": true,
-	"editor.inlayHints.enabled": "on",
+	"editor.formatOnSave": false,
+	"editor.formatOnPaste": false,
+	"editor.inlayHints.enabled": "off",
 	"window.systemColorTheme": "auto",
-	"editor.mouseWheelZoom": true
+	"editor.mouseWheelZoom": true,
+	"editor.tabSize": 2,
+	"editor.insertSpaces": true,
+	"editor.detectIndentation": false,
+	"workbench.colorTheme": "One Monokai",
+	"shortestpath.oj.cppSubmissionLanguage": "cpp20",
+	"cph.language.cpp.Template": "#include <bits/stdc++.h>\nusing namespace std;\nusing i64 = long long;\n\nvoid solve() {\n\n}\n\nint main() {\n  cin.tie(0)->sync_with_stdio(0);\n  int T = 1;\n  cin >> T;\n  while (T--) solve();\n}\n"
 }

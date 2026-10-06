@@ -107,5 +107,8 @@
     "cph.general.vjudgeUrlSuffix.description": "Optional suffix to append only to VJudge pages. Useful for adding URL parameters or hash fragments (e.g. '#author=translator:1281309:zh').",
     "cph.general.vjudgeBrowserSplitRatio.description": "Split ratio (10-90) between code editor and browser when opening a problem page. Default 50 means 50:50.",
     "cph.preferences.invalidSaveLocation": "Invalid save location, reverting to default. path not exists: {0}",
-    "cph.processRunSingle.invalidChecker": "Custom checker script not found at '{0}'"
+    "cph.processRunSingle.invalidChecker": "Custom checker script not found at '{0}'",
+    "cph.language.cpp.Template.description": "C++ source template used when creating a new problem file. Takes precedence over the template file path.",
+    "cph.integratedTests.interactive": "Interactive problems do not support local sample runs.",
+    "cph.integratedTests.unavailable": "Local tests are unavailable. Stop any current run and try again."
 }

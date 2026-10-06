@@ -92,6 +92,8 @@ export type WebviewStyles = { readonly [key: string]: string | number };
 export interface WebviewOptions {
 	/** Whether the webview editor requires the workbench modal editor. */
 	readonly requiresModal?: boolean;
+	/** Whether this webview's modal header offers only the close action. */
+	readonly modalCloseOnly?: boolean;
 	/**
 	 * The purpose of the webview; this is (currently) only used for filtering in js-debug
 	 */

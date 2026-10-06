@@ -10,7 +10,7 @@ export function canRequestEditorial(connected: boolean): boolean {
 }
 
 export function canViewEditorial(connected: boolean, hasCachedEditorial: boolean): boolean {
-	return connected || hasCachedEditorial;
+	return canRequestEditorial(connected) || hasCachedEditorial;
 }
 
 export function shouldConfirmEditorial(problem: ImportedProblem): boolean {

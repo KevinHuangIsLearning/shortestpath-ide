@@ -266,40 +266,7 @@
         }
       }
     },
-    "views": {
-      "ofm-flintmark": [
-        {
-          "id": "ofm.outline",
-          "name": "Outline"
-        },
-        {
-          "id": "ofm.todos",
-          "name": "Todo"
-        },
-        {
-          "id": "ofm.backlinks",
-          "name": "Backlinks"
-        }
-      ]
-    },
     "menus": {
-      "view/title": [
-        {
-          "command": "ofm.refreshOutline",
-          "when": "view == ofm.outline",
-          "group": "navigation"
-        },
-        {
-          "command": "ofm.refreshTodos",
-          "when": "view == ofm.todos",
-          "group": "navigation"
-        },
-        {
-          "command": "ofm.refreshBacklinks",
-          "when": "view == ofm.backlinks",
-          "group": "navigation"
-        }
-      ],
       "editor/title": [
         {
           "command": "ofm.openAsSource",
@@ -310,15 +277,6 @@
           "command": "ofm.openAsLivePreview",
           "when": "editorLangId == markdown && !activeCustomEditorId",
           "group": "navigation@1"
-        }
-      ]
-    },
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "ofm-flintmark",
-          "title": "Flintmark",
-          "icon": "media/flintmark-icon.svg"
         }
       ]
     }

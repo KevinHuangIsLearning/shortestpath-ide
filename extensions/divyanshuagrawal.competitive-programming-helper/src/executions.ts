@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { Language, Run, CustomCheckerRun } from './types';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { platform } from 'os';
@@ -5,10 +10,12 @@ import config from './config';
 import { getTimeOutPref } from './preferences';
 import * as vscode from 'vscode';
 import path from 'path';
+import { deleteCompiledOutput } from './compiledOutput';
 import { onlineJudgeEnv, runningCompilers } from './compiler';
 import telmetry from './telmetry';
 import localize from './i18n';
 import { executeCustomChecker } from './utils/customChecker';
+import { spawnTestCaseProcess, getTestCaseTime, killTestCaseProcess } from './cpuTimedProcess';
 
 export const runningBinaries: ChildProcessWithoutNullStreams[] = [];
 let killRequested = false;
@@ -61,7 +68,6 @@ export const runTestCase = (
     };
     const maxOutputSize = options.maxOutputSize;
     const spawnOpts = {
-        timeout: config.timeout,
         env: {
             ...global.process.env,
             DEBUG: 'true',
@@ -73,8 +79,8 @@ export const runTestCase = (
 
     const killer = setTimeout(() => {
         result.timeOut = true;
-        process.kill();
-    }, getTimeOutPref());
+        killTestCaseProcess(process);
+    }, Math.min(config.timeout, getTimeOutPref()));
 
     // HACK - On Windows, `python3` will be changed to `python`!
     if (platform() === 'win32' && language.compiler === 'python3') {
@@ -84,7 +90,7 @@ export const runTestCase = (
     // Start the binary or the interpreter.
     switch (language.name) {
         case 'python': {
-            process = spawn(
+            process = spawnTestCaseProcess(
                 language.compiler, // 'python3' or 'python' TBD
                 [
                     binPath,
@@ -97,7 +103,7 @@ export const runTestCase = (
             break;
         }
         case 'ruby': {
-            process = spawn(
+            process = spawnTestCaseProcess(
                 language.compiler,
                 [
                     binPath,
@@ -110,7 +116,7 @@ export const runTestCase = (
             break;
         }
         case 'js': {
-            process = spawn(
+            process = spawnTestCaseProcess(
                 language.compiler,
                 [
                     binPath,
@@ -135,7 +141,7 @@ export const runTestCase = (
             const binFileName = path.parse(binPath).name.slice(0, -1);
             args.push(binFileName);
 
-            process = spawn('java', args);
+            process = spawnTestCaseProcess('java', args, spawnOpts);
             break;
         }
         case 'csharp': {
@@ -143,7 +149,7 @@ export const runTestCase = (
 
             if (language.compiler.includes('dotnet')) {
                 const projName = '.cphcsrun';
-                const isLinux = platform() == 'linux';
+                const isLinux = platform() === 'linux';
                 if (isLinux) {
                     binFileName = projName;
                 } else {
@@ -151,16 +157,16 @@ export const runTestCase = (
                 }
 
                 const binFilePath = path.join(binPath, binFileName);
-                process = spawn(binFilePath, ['/stack:67108864'], spawnOpts);
+                process = spawnTestCaseProcess(binFilePath, ['/stack:67108864'], spawnOpts);
             } else {
                 // Run with mono
-                process = spawn('mono', [binPath], spawnOpts);
+                process = spawnTestCaseProcess('mono', [binPath], spawnOpts);
             }
 
             break;
         }
         default: {
-            process = spawn(binPath, spawnOpts);
+            process = spawnTestCaseProcess(binPath, [], spawnOpts);
         }
     }
 
@@ -175,15 +181,23 @@ export const runTestCase = (
         );
     });
 
-    const begin = Date.now();
+    const begin = performance.now();
+    let elapsed = 0;
+    let launchError = false;
+    process.on('exit', () => {
+        elapsed = performance.now() - begin;
+        clearTimeout(killer);
+    });
     const ret: Promise<Run> = new Promise((resolve) => {
         runningBinaries.push(process);
-        process.on('exit', (code, signal) => {
+        process.on('close', (code, signal) => {
             clearTimeout(killer);
-            const end = Date.now();
-            result.code = code;
-            result.signal = signal;
-            result.time = end - begin;
+            const end = performance.now();
+            if (!launchError) {
+                result.code = code;
+                result.signal = signal;
+            }
+            result.time = getTestCaseTime(process, Math.round(elapsed || end - begin));
             const idx = runningBinaries.indexOf(process);
             if (idx > -1) {
                 runningBinaries.splice(idx, 1);
@@ -206,7 +220,7 @@ export const runTestCase = (
             if (text.length > remaining) {
                 result[key] += text.slice(0, remaining);
                 result.outputLimitExceeded = true;
-                process.kill();
+                killTestCaseProcess(process);
                 return;
             }
             result[key] += text;
@@ -221,15 +235,15 @@ export const runTestCase = (
 
         process.on('error', (err) => {
             clearTimeout(killer);
-            const end = Date.now();
+            launchError = true;
             result.code = 1;
             result.signal = err.name;
-            result.time = end - begin;
-            const idx = runningBinaries.indexOf(process);
-            if (idx > -1) {
-                runningBinaries.splice(idx, 1);
+        });
+
+        process.stdin.on('error', (err: NodeJS.ErrnoException) => {
+            if (err.code !== 'EPIPE') {
+                globalThis.logger.error(err);
             }
-            resolve(result);
         });
 
         globalThis.logger.log('Wrote to STDIN');
@@ -248,36 +262,12 @@ export const runTestCase = (
 export const deleteBinary = (language: Language, binPath: string) => {
     if (language.skipCompile) {
         globalThis.logger.log(
-            "Skipping deletion of binary as it's not a compiled language.",
+            'Skipping deletion of binary as it\'s not a compiled language.',
         );
         return;
     }
     globalThis.logger.log('Deleting binary', binPath);
-    try {
-        const isLinux = platform() == 'linux';
-        const isFile = path.extname(binPath);
-
-        if (isLinux) {
-            if (isFile) {
-                spawn('rm', [binPath]);
-            } else {
-                spawn('rm', ['-r', binPath]);
-            }
-        } else {
-            const nrmBinPath = '"' + binPath + '"';
-            if (isFile) {
-                spawn('cmd.exe', ['/c', 'del', nrmBinPath], {
-                    windowsVerbatimArguments: true,
-                });
-            } else {
-                spawn('cmd.exe', ['/c', 'rd', '/s', '/q', nrmBinPath], {
-                    windowsVerbatimArguments: true,
-                });
-            }
-        }
-    } catch (err) {
-        globalThis.logger.error('Error while deleting binary', err);
-    }
+    deleteCompiledOutput(binPath);
 };
 
 /** Kill all currently running processes. Only one problem's testcases
@@ -286,6 +276,6 @@ export const killRunning = () => {
     globalThis.reporter.sendTelemetryEvent(telmetry.KILL_RUNNING);
     globalThis.logger.log('Killling binaries');
     killRequested = true;
-    runningBinaries.forEach((process) => process.kill());
+    runningBinaries.forEach((process) => killTestCaseProcess(process));
     runningCompilers.forEach((process) => process.kill());
 };

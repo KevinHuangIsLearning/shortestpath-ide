@@ -34,5 +34,7 @@ test('opens documentation in the external browser', () => {
 	assert.doesNotMatch(openCompetitiveChampionDoc, /openBrowserTab/);
 
 	const newTabEditor = fs.readFileSync(path.resolve(extensionRoot, '../../src/vs/workbench/contrib/shortestpath/browser/shortestPathNewTabEditor.ts'), 'utf8');
-	assert.match(newTabEditor, /localizeNewTab\('View Documentation',[\s\S]{0,250}openExternal: true/);
+	// The solving workspace's empty page now routes directly to the browser mode.
+	assert.match(newTabEditor, /executeCommand\('shortestpath.mode.browse'\)/);
+	assert.doesNotMatch(newTabEditor, /View Documentation/);
 });

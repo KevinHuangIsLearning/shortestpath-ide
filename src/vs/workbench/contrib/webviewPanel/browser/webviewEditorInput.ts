@@ -9,6 +9,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../platform/editor/common/editor.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
@@ -22,7 +23,11 @@ export interface WebviewInputInitInfo {
 	readonly iconPath: WebviewIconPath | undefined;
 }
 
-export class WebviewInput extends EditorInput {
+export class WebviewInput extends EditorInput implements IModalEditorOptionsProvider {
+
+	getModalEditorOptions(): IModalEditorOptions | undefined {
+		return this._webview.options.modalCloseOnly ? { closeOnly: true } : undefined;
+	}
 
 	public static typeId = 'workbench.editors.webviewInput';
 

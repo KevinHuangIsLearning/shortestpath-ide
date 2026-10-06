@@ -6,7 +6,7 @@
 import './media/panelpart.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
-import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from '../../../../platform/actions/common/actions.js';
+import { MenuId, MenuRegistry, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { isHorizontal, IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from '../../../services/layout/browser/layoutService.js';
 import { IsAuxiliaryWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from '../../../common/contextkeys.js';
@@ -14,8 +14,7 @@ import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/conte
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { ViewContainerLocation, IViewDescriptorService } from '../../../common/views.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ViewContainerLocation } from '../../../common/views.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ICommandActionTitle } from '../../../../platform/action/common/action.js';
@@ -340,88 +339,3 @@ MenuRegistry.appendMenuItems([
 		}
 	}
 ]);
-
-class MoveViewsBetweenPanelsAction extends Action2 {
-	constructor(private readonly source: ViewContainerLocation, private readonly destination: ViewContainerLocation, desc: Readonly<IAction2Options>) {
-		super(desc);
-	}
-
-	run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		const viewDescriptorService = accessor.get(IViewDescriptorService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const viewsService = accessor.get(IViewsService);
-
-		const srcContainers = viewDescriptorService.getViewContainersByLocation(this.source);
-		const destContainers = viewDescriptorService.getViewContainersByLocation(this.destination);
-
-		if (srcContainers.length) {
-			const activeViewContainer = viewsService.getVisibleViewContainer(this.source);
-
-			srcContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, this.destination, undefined, this.desc.id));
-			layoutService.setPartHidden(false, this.destination === ViewContainerLocation.Panel ? Parts.PANEL_PART : Parts.AUXILIARYBAR_PART);
-
-			if (activeViewContainer && destContainers.length === 0) {
-				viewsService.openViewContainer(activeViewContainer.id, true);
-			}
-		}
-	}
-}
-
-// --- Move Panel Views To Secondary Side Bar
-
-class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
-	static readonly ID = 'workbench.action.movePanelToSidePanel';
-	constructor() {
-		super(ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar, {
-			id: MovePanelToSidePanelAction.ID,
-			title: localize2('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
-			category: Categories.View,
-			f1: false
-		});
-	}
-}
-
-export class MovePanelToSecondarySideBarAction extends MoveViewsBetweenPanelsAction {
-	static readonly ID = 'workbench.action.movePanelToSecondarySideBar';
-	constructor() {
-		super(ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar, {
-			id: MovePanelToSecondarySideBarAction.ID,
-			title: localize2('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
-			category: Categories.View,
-			f1: true
-		});
-	}
-}
-
-registerAction2(MovePanelToSidePanelAction);
-registerAction2(MovePanelToSecondarySideBarAction);
-
-// --- Move Secondary Side Bar Views To Panel
-
-class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
-	static readonly ID = 'workbench.action.moveSidePanelToPanel';
-
-	constructor() {
-		super(ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel, {
-			id: MoveSidePanelToPanelAction.ID,
-			title: localize2('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
-			category: Categories.View,
-			f1: false
-		});
-	}
-}
-
-export class MoveSecondarySideBarToPanelAction extends MoveViewsBetweenPanelsAction {
-	static readonly ID = 'workbench.action.moveSecondarySideBarToPanel';
-
-	constructor() {
-		super(ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel, {
-			id: MoveSecondarySideBarToPanelAction.ID,
-			title: localize2('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
-			category: Categories.View,
-			f1: true
-		});
-	}
-}
-registerAction2(MoveSidePanelToPanelAction);
-registerAction2(MoveSecondarySideBarToPanelAction);

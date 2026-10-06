@@ -19,6 +19,7 @@ import * as vscode from 'vscode';
 import { getJudgeViewProvider } from './extension';
 import { toAsciiFilename } from './utilsPure';
 import localize from './i18n';
+import { deleteCompiledOutput } from './compiledOutput';
 export let onlineJudgeEnv = getDefaultOnlineJudge();
 export const runningCompilers: ChildProcess[] = [];
 
@@ -358,17 +359,29 @@ const createDotnetProject = async (
  *
  * @param srcPath location of the source code
  */
-export const compileFile = async (
+export let compilationsInProgress = 0;
+type CompileOptions = {
+    silent?: boolean;
+    outputPath?: string;
+    projectDirectory?: string;
+    timeout?: number;
+    reportProgress?: (message: string) => void;
+    isCancelled?: () => boolean;
+};
+
+export const compileFile = async (srcPath: string, options: CompileOptions = {}): Promise<boolean> => {
+    compilationsInProgress++;
+    try { return await compileSource(srcPath, options); } finally { compilationsInProgress--; }
+};
+
+const compileSource = async (
     srcPath: string,
-    options: {
-        silent?: boolean;
-        outputPath?: string;
-        projectDirectory?: string;
-    } = {},
+    options: CompileOptions,
 ): Promise<boolean> => {
     const silent = options.silent === true;
     globalThis.logger.log('Compilation Started');
     await vscode.workspace.openTextDocument(srcPath).then((doc) => doc.save());
+    if (options.isCancelled?.()) { return false; }
     if (!silent) {
         ocHide();
     }
@@ -380,6 +393,7 @@ export const compileFile = async (
     const spawnOpts: SpawnOptionsWithoutStdio = {
         cwd: undefined,
         env: process.env,
+        timeout: options.timeout,
     };
 
     if (language.name === 'csharp') {
@@ -410,6 +424,7 @@ export const compileFile = async (
         }
     }
 
+    if (options.isCancelled?.()) { return false; }
     if (!silent) {
         getJudgeViewProvider().extensionToJudgeViewMessage({
             command: 'compiling-start',
@@ -440,13 +455,16 @@ export const compileFile = async (
             throw err;
         }
         let error = '';
+        let launchError = false;
 
         compiler.stderr.on('data', (data) => {
+            options.reportProgress?.(String(data));
             error += data;
         });
 
         compiler.on('error', (err) => {
-            removeRunningCompiler(compiler);
+            options.reportProgress?.(err.message);
+            launchError = true;
             globalThis.logger.error(err);
             if (!silent) {
                 ocWrite(
@@ -465,11 +483,12 @@ export const compileFile = async (
                 });
                 ocShow();
             }
-            resolve(false);
         });
 
-        compiler.on('exit', (exitcode) => {
+        // Wait for compiler stdio and child tools to close before callers clean outputs.
+        compiler.on('close', (exitcode) => {
             removeRunningCompiler(compiler);
+            if (launchError) { resolve(false); return; }
             const exitCode = exitcode ?? 0;
             const hideWarningsWhenCompiledOK = getHideStderrorWhenCompiledOK();
 
@@ -514,5 +533,9 @@ export const compileFile = async (
             return;
         });
     });
-    return result;
+    const compiled = await result;
+    if (!compiled) {
+        deleteCompiledOutput(options.outputPath || getBinSaveLocation(srcPath));
+    }
+    return compiled;
 };

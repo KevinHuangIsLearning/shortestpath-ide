@@ -13,8 +13,11 @@ import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../..
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
+import { WebviewSourceEditorInput } from './webviewSourceEditorInput.js';
+import { URI } from '../../../../base/common/uri.js';
 import { GroupIdentifier } from '../../../common/editor.js';
-import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
@@ -25,6 +28,16 @@ import { WebviewIconPath, WebviewInput, WebviewInputInitInfo } from './webviewEd
 export interface IWebViewShowOptions {
 	readonly group?: IEditorGroup | GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE;
 	readonly preserveFocus?: boolean;
+	readonly sourceEditor?: URI;
+	readonly sourceEditorRatio?: number;
+}
+
+/** Allows a workbench surface to own panels outside the editor groups. */
+export interface WebviewOpenHandler {
+	readonly onDidChange: Event<void>;
+	getActiveWebview(): WebviewInput | undefined;
+	getViewState(webview: WebviewInput): { visible: boolean; active: boolean } | undefined;
+	shouldOpenEditor(webview: WebviewInput, preserveFocus: boolean): boolean;
 }
 
 export const IWebviewWorkbenchService = createDecorator<IWebviewWorkbenchService>('webviewEditorService');
@@ -41,6 +54,8 @@ export interface IWebviewWorkbenchService {
 	 * Fires `undefined` if focus switches to a non-webview editor.
 	 */
 	readonly onDidChangeActiveWebviewEditor: Event<WebviewInput | undefined>;
+	registerOpenHandler(handler: WebviewOpenHandler): IDisposable;
+	getViewState(webview: WebviewInput): { visible: boolean; active: boolean } | undefined;
 
 	/**
 	 * Create a new webview editor and open it in the workbench.
@@ -85,6 +100,9 @@ export interface IWebviewWorkbenchService {
 	 * Check if a webview should be serialized across window reloads.
 	 */
 	shouldPersist(input: WebviewInput): boolean;
+
+	/** Release a companion while preserving any unsaved native source. */
+	disposeWebview(webview: WebviewInput): Promise<void>;
 
 	/**
 	 * Try to resolve a webview. This will block until a resolver is registered for the webview.
@@ -206,12 +224,33 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 
 	private readonly _revivers = new Set<WebviewResolver>();
 	private readonly _revivalPool = new RevivalPool();
+	private readonly openHandlers = new Set<WebviewOpenHandler>();
+
+	public registerOpenHandler(handler: WebviewOpenHandler): IDisposable {
+		this.openHandlers.add(handler);
+		const listener = handler.onDidChange(() => {
+			this.updateActiveWebview(true);
+		});
+		return combinedDisposable(listener, toDisposable(() => {
+			this.openHandlers.delete(handler);
+			this.updateActiveWebview();
+		}));
+	}
+
+	public getViewState(webview: WebviewInput): { visible: boolean; active: boolean } | undefined {
+		for (const handler of this.openHandlers) {
+			const state = handler.getViewState(webview);
+			if (state) { return state; }
+		}
+		return undefined;
+	}
 
 	constructor(
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
+		@ITextEditorService private readonly textEditorService: ITextEditorService,
 	) {
 		super();
 
@@ -241,7 +280,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		let webviewInput: WebviewInput | undefined;
 		if (input instanceof WebviewInput) {
 			webviewInput = input;
-		} else if (input instanceof DiffEditorInput) {
+		} else if (input instanceof SideBySideEditorInput) {
 			if (input.primary instanceof WebviewInput) {
 				webviewInput = input.primary;
 			} else if (input.secondary instanceof WebviewInput) {
@@ -252,20 +291,24 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		return webviewInput?.webview.providedViewType ?? '';
 	}
 
-	private updateActiveWebview() {
+	private updateActiveWebview(forceEvent = false) {
 		const activeInput = this._editorService.activeEditor;
 
 		let newActiveWebview: WebviewInput | undefined;
 		if (activeInput instanceof WebviewInput) {
 			newActiveWebview = activeInput;
-		} else if (activeInput instanceof DiffEditorInput) {
+		} else if (activeInput instanceof SideBySideEditorInput) {
 			if (activeInput.primary instanceof WebviewInput && activeInput.primary.webview === this._webviewService.activeWebview) {
 				newActiveWebview = activeInput.primary;
 			} else if (activeInput.secondary instanceof WebviewInput && activeInput.secondary.webview === this._webviewService.activeWebview) {
 				newActiveWebview = activeInput.secondary;
 			}
 		}
-		if (newActiveWebview !== this._activeWebview) {
+		for (const handler of this.openHandlers) {
+			const standalone = handler.getActiveWebview();
+			if (standalone) { newActiveWebview = standalone; break; }
+		}
+		if (forceEvent || newActiveWebview !== this._activeWebview) {
 			this._activeWebview = newActiveWebview;
 			this._onDidChangeActiveWebviewEditor.fire(newActiveWebview);
 		}
@@ -280,14 +323,39 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 	): WebviewInput {
 		const webview = this._webviewService.createWebviewOverlay(webviewInitInfo);
 		const webviewInput = this._instantiationService.createInstance(WebviewInput, { viewType, name: title, providedId: webviewInitInfo.providedViewType, iconPath }, webview);
-		this._editorService.openEditor(webviewInput, {
+		for (const handler of this.openHandlers) {
+			if (!handler.shouldOpenEditor(webviewInput, !!showOptions.preserveFocus)) { return webviewInput; }
+		}
+		const source = showOptions.sourceEditor && this.textEditorService.createTextEditor({ resource: showOptions.sourceEditor });
+		const input = source ? this._instantiationService.createInstance(WebviewSourceEditorInput, webviewInput, source, showOptions.sourceEditorRatio) : webviewInput;
+		const existing = source && this._editorService.findEditors(source.resource!).find(editor => editor.editor === source);
+		const options = {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: showOptions.preserveFocus ? EditorActivation.RESTORE : undefined
-		}, showOptions.group);
+		};
+		if (existing) {
+			// Both tabs share the same source input, including its unsaved text.
+			void this.editorGroupsService.getGroup(existing.groupId)?.replaceEditors([{ editor: source!, replacement: input, options, forceReplaceDirty: true }]);
+		} else {
+			void this._editorService.openEditor(input, options, showOptions.group);
+		}
 		return webviewInput;
+	}
+
+	public async disposeWebview(webview: WebviewInput): Promise<void> {
+		// An extension can dispose a panel without going through the tab's dirty-close dialog.
+		// Preserve the same unsaved source input as a normal tab before releasing its companion.
+		for (const group of this.editorGroupsService.groups) {
+			for (const editor of group.editors) {
+				if (editor instanceof WebviewSourceEditorInput && editor.secondary === webview && editor.isDirty()) {
+					await group.replaceEditors([{ editor, replacement: editor.primary, forceReplaceDirty: true, options: { pinned: true, preserveFocus: true } }]);
+				}
+			}
+		}
+		webview.dispose();
 	}
 
 	public revealWebview(
@@ -295,9 +363,19 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		group: IEditorGroup | GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE,
 		preserveFocus: boolean
 	): void {
+		for (const handler of this.openHandlers) {
+			if (!handler.shouldOpenEditor(webview, preserveFocus)) { return; }
+		}
 		const topLevelEditor = this.findTopLevelEditorForWebview(webview);
+		if (topLevelEditor instanceof WebviewSourceEditorInput && webview.group !== undefined) {
+			const owningGroup = this.editorGroupsService.getGroup(webview.group);
+			if (owningGroup?.editors.includes(topLevelEditor.primary)) {
+				void owningGroup.replaceEditors([{ editor: topLevelEditor.primary, replacement: topLevelEditor, options: { preserveFocus, pinned: true }, forceReplaceDirty: true }]);
+				return;
+			}
+		}
 
-		this._editorService.openEditor(topLevelEditor, {
+		void this._editorService.openEditor(topLevelEditor, {
 			preserveFocus,
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
@@ -310,7 +388,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 			if (editor === webview) {
 				return editor;
 			}
-			if (editor instanceof DiffEditorInput) {
+			if (editor instanceof SideBySideEditorInput) {
 				if (webview === editor.primary || webview === editor.secondary) {
 					return editor;
 				}

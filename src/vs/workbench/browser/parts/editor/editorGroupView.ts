@@ -1201,7 +1201,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Fire the event letting everyone know we are about to open an editor
-		this._onWillOpenEditor.fire({ editor, groupId: this.id });
+		this._onWillOpenEditor.fire({ editor, groupId: this.id, options });
 
 		// Determine options
 		const pinned = options?.sticky

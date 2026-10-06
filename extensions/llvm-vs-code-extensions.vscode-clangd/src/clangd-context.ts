@@ -102,6 +102,23 @@ export class ClangdContext implements vscode.Disposable {
     }
     const serverOptions: vscodelc.ServerOptions = clangd;
 
+    // clangd ignores LSP tabSize unless a .clang-format is present. Use
+    // ShortestPath's temporary rule file for documents without project rules.
+    const formatDefault = async (
+        document: vscode.TextDocument, options: vscode.FormattingOptions,
+        token: vscode.CancellationToken, ranges?: vscode.Range|vscode.Range[]) => {
+      if (token.isCancellationRequested) return [];
+      if (document.languageId !== 'cpp' || document.uri.scheme !== 'file' ||
+          !vscode.extensions.getExtension('shortestpath.shortestpath-setup')?.isActive)
+        return undefined;
+      const version = document.version;
+      const edits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
+          'shortestpath.formatCpp', document.uri.fsPath, document.getText(),
+          options.tabSize, ranges);
+      return token.isCancellationRequested || document.version !== version
+                 ? [] : edits;
+    };
+
     const clientOptions: vscodelc.LanguageClientOptions = {
       // Register the server for c-family and cuda files.
       documentSelector: clangdDocumentSelector,
@@ -128,6 +145,18 @@ export class ClangdContext implements vscode.Disposable {
       // We also mark the list as incomplete to force retrieving new rankings.
       // See https://github.com/microsoft/language-server-protocol/issues/898
       middleware: {
+        provideDocumentFormattingEdits: async (document, options, token, next) => {
+          const edits = await formatDefault(document, options, token);
+          return edits !== undefined ? edits : next(document, options, token);
+        },
+        provideDocumentRangeFormattingEdits: async (document, range, options, token, next) => {
+          const edits = await formatDefault(document, options, token, range);
+          return edits !== undefined ? edits : next(document, range, options, token);
+        },
+        provideDocumentRangesFormattingEdits: async (document, ranges, options, token, next) => {
+          const edits = await formatDefault(document, options, token, ranges);
+          return edits !== undefined ? edits : next(document, ranges, options, token);
+        },
         provideCompletionItem: async (document, position, context, token,
                                       next) => {
           if (!await config.get<boolean>('enableCodeCompletion'))

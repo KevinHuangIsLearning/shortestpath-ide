@@ -66,7 +66,7 @@ export function submissionAliases(ojMapping: Record<string, OjMappingEntry>, vju
 	for (const [key, entry] of Object.entries(vjudgeMapping)) { join(key, entry.vjudgeUrlKey || key); }
 	for (const entry of Object.values(ojMapping)) {
 		const canonical = entry.ojName || entry.oj;
-		if (canonical) { join(canonical, entry.ojName || canonical); }
+		if (canonical) { join(canonical, entry.oj || canonical); }
 	}
 	const names = new Map<string, string>();
 	for (const key of Object.keys(vjudgeMapping).sort()) { if (!names.has(root(key))) { names.set(root(key), key); } }

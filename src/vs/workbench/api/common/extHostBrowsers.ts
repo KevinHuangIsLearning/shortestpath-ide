@@ -240,6 +240,7 @@ export class ExtHostBrowsers extends Disposable implements ExtHostBrowsersShape 
 		const dto = await this._proxy.$openBrowserTab(url, viewColumn, {
 			preserveFocus: options?.preserveFocus,
 			inactive: options?.background,
+			hidden: options?.hidden,
 			modal: options?.modal ? {} : undefined,
 		});
 

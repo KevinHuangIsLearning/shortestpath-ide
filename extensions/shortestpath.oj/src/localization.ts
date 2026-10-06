@@ -7,6 +7,51 @@ import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 
 const english: Readonly<Record<string, string>> = {
+	'点击编辑': 'Click to edit',
+	'题目自带样例不能修改或删除。': 'The problem samples cannot be edited or deleted.',
+	'测试用例 {0}': 'Test Case {0}',
+	'复制期望输出': 'Copy expected output',
+	'复制实际输出': 'Copy actual output',
+	'正在加载本地测试…': 'Loading local tests…',
+	'运行全部': 'Run All',
+	'运行中…': 'Running…',
+	'编译中…': 'Compiling…',
+	'检查中…': 'Checking…',
+	'正在停止…': 'Stopping…',
+	'停止': 'Stop',
+	'添加用例': 'Add Test Case',
+	'添加': 'Add',
+	'编辑用例': 'Edit Test Case',
+	'保存用例': 'Save Test Case',
+	'通过': 'Passed',
+	'答案不符': 'Wrong Answer',
+	'运行错误': 'Runtime Error',
+	'超时': 'Time Limit Exceeded',
+	'输出超限': 'Output Limit Exceeded',
+	'已运行': 'Finished',
+	'标准错误': 'Standard Error',
+	'检查器输出': 'Checker Output',
+	'输出差异': 'Output Difference',
+	'行': 'Line',
+	'编译及运行信息': 'Compilation and Execution Details',
+	'暂无测试用例，可以添加用例。': 'No test cases yet. Add a test case to begin.',
+	'请先停止正在进行的测试。': 'Stop the current test run first.',
+	'未找到该文件的本地测试数据。': 'Local test data for this file was not found.',
+	'没有可运行的测试用例。': 'There are no test cases to run.',
+	'编译失败': 'Compilation Failed',
+	'本地测试执行失败': 'Local Test Failed',
+	'测试输入或期望输出无效。': 'Invalid test input or expected output.',
+	'交互题不支持本地样例运行。': 'Interactive problems do not support local sample runs.',
+	'本地测试暂时不可用，请重试。': 'Local testing is unavailable. Try again.',
+	'删除这个测试用例？': 'Delete this test case?',
+	'未找到该题目的本地代码文件。': 'The local source file for this problem was not found.',
+	'已添加到样例': 'Added to test cases',
+	'正在添加到样例…': 'Adding to test cases…',
+	'添加到样例': 'Add to Test Cases',
+	'请去网页登录': 'Sign in on the website',
+	'请去网页登录原账号': 'Sign in with the original account',
+	'请去网页完成验证': 'Complete verification on the website',
+	'请去网页登录或完成验证': 'Sign in or complete verification on the website',
 	'样例 {0}': 'Sample {0}',
 	'所需文件': 'Required Files',
 	'准备': 'Preparation',
@@ -38,7 +83,7 @@ const english: Readonly<Record<string, string>> = {
 	'已有订正任务已结束，是否重新订正？': 'The previous correction has finished. Start a new correction?',
 	'重新订正': 'Retry Correction',
 	'比赛结果暂未公开': 'Contest Results Are Hidden',
-	'结果公开后可刷新观察': 'Refresh after results become public',
+	'等待比赛结果公开': 'Waiting for contest results to become public',
 	'反例已截断，只能查看，不能加入本地测试。': 'The counterexample is truncated. It can be viewed but cannot be used as a local test.',
 	'交互轨迹': 'Interaction Trace',
 	'费用': 'Cost',
@@ -49,7 +94,22 @@ const english: Readonly<Record<string, string>> = {
 	'AI 订正暂不可用。': 'AI correction is currently unavailable.',
 	'源码与题目内容将由外部 AI 服务处理，请确认继续。': 'An external AI service will process the source and problem content. Confirm to continue.',
 	'确认订正': 'Confirm Correction',
-	'刷新提交记录': 'Refresh Submissions',
+	'题目评价': 'Problem Rating',
+	'好': 'Good',
+	'一般': 'Average',
+	'差': 'Bad',
+	'{0}，{1} 人': '{0}, {1} people',
+	'连接恢复后可评价': 'Rate after the connection is restored',
+	'保存中…': 'Saving…',
+	'评价暂时不可用': 'Ratings are temporarily unavailable',
+	'正在加载评价…': 'Loading ratings…',
+	'AC 或计时满 5 小时后可评价': 'Rate after AC or 5 hours of solving',
+	'已评价：{0}，可点击修改': 'Rated: {0}. Click to change',
+	'这道题怎么样？': 'How was this problem?',
+	'首次 AC，恭喜！': 'First AC, congratulations!',
+	'这道题体验如何？留下你的评价吧。': 'How was solving this problem? Leave your rating.',
+	'稍后再说': 'Maybe Later',
+	'评价响应无效。': 'Invalid rating response.',
 	'评分规则': 'Scoring Rules',
 	'交互协议': 'Interaction Protocol',
 	'用户输出': 'Solver Output',
@@ -63,6 +123,10 @@ const english: Readonly<Record<string, string>> = {
 	'上一次对拍结果未知，请先在网页查看任务记录。': 'The previous stress-test result is unknown. Check task history on the website first.',
 
 	'提交代码': 'Submit Code',
+	'在网页中查看': 'View on Website',
+	'选择代码保存文件夹': 'Choose a Folder for Your Code',
+	'使用此文件夹': 'Use This Folder',
+	'正在打开代码保存文件夹，题目将自动恢复。': 'Opening the code folder. Your problem will resume automatically.',
 	'关闭': 'Close',
 	'关闭兼容性提示': 'Close compatibility warning',
 	'操作长时间没有响应，可能是因为触发了安全验证，请到浏览器处理。': 'The operation has not responded for a long time, possibly because it triggered verification. Complete it in the browser.',
@@ -84,6 +148,11 @@ const english: Readonly<Record<string, string>> = {
 	'已复制': 'Copied',
 	'提示': 'Hint',
 	'解题报告': 'Editorial',
+	'弹框查看（代码在右）': 'Open Popup (Code on Right)',
+	'弹框查看': 'Open in Dialog',
+	'解题报告尚未解锁，': 'The editorial is locked. ',
+	'查看提示后仍需等待，': 'You must still wait after viewing hints. ',
+	'解题报告尚未解锁。': 'The editorial is still locked.',
 	'正在加载解题报告…': 'Loading editorial…',
 	'加载中…': 'Loading…',
 	'正在提交…': 'Submitting…',
@@ -114,26 +183,37 @@ const english: Readonly<Record<string, string>> = {
 	, '删除': 'Delete'
 	, '评测': 'Submissions'
 	, '已连接题目网页。': 'Connected to the problem webpage.'
+	, '正在重新连接…': 'Reconnecting…'
+	, '登录后继续': 'Sign in to continue'
+	, '请登录原账号后继续': 'Sign in with the original account to continue'
+	, '暂时无法连接': 'Unable to connect right now'
+	, '登录': 'Sign in'
 	, '等待用户从网站重新发送题目。': 'Waiting for the website to resend the problem.'
 	, '暂无内容。': 'No content.'
 	, '已查看答案': 'Answer viewed'
 	, '已解锁': 'Unlocked'
 	, '提示尚未解锁': 'Hint locked'
+	, '查看提示': 'View hint'
 	, '提示问题尚未解锁。': 'The hint question is still locked.'
 	, '显示答案': 'Show Answer'
 	, '关闭提示': 'Close Hint'
 	, '调整题解和参考代码宽度': 'Resize editorial and reference code'
-	, '此提交来自本地保存的历史记录，未存储具体评测信息，因此没有更多可用信息。': 'This submission comes from locally saved history. Detailed judging data was not stored.'
 	, '评测转发已断开；后端任务状态未知，请重新连接并恢复观察。': 'The judging relay disconnected. Reconnect and resume watching to learn the backend task status.'
+	, '连接恢复后将继续更新评测结果。': 'Judging results will continue updating once the connection is restored.'
 	, '恢复观察': 'Resume Watching'
 	, '已有提交 ID': 'Existing submission ID'
 	, '暂无评测记录。': 'No submissions.'
-	, '运行中，网站尚未提供轮数进度': 'Running; the website has not provided round progress.'
+	, '对拍中…': 'Stress testing…'
+	, '发现反例': 'Counterexample Found'
+	, '未发现反例': 'No Counterexample Found'
+	, '对拍超时': 'Stress Test Timed Out'
+	, '对拍失败': 'Stress Test Failed'
 	, '反例': 'Counterexample'
 	, '输入': 'Input'
 	, '期望输出': 'Expected Output'
 	, '实际输出': 'Actual Output'
 	, '对拍转发已断开；后端任务仍可能继续，请重新连接并刷新对拍上下文。': 'The stress-test relay disconnected. The backend task may still be running; reconnect and refresh the stress-test context.'
+	, '连接恢复后将继续更新对拍结果。': 'Stress-test results will continue updating once the connection is restored.'
 	, '提交出现 WA，可以使用对拍找到错误数据。': 'The submission received WA. Use stress testing to find a counterexample.'
 	, '发起对拍': 'Start Stress Test'
 	, 'ShortestPath OJ 集成无法启动：端口 {0} 已被占用。请关闭占用该端口的程序后重启 ShortestPath IDE。': 'ShortestPath OJ integration cannot start: port {0} is already in use. Close the program using it and restart ShortestPath IDE.'
@@ -160,6 +240,7 @@ const english: Readonly<Record<string, string>> = {
 	, '当前 CPH 活动题目不是 ShortestPath OJ 题目。': 'The active CPH problem is not a ShortestPath OJ problem.'
 	, '网页未提供可用的提交语言，无法发起提交。': 'The webpage did not provide an available submission language.'
 	, '题目网页未连接，请从网站重新在 ShortestPath IDE 中打开。': 'The problem webpage is disconnected. Reopen it in ShortestPath IDE from the website.'
+	, '正在恢复题目连接，请稍后重试。': 'Restoring the problem connection. Please try again shortly.'
 	, '请先将题目导入 CPH Plus 再从题目面板提交。': 'Import the problem into CPH Plus before submitting from the problem panel.'
 	, '提交前请先保存源文件。': 'Save the source file before submitting.'
 	, '源文件为空。': 'The source file is empty.'

@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { usesIntegratedTests } from './integratedTests';
+import { getIntegratedTestService } from './integratedTestCommands';
 import { checkUnsupported, randomId } from './utils';
 import { Problem } from './types';
 import { getProblem, saveProblem } from './parser';
@@ -31,6 +33,19 @@ export default async () => {
     if (!problem) {
         globalThis.logger.log('No problem saved.');
         createLocalProblem(editor);
+        return;
+    }
+    if (usesIntegratedTests(problem)) {
+        await vscode.commands.executeCommand('shortestpath.oj.showProblemForCph', problem.url);
+        if (problem.interactive) {
+            void vscode.window.showErrorMessage(localize('cph.integratedTests.interactive', 'Interactive problems do not support local sample runs.'));
+            return;
+        }
+        try {
+            await getIntegratedTestService().request({ action: 'runAll', sourcePath: srcPath });
+        } catch {
+            void vscode.window.showErrorMessage(localize('cph.integratedTests.unavailable', 'Local tests are unavailable. Stop any current run and try again.'));
+        }
         return;
     }
     await editor.document.save();

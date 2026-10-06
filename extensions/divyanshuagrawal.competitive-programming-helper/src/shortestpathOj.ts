@@ -5,6 +5,6 @@ export function appendShortestPathTestCase(problem: Problem, input: string, outp
     if (problem.tests.some(test => test.input === input && test.output === output)) {
         return false;
     }
-    problem.tests.push({ input, output, id });
+    problem.tests.push({ input, output, id, origin: 'custom' });
     return true;
 }

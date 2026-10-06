@@ -527,39 +527,6 @@ function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpressio
 const SPLIT_ORDER = 100000;  // towards the end
 const CLOSE_ORDER = 1000000; // towards the far end
 
-// Editor Title Menu: Split Editor
-// In the agents window the split editor action is moved into the overflow (...)
-// menu (see below) rather than being shown as a primary toolbar icon.
-appendEditorToolItem(
-	{
-		id: SPLIT_EDITOR,
-		title: localize('splitEditorRight', "Split Editor Right"),
-		icon: Codicon.splitHorizontal
-	},
-	ContextKeyExpr.and(SplitEditorsVertically.negate(), IsSessionsWindowContext.toNegated()),
-	SPLIT_ORDER,
-	{
-		id: SPLIT_EDITOR_DOWN,
-		title: localize('splitEditorDown', "Split Editor Down"),
-		icon: Codicon.splitVertical
-	}
-);
-
-appendEditorToolItem(
-	{
-		id: SPLIT_EDITOR,
-		title: localize('splitEditorDown', "Split Editor Down"),
-		icon: Codicon.splitVertical
-	},
-	ContextKeyExpr.and(SplitEditorsVertically, IsSessionsWindowContext.toNegated()),
-	SPLIT_ORDER,
-	{
-		id: SPLIT_EDITOR_RIGHT,
-		title: localize('splitEditorRight', "Split Editor Right"),
-		icon: Codicon.splitHorizontal
-	}
-);
-
 // Agents window: show Split Editor in the editor title overflow (...) menu
 // instead of as a primary toolbar icon. Mirror the orientation handling of the
 // primary toolbar items so the label/icon match the configured split direction.

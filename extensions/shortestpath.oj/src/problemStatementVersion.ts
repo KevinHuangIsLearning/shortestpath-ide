@@ -17,6 +17,13 @@ export function hasProblemStatementChanged(previous: ImportedProblem, next: Impo
 	return JSON.stringify(getProblemStatementFingerprint(previous)) !== JSON.stringify(getProblemStatementFingerprint(next));
 }
 
+/** Re-entering an unchanged problem must retain code and user-edited CPH cases. */
+export function canReuseProblemSource(previous: ImportedProblem | undefined, next: ImportedProblem): boolean {
+	return !!previous && previous.ref === next.ref && previous.accountId === next.accountId
+		&& JSON.stringify(previous.target) === JSON.stringify(next.target)
+		&& !hasProblemStatementChanged(previous, next);
+}
+
 export function appendPreviousStatementVersion(versions: ProblemStatementSnapshot[], problem: ImportedProblem): ProblemStatementSnapshot[] {
 	const snapshot = getProblemStatementSnapshot(problem);
 	return versions.some(version => JSON.stringify(version) === JSON.stringify(snapshot)) ? versions : [...versions, snapshot];

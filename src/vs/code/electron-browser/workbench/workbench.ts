@@ -43,8 +43,10 @@
 			}
 		}
 
-		// developing an extension -> ignore stored layouts
-		if (data && configuration.extensionDevelopmentPath) {
+		// Ignore layouts from builds that still had the secondary side bar. This
+		// runs before the workbench migration so the obsolete bar cannot flash.
+		// Developing an extension also ignores stored layouts.
+		if (data && (configuration.extensionDevelopmentPath || (data.layoutInfo?.auxiliaryBarWidth ?? 0) > 0)) {
 			data.layoutInfo = undefined;
 		}
 
@@ -499,7 +501,7 @@
 		const { enableDeveloperKeybindings, removeDeveloperKeybindingsAfterLoad, developerDeveloperKeybindingsDisposable, forceDisableShowDevtoolsOnError } = setupDeveloperKeybindings(configuration, options);
 
 		// NLS
-		setupNLS<T>(configuration);
+		await setupNLS<T>(configuration);
 
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
@@ -611,7 +613,14 @@
 		};
 	}
 
-	function setupNLS<T extends ISandboxConfiguration>(configuration: T): void {
+	async function setupNLS<T extends ISandboxConfiguration>(configuration: T): Promise<void> {
+		if (safeProcess.env['VSCODE_DEV'] && globalThis._VSCODE_USE_RELATIVE_IMPORTS && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
+			const url = new URL('/@shortestpath/nls', window.location.href);
+			url.searchParams.set('language', configuration.nls.language || 'en');
+			const response = await fetch(url, { cache: 'no-store' });
+			if (!response.ok) { throw new Error(`Development NLS metadata is unavailable (${response.status})`); }
+			configuration.nls = await response.json();
+		}
 		globalThis._VSCODE_NLS_MESSAGES = configuration.nls.messages;
 		globalThis._VSCODE_NLS_LANGUAGE = configuration.nls.language;
 

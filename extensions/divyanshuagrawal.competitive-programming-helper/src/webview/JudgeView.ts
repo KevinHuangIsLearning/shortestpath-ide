@@ -9,6 +9,9 @@ import {
     runningBinaries,
 } from '../executions';
 import { saveProblem } from '../parser';
+import { updateJudgeVisibility } from '../extension';
+import { usesIntegratedTests } from '../integratedTests';
+import { isIntegratedTestRunning } from '../integratedTestCommands';
 import {
     Problem,
     VSToWebViewMessage,
@@ -68,6 +71,10 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
         return this._view === undefined;
     }
 
+    public isViewVisible() {
+        return this._view?.visible === true;
+    }
+
     constructor(private readonly _extensionUri: vscode.Uri) {}
 
     public resolveWebviewView(webviewView: vscode.WebviewView) {
@@ -87,6 +94,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                 switch (message.command) {
                     case 'run-single-and-save': {
                         if (
+                            isIntegratedTestRunning() ||
                             isStressTestRunning() ||
                             isLargeSampleTestRunning() ||
                             this.ordinaryRunRunning
@@ -107,6 +115,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 
                     case 'run-all-and-save': {
                         if (
+                            isIntegratedTestRunning() ||
                             isStressTestRunning() ||
                             isLargeSampleTestRunning() ||
                             this.ordinaryRunRunning
@@ -129,6 +138,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 
                     case 'stress-start': {
                         if (
+                            isIntegratedTestRunning() ||
                             isStressTestRunning() ||
                             this.ordinaryRunRunning ||
                             runningBinaries.length > 0 ||
@@ -220,6 +230,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 
                     case 'large-sample-start': {
                         if (
+                            isIntegratedTestRunning() ||
                             isStressTestRunning() ||
                             isLargeSampleTestRunning() ||
                             this.ordinaryRunRunning ||
@@ -244,6 +255,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 
                     case 'large-sample-run-single': {
                         if (
+                            isIntegratedTestRunning() ||
                             isStressTestRunning() ||
                             isLargeSampleTestRunning() ||
                             this.ordinaryRunRunning ||
@@ -448,6 +460,8 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                                     ? error.message
                                     : String(error),
                             );
+                        } finally {
+                            void this.extensionToJudgeViewMessage({ command: 'submit-finished' });
                         }
                         break;
                     }
@@ -766,6 +780,9 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
         problem: Problem,
         requestedRunId?: number,
     ) {
+        if (isIntegratedTestRunning()) {
+            return;
+        }
         const directory = problem.largeSampleDirectory?.trim();
         const shouldRunLargeSamples =
             Boolean(directory) && problem.largeSampleEnabled !== false;
@@ -836,9 +853,12 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
         return;
     }
 
+    public get isOrdinaryRunRunning(): boolean { return this.ordinaryRunRunning; }
+
     public problemPath: string | undefined;
 
     public async focus() {
+        if (usesIntegratedTests(this.currentProblem)) { return; }
         globalThis.logger.log('focusing');
         if (!this._view) {
             await vscode.commands.executeCommand('cph.judgeView.focus');
@@ -890,7 +910,9 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
             message.onlineJudgeEnv = message.onlineJudgeEnv ?? onlineJudgeEnv;
             this.currentProblem = message.problem;
             this.problemPath = message.problem?.srcPath;
+            updateJudgeVisibility(message.problem);
         }
+        if (usesIntegratedTests(this.currentProblem)) { return; }
         this.focusIfNeeded(message);
         if (
             (this._view && this._view.visible) ||

@@ -385,6 +385,9 @@ export interface IModalEditorPartOptions {
  */
 export interface IModalEditorOptions {
 
+	/** Show only the close action in the modal header. */
+	readonly closeOnly?: boolean;
+
 	/**
 	 * When true, the modal editor renders a simplified header:
 	 * uses the editor background, hides the title icon, removes the

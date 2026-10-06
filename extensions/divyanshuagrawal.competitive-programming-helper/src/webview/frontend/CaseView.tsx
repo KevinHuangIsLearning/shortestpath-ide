@@ -109,7 +109,6 @@ export default function CaseView(props: {
             fileCase.rerun();
             return;
         }
-        setRunning(true);
         props.rerun(id, input, output);
     };
 

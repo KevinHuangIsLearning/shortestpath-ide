@@ -6,18 +6,19 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{CSP_SOURCE}} 'unsafe-inline'; script-src {{CSP_SOURCE}}; font-src {{CSP_SOURCE}}; img-src https:;">
 	<link rel="stylesheet" href="{{KATEX_STYLES_URI}}">
-	<link rel="stylesheet" href="{{STYLES_URI}}">
+	<link id="oj-main-styles" rel="stylesheet" href="{{STYLES_URI}}">
 </head>
-<body data-elapsed-ms="{{ELAPSED_MS}}" data-timer-running="{{TIMER_RUNNING}}" data-timer-accepted="{{TIMER_ACCEPTED}}" data-captured-at="{{CAPTURED_AT}}">
+<body data-connected="{{CONNECTED}}" data-problem-ref="{{PROBLEM_REF}}" data-source-path="{{SOURCE_PATH}}" data-elapsed-ms="{{ELAPSED_MS}}" data-timer-running="{{TIMER_RUNNING}}" data-timer-accepted="{{TIMER_ACCEPTED}}" data-captured-at="{{CAPTURED_AT}}">
+	<div id="oj-connection-gate">{{CONNECTION_GATE}}</div>
+	<div id="oj-problem-content">
 	<div id="oj-operation-notice" class="operation-notice-container" aria-live="polite">{{OPERATION_NOTICE}}</div>
 	<header>
 		<div class="header-main">
 			<div class="title-line">
-				<h1><a href="{{PROBLEM_URL}}" target="_blank" rel="noopener" data-i18n-ignore>{{TITLE}}</a></h1>
+				<h1><a href="{{PROBLEM_URL}}" data-command="openWebsite" data-i18n-ignore>{{TITLE}}</a></h1>
 				<span id="oj-statement-version">{{STATEMENT_VERSION}}</span>
 				<div class="problem-actions">
 					<span id="oj-submission-button">{{SUBMISSION_BUTTON}}</span>
-					<span id="oj-editorial-action">{{EDITORIAL_ACTION}}</span>
 				</div>
 			</div>
 			<div class="title-meta-line" data-i18n-ignore>{{METADATA}}</div>
@@ -29,14 +30,19 @@
 		<button type="button" class="tab-button active" data-tab="statement" role="tab" aria-selected="true" aria-controls="oj-statement">题面</button>
 		<button type="button" class="tab-button" data-tab="hints" role="tab" aria-selected="false" aria-controls="oj-hints">提示<span class="tab-badge" id="hint-badge"></span></button>
 		<button type="button" class="tab-button" data-tab="submissions" role="tab" aria-selected="false" aria-controls="oj-submissions">评测<span class="tab-badge" id="submission-badge"></span></button>
+		<button type="button" class="tab-button" data-tab="editorial" data-command="editorial" role="tab" aria-selected="false" aria-controls="oj-editorial">解题报告</button>
 	</div>
 	<div class="tab-panels">
-		<section id="oj-statement" class="tab-panel active" role="tabpanel">{{STATEMENT}}</section>
+		<section id="oj-statement" class="tab-panel active" role="tabpanel"><div id="oj-statement-content">{{STATEMENT}}</div><div id="oj-rating">{{RATING}}</div></section>
 		<section id="oj-hints" class="tab-panel" role="tabpanel">{{HINTS}}</section>
 		<section id="oj-submissions" class="tab-panel" role="tabpanel">{{SUBMISSIONS}}</section>
+		<section id="oj-editorial" class="tab-panel" role="tabpanel">{{EDITORIAL}}</section>
 	</div>
 	<div id="oj-compatibility-warning" class="compatibility-warning-container" aria-live="polite">{{COMPATIBILITY_WARNING}}</div>
+	<div id="oj-rating-overlay" class="modal-overlay" hidden><div id="oj-rating-prompt">{{RATING_PROMPT}}</div></div>
 	<div id="oj-modal-overlay" class="modal-overlay" hidden></div>
+	</div>
+	<script src="{{STYLE_RELOAD_SCRIPT_URI}}"></script>
 	<script src="{{SCRIPT_URI}}"></script>
 </body>
 </html>

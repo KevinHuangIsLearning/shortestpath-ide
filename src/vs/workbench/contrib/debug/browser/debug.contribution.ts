@@ -254,7 +254,7 @@ if (isMacintosh) {
 
 // Editor Title Menu's "Run/Debug" dropdown item
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { submenu: MenuId.EditorTitleRun, isSplitButton: { togglePrimaryAction: true }, title: nls.localize2('run', "Run or Debug..."), icon: icons.debugRun, group: 'navigation', order: -1 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { submenu: MenuId.EditorTitleRun, isSplitButton: { togglePrimaryAction: true }, title: nls.localize2('run', "Run or Debug..."), icon: icons.debugRun, group: 'navigation', order: -1, when: ContextKeyExpr.and(ContextKeyExpr.notEquals('resourceLangId', 'c'), ContextKeyExpr.notEquals('resourceLangId', 'cpp'), ContextKeyExpr.notEquals('resourceLangId', 'cc')) });
 
 // Debug menu
 

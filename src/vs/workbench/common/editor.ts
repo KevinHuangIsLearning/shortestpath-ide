@@ -1227,7 +1227,10 @@ export interface IEditorWillMoveEvent extends IEditorIdentifier {
 	readonly target: GroupIdentifier;
 }
 
-export interface IEditorWillOpenEvent extends IEditorIdentifier { }
+export interface IEditorWillOpenEvent extends IEditorIdentifier {
+	/** Options requested by the caller, including whether the open should preserve focus. */
+	readonly options?: IEditorOptions;
+}
 
 export interface IWillInstantiateEditorPaneEvent {
 

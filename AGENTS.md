@@ -1,63 +1,23 @@
-# Repository Guidelines
+# 工作约定
 
-## Project Structure & Module Organization
+- 优先读代码、静态检查和针对性测试；非必要不使用 computer use 或自行做前端验证，定位 bug 或用户明确要求时例外。
+- 复杂任务先规划，完成后由独立只读 agent 审查，修复后复查。
+- 无法从代码或证据确认、且影响实现的需求或外部行为，先问用户。
 
-ShortestPath IDE is a Code - OSS fork for OI/ICPC workflows. Core TypeScript lives in `src/vs/`: utilities in `base/`, services in `platform/`, editor code in `editor/`, and desktop UI in `workbench/`. Bundled extensions live in `extensions/`. Build tooling is under `build/` and `scripts/`; tests are colocated in `src/vs/**/test/` or grouped under `test/`. Assets belong in `resources/`. Do not edit generated `out/` or `.build/` files.
+## 编译与发布
 
-## Build, Test, and Development Commands
+- 验证按 `.github/copilot-instructions.md`；优先已有 watch 诊断和针对性测试，勿用 `npm run compile` 仅做类型检查。
+- 打包前运行 `npm run compile-oi-extensions`；平台构建及产物要求以 `.github/workflows/release.yml` 为准。
+- 正式版标签 `Release-v*`，预发布 `Beta-v*`；正式版须同步 `product.json` 的 `shortestPathVersion`、`latest.json` 的版本与下载链接，更新 `docs/release-notes.md`。
 
-Run commands from the repository root:
+## 上游同步红线
 
-- `npm ci` installs pinned dependencies.
-- `npm run typecheck-client` checks core TypeScript.
-- `npm run compile-oi-extensions` builds bundled OI extensions.
-- `./scripts/code.sh --locale zh-cn --user-data-dir ./tmp/shortestpath-dev` launches an isolated development instance.
-- `npm run test-node -- --run <test-file>` runs a focused Node test.
-- `./scripts/test.sh --glob '**/feature*.test.js'` runs focused Electron tests.
-- `npm run test-browser-no-install` runs browser tests.
-- `npm run gulp vscode-darwin-arm64-min` or `npm run gulp vscode-win32-x64-min` creates platform packages.
+- 不发布 Copilot/Chat/Agent 扩展，但必须保留 Chat、MCP、Interactive、ChatSessions、agentHost 的服务注册及 sessions 颜色/尺寸 token；只移除 UI 入口。缺失服务会杀死整个扩展宿主。
+- 保留 `chat.shared.contribution`，勿重复注册其 LanguageModel 服务。`src/vs/sessions/` 是独立入口。
+- 静态核对 desktop 入口的服务注册与所有 `mainThread*.ts` 类的注入；扫描全部 decorator，不能只看首个构造函数。
 
-Before tests, follow `.github/copilot-instructions.md`: use the build watch task when available, otherwise the typecheck or extension gulp task. Do not use `npm run compile` for TypeScript validation.
+## 本地化
 
-## Upstream Kernels: Keep the Chat/Agent Service Layer
-
-This fork ships no Copilot/Chat/Agent extension, but the **service layer must stay registered**. `extensionHost.contribution.ts` unconditionally imports the `mainThread*.ts` customers (`MainThreadChatAgents2`, `ChatSessions`, `LanguageModels`, `LanguageModelTools`, `Mcp`, `Interactive`, `CodeMapper`, …), whose constructors DI-inject chat/agent services. Deleting those `registerSingleton` providers from `workbench.common.main.ts` — the usual accident when resolving an upstream merge conflict — makes every customer fail to construct, so `extensionHostManager.ts` throws `Missing proxy instance MainThreadChatAgents2` and the **whole extension host** dies. Only the first missing proxy is reported; a queue of others hides behind it.
-
-When syncing upstream, never drop a `chat` / `mcp` / `interactive` / `sessions` import block wholesale. Keep the service providers, drop UI entry points only:
-
-- **Keep** — `chat/browser/chat.shared.contribution.js` (owns the `IChat*` / `IPrompts*` / `IAgent*` / `ILanguageModels*` singletons), `chat.contribution.js`, `chatSessions/chatSessions.contribution.js`, `mcp/browser/mcp.contribution.js`, `interactive/browser/interactive.contribution.js`, `chat/common/chatEntitlementService.js`, the agentHost service modules, `vs/sessions` color/size tokens.
-- **Drop** — `chat.view.contribution.js`, `agentSessions/agentHost/agentHost.contribution.js`, `inlineChat`, `agentsVoice`, `mcp.view.contribution.js`, `chatContext.contribution.js`, `welcomeAgentSessions`, `remoteCodingAgents`.
-
-Never add standalone `ILanguageModelsService` / `ILanguageModelsConfigurationService` / `ILanguageModelIgnoredFilesService` singletons to the entry file; `chat.shared.contribution.ts` already registers all three. `src/vs/sessions/` is a separate app entry, outside this contract.
-
-### Static verification (no GUI needed)
-
-Diff the services registered by the `workbench.desktop.main.ts` import closure against the `@I*` tokens injected by every `mainThread*.ts` customer. Any surviving `IChat*` / `IAgent*` / `ILanguageModel*` / `IMcp*` / `IInteractive*` token is a dead extension host. Scan **every** decorator in each customer file, not just the first `constructor(` — they routinely declare multiple classes.
-
-## Coding Style & Naming Conventions
-
-Use tabs, single quotes for non-localized strings, braces for control flow, and `async`/`await`. Use PascalCase for types and enum values; camelCase for functions and variables. Localize visible text through `vs/nls`, preserve copyright headers, and register disposables immediately. Run `npm run eslint`, `npm run stylelint`, and `npm run valid-layers-check` where relevant.
-
-## Testing Guidelines
-
-Place tests beside the owning component as `*.test.ts`; integration cases use `*.integrationTest.ts`. Follow existing `suite`/`test` patterns and prefer a clear `assert.deepStrictEqual`. Add regression coverage for fixes; run coverage with `./scripts/test.sh --coverage`.
-
-## Agent Workflow for Difficult Tasks
-
-For difficult tasks, create a plan before development. After implementation, start an independent review agent/thread that must not modify code. It should validate requirement completeness, logical correctness, edge cases, code quality, test coverage, and actual runtime results, then return a concrete fix list to the primary agent. The primary agent must address the findings and ask the same reviewer to verify again. Repeat until validation passes or the remaining blocker is clearly documented.
-
-## Clarification Before Assumptions
-
-Do not guess when requirements or externally controlled behavior are unclear. Ask the user before implementing assumptions about website DOM, browser flows, account/session behavior, submission or result formats, expected UI behavior, or any other detail that cannot be verified from the repository or supplied evidence. Clearly state the missing information and wait for the user's direction when it materially affects the implementation.
-
-## ShortestPath Localization
-
-A complete localization change must audit every rendered and dynamic IDE-owned surface, not only `package.nls*.json` or a string dictionary. Check Webview text created at startup and after messages, native dialogs and notifications, command and menu labels, errors, accessibility attributes, titles, placeholders, update UI, diagnostics, and first-run onboarding. Use `localize` or `localizeFormat` at native UI boundaries and cover parameterized or mutation-generated Webview text explicitly.
-
-Preserve externally supplied problem titles, statements, editorials, metadata, algorithm tags, samples, source code, and accepted bilingual examples. Mark external Webview content with `data-i18n-ignore` where necessary instead of translating or rewriting it.
-
-Webview localization bootstraps must satisfy the page CSP, using a nonce when inline scripts are not already allowed. A `MutationObserver` visitor must be idempotent: compare text and attribute values before writing them so the observer cannot trigger itself indefinitely. Add regression coverage for CSP compatibility, unchanged-value guards, dynamic strings, native UI call sites, and external-content boundaries. Validate OJ and Setup extension suites, `npm run typecheck-client`, and `git diff --check` after localization work.
-
-## Commit & Pull Request Guidelines
-
-Use concise Conventional Commit-style subjects, for example `fix(build): match root Windows locale paths`. Keep commits scoped. Pull requests should explain behavior and validation, link issues, and include screenshots for UI changes. Call out packaging impact and bundled-extension or license changes.
+- 覆盖全部 IDE 自有静态/动态文本及原生 UI；保留外部题目内容、元数据和代码，必要时用 `data-i18n-ignore`。
+- Webview 满足 CSP；MutationObserver 写入前比较值，保持幂等。覆盖动态文本、CSP 和外部内容边界的回归测试。
+- 本地化改动运行 OJ/Setup 测试、`npm run typecheck-client` 和 `git diff --check`。

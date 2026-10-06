@@ -1443,8 +1443,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const { top, bottom } = getFloatingEditorVerticalMargins(this.layoutService, mainWindow);
 			height = Math.max(0, height - top - bottom);
 
-			// Reserve space for the Modern UI editor border (modernUI/media/editorBorder.css) so content doesn't get clipped.
-			if (!this.element.classList.contains('modal-editor-part')) {
+			// ShortestPath removes the editor frame to join the solving surface edge-to-edge.
+			// Otherwise reserve the Modern UI border so content doesn't get clipped.
+			if (!this.element.classList.contains('modal-editor-part') && !this.layoutService.mainContainer.classList.contains('shortestpath-dual-mode')) {
 				width = Math.max(0, width - EDITOR_FRAME_BORDER_WIDTH * 2);
 				height = Math.max(0, height - EDITOR_FRAME_BORDER_WIDTH * 2);
 			}

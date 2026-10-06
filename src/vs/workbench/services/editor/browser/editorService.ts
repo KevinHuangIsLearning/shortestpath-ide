@@ -593,7 +593,19 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			options = { ...options, preserveFocus: false };
 		}
 
-		return group.openEditor(typedEditor, options);
+		const editorToOpen = this.reusePrimaryEditor({ editor: typedEditor, options }, group);
+		return group.openEditor(editorToOpen.editor, editorToOpen.options);
+	}
+
+	private reusePrimaryEditor(input: EditorInputWithOptions, group: IEditorGroup, pendingEditors: readonly EditorInput[] = []): EditorInputWithOptions {
+		if (!(input.editor instanceof SideBySideEditorInput)) {
+			const existing = [...group.editors, ...pendingEditors].find(editor => editor instanceof SideBySideEditorInput && editor.revealOnPrimaryOpen && editor.primary.matches(input.editor));
+			if (existing) {
+				const options = { ...input.options, target: SideBySideEditor.PRIMARY };
+				return { editor: existing, options };
+			}
+		}
+		return input;
 	}
 
 	//#endregion
@@ -674,7 +686,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Open in target groups
 		const result: Promise<IEditorPane | undefined>[] = [];
 		for (const [group, editors] of mapGroupToTypedEditors) {
-			result.push(group.openEditors(editors));
+			const pendingEditors = editors.map(input => input.editor);
+			result.push(group.openEditors(editors.map(input => this.reusePrimaryEditor(input, group, pendingEditors))));
 		}
 
 		return coalesce(await Promises.settled(result));

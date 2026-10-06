@@ -22,6 +22,7 @@ export type prefSection =
     | 'language.c.Command'
     | 'language.c.OutputArg'
     | 'language.cpp.Args'
+    | 'language.cpp.Template'
     | 'language.cpp.SubmissionCompiler'
     | 'language.cpp.Command'
     | 'language.cpp.OutputArg'
@@ -94,12 +95,15 @@ export type LangNames =
     | 'cangjie';
 
 export type TestCase = {
+    origin?: 'sample' | 'custom';
+    sampleIndex?: number;
     input: string;
     output: string;
     id: number;
 };
 
 export type Problem = {
+    shortestPath?: boolean;
     name: string;
     url: string;
     interactive: boolean;

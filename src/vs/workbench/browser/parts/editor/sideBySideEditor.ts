@@ -39,6 +39,7 @@ interface ISideBySideEditorViewState {
 	secondary: object;
 	focus: Side.PRIMARY | Side.SECONDARY | undefined;
 	ratio: number | undefined;
+	secondaryHidden?: boolean;
 }
 
 function isSideBySideEditorViewState(thing: unknown): thing is ISideBySideEditorViewState {
@@ -64,6 +65,8 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 	static readonly ID: string = SIDE_BY_SIDE_EDITOR_ID;
 
+	override get input(): SideBySideEditorInput | undefined { return super.input as SideBySideEditorInput | undefined; }
+
 	static SIDE_BY_SIDE_LAYOUT_SETTING = 'workbench.editor.splitInGroupLayout';
 
 	private static readonly VIEW_STATE_PREFERENCE_KEY = 'sideBySideEditorViewState';
@@ -75,9 +78,9 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	private get minimumPrimaryHeight() { return this.primaryEditorPane ? this.primaryEditorPane.minimumHeight : 0; }
 	private get maximumPrimaryHeight() { return this.primaryEditorPane ? this.primaryEditorPane.maximumHeight : Number.POSITIVE_INFINITY; }
 
-	private get minimumSecondaryWidth() { return this.secondaryEditorPane ? this.secondaryEditorPane.minimumWidth : 0; }
+	private get minimumSecondaryWidth() { return this.isSecondaryVisible && this.secondaryEditorPane ? this.secondaryEditorPane.minimumWidth : 0; }
 	private get maximumSecondaryWidth() { return this.secondaryEditorPane ? this.secondaryEditorPane.maximumWidth : Number.POSITIVE_INFINITY; }
-	private get minimumSecondaryHeight() { return this.secondaryEditorPane ? this.secondaryEditorPane.minimumHeight : 0; }
+	private get minimumSecondaryHeight() { return this.isSecondaryVisible && this.secondaryEditorPane ? this.secondaryEditorPane.minimumHeight : 0; }
 	private get maximumSecondaryHeight() { return this.secondaryEditorPane ? this.secondaryEditorPane.maximumHeight : Number.POSITIVE_INFINITY; }
 
 	override set minimumWidth(value: number) { /* noop */ }
@@ -113,6 +116,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	private secondaryEditorContainer: HTMLElement | undefined;
 
 	private splitview: SplitView | undefined;
+	private secondaryHiddenRatio: number | undefined;
 
 	private readonly splitviewDisposables = this._register(new DisposableStore());
 	private readonly editorDisposables = this._register(new DisposableStore());
@@ -146,7 +150,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING)) {
-			this.orientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
+			this.orientation = !this.input?.forceHorizontalLayout && this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 
 			// If config updated from event, re-create the split
 			// editor using the new layout orientation if it was
@@ -162,6 +166,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 		// Clear old (if any) but remember ratio
 		const ratio = this.getSplitViewRatio();
+		const secondaryVisible = this.isSecondaryVisible;
 		if (this.splitview) {
 			this.splitview.el.remove();
 			this.splitviewDisposables.clear();
@@ -169,11 +174,15 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 		// Create new
 		this.createSplitView(container, ratio);
+		this.setSecondaryVisible(secondaryVisible);
 
 		this.layout(this.dimension);
 	}
 
 	private getSplitViewRatio(): number | undefined {
+		if (!this.isSecondaryVisible) {
+			return this.secondaryHiddenRatio;
+		}
 		let ratio: number | undefined = undefined;
 
 		if (this.splitview) {
@@ -182,7 +191,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 			// Only return a ratio when the view size is significantly
 			// enough different for left and right view sizes
-			if (Math.abs(leftViewSize - rightViewSize) > 1) {
+			if (Math.abs(leftViewSize - rightViewSize) > 1 || this.input?.initialSplitRatio !== undefined) {
 				const totalSize = this.splitview.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
 				ratio = leftViewSize / totalSize;
 			}
@@ -229,20 +238,20 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		}
 
 		// Secondary (left)
-		const secondaryEditorContainer = assertReturnsDefined(this.secondaryEditorContainer);
+		const secondaryEditorContainer = assertReturnsDefined(this.input?.primaryOnLeft ? this.primaryEditorContainer : this.secondaryEditorContainer);
 		this.splitview.addView({
 			element: secondaryEditorContainer,
-			layout: size => this.layoutPane(this.secondaryEditorPane, size),
+			layout: size => this.layoutPane(this.input?.primaryOnLeft ? this.primaryEditorPane : this.secondaryEditorPane, size),
 			minimumSize: this.orientation === Orientation.HORIZONTAL ? DEFAULT_EDITOR_MIN_DIMENSIONS.width : DEFAULT_EDITOR_MIN_DIMENSIONS.height,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
 		}, leftSizing);
 
 		// Primary (right)
-		const primaryEditorContainer = assertReturnsDefined(this.primaryEditorContainer);
+		const primaryEditorContainer = assertReturnsDefined(this.input?.primaryOnLeft ? this.secondaryEditorContainer : this.primaryEditorContainer);
 		this.splitview.addView({
 			element: primaryEditorContainer,
-			layout: size => this.layoutPane(this.primaryEditorPane, size),
+			layout: size => this.layoutPane(this.input?.primaryOnLeft ? this.secondaryEditorPane : this.primaryEditorPane, size),
 			minimumSize: this.orientation === Orientation.HORIZONTAL ? DEFAULT_EDITOR_MIN_DIMENSIONS.width : DEFAULT_EDITOR_MIN_DIMENSIONS.height,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
@@ -270,17 +279,23 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 				this.disposeEditors();
 			}
 
+			this.orientation = !input.forceHorizontalLayout && this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
+			this.recreateSplitview();
 			this.createEditors(input);
 		}
 
+		this.setSecondaryVisible(true);
+
 		// Restore any previous view state
 		const { primary, secondary, viewState } = this.loadViewState(input, options, context);
-		this.lastFocusedSide = viewState?.focus;
+		this.lastFocusedSide = viewState?.focus ?? (input.primaryOnLeft ? Side.PRIMARY : undefined);
 
 		if (typeof viewState?.ratio === 'number' && this.splitview) {
 			const totalSize = this.splitview.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
 
 			this.splitview.resizeView(0, Math.round(totalSize * viewState.ratio));
+		} else if (input.initialSplitRatio !== undefined) {
+			this.splitview?.resizeView(0, Math.round(this.dimension.width * input.initialSplitRatio));
 		} else {
 			this.splitview?.distributeViewSizes();
 		}
@@ -295,6 +310,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		if (typeof options?.target === 'number') {
 			this.lastFocusedSide = options.target;
 		}
+		this.setSecondaryVisible(viewState?.secondaryHidden !== true);
 	}
 
 	private loadViewState(input: SideBySideEditorInput, options: ISideBySideEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined; secondary: IEditorOptions | undefined; viewState: ISideBySideEditorViewState | undefined } {
@@ -313,7 +329,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 			primaryOptions = { ...options };
 		}
 
-		primaryOptions.viewState = viewState?.primary;
+		primaryOptions.viewState = options?.target === Side.PRIMARY && options.viewState && !isSideBySideEditorViewState(options.viewState) ? options.viewState : viewState?.primary;
 
 		if (viewState?.secondary) {
 			if (!secondaryOptions) {
@@ -404,7 +420,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 		// Forward to both sides
 		this.primaryEditorPane?.setVisible(visible);
-		this.secondaryEditorPane?.setVisible(visible);
+		this.secondaryEditorPane?.setVisible(visible && this.isSecondaryVisible);
 
 		super.setEditorVisible(visible);
 	}
@@ -462,6 +478,32 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		return this.primaryEditorPane;
 	}
 
+	get isSecondaryVisible(): boolean {
+		return this.splitview?.isViewVisible(this.input?.primaryOnLeft ? 1 : 0) ?? true;
+	}
+
+	setSecondaryVisible(visible: boolean): void {
+		if (!this.splitview || visible === this.isSecondaryVisible) {
+			return;
+		}
+		if (!visible) {
+			this.secondaryHiddenRatio = this.getSplitViewRatio();
+		}
+		this.splitview.setViewVisible(this.input?.primaryOnLeft ? 1 : 0, visible);
+		if (visible && this.secondaryHiddenRatio !== undefined) {
+			const size = this.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
+			this.splitview.resizeView(0, Math.round(size * this.secondaryHiddenRatio));
+		}
+		this.secondaryEditorPane?.setVisible(visible && this.isVisible());
+		if (!visible) {
+			this.lastFocusedSide = Side.PRIMARY;
+			if (this.isVisible()) {
+				this.primaryEditorPane?.focus();
+			}
+		}
+		this.onDidCreateEditors.fire(undefined);
+	}
+
 	getSecondaryEditorPane(): IEditorPane | undefined {
 		return this.secondaryEditorPane;
 	}
@@ -476,7 +518,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		}
 
 		const primarViewState = this.primaryEditorPane?.getViewState();
-		const secondaryViewState = this.secondaryEditorPane?.getViewState();
+		const secondaryViewState = this.secondaryEditorPane?.getViewState() ?? (this.input.allowEmptySecondaryViewState ? {} : undefined);
 
 		if (!primarViewState || !secondaryViewState) {
 			return; // we actually need view states
@@ -486,11 +528,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 			primary: primarViewState,
 			secondary: secondaryViewState,
 			focus: this.lastFocusedSide,
-			ratio: this.getSplitViewRatio()
+			ratio: this.getSplitViewRatio(),
+			...(!this.isSecondaryVisible ? { secondaryHidden: true } : {})
 		};
 	}
 
 	protected toEditorViewStateResource(input: EditorInput): URI | undefined {
+		if (input instanceof SideBySideEditorInput && input.viewStateResource) { return input.viewStateResource; }
 		let primary: URI | undefined;
 		let secondary: URI | undefined;
 
@@ -510,19 +554,20 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	override updateStyles(): void {
 		super.updateStyles();
 
-		if (this.primaryEditorContainer) {
+		const borderContainer = this.input?.primaryOnLeft ? this.secondaryEditorContainer : this.primaryEditorContainer;
+		if (borderContainer) {
 			if (this.orientation === Orientation.HORIZONTAL) {
-				this.primaryEditorContainer.style.borderLeftWidth = '1px';
-				this.primaryEditorContainer.style.borderLeftStyle = 'solid';
-				this.primaryEditorContainer.style.borderLeftColor = this.getColor(SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER) ?? '';
+				borderContainer.style.borderLeftWidth = '1px';
+				borderContainer.style.borderLeftStyle = 'solid';
+				borderContainer.style.borderLeftColor = this.getColor(SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER) ?? '';
 
-				this.primaryEditorContainer.style.borderTopWidth = '0';
+				borderContainer.style.borderTopWidth = '0';
 			} else {
-				this.primaryEditorContainer.style.borderTopWidth = '1px';
-				this.primaryEditorContainer.style.borderTopStyle = 'solid';
-				this.primaryEditorContainer.style.borderTopColor = this.getColor(SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER) ?? '';
+				borderContainer.style.borderTopWidth = '1px';
+				borderContainer.style.borderTopStyle = 'solid';
+				borderContainer.style.borderTopColor = this.getColor(SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER) ?? '';
 
-				this.primaryEditorContainer.style.borderLeftWidth = '0';
+				borderContainer.style.borderLeftWidth = '0';
 			}
 		}
 	}

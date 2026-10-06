@@ -34,6 +34,41 @@
 			]
 		}
 	],
+	"setupStages": [
+		{
+			"id": "xcode",
+			"title": {
+				"en": "Command Line Tools",
+				"zh-CN": "命令行工具"
+			},
+			"text": {
+				"en": "Detect or install Apple Command Line Tools. Follow the system installation dialog if prompted.",
+				"zh-CN": "检测或安装 Apple Command Line Tools，如出现系统对话框，请完成安装。"
+			}
+		},
+		{
+			"id": "homebrew",
+			"title": {
+				"en": "Homebrew",
+				"zh-CN": "Homebrew"
+			},
+			"text": {
+				"en": "Detect or install Homebrew. If installation is needed, enter your password securely in Terminal.",
+				"zh-CN": "检测或安装 Homebrew；需要安装时，请在终端里安全输入管理员密码。"
+			}
+		},
+		{
+			"id": "toolchain",
+			"title": {
+				"en": "C++ compiler and clangd",
+				"zh-CN": "C++ 编译器与 clangd"
+			},
+			"text": {
+				"en": "Detect or install GCC and LLVM through Homebrew.",
+				"zh-CN": "检测或通过 Homebrew 安装 GCC 与 LLVM。"
+			}
+		}
+	],
 	"portableToolchain": false,
 	"compilerCandidates": [],
 	"clangdCandidates": ["/opt/homebrew/opt/llvm/bin/clangd", "/usr/local/opt/llvm/bin/clangd", "clangd"],

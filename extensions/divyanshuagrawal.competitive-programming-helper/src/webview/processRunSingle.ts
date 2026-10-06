@@ -50,6 +50,7 @@ export const runSingleAndSave = async (
         }
     }
 
+    getJudgeViewProvider().extensionToJudgeViewMessage({ command: 'running', id, problem });
     let checkerPath: string | undefined;
     let invalidCheckerPath = false;
     if (problem.customCheckerPath?.trim()) {

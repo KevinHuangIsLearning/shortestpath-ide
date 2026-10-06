@@ -6,6 +6,9 @@
 import * as vscode from 'vscode';
 import { localize, localizeFormat, localizeWebviewHtml } from './localization';
 import { getSystemFonts } from './systemFonts';
+import { getCppSnippetsHtml, type SnippetEntry, type SnippetsState } from './snippetsView';
+import { defaultCppTemplate, type PreviewToken } from './firstRunPreview';
+import { installBundledCppSnippets } from './bundledSnippets';
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 
@@ -14,7 +17,21 @@ export type ThemeOption = {
 	label: string;
 };
 
-export const defaultCompilerFlags = `-std=c++23 -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG${process.platform === 'win32' ? ' -static' : ''}`;
+export const defaultCompilerFlags = '-std=c++20 -O2 -g -Wall -Wextra -DDEBUG';
+const fontPreviewSource = [
+	'#include <bits/stdc++.h>',
+	'',
+	'int main() {',
+	'  auto valid = [](int x) -> bool {',
+	'    return x >= 0 && x <= 10 && x != 5;',
+	'  };',
+	'  for (int i = 0; i <= 10; ++i) {',
+	'    if (valid(i) || i == 5) {',
+	'      std::cout << i << " => OK\\n";',
+	'    }',
+	'  }',
+	'}',
+].join('\n');
 
 type SimpleSettingsState = {
 	fontFamily: string;
@@ -23,24 +40,23 @@ type SimpleSettingsState = {
 	autoFormat: boolean;
 	cppStandard: CppStandard;
 	compilerFlags: string;
+	cppTemplate: string;
 	clangdVariableTypeHints: boolean;
 	errorLensCodeLensEnabled: boolean;
 	executableCleanupEnabled: boolean;
 	executableCleanupDelaySeconds: number;
 	colorTheme: string;
 	autoDetectColorScheme: boolean;
-	modernUIEnabled: boolean;
 	autoSave: string;
 	displayLanguage: string;
-	newFileDefaultLanguage: string;
 	useExtensionMarketplace: boolean;
 	shortestPathCppSubmissionLanguage: string;
 	defaultSubmitMethod: string;
 	themes: ThemeOption[];
 };
 
-// A highlighted "Buy Me a Coffee" entry sits at the top of the simplified settings
-// page. Dismissing it hides the entry for a week; the deadline is persisted so
+// A compact support action sits in the settings header. Dismissing it hides
+// the action for a week; the deadline is persisted so
 // it survives window reloads and restarts.
 const buyMeACoffeeUrl = 'https://kevinhuang.feishu.cn/wiki/Z6a6w3M9riOFXXkXLAoc1G7inJd';
 const buyMeACoffeeDismissedUntilKey = 'shortestpath.buyMeACoffee.dismissedUntil';
@@ -70,6 +86,9 @@ async function openDocumentationPage(): Promise<void> {
 		void vscode.window.showErrorMessage(localizeFormat('无法打开文档页面：{0}', error instanceof Error ? error.message : String(error)));
 	}
 }
+
+let snippetsPanel: vscode.WebviewPanel | undefined;
+let settingsPanel: vscode.WebviewPanel | undefined;
 
 export function registerSimpleSettings(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openSettings', () => openSimpleSettings(context)));
@@ -104,48 +123,26 @@ function defaultLanguageSnippets(language: string): string {
 }`;
 }
 
-type SnippetEntry = {
-	name: string;
-	prefix: string;
-	body: string;
-	description: string;
-	include: string;
-	exclude: string;
-};
+async function getSnippetsFile(language: string): Promise<vscode.Uri> {
+	const snippetsHome = await vscode.commands.executeCommand<string>('_shortestpath.snippetsHome');
+	if (!snippetsHome) { throw new Error('Current profile snippets directory is unavailable'); }
+	return vscode.Uri.joinPath(vscode.Uri.parse(snippetsHome), `${language}.json`);
+}
 
-type SnippetLanguage = {
-	id: string;
-	label: string;
-};
-
-type SnippetsState = {
-	language: string;
-	languages: readonly SnippetLanguage[];
-	entries: readonly SnippetEntry[];
-};
-
-const snippetLanguageLabels: Record<string, string> = {
-	c: 'C',
-	cpp: 'C++',
-	csharp: 'C#',
-	go: 'Go',
-	java: 'Java',
-	javascript: 'JavaScript',
-	python: 'Python',
-	rust: 'Rust',
-	typescript: 'TypeScript'
-};
-
-function getSnippetsFile(context: vscode.ExtensionContext, language: string): vscode.Uri {
-	return vscode.Uri.joinPath(context.globalStorageUri, '..', '..', 'snippets', `${language}.json`);
+export async function initializeCppSnippets(context: vscode.ExtensionContext): Promise<void> {
+	await installBundledCppSnippets((await getSnippetsFile('cpp')).fsPath, context.extensionPath);
 }
 
 async function ensureSnippetsFile(context: vscode.ExtensionContext, language: string): Promise<vscode.Uri> {
-	const snippetsFile = getSnippetsFile(context, language);
+	const snippetsFile = await getSnippetsFile(language);
 	try {
 		await vscode.workspace.fs.stat(snippetsFile);
 	} catch {
-		await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(context.globalStorageUri, '..', '..', 'snippets'));
+		if (language === 'cpp') {
+			await initializeCppSnippets(context);
+			return snippetsFile;
+		}
+		await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(snippetsFile, '..'));
 		await vscode.workspace.fs.writeFile(snippetsFile, Buffer.from(defaultLanguageSnippets(language), 'utf8'));
 	}
 	return snippetsFile;
@@ -230,38 +227,63 @@ async function writeSnippets(context: vscode.ExtensionContext, language: string,
 }
 
 async function openCppSnippets(context: vscode.ExtensionContext): Promise<void> {
-	const languages = (await vscode.languages.getLanguages())
-		.map(id => ({ id, label: snippetLanguageLabels[id] ? `${snippetLanguageLabels[id]} (${id})` : id }))
-		.sort((left, right) => left.label.localeCompare(right.label));
-	const supportedLanguages = new Set(languages.map(language => language.id));
-	const initialLanguage = supportedLanguages.has('cpp') ? 'cpp' : languages[0]?.id;
-	if (!initialLanguage) {
-		void vscode.window.showWarningMessage(localize('未找到可配置代码片段的语言。'));
+	if (snippetsPanel) {
+		snippetsPanel.reveal();
 		return;
 	}
-	const getState = async (language: string): Promise<SnippetsState> => ({ language, languages, entries: await readSnippets(context, language) });
-	const isSupportedLanguage = (candidate: unknown): candidate is string => typeof candidate === 'string' && supportedLanguages.has(candidate);
-	const panel = vscode.window.createWebviewPanel('shortestpath.cppSnippets', localize('代码模板'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
-	panel.webview.html = localizeWebviewHtml(getCppSnippetsHtml(await getState(initialLanguage)));
-	panel.webview.onDidReceiveMessage(async message => {
-		if (message?.type === 'save' && isSupportedLanguage(message.language) && Array.isArray(message.entries)) {
-			await writeSnippets(context, message.language, message.entries as SnippetEntry[]);
-		} else if (message?.type === 'selectLanguage' && isSupportedLanguage(message.language)) {
-			await panel.webview.postMessage({ type: 'state', value: await getState(message.language) });
-		} else if (message?.type === 'confirmDelete' && isSupportedLanguage(message.language) && typeof message.name === 'string') {
+	const language = 'cpp';
+	const getTabSize = () => {
+		const tabSize = vscode.workspace.getConfiguration('editor', { languageId: language }).get<unknown>('tabSize');
+		return typeof tabSize === 'number' && tabSize > 0 ? tabSize : 2;
+	};
+	const state: SnippetsState = { language, tabSize: getTabSize(), entries: await readSnippets(context, language) };
+	const panel = vscode.window.createWebviewPanel('shortestpath.cppSnippets', localize('代码片段'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	context.subscriptions.push(panel);
+	snippetsPanel = panel;
+	const disposables: vscode.Disposable[] = [];
+	panel.onDidDispose(() => {
+		if (snippetsPanel === panel) { snippetsPanel = undefined; }
+		for (const disposable of disposables) { disposable.dispose(); }
+	}, undefined, context.subscriptions);
+	let saves = Promise.resolve();
+	disposables.push(panel.webview.onDidReceiveMessage(async message => {
+		if (message?.type === 'save' && message.language === language && Array.isArray(message.entries)) {
+			saves = saves.then(async () => {
+				await writeSnippets(context, language, message.entries as SnippetEntry[]);
+				await panel.webview.postMessage({ type: 'saved', revision: message.revision });
+			}).catch(async error => {
+				await panel.webview.postMessage({ type: 'saved', revision: message.revision, error: localizeFormat('无法保存模板：{0}', String(error)) });
+			});
+		} else if (message?.type === 'highlight' && typeof message.source === 'string' && typeof message.requestId === 'number') {
+			try {
+				const lines = await vscode.commands.executeCommand<PreviewToken[][]>('_shortestpath.cppPreviewTokens', message.source);
+				if (!lines) { throw new Error(localize('无法加载代码预览。')); }
+				await panel.webview.postMessage({ type: 'highlight', requestId: message.requestId, source: message.source, lines });
+			} catch (error) {
+				await panel.webview.postMessage({ type: 'highlight', requestId: message.requestId, source: message.source, error: localizeFormat('无法加载代码预览：{0}', String(error)) });
+			}
+		} else if (message?.type === 'confirmDelete' && message.language === language && typeof message.name === 'string' && typeof message.requestId === 'number') {
 			const deleteLabel = localize('删除模板');
 			const action = await vscode.window.showWarningMessage(
 				localizeFormat('确定删除模板“{0}”吗？删除后会立即保存到 {1}.json。', message.name || localize('未命名模板'), message.language),
 				{ modal: true },
 				deleteLabel
 			);
-			if (action === deleteLabel) {
-				await panel.webview.postMessage({ type: 'deleteConfirmed', language: message.language });
-			}
-		} else if (message?.type === 'openJson' && isSupportedLanguage(message.language)) {
-			await vscode.window.showTextDocument(await ensureSnippetsFile(context, message.language), { preview: false });
+			await panel.webview.postMessage({ type: action === deleteLabel ? 'deleteConfirmed' : 'deleteCancelled', language, requestId: message.requestId });
 		}
-	}, undefined, context.subscriptions);
+	}));
+	const refreshHighlight = () => panel.webview.postMessage({ type: 'refreshHighlight', tabSize: getTabSize() });
+	disposables.push(vscode.window.onDidChangeActiveColorTheme(refreshHighlight));
+	disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
+		if (event.affectsConfiguration('editor')) { void refreshHighlight(); }
+	}));
+	panel.webview.html = localizeWebviewHtml(getCppSnippetsHtml(state, {
+		title: localize('代码模板'), list: localize('模板列表'), add: localize('新建模板'), delete: localize('删除模板'),
+		unnamed: localize('未命名模板'), newSnippet: localize('新模板'), prefixUnset: localize('尚未设置触发前缀'), prefixLabel: localize('触发：'),
+		name: localize('模板名称'), description: localize('说明（可选）'), prefix: localize('触发前缀'), body: localize('模板内容'),
+		intro: localize('更改会自动保存。输入触发前缀，可在 C++ 文件中展开模板。'), empty: localize('还没有模板。点击左侧 ＋ 新建一个。'),
+		saving: localize('正在保存…'), saved: localize('已自动保存')
+	}));
 }
 
 type AutoFormatState = {
@@ -290,10 +312,10 @@ const defaultAutoFormatState: AutoFormatState = {
 	allowShortIfStatementsOnASingleLine: 'AllIfsAndElse',
 	allowShortLoopsOnASingleLine: true,
 	allowShortBlocksOnASingleLine: true,
-	allowShortFunctionsOnASingleLine: 'Inline',
+	allowShortFunctionsOnASingleLine: 'None',
 	columnLimit: 0,
-	indentWidth: 4,
-	tabWidth: 4,
+	indentWidth: 2,
+	tabWidth: 2,
 	useTab: 'Never',
 	accessModifierOffset: -2,
 	breakBeforeBraces: 'Attach',
@@ -314,7 +336,8 @@ function readAutoFormatValue(content: string, key: string): string | undefined {
 }
 
 async function readAutoFormatState(workspaceFolder: vscode.Uri): Promise<AutoFormatState> {
-	const state = { ...defaultAutoFormatState };
+	const tabSize = vscode.workspace.getConfiguration('editor', workspaceFolder).get<number>('tabSize') ?? 2;
+	const state = { ...defaultAutoFormatState, indentWidth: tabSize, tabWidth: tabSize };
 	state.enabled = vscode.workspace.getConfiguration('editor', null).get<boolean>('formatOnSave') === true
 		&& vscode.workspace.getConfiguration('editor', null).get<boolean>('formatOnPaste') === true;
 	try {
@@ -368,10 +391,10 @@ function normalizeAutoFormatState(value: Partial<AutoFormatState>): AutoFormatSt
 		allowShortIfStatementsOnASingleLine: autoFormatString(value.allowShortIfStatementsOnASingleLine, ['Never', 'WithoutElse', 'OnlyFirstIf', 'AllIfsAndElse'], 'AllIfsAndElse'),
 		allowShortLoopsOnASingleLine: value.allowShortLoopsOnASingleLine !== false,
 		allowShortBlocksOnASingleLine: value.allowShortBlocksOnASingleLine !== false,
-		allowShortFunctionsOnASingleLine: autoFormatString(value.allowShortFunctionsOnASingleLine, ['None', 'InlineOnly', 'Empty', 'Inline', 'All'], 'Inline'),
+		allowShortFunctionsOnASingleLine: autoFormatString(value.allowShortFunctionsOnASingleLine, ['None', 'InlineOnly', 'Empty', 'Inline', 'All'], 'None'),
 		columnLimit: autoFormatNumber(value.columnLimit, 0, 0, 10000),
-		indentWidth: autoFormatNumber(value.indentWidth, 4, 1, 32),
-		tabWidth: autoFormatNumber(value.tabWidth, 4, 1, 32),
+		indentWidth: autoFormatNumber(value.indentWidth, vscode.workspace.getConfiguration('editor').get<number>('tabSize') ?? 2, 1, 32),
+		tabWidth: autoFormatNumber(value.tabWidth, vscode.workspace.getConfiguration('editor').get<number>('tabSize') ?? 2, 1, 32),
 		useTab: autoFormatString(value.useTab, ['Never', 'ForIndentation', 'ForContinuationAndIndentation', 'Always'], 'Never'),
 		accessModifierOffset: autoFormatNumber(value.accessModifierOffset, -2, -32, 32),
 		breakBeforeBraces: autoFormatString(value.breakBeforeBraces, ['Attach', 'Linux', 'Mozilla', 'Stroustrup', 'Allman', 'Whitesmiths', 'GNU', 'WebKit', 'Custom'], 'Attach'),
@@ -442,14 +465,20 @@ async function openAutoFormatSettings(): Promise<void> {
 }
 
 function openSimpleSettings(context: vscode.ExtensionContext): void {
+	if (settingsPanel) {
+		settingsPanel.reveal();
+		return;
+	}
 	let isSaving = false;
 	let isDisposed = false;
 	const panel = vscode.window.createWebviewPanel(
 		'shortestpath.settings',
 		localize('ShortestPath IDE 设置'),
 		vscode.ViewColumn.Active,
-		{ enableScripts: true, modal: true, retainContextWhenHidden: true }
+		{ enableScripts: true, retainContextWhenHidden: true }
 	);
+	context.subscriptions.push(panel);
+	settingsPanel = panel;
 	panel.webview.html = localizeWebviewHtml(getHtml(getState(), isBuyMeACoffeeVisible(context)));
 	void getSystemFonts().then(async result => {
 		if (isDisposed) {
@@ -493,11 +522,22 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await vscode.workspace.getConfiguration(undefined, null).update('shortestpath.useExtensionMarketplace', message.enabled, vscode.ConfigurationTarget.Global);
 		} else if (message?.type === 'advanced') {
 			await vscode.commands.executeCommand('workbench.action.openSettings2');
+		} else if (message?.type === 'fontPreview' && typeof message.requestId === 'number') {
+			try {
+				const lines = await vscode.commands.executeCommand<PreviewToken[][]>('_shortestpath.cppPreviewTokens', fontPreviewSource);
+				if (!lines) { throw new Error(localize('无法加载代码预览。')); }
+				if (!isDisposed) {
+					await panel.webview.postMessage({ type: 'fontPreview', requestId: message.requestId, lines });
+				}
+			} catch (error) {
+				if (!isDisposed) {
+					await panel.webview.postMessage({ type: 'fontPreview', requestId: message.requestId, error: localizeFormat('无法加载代码预览：{0}', String(error)) });
+				}
+			}
 		} else if (message?.type === 'configureLocale') {
 			await vscode.commands.executeCommand('workbench.action.configureLocale');
-		} else if (message?.type === 'snippets') {
-			await vscode.commands.executeCommand('shortestpath.configureCppSnippets');
 		} else if (message?.type === 'gettingStarted') {
+			panel.dispose();
 			await vscode.commands.executeCommand('shortestpath.openGettingStarted');
 		} else if (message?.type === 'openDocumentation') {
 			await openDocumentationPage();
@@ -549,6 +589,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('editor.formatOnSave')
 			|| event.affectsConfiguration('editor.formatOnPaste')
 			|| event.affectsConfiguration('cph.language.cpp.Args')
+			|| event.affectsConfiguration('cph.language.cpp.Template')
 			|| event.affectsConfiguration('c-cpp-compile-run.cpp-flags')
 			|| event.affectsConfiguration('editor.inlayHints.enabled')
 			|| event.affectsConfiguration('errorLens.codeLensEnabled')
@@ -556,15 +597,21 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('shortestpath.executableCleanupDelaySeconds')
 			|| event.affectsConfiguration('workbench.colorTheme')
 			|| event.affectsConfiguration('window.autoDetectColorScheme')
-			|| event.affectsConfiguration('workbench.experimental.modernUI')
 			|| event.affectsConfiguration('files.autoSave')
 			|| event.affectsConfiguration('shortestpath.useExtensionMarketplace'))) {
 			void panel.webview.postMessage({ type: 'state', value: getState() });
 		}
 	});
+	context.subscriptions.push(configurationListener);
+	const themeListener = vscode.window.onDidChangeActiveColorTheme(() => {
+		void panel.webview.postMessage({ type: 'refreshFontPreview' });
+	});
+	context.subscriptions.push(themeListener);
 	panel.onDidDispose(() => {
+		if (settingsPanel === panel) { settingsPanel = undefined; }
 		isDisposed = true;
 		configurationListener.dispose();
+		themeListener.dispose();
 	}, undefined, context.subscriptions);
 }
 
@@ -588,18 +635,17 @@ function getState(): SimpleSettingsState {
 		autoFormat: editor.get<boolean>('formatOnSave') === true && editor.get<boolean>('formatOnPaste') === true,
 		cppStandard: findCppStandard(compilerFlags),
 		compilerFlags,
+		cppTemplate: vscode.workspace.getConfiguration('cph.language.cpp', null).get<string>('Template') ?? defaultCppTemplate,
 		clangdVariableTypeHints: inlayHintsEnabled !== false && inlayHintsEnabled !== 'off',
 		errorLensCodeLensEnabled,
 		executableCleanupEnabled,
 		executableCleanupDelaySeconds,
 		colorTheme,
 		autoDetectColorScheme: windowConfiguration.get<boolean>('autoDetectColorScheme') ?? false,
-		modernUIEnabled: workbench.get<boolean>('experimental.modernUI') ?? true,
 		autoSave: files.get<string>('autoSave') ?? 'off',
 		displayLanguage: vscode.env.language,
-		newFileDefaultLanguage: vscode.workspace.getConfiguration('shortestpath.newFile', null).get<string>('defaultLanguage') ?? 'cpp',
 		useExtensionMarketplace: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('useExtensionMarketplace') ?? false,
-		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'ask',
+		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'cpp20',
 		defaultSubmitMethod: vscode.workspace.getConfiguration('cph.general', null).get<string>('defaultSubmitMethod') ?? 'ask',
 		themes: getThemeOptions(colorTheme)
 	};
@@ -623,7 +669,7 @@ export function getThemeOptions(currentTheme: string): ThemeOption[] {
 
 export function findCppStandard(flags: string): CppStandard {
 	const match = /-std=(?:gnu\+\+|c\+\+)(11|14|17|20|23)\b/.exec(flags);
-	return match ? `c++${match[1]}` as CppStandard : 'c++23';
+	return match ? `c++${match[1]}` as CppStandard : 'c++20';
 }
 
 export function applyCppStandard(flags: string, cppStandard: CppStandard): string {
@@ -632,7 +678,10 @@ export function applyCppStandard(flags: string, cppStandard: CppStandard): strin
 }
 
 async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
-	const cppStandard = isCppStandard(value.cppStandard) ? value.cppStandard : 'c++23';
+	if (typeof value.cppTemplate === 'string' && value.cppTemplate.length > 100_000) {
+		throw new Error(localize('模版内容无效或过长。'));
+	}
+	const cppStandard = isCppStandard(value.cppStandard) ? value.cppStandard : 'c++20';
 	const compilerFlags = applyCppStandard(typeof value.compilerFlags === 'string' ? value.compilerFlags : '', cppStandard);
 	const executableCleanupDelaySeconds = typeof value.executableCleanupDelaySeconds === 'number'
 		? Math.max(0, Math.min(86_400, Math.floor(value.executableCleanupDelaySeconds)))
@@ -645,6 +694,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('editor.formatOnSave', value.autoFormat === true, vscode.ConfigurationTarget.Global),
 		settings.update('editor.formatOnPaste', value.autoFormat === true, vscode.ConfigurationTarget.Global),
 		settings.update('cph.language.cpp.Args', compilerFlags, vscode.ConfigurationTarget.Global),
+		...(typeof value.cppTemplate === 'string' ? [settings.update('cph.language.cpp.Template', value.cppTemplate, vscode.ConfigurationTarget.Global)] : []),
 		settings.update('c-cpp-compile-run.cpp-flags', compilerFlags, vscode.ConfigurationTarget.Global),
 		settings.update('editor.inlayHints.enabled', value.clangdVariableTypeHints !== false ? 'on' : 'off', vscode.ConfigurationTarget.Global),
 		settings.update('errorLens.codeLensEnabled', value.errorLensCodeLensEnabled === true, vscode.ConfigurationTarget.Global),
@@ -653,9 +703,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' ? value.colorTheme : 'One Monokai', vscode.ConfigurationTarget.Global),
 		settings.update('window.autoDetectColorScheme', value.autoDetectColorScheme === true, vscode.ConfigurationTarget.Global),
 		settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global),
-		settings.update('workbench.experimental.modernUI', value.modernUIEnabled !== false, vscode.ConfigurationTarget.Global),
 		settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global),
-		settings.update('shortestpath.newFile.defaultLanguage', typeof value.newFileDefaultLanguage === 'string' && value.newFileDefaultLanguage ? value.newFileDefaultLanguage : 'cpp', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.useExtensionMarketplace', value.useExtensionMarketplace === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global),
 		settings.update('cph.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global)
@@ -668,14 +716,14 @@ export function isCppStandard(value: unknown): value is CppStandard {
 
 function getHtml(state: SimpleSettingsState, showBuyMeACoffee: boolean): string {
 	const serializedState = JSON.stringify(state).replace(/</g, '\\u003c');
-	// Built as plain concatenation rather than a nested template literal so the
-	// page's own template stays free of escaped backticks.
+	const previewText = fontPreviewSource.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	const advancedLink = '<a id="advanced" href="#">' + localize('高级设置') + '</a>';
+	const description = localizeFormat('只保留竞赛编程常用选项。更改会自动保存；其他设置可在{0}中调整。', advancedLink);
 	const buyMeACoffeeHtml = showBuyMeACoffee
-		? '<section class="card buy-me-a-coffee" id="buyMeACoffee">'
-		+ '<div class="row"><div><label>Buy Me a Coffee</label><div class="hint">如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。</div></div>'
-		+ '<div class="buy-me-a-coffee-actions"><button id="openBuyMeACoffee" type="button">打开支持页面</button>'
-		+ '<button id="dismissBuyMeACoffee" class="secondary" type="button" title="7 天内不再显示">关闭 7 天</button></div></div>'
-		+ '</section>'
+		? '<div class="support-actions" id="buyMeACoffee">'
+		+ '<button id="openBuyMeACoffee" class="header-action support-action" type="button" aria-label="Buy Me a Coffee" aria-describedby="supportTooltip"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5h8v5a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3zM10.5 6h1.5a2 2 0 0 1 0 4h-1.5M4 1.5v2m3-2v2m3-2v2M1.5 14.5h10"/></svg><span id="supportTooltip" class="action-tooltip" role="tooltip"><strong>Buy Me a Coffee</strong><span>如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。</span></span></button>'
+		+ '<button id="dismissBuyMeACoffee" class="header-action dismiss-support" type="button" title="7 天内不再显示" aria-label="7 天内不再显示"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>'
+		+ '</div>'
 		: '';
 	return `<!doctype html>
 <html lang="zh-CN">
@@ -686,67 +734,71 @@ function getHtml(state: SimpleSettingsState, showBuyMeACoffee: boolean): string 
 <title>ShortestPath IDE 设置</title>
 <style>
 body { color: var(--vscode-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); margin: 0; height: 100vh; overflow: hidden; }
-main { box-sizing: border-box; display: grid; grid-template-columns: 190px minmax(0, 760px); gap: 34px; height: 100vh; max-width: 1010px; margin: 0 auto; padding: 32px 28px; }
-.sidebar { align-self: start; padding-top: 8px; }.sidebar-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; }.settings-search { margin-bottom: 12px; }.categories { display: grid; gap: 3px; }.category { width: 100%; border: 0; border-radius: 4px; padding: 7px 9px; color: var(--vscode-foreground); background: transparent; text-align: left; font: inherit; cursor: pointer; }.category:hover, .category.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); }.settings-content { min-width: 0; overflow-y: auto; padding-right: 4px; }
-h1 { font-size: 28px; margin: 0 0 8px; } p { color: var(--vscode-descriptionForeground); margin: 0 0 28px; }
-.card { border: 1px solid var(--vscode-editorWidget-border); border-radius: 8px; padding: 4px 20px; margin: 14px 0; }
-.row { display: grid; grid-template-columns: 190px 1fr; gap: 18px; align-items: center; padding: 15px 0; border-bottom: 1px solid var(--vscode-editorWidget-border); }
+main { box-sizing: border-box; display: grid; grid-template-columns: 156px minmax(0, 760px); grid-template-rows: auto minmax(0, 1fr); column-gap: 32px; row-gap: 28px; height: 100vh; max-width: 1010px; margin: 0 auto; padding: 28px; }
+.settings-header { grid-column: 1 / -1; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }.settings-header h1 { font-size: 22px; font-weight: 600; margin: 0 0 8px; }.settings-header p { color: var(--vscode-descriptionForeground); margin: 0; line-height: 1.5; }
+.header-actions, .support-actions { display: flex; align-items: center; gap: 4px; flex: none; }.header-action { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; background: transparent; color: var(--vscode-foreground); border-radius: 4px; }.header-action:hover { background: var(--vscode-toolbar-hoverBackground); }.header-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }.dismiss-support { width: 24px; color: var(--vscode-descriptionForeground); }.dismiss-support svg { width: 12px; height: 12px; }
+.documentation-action { color: var(--vscode-textLink-foreground); background: color-mix(in srgb, var(--vscode-textLink-foreground) 12%, transparent); }.support-action { color: var(--vscode-editorWarning-foreground); background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, transparent); }
+.action-tooltip { display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 10; box-sizing: border-box; width: 240px; padding: 10px 12px; border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: 6px; background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); font-size: 12px; line-height: 1.5; text-align: left; white-space: normal; pointer-events: none; box-shadow: 0 4px 12px var(--vscode-widget-shadow); }.action-tooltip strong, .action-tooltip span { display: block; }.action-tooltip strong { margin-bottom: 4px; }.header-action:hover .action-tooltip, .header-action:focus-visible .action-tooltip { display: block; }
+a { color: var(--vscode-textLink-foreground); text-decoration: none; } a:hover { color: var(--vscode-textLink-activeForeground); text-decoration: underline; } a:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.sidebar { align-self: start; }.categories { display: grid; gap: 4px; }.category { width: 100%; border: 1px solid transparent; border-radius: 4px; padding: 10px 12px; color: var(--vscode-foreground); background: transparent; text-align: left; font: inherit; cursor: pointer; }.category:hover { background: var(--vscode-list-hoverBackground); }.category.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); border-color: var(--vscode-contrastActiveBorder, transparent); }
+.settings-content { min-width: 0; overflow-y: auto; padding-right: 4px; } h2 { font-size: 18px; font-weight: 600; margin: 0 0 16px; } h3 { font-size: 13px; font-weight: 600; color: var(--vscode-descriptionForeground); margin: 16px 0 0; }
+.card { border: 1px solid var(--vscode-editorWidget-border); border-radius: 6px; padding: 0 20px; margin: 0 0 16px; }
+.row { display: grid; grid-template-columns: 190px 1fr; gap: 20px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--vscode-editorWidget-border); }
 .row:last-child { border: 0; } label { font-weight: 600; } .hint { color: var(--vscode-descriptionForeground); font-size: 12px; margin-top: 4px; }
-input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); padding: 7px 9px; border-radius: 3px; font: inherit; }
+input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); padding: 7px 9px; border-radius: 4px; font: inherit; }
+textarea.code-template { display: block; box-sizing: border-box; width: 100%; min-height: 300px; margin-top: 12px; padding: 12px; resize: vertical; border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size, 14px); font-weight: var(--vscode-editor-font-weight, normal); line-height: 1.6; tab-size: 4; }
 input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { display: flex; align-items: center; gap: 10px; }
-.font-preview { color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; font-size: 16px; line-height: 1.65; margin: -4px 0 14px 208px; padding: 10px 12px; white-space: pre; }
+.font-preview { color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size, 14px); font-weight: var(--vscode-editor-font-weight, normal); line-height: 1.6; margin: 12px 0 0; padding: 12px; white-space: pre; overflow-x: auto; }.row > div { min-width: 0; }
 .row.disabled { opacity: .6; } .row.disabled input, .row.disabled select { cursor: not-allowed; } .update-actions { display: grid; gap: 8px; } .update-actions button { width: 100%; } .inline-status { display: block; color: var(--vscode-descriptionForeground); font-size: 12px; }
-.fallback-list { display: grid; gap: 7px; }.fallback-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; }.fallback-row .icon { min-width: 28px; padding: 5px; }.add-fallback { margin-top: 8px; }
-.actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); } button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } #saved { color: var(--vscode-testing-iconPassed); }
-section.card[hidden], .row[hidden] { display: none; } .no-results { color: var(--vscode-descriptionForeground); margin: 28px 0; } @media (max-width: 720px) { body { height: auto; overflow: auto; } main { display: block; height: auto; padding: 24px 18px 48px; }.sidebar { position: static; margin-bottom: 22px; }.settings-content { overflow: visible; padding-right: 0; }.categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }.row { grid-template-columns: 1fr; gap: 8px; }.font-preview { margin-left: 0; } }
-.buy-me-a-coffee { border-color: var(--vscode-focusBorder); background: var(--vscode-editorWidget-background); }.buy-me-a-coffee label { color: var(--vscode-textLink-foreground); font-size: 15px; }.buy-me-a-coffee-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }.buy-me-a-coffee-actions button { white-space: nowrap; }
-.documentation { border-color: var(--vscode-focusBorder); background: var(--vscode-editorWidget-background); }.documentation label { color: var(--vscode-textLink-foreground); font-size: 15px; }
+.actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } button { border: 0; border-radius: 4px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); } button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } #saved { color: var(--vscode-testing-iconPassed); }
+[hidden] { display: none !important; } button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+@media (max-width: 900px) { .row { grid-template-columns: 1fr; gap: 8px; } }
+@media (max-width: 600px) { main { grid-template-columns: 100px minmax(0, 1fr); column-gap: 16px; row-gap: 20px; padding: 16px; }.settings-header { gap: 12px; }.settings-header h1 { font-size: 18px; }.settings-header p { font-size: 12px; }.category { padding: 8px; }.card { padding: 0 12px; }.font-preview { overflow-x: auto; } }
+
 </style>
 </head>
 <body><main>
-<aside class="sidebar"><div class="sidebar-title">设置</div><input id="settingsSearch" class="settings-search" type="search" placeholder="搜索设置"><nav class="categories" aria-label="设置分类"><button class="category active" data-category="all">全部</button><button class="category" data-category="editor">编辑器</button><button class="category" data-category="cpp">C++ 与 clangd</button><button class="category" data-category="appearance">外观与保存</button><button class="category" data-category="tools">工具</button></nav></aside>
-<div class="settings-content">
-<h1>ShortestPath IDE 设置</h1><p>只保留竞赛编程常用选项。更改会自动保存；其他设置可在高级设置中调整。</p>
-<section class="card documentation"><div class="row"><div><label>使用文档</label><div class="hint">在外部浏览器中查看 ShortestPath IDE 的功能说明与使用教程。</div></div><button id="openDocumentation">查看文档</button></div></section>
-${buyMeACoffeeHtml}
-<section class="card" data-category="editor">
-<div class="row"><div><label for="fontFamily">代码字体</label><div class="hint">仅可从检测到的系统等宽字体中选择，不支持手动输入。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" disabled aria-describedby="fontLoadStatus"><option>正在读取系统字体…</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div></div></div>
-<div id="fontPreview" class="font-preview">#include &lt;bits/stdc++.h&gt;
-int main() { std::cout &lt;&lt; "Hello, OI!"; }</div>
-<div class="row"><div><label>回退字体</label><div class="hint">字形缺失时按顺序回退；可选择非等宽中文或 Emoji 字体。</div></div><div><div id="fallbackFonts" class="fallback-list"></div><button id="addFallback" class="secondary add-fallback" type="button">添加回退字体</button></div></div>
+<header class="settings-header"><div><h1>ShortestPath IDE 设置</h1><p>${description}</p></div><div class="header-actions"><button id="openDocumentation" class="header-action documentation-action" type="button" aria-label="查看文档" aria-describedby="documentationTooltip"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v11M8 3C6 1.5 3.5 1.5 1.5 2.5v10C3.5 11.5 6 11.5 8 13c2-1.5 4.5-1.5 6.5-.5v-10C12.5 1.5 10 1.5 8 3z"/></svg><span id="documentationTooltip" class="action-tooltip" role="tooltip"><strong>查看文档</strong><span>在外部浏览器中查看 ShortestPath IDE 的功能说明与使用教程。</span></span></button>${buyMeACoffeeHtml}</div></header>
+<aside class="sidebar"><nav class="categories" aria-label="设置分类"><button class="category active" data-category="editor" aria-current="page" aria-controls="settingsContent">编辑器</button><button class="category" data-category="compiler" aria-controls="settingsContent">编译器</button><button class="category" data-category="tools" aria-controls="settingsContent">工具</button></nav></aside>
+<div class="settings-content" id="settingsContent" role="region" aria-labelledby="categoryTitle">
+<h2 id="categoryTitle">编辑器</h2>
+<section class="card" data-category="editor"><h3>字体</h3>
+<div class="row"><div><label for="fontFamily">代码字体</label><div class="hint">仅可从检测到的系统等宽字体中选择，不支持手动输入。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" disabled aria-describedby="fontLoadStatus"><option>正在读取系统字体…</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div><pre id="fontPreview" class="font-preview" data-i18n-ignore>${previewText}</pre><div id="fontPreviewStatus" class="hint" role="status"></div></div></div>
 <div class="row"><div><label for="fontLigatures">启用字体连字</label><div id="fontLigaturesStatus" class="hint" role="status"></div></div><label class="toggle"><input id="fontLigatures" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="fontSize">字体大小</label></div><input id="fontSize" type="number" min="1" step="1"></div>
-<div class="row"><div><label for="newFileDefaultLanguage">新建文件默认语言</label><div class="hint">从 New Tab 新建文件时默认使用的语言。</div></div><select id="newFileDefaultLanguage"><option value="cpp">C++</option><option value="c">C</option><option value="python">Python</option><option value="java">Java</option><option value="rust">Rust</option><option value="javascript">JavaScript</option><option value="typescript">TypeScript</option></select></div>
 </section>
-<section class="card" data-category="cpp">
-<div class="row"><div><label for="autoFormat">启用自动格式化</label><div class="hint">同时控制保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="autoFormat" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label>自动格式化规则</label><div class="hint">配置当前工作目录的 .clang-format。</div></div><button id="autoFormatSettings" class="secondary">配置格式化规则</button></div>
-</section>
-<section class="card" data-category="cpp">
-<div class="row"><div><label for="cppStandard">C++ 版本</label></div><select id="cppStandard"><option>c++11</option><option>c++14</option><option>c++17</option><option>c++20</option><option>c++23</option></select></div>
-<div class="row"><div><label for="shortestPathCppSubmissionLanguage">ShortestPath OJ 提交语言</label><div class="hint">“每次询问”会在 C++ 提交前选择 C++14 或 C++20。</div></div><select id="shortestPathCppSubmissionLanguage"><option value="ask">每次询问</option><option value="cpp14">C++14</option><option value="cpp20">C++20</option></select></div>
-<div class="row"><div><label for="compilerFlags">编译选项</label><div class="hint">同时应用到 CPH 和 C/C++ Compile Run。</div></div><input id="compilerFlags" type="text"></div>
-<div class="row"><div><label for="clangdVariableTypeHints">clangd 变量类型提示</label><div class="hint">在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。</div></div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="executableCleanupEnabled">自动清理生成文件</label><div class="hint">同时作用于 CPH 和 C/C++ Compile Run。</div></div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="executableCleanupDelaySeconds">生成文件保留时间</label><div class="hint">程序运行结束后自动删除 exe。单位：秒；0 表示立即删除。</div></div><input id="executableCleanupDelaySeconds" type="number" min="0" max="86400" step="1"></div>
-</section>
-<section class="card" data-category="appearance">
+<section class="card" data-category="editor"><h3>外观与保存</h3>
 <div class="row"><div><label for="colorTheme">主题</label></div><select id="colorTheme"></select></div>
 <div class="row"><div><label>显示语言</label><div class="hint">当前：<span id="displayLanguage"></span>。选择后将按 VS Code 的正常流程确认并重启。</div></div><button id="configureLocale" class="secondary">切换显示语言</button></div>
 <div class="row"><div><label for="autoDetectColorScheme">同步系统主题</label></div><label class="toggle"><input id="autoDetectColorScheme" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="modernUIEnabled">现代界面</label><div class="hint">启用 Workbench › Experimental: Modern UI，使用浮动面板和更新后的工作台样式。</div></div><label class="toggle"><input id="modernUIEnabled" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="autoSave">自动保存</label></div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
 </section>
-<section class="card" data-category="tools"><div class="row"><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox"><span>启用</span></label></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>开始使用</label><div class="hint">分步引导配置字体、主题、语言版本等偏好。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>代码模板</label><div class="hint">配置 C++ 用户代码片段。</div></div><button id="snippets" class="secondary">配置代码模板</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div><div class="row"><div><label>CPH 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 CPH 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label for="defaultSubmitMethod">CPH 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div></section>
-<section class="card" data-category="tools"><div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div></section>
-<p id="noResults" class="no-results" hidden>没有匹配的设置。</p>
-<div class="actions"><button id="advanced" class="secondary">高级设置</button><span id="saved" aria-live="polite"></span></div>
+<section class="card" data-category="editor"><h3>编辑行为</h3>
+<div class="row"><div><label for="autoFormat">启用自动格式化</label><div class="hint">同时控制保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="autoFormat" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label>自动格式化规则</label><div class="hint">配置当前工作目录的 .clang-format。</div></div><button id="autoFormatSettings" class="secondary">配置格式化规则</button></div>
+<div class="row"><div><label for="clangdVariableTypeHints">clangd 变量类型提示</label><div class="hint">在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。</div></div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div>
+</section>
+<section class="card" data-category="compiler" hidden><h3>编译与运行</h3>
+<div class="row"><div><label for="cppStandard">C++ 版本</label></div><select id="cppStandard"><option>c++11</option><option>c++14</option><option>c++17</option><option>c++20</option><option>c++23</option></select></div>
+<div class="row"><div><label for="compilerFlags">编译选项</label><div class="hint">同时应用到 CPH 和 C/C++ Compile Run。</div></div><input id="compilerFlags" type="text"></div>
+<div class="row"><div><label for="executableCleanupEnabled">自动清理生成文件</label><div class="hint">同时作用于 CPH 和 C/C++ Compile Run。</div></div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="executableCleanupDelaySeconds">生成文件保留时间</label><div class="hint">程序运行结束后自动删除 exe。单位：秒；0 表示立即删除。</div></div><input id="executableCleanupDelaySeconds" type="number" min="0" max="86400" step="1"></div>
+</section>
+<section class="card" data-category="compiler" hidden><h3>工具链诊断</h3>
+<div class="row"><div><label>工具链诊断</label><div class="hint">检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div>
+</section>
+<section class="card" data-category="tools" hidden><h3>新建文件</h3>
+<div class="row"><div><label for="cppTemplate">默认代码模板</label><div class="hint">CPH 新建 C++ 文件时会自动填入这份模版。</div></div><textarea id="cppTemplate" class="code-template" wrap="off" spellcheck="false" maxlength="100000" data-i18n-ignore></textarea></div>
+</section>
+<section class="card" data-category="tools" hidden><h3>提交与评测</h3>
+<div class="row"><div><label>CPH 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 CPH 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 CPH</button></div><div class="row"><div><label>CPH 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 CPH 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div><div class="row"><div><label for="shortestPathCppSubmissionLanguage">ShortestPath OJ 提交语言</label><div class="hint">“每次询问”会在 C++ 提交前选择 C++14 或 C++20。</div></div><select id="shortestPathCppSubmissionLanguage"><option value="ask">每次询问</option><option value="cpp14">C++14</option><option value="cpp20">C++20</option></select></div>
+<div class="row"><div><label for="defaultSubmitMethod">CPH 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div>
+</section>
+<section class="card" data-category="tools" hidden><h3>应用管理</h3>
+<div class="row"><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox"><span>启用</span></label></div><div class="row"><div><label>初始配置</label><div class="hint">检查编译环境并配置编辑器、模版和代码存放目录。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div>
+</section>
+<div class="actions"><span id="saved" aria-live="polite"></span></div>
 </div>
 </main>
 <script>
@@ -758,32 +810,63 @@ let fontLoadError = '';
 let fontLoadComplete = false;
 let fontDetectionInProgress = false;
 let fontDetectionGeneration = 0;
-let selectedFonts = [];
-let selectedCategory = 'all';
+let selectedFont = 'monospace';
+let preferCodeFont = true;
+let selectedCategory = 'editor';
 const normalizeFont = font => font.trim().replace(/^['"]|['"]$/g, '');
-const serializeFontStack = fonts => fonts.map(font => font === 'monospace' ? font : /\s/.test(font) ? '"' + font + '"' : font).join(', ');
-function updateSettingsFilter() {
-  const search = byId('settingsSearch').value.trim().toLocaleLowerCase();
-  let visibleRows = 0;
-  document.querySelectorAll('section.card[data-category]').forEach(card => {
-    const categoryMatches = selectedCategory === 'all' || card.dataset.category === selectedCategory;
-    let cardHasVisibleRow = false;
-    card.querySelectorAll('.row').forEach(row => {
-      const searchMatches = !search || row.textContent.toLocaleLowerCase().includes(search);
-      const visible = categoryMatches && searchMatches;
-      row.hidden = !visible;
-      cardHasVisibleRow ||= visible;
-      if (visible) visibleRows++;
-    });
-    card.hidden = !cardHasVisibleRow;
-  });
-  byId('noResults').hidden = visibleRows > 0;
+const serializeFont = font => font === 'monospace' ? font : JSON.stringify(font);
+function codeFontPriority(font) {
+  const family = font.toLowerCase();
+  if (family === 'fira code') return 0;
+  if (family.startsWith('fira code ')) return 1;
+  if (family === 'dejavu sans mono') return 2;
+  if (family.startsWith('dejavu')) return 3;
+  return 4;
 }
-function setPreview() { byId('fontPreview').style.fontFamily = serializeFontStack(selectedFonts); byId('fontPreview').style.fontVariantLigatures = byId('fontLigatures').checked ? 'normal' : 'none'; }
-function addOptions(select, fonts, label) { const group = document.createElement('optgroup'); group.label = label; fonts.forEach(font => { const option = document.createElement('option'); option.value = font; option.textContent = font; option.style.fontFamily = serializeFontStack([font]); group.append(option); }); select.append(group); }
-function isMonospaceFont(font, context) { context.font = '16px ' + serializeFontStack([font]); return Math.abs(context.measureText('iiiiiiiiii').width - context.measureText('WWWWWWWWWW').width) < 0.01; }
+function selectCategory(category) {
+  selectedCategory = category;
+  document.querySelectorAll('section.card[data-category]').forEach(card => { card.hidden = card.dataset.category !== selectedCategory; });
+  document.querySelectorAll('.category').forEach(button => {
+    const active = button.dataset.category === selectedCategory;
+    button.classList.toggle('active', active);
+    if (active) {
+      button.setAttribute('aria-current', 'page');
+      byId('categoryTitle').textContent = button.textContent;
+    } else {
+      button.removeAttribute('aria-current');
+    }
+  });
+  byId('settingsContent').scrollTop = 0;
+}
+function setPreview() {
+  const preview = byId('fontPreview');
+  preview.style.fontFamily = serializeFont(selectedFont);
+  preview.style.fontVariantLigatures = byId('fontLigatures').checked ? 'normal' : 'none';
+  const size = Number(byId('fontSize').value);
+  if (Number.isFinite(size) && size > 0) preview.style.fontSize = size + 'px';
+  const template = byId('cppTemplate');
+  template.style.fontFamily = preview.style.fontFamily;
+  template.style.fontVariantLigatures = preview.style.fontVariantLigatures;
+  template.style.fontSize = preview.style.fontSize;
+}
+let fontPreviewRequest = 0;
+function requestFontPreview() { byId('fontPreview').textContent = ${JSON.stringify(fontPreviewSource)}; vscode.postMessage({ type: 'fontPreview', requestId: ++fontPreviewRequest }); }
+function applyFontPreview(message) {
+  if (message.requestId !== fontPreviewRequest) return;
+  if (message.error) { byId('fontPreviewStatus').textContent = message.error; return; }
+  const preview = byId('fontPreview');
+  preview.replaceChildren();
+  message.lines.forEach((line, index) => {
+    if (index) preview.append(document.createTextNode('\\n'));
+    line.forEach(token => { const span = document.createElement('span'); span.textContent = token.text; span.style.cssText = token.style; preview.append(span); });
+  });
+  byId('fontPreviewStatus').textContent = '';
+}
+
+function addOptions(select, fonts, label) { const group = document.createElement('optgroup'); group.label = label; fonts.forEach(font => { const option = document.createElement('option'); option.value = font; option.textContent = font; option.style.fontFamily = serializeFont(font); group.append(option); }); select.append(group); }
+function isMonospaceFont(font, context) { context.font = '16px ' + serializeFont(font); return Math.abs(context.measureText('iiiiiiiiii').width - context.measureText('WWWWWWWWWW').width) < 0.01; }
 async function supportsLigatures(font) {
-  const stack = serializeFontStack([font]);
+  const stack = serializeFont(font);
   const size = 48;
   try { await document.fonts.load(size + 'px ' + stack); } catch (error) { }
   const probe = document.createElement('canvas');
@@ -824,7 +907,7 @@ async function updateLigatureSupport() {
   const checkbox = byId('fontLigatures');
   const status = byId('fontLigaturesStatus');
   const row = checkbox.closest('.row');
-  const supported = await supportsLigatures(selectedFonts[0] || 'monospace');
+  const supported = await supportsLigatures(selectedFont);
   if (generation !== ligatureGeneration) return;
   checkbox.disabled = !supported;
   row.classList.toggle('disabled', !supported);
@@ -833,6 +916,7 @@ async function updateLigatureSupport() {
     return;
   }
   if (checkbox.checked) checkbox.checked = false;
+  setPreview();
   status.textContent = '当前字体不支持连字，无法启用。';
 }
 async function getMonospaceFonts(fonts) {
@@ -851,11 +935,25 @@ async function getMonospaceFonts(fonts) {
   }
   return result;
 }
-function fontSelect(font, fonts, label, allowCurrentCustomFont) { const select = document.createElement('select'); addOptions(select, fonts, label); const hasFont = fonts.includes(font); if (!hasFont && allowCurrentCustomFont) { const custom = document.createElement('option'); custom.value = font; custom.textContent = font + '（当前字体）'; select.prepend(custom); } else if (!hasFont) { const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = '当前代码字体不是等宽字体，请选择'; placeholder.disabled = true; select.prepend(placeholder); } select.value = hasFont || allowCurrentCustomFont ? font : ''; select.disabled = !fonts.length; select.style.fontFamily = serializeFontStack([font]); return select; }
+function fontSelect(font, fonts, label) {
+  const select = document.createElement('select');
+  addOptions(select, fonts, label);
+  const hasFont = fonts.includes(font);
+  if (!hasFont) {
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '当前代码字体不是等宽字体，请选择';
+    placeholder.disabled = true;
+    select.prepend(placeholder);
+  }
+  select.value = hasFont ? font : '';
+  select.disabled = !fonts.length;
+  select.style.fontFamily = serializeFont(font);
+  return select;
+}
 function renderFonts() {
   const primary = byId('fontFamily');
   primary.replaceChildren();
-  const fallback = byId('fallbackFonts'); fallback.replaceChildren();
   const status = byId('fontLoadStatus');
   const isLoading = !fontLoadComplete && !fontLoadError;
   byId('fontControl').setAttribute('aria-busy', String(isLoading));
@@ -864,21 +962,18 @@ function renderFonts() {
     loadingOption.textContent = fontDetectionInProgress ? '正在检测系统等宽字体…' : '正在读取系统字体…';
     primary.append(loadingOption);
     primary.disabled = true;
-    byId('addFallback').disabled = true;
     status.textContent = fontDetectionInProgress
       ? '正在检测 ' + systemFonts.length + ' 个系统字体中的等宽字体，请稍候。'
       : '正在读取系统字体，请稍候。';
     void updateLigatureSupport();
     return;
   }
-  const primarySelect = fontSelect(selectedFonts[0], monospaceSystemFonts, '系统等宽字体', false);
+  const primarySelect = fontSelect(selectedFont, monospaceSystemFonts, '系统等宽字体');
   const primaryValue = primarySelect.value;
   [...primarySelect.children].forEach(child => primary.append(child));
   primary.value = primaryValue;
   primary.disabled = !monospaceSystemFonts.length;
-  primary.style.fontFamily = serializeFontStack([selectedFonts[0]]);
-  selectedFonts.slice(1).forEach((font, index) => { const row = document.createElement('div'); row.className = 'fallback-row'; const select = fontSelect(font, systemFonts, '系统字体', true); select.onchange = () => { selectedFonts[index + 1] = select.value; renderFonts(); setPreview(); save(0); }; const up = document.createElement('button'); up.type = 'button'; up.className = 'secondary icon'; up.textContent = '↑'; up.disabled = index === 0; up.onclick = () => { [selectedFonts[index], selectedFonts[index + 1]] = [selectedFonts[index + 1], selectedFonts[index]]; renderFonts(); setPreview(); save(0); }; const down = document.createElement('button'); down.type = 'button'; down.className = 'secondary icon'; down.textContent = '↓'; down.disabled = index === selectedFonts.length - 2; down.onclick = () => { [selectedFonts[index + 1], selectedFonts[index + 2]] = [selectedFonts[index + 2], selectedFonts[index + 1]]; renderFonts(); setPreview(); save(0); }; const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'secondary icon'; remove.textContent = '×'; remove.onclick = () => { selectedFonts.splice(index + 1, 1); renderFonts(); setPreview(); save(0); }; row.append(select, up, down, remove); fallback.append(row); });
-  byId('addFallback').disabled = !systemFonts.length;
+  primary.style.fontFamily = serializeFont(selectedFont);
   status.textContent = fontLoadError
     ? fontLoadError
     : !systemFonts.length
@@ -902,10 +997,19 @@ async function applySystemFonts(result) {
   }
   fontDetectionInProgress = true;
   renderFonts();
+  let fontChanged = false;
   try {
     const detectedFonts = await getMonospaceFonts(systemFonts);
     if (generation !== fontDetectionGeneration) return;
-    monospaceSystemFonts = detectedFonts;
+    monospaceSystemFonts = detectedFonts.sort((left, right) => codeFontPriority(left) - codeFontPriority(right) || left.localeCompare(right));
+    fontChanged = preferCodeFont && monospaceSystemFonts.includes(selectedFont);
+    const preferred = monospaceSystemFonts.find(font => codeFontPriority(font) < 4);
+    if (preferred && (preferCodeFont || !monospaceSystemFonts.includes(selectedFont))) {
+      fontChanged = fontChanged || selectedFont !== preferred;
+      selectedFont = preferred;
+      preferCodeFont = false;
+      setPreview();
+    }
   } catch {
     if (generation !== fontDetectionGeneration) return;
     fontLoadError = '检测系统等宽字体时出现错误。';
@@ -914,12 +1018,18 @@ async function applySystemFonts(result) {
       fontDetectionInProgress = false;
       fontLoadComplete = true;
       renderFonts();
+      if (fontChanged) {
+        const font = selectedFont;
+        await updateLigatureSupport();
+        if (generation === fontDetectionGeneration && font === selectedFont) save(0);
+      }
     }
   }
 }
 function apply(state) {
-  selectedFonts = (state.fontFamily || '').split(',').map(normalizeFont).filter(Boolean);
-  if (!selectedFonts.length) selectedFonts = ['monospace'];
+  const fonts = (state.fontFamily || '').split(',').map(normalizeFont).filter(Boolean);
+  selectedFont = fonts[0] || 'monospace';
+  preferCodeFont = fonts.length !== 1 || selectedFont === 'monospace';
   byId('fontLigatures').checked = !!state.fontLigatures;
   byId('fontSize').value = state.fontSize;
 	byId('autoFormat').checked = !!state.autoFormat;
@@ -927,6 +1037,7 @@ function apply(state) {
 	byId('shortestPathCppSubmissionLanguage').value = state.shortestPathCppSubmissionLanguage;
 	byId('defaultSubmitMethod').value = state.defaultSubmitMethod;
   byId('compilerFlags').value = state.compilerFlags;
+  byId('cppTemplate').value = state.cppTemplate ?? '';
   byId('clangdVariableTypeHints').checked = !!state.clangdVariableTypeHints;
   byId('errorLensCodeLensEnabled').checked = !!state.errorLensCodeLensEnabled;
   byId('executableCleanupEnabled').checked = !!state.executableCleanupEnabled;
@@ -936,30 +1047,26 @@ function apply(state) {
   theme.value = state.colorTheme;
 	byId('displayLanguage').textContent = state.displayLanguage === 'zh-cn' ? '中文（简体）' : state.displayLanguage === 'en' ? 'English' : state.displayLanguage;
   byId('autoDetectColorScheme').checked = !!state.autoDetectColorScheme;
-	byId('modernUIEnabled').checked = !!state.modernUIEnabled;
   byId('autoSave').value = state.autoSave;
-	byId('newFileDefaultLanguage').value = state.newFileDefaultLanguage;
 	byId('useExtensionMarketplace').checked = !!state.useExtensionMarketplace;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, modernUIEnabled: byId('modernUIEnabled').checked, autoSave: byId('autoSave').value, newFileDefaultLanguage: byId('newFileDefaultLanguage').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked }; }
+function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, cppTemplate: byId('cppTemplate').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
-document.querySelectorAll('input:not(#settingsSearch):not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily)').forEach(control => {
+document.querySelectorAll('input:not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily), textarea').forEach(control => {
   const immediate = control.type === 'checkbox' || control.tagName === 'SELECT';
   control.addEventListener('input', () => save(immediate ? 0 : 250));
   control.addEventListener('change', () => save(0));
 });
 byId('useExtensionMarketplace').addEventListener('change', () => vscode.postMessage({ type: 'toggleExtensionMarketplace', enabled: byId('useExtensionMarketplace').checked }));
-byId('fontFamily').addEventListener('change', async () => { selectedFonts[0] = byId('fontFamily').value; setPreview(); await updateLigatureSupport(); save(0); });
+byId('fontFamily').addEventListener('change', async () => { selectedFont = byId('fontFamily').value; preferCodeFont = false; setPreview(); await updateLigatureSupport(); save(0); });
 byId('fontLigatures').addEventListener('change', () => setPreview());
-byId('addFallback').addEventListener('click', () => { if (systemFonts.length) { selectedFonts.push(systemFonts[0]); renderFonts(); setPreview(); save(0); } });
+byId('fontSize').addEventListener('input', () => setPreview());
 byId('cppStandard').addEventListener('change', () => { const flags = byId('compilerFlags'); const standard = byId('cppStandard').value; const withoutStandard = flags.value.replace(/(^|\\s)-std=(?:gnu\\+\\+|c\\+\\+)\\d+\\b/g, ' ').replace(/\\s+/g, ' ').trim(); flags.value = '-std=' + standard + (withoutStandard ? ' ' + withoutStandard : ''); save(0); });
-document.querySelectorAll('.category').forEach(button => button.addEventListener('click', () => { selectedCategory = button.dataset.category; document.querySelectorAll('.category').forEach(item => item.classList.toggle('active', item === button)); updateSettingsFilter(); }));
-byId('settingsSearch').addEventListener('input', () => updateSettingsFilter());
-byId('advanced').addEventListener('click', () => vscode.postMessage({ type: 'advanced' }));
+document.querySelectorAll('.category').forEach(button => button.addEventListener('click', () => selectCategory(button.dataset.category)));
+byId('advanced').addEventListener('click', event => { event.preventDefault(); vscode.postMessage({ type: 'advanced' }); });
 byId('configureLocale').addEventListener('click', () => vscode.postMessage({ type: 'configureLocale' }));
-byId('snippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));
 byId('gettingStarted').addEventListener('click', () => vscode.postMessage({ type: 'gettingStarted' }));
 byId('openDocumentation').addEventListener('click', () => vscode.postMessage({ type: 'openDocumentation' }));
 byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
@@ -982,9 +1089,10 @@ const openBuyMeACoffeeButton = byId('openBuyMeACoffee');
 if (openBuyMeACoffeeButton) openBuyMeACoffeeButton.addEventListener('click', () => vscode.postMessage({ type: 'buyMeACoffee' }));
 const dismissBuyMeACoffeeButton = byId('dismissBuyMeACoffee');
 if (dismissBuyMeACoffeeButton) dismissBuyMeACoffeeButton.addEventListener('click', () => { vscode.postMessage({ type: 'dismissBuyMeACoffee' }); const entry = byId('buyMeACoffee'); if (entry) entry.hidden = true; });
-window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); if (event.data?.type === 'systemFonts') void applySystemFonts(event.data.value); });
+window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); if (event.data?.type === 'systemFonts') void applySystemFonts(event.data.value); if (event.data?.type === 'fontPreview') applyFontPreview(event.data); if (event.data?.type === 'refreshFontPreview') requestFontPreview(); });
 apply(${serializedState});
-updateSettingsFilter();
+selectCategory(selectedCategory);
+requestFontPreview();
 </script></body></html>`;
 }
 
@@ -1044,50 +1152,5 @@ document.querySelectorAll('input:not(#settingsSearch), select').forEach(control 
 byId('openFile').addEventListener('click', () => vscode.postMessage({ type: 'openFile', workspacePath }));
 apply(${serializedState});
 filterFormatSettings();
-</script></body></html>`;
-}
-
-function getCppSnippetsHtml(state: SnippetsState): string {
-	const serializedState = JSON.stringify(state).replace(/</g, '\\u003c');
-	return `<!doctype html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
-<style>
-body { margin: 0; color: var(--vscode-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); } main { display: grid; grid-template-columns: 272px minmax(0, 1fr); min-height: 100vh; }.sidebar { box-sizing: border-box; padding: 24px 16px; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-sideBar-border, var(--vscode-editorWidget-border)); overflow: auto; }.sidebar-title { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 700; margin: 0 0 24px; }.mark { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 7px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); font-family: var(--vscode-editor-font-family); }.sidebar label { margin-top: 0; color: var(--vscode-descriptionForeground); font-size: 12px; }.header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 24px 0 8px; }.header strong { font-size: 12px; color: var(--vscode-descriptionForeground); letter-spacing: .03em; }.editor { box-sizing: border-box; padding: 48px clamp(28px, 7vw, 96px); overflow: auto; }.editor-shell { max-width: 820px; }.hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 30px; }.eyebrow { color: var(--vscode-textLink-foreground); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; } h1 { font-size: 30px; line-height: 1.2; margin: 6px 0 8px; } p { color: var(--vscode-descriptionForeground); margin: 0; line-height: 1.6; }.count { flex: none; color: var(--vscode-descriptionForeground); background: var(--vscode-badge-background); border-radius: 999px; padding: 5px 10px; font-size: 12px; }.form-card { padding: 6px 24px 24px; border: 1px solid var(--vscode-editorWidget-border); border-radius: 12px; background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); box-shadow: 0 12px 32px color-mix(in srgb, var(--vscode-editor-background) 70%, transparent); } .snippet { width: 100%; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--vscode-foreground); text-align: left; padding: 10px; cursor: pointer; transition: background .12s ease, border-color .12s ease; }.snippet:hover { background: var(--vscode-list-hoverBackground); }.snippet.active { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }.snippet small { display: block; color: var(--vscode-descriptionForeground); margin-top: 4px; font-size: 11px; }.snippet.active small { color: inherit; opacity: .76; } label { display: block; font-weight: 600; margin: 20px 0 7px; } input, select, textarea { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 6px; padding: 9px 10px; font: inherit; } input:focus, select:focus, textarea:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; } textarea { min-height: 220px; resize: vertical; font-family: var(--vscode-editor-font-family); line-height: 1.55; }.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } button { border: 0; border-radius: 6px; padding: 8px 11px; font: inherit; color: var(--vscode-button-foreground); background: var(--vscode-button-background); cursor: pointer; } button:hover { filter: brightness(1.08); } button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } button.danger { color: var(--vscode-errorForeground); }.actions { display: flex; gap: 9px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--vscode-editorWidget-border); align-items: center; } #saved { margin-left: auto; color: var(--vscode-testing-iconPassed); font-size: 12px; }.empty { color: var(--vscode-descriptionForeground); padding: 40px 4px 20px; text-align: center; } @media (max-width: 720px) { main { grid-template-columns: 1fr; }.sidebar { border-right: 0; border-bottom: 1px solid var(--vscode-editorWidget-border); }.editor { padding: 28px 20px; }.hero { margin-bottom: 22px; }.two { grid-template-columns: 1fr; } }
-</style><style>
-main { grid-template-columns: 230px minmax(0, 1fr); height: 100vh; min-height: 0; }
-.sidebar { padding: 16px; background: var(--vscode-editor-background); border-right: 1px solid var(--vscode-editorWidget-border); }
-.sidebar label { color: var(--vscode-foreground); font-size: inherit; }
-.editor { padding: 30px; max-width: 760px; }
-h1 { font-size: 22px; margin: 0 0 6px; }
-.header { margin: 18px 0 0; }.header strong { color: var(--vscode-foreground); font-size: inherit; letter-spacing: normal; }
-.snippet { border: 0; border-radius: 3px; padding: 8px; }.snippet.active { background: var(--vscode-list-hoverBackground); color: var(--vscode-foreground); }.snippet.active small { color: var(--vscode-descriptionForeground); opacity: 1; }
-label { margin: 14px 0 6px; } input, select, textarea { border-radius: 3px; padding: 7px 9px; } textarea { min-height: 180px; }
-.actions { margin-top: 22px; padding-top: 0; border-top: 0; } #saved { margin-left: 0; }
-</style></head><body><main>
-<aside class="sidebar"><label for="language">编辑语言</label><select id="language"></select><div class="header"><strong>模板列表</strong><button id="add" title="新建模板">＋</button></div><div id="snippetList"></div></aside>
-<section class="editor"><h1>代码模板</h1><p>更改会自动保存到当前编辑语言对应的用户片段文件。输入触发前缀后，可在相应语言文件中使用补全展开模板。</p><div id="form"></div><div class="actions"><button id="delete" class="secondary danger">删除模板</button><button id="openJson" class="secondary">打开 JSON</button><span id="saved" aria-live="polite"></span></div></section>
-</main><script>
-const vscode = acquireVsCodeApi();
-const byId = id => document.getElementById(id);
-let language = ${serializedState}.language;
-const languages = ${serializedState}.languages;
-let entries = ${serializedState}.entries;
-let selected = entries.length ? 0 : -1;
-let saveTimer;
-function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', language, entries }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, 250); }
-function renderLanguages() { const select = byId('language'); select.replaceChildren(); languages.forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.label; select.append(option); }); select.value = language; }
-function select(index) { selected = index; render(); }
-function renderList() { const list = byId('snippetList'); list.replaceChildren(); entries.forEach((entry, index) => { const button = document.createElement('button'); button.className = 'snippet' + (index === selected ? ' active' : ''); button.textContent = entry.name || '未命名模板'; const prefix = document.createElement('small'); prefix.textContent = entry.prefix ? ${JSON.stringify(localize('触发：'))} + entry.prefix : '尚未设置触发前缀'; button.append(prefix); button.onclick = () => select(index); list.append(button); }); }
-function field(label, key, multiline) { const wrapper = document.createElement('div'); const title = document.createElement('label'); title.textContent = label; const control = document.createElement(multiline ? 'textarea' : 'input'); control.value = entries[selected][key] || ''; control.oninput = () => { entries[selected][key] = control.value; if (key === 'name' || key === 'prefix') renderList(); save(); }; wrapper.append(title, control); return wrapper; }
-function renderForm() { const form = byId('form'); form.replaceChildren(); if (selected < 0) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = '还没有模板。点击左侧 ＋ 新建一个。'; form.append(empty); return; } form.append(field('模板名称', 'name'), field('触发前缀', 'prefix'), field('模板内容', 'body', true), field('说明（可选）', 'description')); const patterns = document.createElement('div'); patterns.className = 'two'; patterns.append(field('Include（逗号分隔，可选）', 'include'), field('Exclude（逗号分隔，可选）', 'exclude')); form.append(patterns); }
-function render() { renderList(); renderForm(); byId('delete').disabled = selected < 0; }
-byId('add').onclick = () => { entries.push({ name: '新模板', prefix: '', body: '', description: '', include: '', exclude: '' }); selected = entries.length - 1; render(); save(); };
-function deleteSelected() { if (selected < 0) return; entries.splice(selected, 1); selected = Math.min(selected, entries.length - 1); render(); save(); }
-byId('delete').onclick = () => { if (selected < 0) return; vscode.postMessage({ type: 'confirmDelete', language, name: entries[selected].name || '未命名模板' }); };
-byId('openJson').onclick = () => vscode.postMessage({ type: 'openJson', language });
-byId('language').onchange = () => { clearTimeout(saveTimer); vscode.postMessage({ type: 'selectLanguage', language: byId('language').value }); };
-window.addEventListener('message', event => { if (event.data?.type === 'deleteConfirmed' && event.data.language === language) deleteSelected(); else if (event.data?.type === 'state') { language = event.data.value.language; entries = event.data.value.entries; selected = entries.length ? 0 : -1; renderLanguages(); render(); } });
-renderLanguages(); render();
 </script></body></html>`;
 }

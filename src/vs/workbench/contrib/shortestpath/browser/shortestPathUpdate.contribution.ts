@@ -16,10 +16,13 @@ import severity from '../../../../base/common/severity.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { getNLSLanguage, localize2 } from '../../../../nls.js';
+import { getNLSLanguage, localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
@@ -65,7 +68,7 @@ function getShortestPathUpdateGraceStateForCurrentMinimumVersion(storageService:
 	return getShortestPathUpdateGraceStateForMinimumVersion(storageService.getObject(UPDATE_GRACE_STORAGE_KEY, StorageScope.APPLICATION), version, minimumSupportedVersion, () => storageService.remove(UPDATE_GRACE_STORAGE_KEY, StorageScope.APPLICATION));
 }
 
-class ShortestPathUpdateChecker {
+export class ShortestPathUpdateChecker {
 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
@@ -139,15 +142,15 @@ interface IShortestPathUpdateDialogOptions {
 	readonly onNetworkGrace?: () => void;
 }
 
-class ShortestPathUpdateBlocker extends Disposable {
+export class ShortestPathUpdateBlocker extends Disposable {
 	private static active: ShortestPathUpdateBlocker | undefined;
 
 	static dismiss(): void {
 		this.active?.dispose();
 	}
 
-	static get hasActive(): boolean {
-		return !!this.active;
+	static get hasRequiredUpdate(): boolean {
+		return this.active?.options.isRequired === true;
 	}
 
 	static getOrCreate(instantiationService: IInstantiationService, options: IShortestPathUpdateDialogOptions): ShortestPathUpdateBlocker {
@@ -171,6 +174,7 @@ class ShortestPathUpdateBlocker extends Disposable {
 	}
 
 	activate(): void {
+		const previousFocus = mainWindow.document.activeElement;
 		// allow-any-unicode-next-line
 		const overlay = append(this.layoutService.mainContainer, $('.shortestpath-update-required-overlay', {
 			role: 'dialog',
@@ -179,8 +183,16 @@ class ShortestPathUpdateBlocker extends Disposable {
 			'aria-modal': 'true',
 		}));
 		const dialog = append(overlay, $('.shortestpath-update-required-dialog'));
+		overlay.classList.add(this.options.isRequired ? 'monaco-dialog-modal-block' : 'shortestpath-update-available-overlay', ...(this.options.isRequired ? [] : ['context-view']));
+		if (!this.options.isRequired) {
+			overlay.setAttribute('aria-modal', 'false');
+			this._register(addDisposableListener(mainWindow.document, 'mousedown', event => {
+				if (isHTMLElement(event.target) && !overlay.contains(event.target) && !event.target.closest('.shortestpath-update-indicator')) { this.dispose(); }
+			}));
+		}
 		dialog.tabIndex = -1;
 		const updateOverlayTop = () => {
+			if (!this.options.isRequired) { return; }
 			const titlebar = this.layoutService.getContainer(mainWindow, Parts.TITLEBAR_PART);
 			const containerTop = this.layoutService.mainContainer.getBoundingClientRect().top;
 			overlay.style.top = `${Math.max(0, (titlebar?.getBoundingClientRect().bottom ?? containerTop) - containerTop)}px`;
@@ -262,6 +274,15 @@ class ShortestPathUpdateBlocker extends Disposable {
 			}
 		}));
 		this._register(addDisposableListener(overlay, 'keydown', event => {
+			if (!this.options.isRequired) {
+				if (event.key === 'Escape') {
+					event.preventDefault();
+					event.stopPropagation();
+					this.dispose();
+					if (isHTMLElement(previousFocus) && previousFocus.isConnected) { previousFocus.focus(); }
+				}
+				return;
+			}
 			if (isHTMLElement(event.target) && event.target.tagName === 'BUTTON' && (event.key === 'Enter' || event.key === ' ')) {
 				return;
 			}
@@ -280,7 +301,57 @@ class ShortestPathUpdateBlocker extends Disposable {
 	}
 }
 
-class ShortestPathUpdateContribution extends Disposable implements IWorkbenchContribution {
+export const IShortestPathUpdateIndicator = createDecorator<IShortestPathUpdateIndicator>('shortestPathUpdateIndicator');
+
+export interface IShortestPathUpdateIndicator {
+	readonly _serviceBrand: undefined;
+	show(version: string, open: () => void): void;
+	clear(): void;
+}
+
+/** Ordinary updates stay in the navigation column until the user opens them. */
+export class ShortestPathUpdateIndicator extends Disposable implements IShortestPathUpdateIndicator {
+	declare readonly _serviceBrand: undefined;
+	private readonly button: HTMLButtonElement | undefined;
+	private open: (() => void) | undefined;
+
+	constructor(
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IHoverService hoverService: IHoverService,
+	) {
+		super();
+		const navigation = layoutService.mainWindowNavigationContainer;
+		if (!navigation) { return; }
+		// allow-any-unicode-next-line
+		this.button = append(navigation, $('button.shortestpath-update-indicator', { type: 'button', 'aria-label': localize('sp.update', "更新") })) as HTMLButtonElement;
+		this.button.hidden = true;
+		append(this.button, $('span.codicon.codicon-cloud-download', { 'aria-hidden': 'true' }));
+		// allow-any-unicode-next-line
+		append(this.button, $('span', undefined, localize('sp.update', "更新")));
+		// allow-any-unicode-next-line
+		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.button, localize('sp.updateAvailable', "有新版本可用，点击查看更新")));
+		this._register(addDisposableListener(this.button, 'click', () => this.open?.()));
+		this._register(toDisposable(() => this.button?.remove()));
+	}
+
+	show(version: string, open: () => void): void {
+		this.open = open;
+		if (this.button) {
+			this.button.hidden = false;
+			// allow-any-unicode-next-line
+			this.button.setAttribute('aria-label', localize('sp.updateVersion', "更新至 {0}", version));
+		}
+	}
+
+	clear(): void {
+		this.open = undefined;
+		if (this.button) { this.button.hidden = true; }
+	}
+}
+
+registerSingleton(IShortestPathUpdateIndicator, ShortestPathUpdateIndicator, InstantiationType.Delayed);
+
+export class ShortestPathUpdateContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.shortestPathUpdate';
 	private static readonly RETRY_INTERVAL = 60 * 60 * 1000;
@@ -294,6 +365,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService logService: ILogService,
+		@IShortestPathUpdateIndicator private readonly updateIndicator: IShortestPathUpdateIndicator,
 	) {
 		super();
 		this.checkScheduler = this._register(new RunOnceScheduler(() => this.checkForUpdates(instantiationService, logService), 0));
@@ -325,6 +397,7 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 			const graceState = this.productService.shortestPathVersion ? getShortestPathUpdateGraceStateForCurrentMinimumVersion(this.storageService, this.productService.shortestPathVersion, result.release.minimumSupportedVersion) : undefined;
 			const dialogKind = getShortestPathUpdateDialogKind(this.productService.shortestPathVersion ?? '', result.release, result.target);
 			if (dialogKind === 'none') {
+				this.updateIndicator.clear();
 				this.clearInactiveGrace(true);
 				return;
 			}
@@ -337,11 +410,13 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 			if (graceState?.graceUntil && graceState.minimumSupportedVersion === result.release.minimumSupportedVersion && graceState.graceUntil > Date.now()) {
 				this.scheduleGraceExpiry(graceState);
 				this.unlockAfterFailedCheck();
+				this.showAvailableUpdate(instantiationService, result);
 				return;
 			}
 
-			if (!ShortestPathUpdateBlocker.hasActive) {
-				this.showBlocker(instantiationService, result.release.minimumSupportedVersion!, result.target?.downloadUrl ?? result.release.downloadUrl, result.fastDownloadUrl, result.release.releaseNote);
+			this.updateIndicator.clear();
+			if (!ShortestPathUpdateBlocker.hasRequiredUpdate) {
+				this.showBlocker(instantiationService, result);
 			}
 		} catch (error) {
 			logService.debug('ShortestPath IDE update check failed.', error);
@@ -350,26 +425,30 @@ class ShortestPathUpdateContribution extends Disposable implements IWorkbenchCon
 		}
 	}
 
-	private showBlocker(instantiationService: IInstantiationService, minimumSupportedVersion: string, downloadUrl: string, fastDownloadUrl: string | undefined, releaseNote?: string): void {
+	private showBlocker(instantiationService: IInstantiationService, result: IShortestPathUpdateCheckResult): void {
+		const downloadUrl = result.target?.downloadUrl ?? result.release.downloadUrl;
 		ShortestPathUpdateBlocker.dismiss();
 		this.blocker = this._register(ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
 			downloadUrl,
-			fastDownloadUrl,
+			fastDownloadUrl: result.fastDownloadUrl,
 			isRequired: true,
-			releaseNote,
-			onNetworkGrace: () => this.grantNetworkGrace(minimumSupportedVersion, downloadUrl),
+			releaseNote: result.release.releaseNote,
+			onNetworkGrace: () => {
+				this.grantNetworkGrace(result.release.minimumSupportedVersion!, downloadUrl);
+				this.showAvailableUpdate(instantiationService, result);
+			},
 		}));
 	}
 
 	private showAvailableUpdate(instantiationService: IInstantiationService, result: IShortestPathUpdateCheckResult): void {
 		ShortestPathUpdateBlocker.dismiss();
-		ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
+		this.updateIndicator.show(result.release.version, () => ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
 			downloadUrl: result.target?.downloadUrl ?? result.release.downloadUrl,
 			fastDownloadUrl: result.fastDownloadUrl,
 			isRequired: false,
 			version: result.release.version,
 			releaseNote: result.release.releaseNote,
-		});
+		}));
 	}
 
 	private grantNetworkGrace(minimumSupportedVersion: string, downloadUrl: string): void {
@@ -545,6 +624,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor, fromSetup = false): Promise<ShortestPathUpdateCheckOutcome> {
 		const notificationService = accessor.get(INotificationService);
+		const updateIndicator = accessor.get(IShortestPathUpdateIndicator);
 		const instantiationService = accessor.get(IInstantiationService);
 		const productService = accessor.get(IProductService);
 		const storageService = accessor.get(IStorageService);
@@ -566,6 +646,8 @@ registerAction2(class extends Action2 {
 				notificationService.info(localizeUpdate(`ShortestPath IDE is up to date (${version}).`, `当前已是 ShortestPath IDE 最新版本（${version}）。`));
 			}
 			if (!isShortestPathUpdateAvailable(productService.shortestPathVersion ?? '', result.release.version)) {
+				ShortestPathUpdateBlocker.dismiss();
+				updateIndicator.clear();
 				return { status: 'latest', version: result.release.version };
 			}
 			const graceState = productService.shortestPathVersion ? getShortestPathUpdateGraceStateForCurrentMinimumVersion(storageService, productService.shortestPathVersion, result.release.minimumSupportedVersion) : undefined;
@@ -573,15 +655,16 @@ registerAction2(class extends Action2 {
 			if (dialogKind === 'required') {
 				if (graceState?.graceUntil && graceState.graceUntil > Date.now()) {
 					ShortestPathUpdateBlocker.dismiss();
-					ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
+					updateIndicator.show(result.release.version, () => ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
 						downloadUrl: result.target?.downloadUrl ?? result.release.downloadUrl,
 						fastDownloadUrl: result.fastDownloadUrl,
 						isRequired: false,
 						version: result.release.version,
 						releaseNote: result.release.releaseNote,
-					});
+					}));
 					return { status: 'available', version: result.release.version };
 				}
+				updateIndicator.clear();
 				const downloadUrl = result.target?.downloadUrl ?? result.release.downloadUrl;
 				ShortestPathUpdateBlocker.dismiss();
 				const blocker = ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
@@ -597,6 +680,13 @@ registerAction2(class extends Action2 {
 							graceUntil: Date.now() + NETWORK_GRACE_DURATION,
 						}, StorageScope.APPLICATION, StorageTarget.MACHINE);
 						blocker.dispose();
+						updateIndicator.show(result.release.version, () => ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
+							downloadUrl,
+							fastDownloadUrl: result.fastDownloadUrl,
+							isRequired: false,
+							version: result.release.version,
+							releaseNote: result.release.releaseNote,
+						}));
 					},
 				});
 			} else {
@@ -607,13 +697,13 @@ registerAction2(class extends Action2 {
 						storageService.remove(UPDATE_GRACE_STORAGE_KEY, StorageScope.APPLICATION);
 					}
 				}
-				ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
+				updateIndicator.show(result.release.version, () => ShortestPathUpdateBlocker.getOrCreate(instantiationService, {
 					downloadUrl: result.target?.downloadUrl ?? result.release.downloadUrl,
 					fastDownloadUrl: result.fastDownloadUrl,
 					isRequired: false,
 					version: result.release.version,
 					releaseNote: result.release.releaseNote,
-				});
+				}));
 			}
 			return { status: 'available', version: result.release.version };
 		} catch (error) {

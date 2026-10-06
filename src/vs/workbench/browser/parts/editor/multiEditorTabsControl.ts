@@ -293,7 +293,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab);
 		}
 
-		this.createNewTabControl();
 
 		// Create Editor Toolbar
 		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
@@ -302,17 +301,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.updateTabsControlVisibility();
 
 		return this.tabsAndActionsContainer;
-	}
-
-	private createNewTabControl(): void {
-		const newTabButton = $('.tabs-bar-new-tab.codicon.codicon-add', { role: 'button', tabindex: 0 });
-		newTabButton.ariaLabel = localize('newTabButtonAriaLabel', "New Tab");
-		newTabButton.title = localize('newTabButtonTitle', "New Tab");
-		assertReturnsDefined(this.tabsAndActionsContainer).appendChild(newTabButton);
-		this._register(addDisposableListener(newTabButton, EventType.CLICK, e => {
-			EventHelper.stop(e);
-			this.openNewTabPage();
-		}));
 	}
 
 	private openNewTabPage(): void {

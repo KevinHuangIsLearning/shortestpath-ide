@@ -18,7 +18,8 @@ test('covers the rendered English setup surfaces', () => {
 		'当前已是最新版本。',
 		'浏览器分栏比例（10–90）',
 		'可为每个 OJ 设置题面来源。',
-		'用几步配置好你的竞赛编程环境偏好。所有改动都会实时生效，随时可以返回调整。',
+		'初始配置',
+		'检查编译环境并配置编辑器、模版和代码存放目录。',
 		'准备编译环境',
 		'先检测并配置 g++ 与 clangd，环境准备完成后再继续设置 IDE 偏好。',
 		'正在准备编译环境',
@@ -52,7 +53,6 @@ test('covers the rendered English setup surfaces', () => {
 	assert.match(localization, /value!==node\.getAttribute\(attribute\)/);
 
 	for (const [file, pattern] of [
-		['gettingStarted.ts', /showWarningMessage\(localize\('CPH 文件名模板覆盖/],
 		['simpleSettings.ts', /localizeFormat\('确定删除模板/],
 		['extension.ts', /showInformationMessage\(localize\('ShortestPath IDE 已配置为使用便携工具链/],
 	] as const) {
@@ -125,14 +125,12 @@ test('keeps first-run preparation in the editor-tab setup flow', () => {
 	const windowsInstaller = fs.readFileSync(path.join(extensionRoot, 'resources', 'windows.js'), 'utf8');
 	const workspaceCommands = fs.readFileSync(path.resolve(__dirname, '../../../..', 'src/vs/workbench/browser/actions/workspaceCommands.ts'), 'utf8');
 	assert.match(gettingStarted, /function getFirstRunHtml/);
-	assert.match(gettingStarted, /type: 'installToolchain'/);
-	assert.match(gettingStarted, /type: 'pickWorkspaceFolder'/);
+	assert.match(gettingStarted, /type: 'startEnvironment'/);
 	assert.match(gettingStarted, /type: 'complete'/);
-	assert.match(gettingStarted, /class="workspace-picker"/);
-	assert.match(gettingStarted, /workspace-picker button \{ flex: 0 0 auto; white-space: nowrap; \}/);
-	assert.match(gettingStarted, /setWorkspaceFolderTrust[\s\S]*vscode\.openFolder/);
+	assert.match(gettingStarted, /environmentRunner\?\.snapshot.ready/);
+	assert.match(gettingStarted, /completed \? findCppStandard\(compilerFlags\) : 'c\+\+20'/);
+	assert.doesNotMatch(gettingStarted, /pickWorkspaceFolder|configureLocale|type: 'skip'/);
 	assert.match(gettingStarted, /globalState\.update\(GETTING_STARTED_VERSION/);
-	assert.match(gettingStarted, /forceReuseWindow: true/);
 	assert.doesNotMatch(gettingStarted, /workbench\.action\.reloadWindow/);
 	assert.match(workspaceCommands, /setWorkspaceFolderTrust/);
 	assert.match(workspaceCommands, /setUrisTrust\(\[uri\], true\)/);
@@ -173,6 +171,6 @@ test('all native and first-run Chinese localization keys have English translatio
 	}
 	assert.deepEqual([...missing], []);
 	const firstRun = fs.readFileSync(path.join(root, 'gettingStarted.ts'), 'utf8');
-	assert.match(firstRun, /dot.setAttribute\('aria-label', data.ui.pageLabels\[index\]\)/);
+	assert.match(firstRun, /title: localize\('编译配置'\)/);
 	assert.doesNotMatch(firstRun, /class="badge">(?:Toolchain|Configuration|Workspace)</);
 });

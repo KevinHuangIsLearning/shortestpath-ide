@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { appendPreviousStatementVersion, hasProblemStatementChanged, sanitizeProblemStatementVersions } from '../problemStatementVersion';
+import { appendPreviousStatementVersion, canReuseProblemSource, hasProblemStatementChanged, sanitizeProblemStatementVersions } from '../problemStatementVersion';
 import { parseProblemBindData } from '../shortestpathOjProtocol';
 import { bindPayload } from './fixtures';
 
@@ -35,6 +35,15 @@ test('treats title and judging metadata as statement changes', () => {
 	const previous = parseProblemBindData(bindPayload);
 	assert.equal(hasProblemStatementChanged(previous, { ...previous, title: '更新后的标题' }), true);
 	assert.equal(hasProblemStatementChanged(previous, { ...previous, limits: { ...previous.limits, timeMs: 2000 } }), true);
+});
+
+test('reuses code and cases only for the same account, target and statement', () => {
+	const previous = { ...parseProblemBindData(bindPayload), accountId: '1', target: { kind: 'training' as const, problemId: '1', problemRef: bindPayload.problem.ref } };
+	assert.equal(canReuseProblemSource(undefined, previous), false);
+	assert.equal(canReuseProblemSource(previous, { ...previous, state: { ...previous.state, progress: { ...previous.state.progress, submitCount: 2 } } }), true);
+	assert.equal(canReuseProblemSource(previous, { ...previous, accountId: '2' }), false);
+	assert.equal(canReuseProblemSource(previous, { ...previous, target: { ...previous.target, kind: 'standalone' } }), false);
+	assert.equal(canReuseProblemSource(previous, { ...previous, samples: [{ input: '2', output: '2', explanation: '' }] }), false);
 });
 
 test('drops malformed stored versions without discarding complete old problems', () => {

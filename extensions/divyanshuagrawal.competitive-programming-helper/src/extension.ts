@@ -26,12 +26,17 @@ globalThis.logger.debug = (...args: any[]) =>
 /************************************************************************************/
 
 import * as vscode from 'vscode';
+import { registerIntegratedTestCommands, isIntegratedTestRunning } from './integratedTestCommands';
+import { usesIntegratedTests } from './integratedTests';
+import { Problem } from './types';
 import { setupCompanionServer } from './companion';
+import { getProblem, saveProblem } from './parser';
 import runTestCases from './runTestCases';
+import { runEnvironmentSelfTest } from './environmentSelfTest';
 import {
 	editorChanged,
+	refreshActiveJudgeTab,
 	editorClosed,
-	judgeViewTabsChanged,
     checkLaunchWebview,
 } from './webview/editorChange';
 import { submitToCodeForces, submitToKattis } from './submit';
@@ -49,6 +54,20 @@ import { checkUnsupported } from './utils';
 import { createLatestTaskScheduler } from './webview/judgeLifecycle';
 
 let judgeViewProvider: JudgeViewProvider;
+let statusBarItem: vscode.StatusBarItem;
+let judgeVisibilityVersion = 0;
+let judgeIntegrated = false;
+export function updateJudgeVisibility(problem: Problem | undefined): void {
+    const integrated = usesIntegratedTests(problem);
+    if (judgeIntegrated !== integrated) { judgeVisibilityVersion++; judgeIntegrated = integrated; }
+    const version = judgeVisibilityVersion;
+    const leaveJudge = integrated && judgeViewProvider?.isViewVisible();
+    void vscode.commands.executeCommand('setContext', 'shortestpath.oj.integratedLocalTests', integrated).then(() => {
+        if (leaveJudge && version === judgeVisibilityVersion) { return vscode.commands.executeCommand('workbench.view.explorer'); }
+        return undefined;
+    });
+    if (integrated) { statusBarItem?.hide(); } else { statusBarItem?.show(); }
+}
 
 export const getJudgeViewProvider = () => {
     return judgeViewProvider;
@@ -57,6 +76,7 @@ export const getJudgeViewProvider = () => {
 const registerCommands = (context: vscode.ExtensionContext) => {
     globalThis.logger.log('Registering commands');
     registerBrowserSubmission(context);
+    context.subscriptions.push(vscode.commands.registerCommand('cph.selfTestEnvironment', runEnvironmentSelfTest));
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
         if (event.affectsConfiguration('cph.general')) { void judgeViewProvider?.refreshBrowserSubmission(); }
     }));
@@ -91,6 +111,9 @@ const registerCommands = (context: vscode.ExtensionContext) => {
         'cph.compileWithoutRunning',
         async () => {
             globalThis.logger.log('Running command "compileWithoutRunning"');
+            if (isIntegratedTestRunning()) {
+                return;
+            }
             const editor = vscode.window.activeTextEditor;
             if (editor === undefined) {
                 checkUnsupported('');
@@ -105,6 +128,7 @@ const registerCommands = (context: vscode.ExtensionContext) => {
     );
 
     judgeViewProvider = new JudgeViewProvider(context.extensionUri);
+    registerIntegratedTestCommands(context, () => judgeViewProvider.isOrdinaryRunRunning);
 
     const webviewView = vscode.window.registerWebviewViewProvider(
         JudgeViewProvider.viewType,
@@ -133,7 +157,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     downloadRemoteMessage();
 
-    const statusBarItem = vscode.window.createStatusBarItem(
+    statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Left,
         1000,
     );
@@ -145,6 +169,7 @@ export function activate(context: vscode.ExtensionContext) {
         'cph.extension.statusBarTooltip',
         'Competitive Programming Helper - Run all testcases or create if none exist.',
     );
+    context.subscriptions.push(statusBarItem);
     statusBarItem.show();
     statusBarItem.command = 'cph.runTestCases';
 
@@ -159,17 +184,26 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.workspace.onDidCloseTextDocument((e) => {
 			editorClosed(e);
-			tabChangeScheduler.schedule(judgeViewTabsChanged);
+			tabChangeScheduler.schedule(refreshActiveJudgeTab);
 		}),
 		new vscode.Disposable(tabChangeScheduler.dispose),
 	);
+	context.subscriptions.push(vscode.commands.registerCommand('cph.rebindProblemSource', async (previous: string, sourcePath: string) => {
+		if (typeof previous !== 'string' || typeof sourcePath !== 'string' || previous === sourcePath) { return; }
+		const problem = getProblem(previous);
+		if (!problem) { return; }
+		const rebound = { ...problem, srcPath: sourcePath };
+		saveProblem(sourcePath, rebound);
+		if (vscode.window.activeTextEditor?.document.uri.fsPath === sourcePath) {
+			await getJudgeViewProvider().extensionToJudgeViewMessage({ command: 'new-problem', problem: rebound });
+		}
+	}));
 	// A document can remain retained after its final editor tab is closed, so
 	// use the tab model rather than visible editors to distinguish closing a
 	// source tab from merely moving focus to another editor.
 	context.subscriptions.push(
-		vscode.window.tabGroups.onDidChangeTabs(() => {
-			tabChangeScheduler.schedule(judgeViewTabsChanged);
-		}),
+		vscode.window.tabGroups.onDidChangeTabs(() => tabChangeScheduler.schedule(refreshActiveJudgeTab)),
+		vscode.window.tabGroups.onDidChangeTabGroups(() => tabChangeScheduler.schedule(refreshActiveJudgeTab)),
 	);
 
 	const activeEditorChangeScheduler = createLatestTaskScheduler(

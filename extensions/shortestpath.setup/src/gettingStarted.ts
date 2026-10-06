@@ -6,84 +6,40 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { localize, localizeToolchainProgress, localizeWebviewHtml } from './localization';
-import { getSystemFonts } from './systemFonts';
-import {
-	applyCppStandard,
-	findCppStandard,
-	getThemeOptions,
-	isCppStandard,
-	type CppStandard,
-	type ThemeOption
-} from './simpleSettings';
+import { localize, localizeFormat, localizeToolchainProgress, localizeWebviewHtml } from './localization';
+import { FirstRunEditorSession } from './firstRunEditorSession';
+import { EnvironmentSetupRunner } from './environmentSetup';
+import { firstRunView, type FirstRunEditorState } from './firstRunView';
+import { defaultCppTemplate } from './firstRunPreview';
+import { EditorPreview } from './editorPreview';
+import { findCppStandard, getThemeOptions } from './simpleSettings';
 
 const GETTING_STARTED_VERSION = 'shortestpath.gettingStarted.version';
 const GETTING_STARTED_FIRST_RUN_MIGRATION = 'shortestpath.gettingStarted.firstRunMigration.v1';
-const FIRST_RUN_WORKSPACE = 'shortestpath.gettingStarted.pendingWorkspace';
-const CPH_FILE_NAME_SETTINGS = 'shortestpath.gettingStarted.cphFileNameSettings';
-const DEFAULT_CPH_FILE_NAME_TEMPLATE = '{ojName}/{contestId}/{problemId}.{ext}';
-const DEFAULT_CPH_FILE_NAME_TEMPLATE_OVERRIDES: Record<string, string> = {
-	CSES: '{ojName}/{problemId}_{slug}.{ext}',
-	AT: '{ojName}/{contestId}/{problemId}.{ext}',
-	CF: '{ojName}/{contestId}/{problemId}.{ext}',
-	LG: '{ojName}/{problemId}.{ext}',
-	ShortestPath: '{ojName}/{contestId}/{problemId}.{ext}',
-	VJ: '{ojName}/{problemId}{slug}.{ext}',
-	'牛客': 'NowCoder/{problemId}.{ext}'
-};
-
+const FIRST_RUN_CODE_FOLDER = 'shortestpath.gettingStarted.codeFolder';
 let activePanel: vscode.WebviewPanel | undefined;
-let activePanelIsFirstRun = false;
-let awaitingLocaleRestart = false;
-
-type GettingStartedState = {
-	fontFamily: string;
-	fontLigatures: boolean;
-	fontSize: number;
-	colorTheme: string;
-	autoDetectColorScheme: boolean;
-	cppStandard: CppStandard;
-	compilerFlags: string;
-	compiler: string;
-	clangdVariableTypeHints: boolean;
-	executableCleanupEnabled: boolean;
-	executableCleanupDelaySeconds: number;
-	autoSave: string;
-	autoFormat: boolean;
-	cphCustomFileNameEnabled: boolean;
-	cphDefaultLanguage: string;
-	cphFileNameTemplate: string;
-	cphFileNameTemplateOverrides: string;
-	availableOjNames: string[];
-	themes: ThemeOption[];
-};
+let environmentRunner: EnvironmentSetupRunner | undefined;
+let firstRunEditorSession = new FirstRunEditorSession();
 
 type SaveMessage = {
 	type: 'save';
-	page: 'font' | 'theme' | 'cpp' | 'clangd' | 'cleanup' | 'autosave' | 'autoformat' | 'cphNaming';
+	page: 'font' | 'indent' | 'template' | 'theme' | 'clangd' | 'autoformat';
 	value: Record<string, unknown>;
+	requestId?: number;
 };
 
-type CphFileNameSettings = {
-	fileNameTemplate: string;
-	fileNameTemplateOverrides: Record<string, string>;
-};
-
-type FirstRunSetupInfo = {
-	choiceTitle: string;
-	choiceText: string;
-	stages: Array<{ id: string; title: string; text: string }>;
-	configurationTitle: string;
-	configurationText: string;
-	cppStandard: CppStandard;
-	sources: Array<{ id: string; label: string; unavailable?: boolean }>;
-};
+type FirstRunSetupInfo = { stages: Array<{ id: string; title: string; text: string }> };
 
 type FirstRunMessage =
-	| { type: 'installToolchain'; sourceId?: unknown; stage: string }
-	| { type: 'pickWorkspaceFolder' }
-	| { type: 'complete'; cppStandard: unknown; workspaceFolder: unknown; installToolchain: boolean }
-	| { type: 'skip' };
+	| { type: 'startEnvironment' }
+	| { type: 'environmentState' }
+	| { type: 'nextEditor' }
+	| { type: 'nextTemplate' }
+	| { type: 'nextWorkspace' }
+	| { type: 'chooseWorkspace' }
+	| { type: 'editorPreview'; page: 'editor' | 'template'; source?: string; tabSize: number; typeHints: boolean; autoFormat: boolean; requestId: number }
+	| { type: 'compilePage' }
+	| { type: 'complete'; value: Record<string, unknown> };
 
 type ToolchainInstallResult = {
 	readonly success: boolean;
@@ -107,31 +63,21 @@ function localizePresetValue(value: unknown): string {
 
 function loadFirstRunSetupInfo(context: vscode.ExtensionContext): FirstRunSetupInfo {
 	type RawPage = { id?: string; title?: unknown; text?: unknown; controls?: Array<{ key?: string; default?: unknown }> };
-	type RawPreset = { pages?: RawPage[]; downloadSources?: Array<{ id: string; label?: unknown; unavailable?: boolean }> };
+	type RawPreset = { setupStages?: RawPage[]; pages?: RawPage[]; downloadSources?: Array<{ id: string; label?: unknown; unavailable?: boolean }> };
 	const presetPath = path.join(context.extensionPath, 'resources', `${process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux'}.json`);
 	const preset = JSON.parse(fs.readFileSync(presetPath, 'utf8')) as RawPreset;
 	const pages = preset.pages ?? [];
-	const configuration = pages.find(page => Array.isArray(page.controls));
-	const toolchainPages = pages.slice(1).filter(page => !Array.isArray(page.controls));
+	const toolchainPages = preset.setupStages ?? pages.slice(1).filter(page => !Array.isArray(page.controls));
 	const stages = toolchainPages.map((page, index) => ({
 		id: page.id || (index === toolchainPages.length - 1 ? 'toolchain' : `stage-${index}`),
 		title: localizePresetValue(page.title),
 		text: localizePresetValue(page.text)
 	}));
-	const cppStandard = configuration?.controls?.find(control => control.key === 'cppStandard')?.default;
-	return {
-		choiceTitle: localizePresetValue(pages[0]?.title) || localize('ShortestPath IDE'),
-		choiceText: localizePresetValue(pages[0]?.text),
-		stages,
-		configurationTitle: localizePresetValue(configuration?.title) || localize('配置'),
-		configurationText: localizePresetValue(configuration?.text),
-		cppStandard: isCppStandard(cppStandard) ? cppStandard : 'c++23',
-		sources: (preset.downloadSources ?? []).map(source => ({ id: source.id, label: localizePresetValue(source.label) || source.id, unavailable: source.unavailable }))
-	};
+	return { stages };
 }
 
 export function registerGettingStarted(context: vscode.ExtensionContext): void {
-	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openGettingStarted', () => openGettingStarted(context, !vscode.workspace.getConfiguration('shortestpath.setup').get<boolean>('completed'))));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openGettingStarted', () => openGettingStarted(context)));
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
 		// The setup may finish in this same session (setup.completed flips), so
 		// re-evaluate the auto-open condition when it changes.
@@ -149,274 +95,208 @@ function currentExtensionVersion(): string {
 
 async function maybeAutoOpenGettingStarted(context: vscode.ExtensionContext): Promise<void> {
 	if (!context.globalState.get<boolean>(GETTING_STARTED_FIRST_RUN_MIGRATION)) {
-		// Older first-run implementations used the Get Started marker for the
-		// onboarding window. Clear it once so the editor-tab migration can show the
-		// ordinary Get Started Guide after setup completes.
+		// Keep the legacy version marker separate from first-run completion.
 		await context.globalState.update(GETTING_STARTED_VERSION, undefined);
 		await context.globalState.update(GETTING_STARTED_FIRST_RUN_MIGRATION, true);
 	}
-	if (awaitingLocaleRestart) {
-		return;
-	}
-	const pendingWorkspace = context.globalState.get<string>(FIRST_RUN_WORKSPACE);
-	if (pendingWorkspace) {
-		await context.globalState.update(FIRST_RUN_WORKSPACE, undefined);
-		if (path.isAbsolute(pendingWorkspace)) {
-			setTimeout(() => void openFirstRunWorkspace(pendingWorkspace), 1000);
+	const pendingFolder = context.globalState.get<string>(FIRST_RUN_CODE_FOLDER);
+	if (pendingFolder && path.isAbsolute(pendingFolder)) {
+		const folders = vscode.workspace.workspaceFolders;
+		if (folders?.length === 1 && folders[0].uri.toString() === vscode.Uri.file(pendingFolder).toString()) {
+			await markFirstRunComplete(context);
+			return;
 		}
-		return;
+		firstRunEditorSession.workspaceFolder = pendingFolder;
 	}
 	const firstRun = !vscode.workspace.getConfiguration('shortestpath.setup').get<boolean>('completed');
-	if (context.globalState.get<string>(GETTING_STARTED_VERSION) === currentExtensionVersion()) {
-		if (!firstRun) {
-			return;
-		}
-	}
-	// Give the workbench a moment to settle before opening the tab. First-run
-	// setup deliberately uses the same editor surface as Get Started.
-	setTimeout(() => openGettingStarted(context, firstRun), 1000);
+	if (!firstRun) { return; }
+	// Give the workbench a moment to settle, and recheck completion before opening.
+	setTimeout(() => {
+		if (!vscode.workspace.getConfiguration('shortestpath.setup').get<boolean>('completed')) { openGettingStarted(context); }
+	}, 1000);
 }
 
-function openGettingStarted(context: vscode.ExtensionContext, firstRun = false): void {
+function openGettingStarted(context: vscode.ExtensionContext): void {
+	void vscode.commands.executeCommand('shortestpath.mode.solve');
 	if (activePanel) {
-		if (firstRun && !activePanelIsFirstRun) {
-			activePanel.dispose();
-		} else {
-			activePanel.reveal(vscode.ViewColumn.Active);
-			return;
-		}
+		activePanel.reveal(vscode.ViewColumn.Active);
+		return;
 	}
-	let isSaving = false;
 	let isDisposed = false;
-	let finishingFirstRun = false;
-	let preparingEnvironment = false;
-	const firstRunSetupInfo = firstRun ? loadFirstRunSetupInfo(context) : undefined;
-	const panel = vscode.window.createWebviewPanel('shortestpath.gettingStarted', firstRun ? localize('开箱配置') : localize('开始使用'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	const panel = vscode.window.createWebviewPanel('shortestpath.gettingStarted', localize('初始配置'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	const editorPreview = new EditorPreview();
+	context.subscriptions.push(editorPreview);
 	activePanel = panel;
-	activePanelIsFirstRun = firstRun;
-	if (!firstRun) {
-		void context.globalState.update(GETTING_STARTED_VERSION, currentExtensionVersion());
+	if (!environmentRunner) {
+		environmentRunner = createEnvironmentRunner(loadFirstRunSetupInfo(context));
 	}
-	panel.webview.html = localizeWebviewHtml(getHtml(getState(), firstRun, firstRunSetupInfo));
-	if (firstRun) {
-		// Keep onboarding focused on the editor tab, like the built-in Get Started
-		// experience, instead of leaving the Explorer/sidebar competing for space.
-		void Promise.all([
-			vscode.commands.executeCommand('workbench.action.closeSidebar'),
-			vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar')
-		]);
-	}
-	void getSystemFonts().then(async result => {
-		if (isDisposed) {
-			return;
+	panel.webview.html = localizeWebviewHtml(getFirstRunHtml());
+	// Keep the configuration steps focused on the editor tab.
+	void Promise.all([
+		vscode.commands.executeCommand('workbench.action.closeSidebar'),
+		vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar')
+	]);
+	panel.webview.onDidReceiveMessage(async (message: SaveMessage | FirstRunMessage) => {
+		if (message.type === 'environmentState') {
+			await panel.webview.postMessage({ type: 'environmentState', value: environmentRunner?.snapshot });
 		}
-		try {
-			const delivered = await panel.webview.postMessage({ type: 'systemFonts', value: result });
-			if (!delivered && !isDisposed) {
-				console.warn('Getting started webview did not accept the system font result.');
-			}
-		} catch (error) {
-			if (!isDisposed) {
-				console.warn('Failed to deliver system fonts to the getting started webview.', error);
+		if (message.type === 'startEnvironment') {
+			await environmentRunner?.run();
+		}
+		if (message.type === 'nextEditor' || message.type === 'nextTemplate' || message.type === 'nextWorkspace' || message.type === 'compilePage') {
+			const ready = !!environmentRunner?.snapshot.ready && !environmentRunner.snapshot.running;
+			if (firstRunEditorSession.choosingWorkspace) { return; }
+			if (message.type === 'nextWorkspace' && firstRunEditorSession.page !== 'template') { return; }
+			if (message.type === 'nextTemplate' && firstRunEditorSession.page !== 'editor' && firstRunEditorSession.page !== 'workspace') { return; }
+			if (await firstRunEditorSession.enter(message.type === 'nextWorkspace' ? 'workspace' : message.type === 'nextTemplate' ? 'template' : message.type === 'nextEditor' ? 'editor' : 'compile', ready)) {
+				await panel.webview.postMessage({ type: 'firstRunPage', value: firstRunEditorSession.page, state: getFirstRunEditorState(), workspaceFolder: firstRunEditorSession.workspaceFolder });
 			}
 		}
-	});
-	panel.webview.onDidReceiveMessage(async (message: SaveMessage | { type: 'snippets' } | { type: 'autoFormatSettings' } | { type: 'cphSettings' } | FirstRunMessage) => {
-		if (firstRun) {
-			if (message.type === 'installToolchain') {
-				if (preparingEnvironment) {
-					return;
-				}
-				preparingEnvironment = true;
-				try {
-					const result = await vscode.commands.executeCommand<ToolchainInstallResult>('shortestpath.installToolchainStage', {
-						sourceId: message.sourceId,
-						stage: message.stage,
-						reportProgress: (progressMessage: string) => {
-							if (!isDisposed) {
-								void panel.webview.postMessage({ type: 'toolchainProgress', message: localizeToolchainProgress(progressMessage) });
-							}
-						}
-					});
-					if (!isDisposed) {
-						await panel.webview.postMessage({ type: 'toolchainResult', ...result });
-					}
-				} catch (error) {
-					if (!isDisposed) {
-						await panel.webview.postMessage({ type: 'toolchainResult', success: false, message: error instanceof Error ? error.message : String(error) });
-					}
-				} finally {
-					preparingEnvironment = false;
-				}
-				return;
-			}
-			if (message.type === 'pickWorkspaceFolder') {
-				const workspaceFolder = await vscode.commands.executeCommand<string | undefined>('shortestpath.pickWorkspaceFolder');
-				if (!isDisposed) {
-					await panel.webview.postMessage({ type: 'workspaceFolder', value: workspaceFolder });
-				}
-				return;
-			}
-			if (message.type === 'skip') {
-				panel.dispose();
-				return;
-			}
-			if (message.type === 'complete' && !finishingFirstRun) {
-				finishingFirstRun = true;
-				try {
-					await finishFirstRun(context, panel, message);
-				} finally {
-					finishingFirstRun = false;
-				}
-			}
-			return;
-		}
-		if (message.type === 'save') {
-			isSaving = true;
+		if (message.type === 'chooseWorkspace' && firstRunEditorSession.page === 'workspace' && !firstRunEditorSession.finishing && !firstRunEditorSession.choosingWorkspace) {
+			const session = firstRunEditorSession;
+			session.choosingWorkspace = true;
+			let errorMessage: string | undefined;
 			try {
-				await saveState(context, message.page, message.value);
+				const result = await vscode.window.showOpenDialog({
+					canSelectFiles: false, canSelectFolders: true, canSelectMany: false,
+					defaultUri: session.workspaceFolder ? vscode.Uri.file(session.workspaceFolder) : vscode.workspace.workspaceFolders?.[0]?.uri,
+					openLabel: localize('选择目录'), title: localize('选择代码存放目录')
+				});
+				const folder = result?.[0];
+				if (folder) {
+					if (folder.scheme !== 'file' || !path.isAbsolute(folder.fsPath) || !(await fs.promises.stat(folder.fsPath)).isDirectory()) { throw new Error(localize('请选择有效的本地目录。')); }
+					if (folder.fsPath !== session.workspaceFolder) { await context.globalState.update(FIRST_RUN_CODE_FOLDER, undefined); }
+					session.workspaceFolder = folder.fsPath;
+				}
+			} catch (error) {
+				errorMessage = localizeFormat('无法选择代码存放目录：{0}', error instanceof Error ? error.message : String(error));
 			} finally {
-				isSaving = false;
+				session.choosingWorkspace = false;
+				if (activePanel && firstRunEditorSession === session) { await activePanel.webview.postMessage({ type: 'workspaceResult', workspaceFolder: session.workspaceFolder, message: errorMessage }); }
 			}
-		} else if (message.type === 'snippets') {
-			await vscode.commands.executeCommand('shortestpath.configureCppSnippets');
-		} else if (message.type === 'autoFormatSettings') {
-			await vscode.commands.executeCommand('shortestpath.configureAutoFormat');
-		} else if (message.type === 'cphSettings') {
-			await vscode.commands.executeCommand('shortestpath.configureCph');
-		} else if (message.type === 'complete') {
-			panel.dispose();
+		}
+		if (message.type === 'editorPreview' && message.page === firstRunEditorSession.page && (message.page === 'editor' || message.page === 'template')) {
+			await firstRunEditorSession.flush();
+			try {
+				if (message.page === 'template' && (typeof message.source !== 'string' || message.source.length > 100_000)) { throw new Error(localize('模版内容无效或过长。')); }
+				const value = await editorPreview.render([2, 4, 8].includes(message.tabSize) ? message.tabSize : 2, message.typeHints === true, message.autoFormat === true, message.page === 'template' ? message.source : undefined);
+				if (!isDisposed) { await panel.webview.postMessage({ type: 'editorPreview', requestId: message.requestId, value }); }
+			} catch (error) {
+				if (!isDisposed) { await panel.webview.postMessage({ type: 'editorPreview', requestId: message.requestId, message: localizeFormat('无法加载代码预览：{0}', error instanceof Error ? error.message : String(error)) }); }
+			}
+		}
+		if (message.type === 'save' && environmentRunner?.snapshot.ready && isEditorPage(message.page)) {
+			firstRunEditorSession.save(async () => {
+				try {
+					await saveState(message.page, message.value);
+					if (!isDisposed) { await panel.webview.postMessage({ type: 'saveResult', requestId: message.requestId, success: true }); }
+				} catch (error) {
+					if (!isDisposed) { await panel.webview.postMessage({ type: 'saveResult', requestId: message.requestId, success: false, message: localizeFormat('无法保存编辑配置：{0}', error instanceof Error ? error.message : String(error)) }); }
+				}
+			}, message.page === 'template' ? 'template' : 'editor');
+		}
+		if (message.type === 'complete' && !firstRunEditorSession.choosingWorkspace) {
+			try {
+				await finishFirstRun(context, panel, message.value);
+			} catch (error) {
+				if (activePanel) { await activePanel.webview.postMessage({ type: 'completeError', message: localizeFormat('无法完成开箱配置：{0}', error instanceof Error ? error.message : String(error)) }); }
+			}
 		}
 	});
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
-		if (!isSaving && (event.affectsConfiguration('editor.fontFamily')
-			|| event.affectsConfiguration('editor.fontLigatures')
-			|| event.affectsConfiguration('editor.fontSize')
-			|| event.affectsConfiguration('workbench.colorTheme')
-			|| event.affectsConfiguration('window.autoDetectColorScheme')
-			|| event.affectsConfiguration('cph.language.cpp.Args')
-			|| event.affectsConfiguration('cph.language.cpp.Command')
-			|| event.affectsConfiguration('c-cpp-compile-run.cpp-flags')
-			|| event.affectsConfiguration('editor.inlayHints.enabled')
-			|| event.affectsConfiguration('shortestpath.executableCleanupEnabled')
-			|| event.affectsConfiguration('shortestpath.executableCleanupDelaySeconds')
-			|| event.affectsConfiguration('files.autoSave')
-			|| event.affectsConfiguration('editor.formatOnSave')
-			|| event.affectsConfiguration('editor.formatOnPaste')
-			|| event.affectsConfiguration('cph.general.defaultLanguage')
-			|| event.affectsConfiguration('cph.general.fileNameTemplate')
-			|| event.affectsConfiguration('cph.general.fileNameTemplateOverrides')
-			|| event.affectsConfiguration('cph.general.ojMapping')
-			|| event.affectsConfiguration('cph.general.vjudgeOjNames'))) {
-			void panel.webview.postMessage({ type: 'state', value: getState() });
-		}
+		if (event.affectsConfiguration('workbench.colorTheme')) { void panel.webview.postMessage({ type: 'previewRefresh' }); }
 	});
+	context.subscriptions.push(configurationListener);
+	const themeListener = vscode.window.onDidChangeActiveColorTheme(() => {
+		if (!isDisposed) { void panel.webview.postMessage({ type: 'previewRefresh' }); }
+	});
+	context.subscriptions.push(themeListener);
 	panel.onDidDispose(() => {
 		isDisposed = true;
 		activePanel = undefined;
-		activePanelIsFirstRun = false;
 		configurationListener.dispose();
+		themeListener.dispose();
+		editorPreview.dispose();
+		if (!vscode.workspace.getConfiguration('shortestpath.setup').get<boolean>('completed')) {
+			setTimeout(() => {
+				if (!vscode.workspace.getConfiguration('shortestpath.setup').get<boolean>('completed')) { openGettingStarted(context); }
+			}, 100);
+		}
 	});
 }
 
-async function finishFirstRun(context: vscode.ExtensionContext, panel: vscode.WebviewPanel, message: Extract<FirstRunMessage, { type: 'complete' }>): Promise<void> {
-	if (!isCppStandard(message.cppStandard) || typeof message.workspaceFolder !== 'string' || !path.isAbsolute(message.workspaceFolder)) {
-		void vscode.window.showWarningMessage(localize('请选择有效的 C++ 版本和工作目录。'));
-		return;
-	}
-	const setupReady = await configureFirstRun(message.cppStandard, message.workspaceFolder, message.installToolchain);
-	if (setupReady !== true) {
-		void vscode.window.showWarningMessage(localize('编译环境尚未准备完成。请完成安装后重试。'));
-		return;
-	}
-	const languageAction = localize('选择显示语言');
-	const restartAction = localize('完成并重启');
-	const choice = await vscode.window.showInformationMessage(
-		localize('配置已完成。你可以现在选择 IDE 显示语言；选择后会按正常流程重启。'),
-		{ modal: true },
-		languageAction,
-		restartAction
-	);
-	if (choice === languageAction) {
-		panel.dispose();
-		await context.globalState.update(FIRST_RUN_WORKSPACE, message.workspaceFolder);
-		awaitingLocaleRestart = true;
+function createEnvironmentRunner(info: FirstRunSetupInfo): EnvironmentSetupRunner {
+	// Reopening setup checks the toolchain without replacing existing preferences.
+	const completed = vscode.workspace.getConfiguration('shortestpath.setup').get<boolean>('completed');
+	const mode = completed ? 'repair' : 'recommended';
+	const compilerFlags = vscode.workspace.getConfiguration('cph.language.cpp', null).get<string>('Args')
+		|| vscode.workspace.getConfiguration('c-cpp-compile-run', null).get<string>('cpp-flags') || '';
+	const cppStandard = completed ? findCppStandard(compilerFlags) : 'c++20';
+	return new EnvironmentSetupRunner([
+		...info.stages.map(stage => ({ id: stage.id, title: stage.title, description: stage.text, async run(report: (message: string) => void) {
+			const result = await vscode.commands.executeCommand<ToolchainInstallResult>('shortestpath.prepareFirstRunStage', {
+				stage: stage.id, reportProgress: (message: string) => report(localizeToolchainProgress(message))
+			});
+			if (!result?.success) { throw new Error(result?.message || localize('编译环境尚未准备完成。请完成安装后重试。')); }
+			report(localizeToolchainProgress(result.message));
+			if (stage.id === 'toolchain') {
+				const ready = await vscode.commands.executeCommand<boolean>('shortestpath.applyFirstRunSetup', { mode, installToolchain: false, cppStandard, completeSetup: false });
+				if (!ready) { throw new Error(localize('编译环境尚未准备完成。请完成安装后重试。')); }
+			}
+		} })),
+		{ id: 'selfTest', title: localize('环境自测'), description: localize('运行 A+B 示例，检查命令行编译、CPH 样例测试与代码提示。'), async run(report) {
+			const result = await vscode.commands.executeCommand<ToolchainInstallResult>('shortestpath.selfTestEnvironment', { reportProgress: (message: string) => report(localizeToolchainProgress(message)) });
+			if (!result?.success) { throw new Error(result?.message || localize('环境自测失败。')); }
+		} }
+	], state => {
+		if (activePanel) { void activePanel.webview.postMessage({ type: 'environmentState', value: state }).then(undefined, () => undefined); }
+	}, localize);
+}
+
+async function finishFirstRun(context: vscode.ExtensionContext, panel: vscode.WebviewPanel, value: Record<string, unknown>): Promise<void> {
+	const ready = !!environmentRunner?.snapshot.ready && !environmentRunner.snapshot.running;
+	const completed = await firstRunEditorSession.complete(ready, async () => {
+		const workspaceFolder = firstRunEditorSession.workspaceFolder;
+		if (!workspaceFolder || !(await fs.promises.stat(workspaceFolder)).isDirectory()) { throw new Error(localize('请选择有效的本地目录。')); }
+		const finalValue = { ...value };
+		for (const page of ['font', 'indent', 'theme', 'autoformat', 'clangd', 'template'] as const) {
+			if (page === 'template' && finalValue.autoFormat === true) {
+				if (typeof finalValue.cppTemplate !== 'string' || finalValue.cppTemplate.length > 100_000) { throw new Error(localize('模版内容无效或过长。')); }
+				const preview = new EditorPreview();
+				try {
+					const result = await preview.render([2, 4, 8].includes(Number(finalValue.tabSize)) ? Number(finalValue.tabSize) : 2, false, true, finalValue.cppTemplate);
+					finalValue.cppTemplate = result.source;
+				} finally { preview.dispose(); }
+			}
+			await saveState(page, finalValue);
+		}
+		await vscode.commands.executeCommand('shortestpath.mode.browse');
+		const folders = vscode.workspace.workspaceFolders;
+		if (folders?.length !== 1 || folders[0].uri.toString() !== vscode.Uri.file(workspaceFolder).toString()) {
+			// The native window can veto switching folders (for example, cancelled
+			// unsaved-file confirmation). Confirm completion in the target workspace
+			// on activation, and keep this guide available if the switch is cancelled.
+			await context.globalState.update(FIRST_RUN_CODE_FOLDER, workspaceFolder);
+			await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(workspaceFolder), { forceReuseWindow: true });
+			if (activePanel) { await activePanel.webview.postMessage({ type: 'folderOpenRequested' }); }
+			return;
+		}
 		await markFirstRunComplete(context);
-		await vscode.commands.executeCommand('workbench.action.configureLocale');
-		return;
-	}
-	if (choice !== restartAction) {
-		return;
-	}
-	await context.globalState.update(FIRST_RUN_WORKSPACE, undefined);
-	await markFirstRunComplete(context);
-	panel.dispose();
-	await openFirstRunWorkspace(message.workspaceFolder);
-}
-
-async function configureFirstRun(cppStandard: CppStandard, workspaceFolder: string, installToolchain: boolean): Promise<boolean> {
-	return vscode.commands.executeCommand<boolean>('shortestpath.applyFirstRunSetup', {
-		mode: 'recommended',
-		installToolchain,
-		cppStandard,
-		workspaceFolder,
-		completeSetup: false
+		if (activePanel) { activePanel.dispose(); } else { panel.dispose(); }
+		environmentRunner = undefined;
+		firstRunEditorSession = new FirstRunEditorSession();
 	});
+	if (!completed) { void vscode.window.showWarningMessage(localize('编译环境尚未准备完成。请完成安装后重试。')); }
 }
 
 async function markFirstRunComplete(context: vscode.ExtensionContext): Promise<void> {
-	await context.globalState.update(GETTING_STARTED_VERSION, undefined);
+	await context.globalState.update(FIRST_RUN_CODE_FOLDER, undefined);
+	await context.globalState.update(GETTING_STARTED_VERSION, currentExtensionVersion());
 	await context.globalState.update('shortestpath.setupComplete', true);
 	await vscode.workspace.getConfiguration('shortestpath.setup').update('completed', true, vscode.ConfigurationTarget.Global);
 }
 
-async function openFirstRunWorkspace(workspaceFolder: string): Promise<void> {
-	await vscode.commands.executeCommand('_workbench.setWorkspaceFolderTrust', vscode.Uri.file(workspaceFolder));
-	await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(workspaceFolder), { forceReuseWindow: true });
-}
-
-function getState(): GettingStartedState {
-	const editor = vscode.workspace.getConfiguration('editor', null);
-	const files = vscode.workspace.getConfiguration('files', null);
-	const workbench = vscode.workspace.getConfiguration('workbench', null);
-	const windowConfiguration = vscode.workspace.getConfiguration('window', null);
-	const cphFlags = vscode.workspace.getConfiguration('cph.language.cpp', null).get<string>('Args');
-	const compileRunFlags = vscode.workspace.getConfiguration('c-cpp-compile-run', null).get<string>('cpp-flags');
-	const compilerFlags = cphFlags || compileRunFlags || '';
-	const compiler = (vscode.workspace.getConfiguration('cph.language.cpp', null).get<string>('Command') ?? '').split(/[\\/]/).pop() || 'g++';
-	const colorTheme = workbench.get<string>('colorTheme') ?? 'One Monokai';
-	const inlayHintsEnabled = editor.get<boolean | string>('inlayHints.enabled') ?? 'on';
-	const cphGeneral = vscode.workspace.getConfiguration('cph.general', null);
-	const ojMapping = cphGeneral.get<Record<string, { oj?: unknown }>>('ojMapping') ?? {};
-	const vjudgeOjNames = cphGeneral.get<Record<string, unknown>>('vjudgeOjNames') ?? {};
-	const availableOjNames = [...new Set([
-		...Object.values(ojMapping).flatMap(mapping => typeof mapping.oj === 'string' ? [mapping.oj] : []),
-		...Object.keys(vjudgeOjNames)
-	])].sort((a, b) => a.localeCompare(b));
-	return {
-		fontFamily: editor.get<string>('fontFamily') ?? '',
-		fontLigatures: editor.get<boolean | string>('fontLigatures') === true || editor.get<boolean | string>('fontLigatures') === 'true',
-		fontSize: editor.get<number>('fontSize') ?? 14,
-		colorTheme,
-		autoDetectColorScheme: windowConfiguration.get<boolean>('autoDetectColorScheme') ?? false,
-		cppStandard: findCppStandard(compilerFlags),
-		compilerFlags,
-		compiler,
-		clangdVariableTypeHints: inlayHintsEnabled !== false && inlayHintsEnabled !== 'off',
-		executableCleanupEnabled: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('executableCleanupEnabled') ?? true,
-		executableCleanupDelaySeconds: vscode.workspace.getConfiguration('shortestpath', null).get<number>('executableCleanupDelaySeconds') ?? 60,
-		autoSave: files.get<string>('autoSave') ?? 'off',
-		autoFormat: editor.get<boolean>('formatOnSave') === true && editor.get<boolean>('formatOnPaste') === true,
-		cphCustomFileNameEnabled: Boolean(cphGeneral.get<string>('fileNameTemplate')) || Object.keys(cphGeneral.get<Record<string, string>>('fileNameTemplateOverrides') ?? {}).length > 0,
-		cphDefaultLanguage: cphGeneral.get<string>('defaultLanguage') ?? 'cpp',
-		cphFileNameTemplate: cphGeneral.get<string>('fileNameTemplate') ?? DEFAULT_CPH_FILE_NAME_TEMPLATE,
-		cphFileNameTemplateOverrides: JSON.stringify(cphGeneral.get<Record<string, string>>('fileNameTemplateOverrides') ?? {}, undefined, 2),
-		availableOjNames,
-		themes: getThemeOptions(colorTheme)
-	};
-}
-
-async function saveState(context: vscode.ExtensionContext, page: SaveMessage['page'], value: Record<string, unknown>): Promise<void> {
+async function saveState(page: SaveMessage['page'], value: Record<string, unknown>): Promise<void> {
 	const settings = vscode.workspace.getConfiguration(undefined, null);
 	switch (page) {
 		case 'font':
@@ -433,31 +313,21 @@ async function saveState(context: vscode.ExtensionContext, page: SaveMessage['pa
 				settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global)
 			]);
 			break;
-		case 'cpp': {
-			const currentState = getState();
-			const cppStandard = isCppStandard(value.cppStandard) ? value.cppStandard : currentState.cppStandard;
-			const compilerFlags = applyCppStandard(currentState.compilerFlags, cppStandard);
+		case 'indent': {
+			const tabSize = [2, 4, 8].includes(Number(value.tabSize)) ? Number(value.tabSize) : 2;
 			await Promise.all([
-				settings.update('cph.language.cpp.Args', compilerFlags, vscode.ConfigurationTarget.Global),
-				settings.update('c-cpp-compile-run.cpp-flags', compilerFlags, vscode.ConfigurationTarget.Global)
+				settings.update('editor.tabSize', tabSize, vscode.ConfigurationTarget.Global),
+				settings.update('editor.insertSpaces', true, vscode.ConfigurationTarget.Global),
+				settings.update('editor.detectIndentation', false, vscode.ConfigurationTarget.Global)
 			]);
 			break;
 		}
+		case 'template':
+			if (typeof value.cppTemplate !== 'string' || value.cppTemplate.length > 100_000) { throw new Error(localize('模版内容无效或过长。')); }
+			await settings.update('cph.language.cpp.Template', value.cppTemplate, vscode.ConfigurationTarget.Global);
+			break;
 		case 'clangd':
 			await settings.update('editor.inlayHints.enabled', value.clangdVariableTypeHints !== false ? 'on' : 'off', vscode.ConfigurationTarget.Global);
-			break;
-		case 'cleanup': {
-			const delay = typeof value.executableCleanupDelaySeconds === 'number'
-				? Math.max(1, Math.min(86_400, Math.floor(value.executableCleanupDelaySeconds)))
-				: 60;
-			await Promise.all([
-				settings.update('shortestpath.executableCleanupEnabled', value.executableCleanupEnabled !== false, vscode.ConfigurationTarget.Global),
-				settings.update('shortestpath.executableCleanupDelaySeconds', delay, vscode.ConfigurationTarget.Global)
-			]);
-			break;
-		}
-		case 'autosave':
-			await settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global);
 			break;
 		case 'autoformat':
 			await Promise.all([
@@ -465,965 +335,45 @@ async function saveState(context: vscode.ExtensionContext, page: SaveMessage['pa
 				settings.update('editor.formatOnPaste', value.autoFormat === true, vscode.ConfigurationTarget.Global)
 			]);
 			break;
-		case 'cphNaming': {
-			const cphGeneral = vscode.workspace.getConfiguration('cph.general', null);
-			const defaultLanguage = typeof value.cphDefaultLanguage === 'string' ? value.cphDefaultLanguage : 'cpp';
-			if (value.cphCustomFileNameEnabled === true) {
-				const saved = context.globalState.get<CphFileNameSettings>(CPH_FILE_NAME_SETTINGS);
-				let fileNameTemplateOverrides: Record<string, string>;
-				let fileNameTemplate: string;
-				if (value.restoreCphFileNameSettings === true && saved) {
-					fileNameTemplate = saved.fileNameTemplate;
-					fileNameTemplateOverrides = saved.fileNameTemplateOverrides;
-				} else {
-					try {
-						const parsed = JSON.parse(typeof value.cphFileNameTemplateOverrides === 'string' ? value.cphFileNameTemplateOverrides : '{}');
-						if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || Object.values(parsed).some(template => typeof template !== 'string')) {
-							throw new Error('invalid file name template overrides');
-						}
-						fileNameTemplateOverrides = parsed as Record<string, string>;
-					} catch {
-						void vscode.window.showWarningMessage(localize('CPH 文件名模板覆盖必须是一个 JSON 对象，OJ 简称为键、模板字符串为值。'));
-						return;
-					}
-					fileNameTemplate = typeof value.cphFileNameTemplate === 'string'
-						? value.cphFileNameTemplate.trim()
-						: saved?.fileNameTemplate ?? DEFAULT_CPH_FILE_NAME_TEMPLATE;
-					if (!saved && !fileNameTemplate) {
-						fileNameTemplate = DEFAULT_CPH_FILE_NAME_TEMPLATE;
-						fileNameTemplateOverrides = { ...DEFAULT_CPH_FILE_NAME_TEMPLATE_OVERRIDES };
-					}
-				}
-				await context.globalState.update(CPH_FILE_NAME_SETTINGS, { fileNameTemplate, fileNameTemplateOverrides } satisfies CphFileNameSettings);
-				await Promise.all([
-					settings.update('cph.general.defaultLanguage', defaultLanguage, vscode.ConfigurationTarget.Global),
-					settings.update('cph.general.fileNameTemplate', fileNameTemplate, vscode.ConfigurationTarget.Global),
-					settings.update('cph.general.fileNameTemplateOverrides', fileNameTemplateOverrides, vscode.ConfigurationTarget.Global)
-				]);
-				break;
-			}
-			const fileNameTemplate = cphGeneral.inspect<string>('fileNameTemplate')?.globalValue;
-			const fileNameTemplateOverrides = cphGeneral.inspect<Record<string, string>>('fileNameTemplateOverrides')?.globalValue;
-			if (fileNameTemplate !== undefined || fileNameTemplateOverrides !== undefined) {
-				await context.globalState.update(CPH_FILE_NAME_SETTINGS, {
-					fileNameTemplate: fileNameTemplate ?? '',
-					fileNameTemplateOverrides: fileNameTemplateOverrides ?? {}
-				} satisfies CphFileNameSettings);
-			}
-			await Promise.all([
-				settings.update('cph.general.defaultLanguage', defaultLanguage, vscode.ConfigurationTarget.Global),
-				settings.update('cph.general.fileNameTemplate', undefined, vscode.ConfigurationTarget.Global),
-				settings.update('cph.general.fileNameTemplateOverrides', undefined, vscode.ConfigurationTarget.Global)
-			]);
-			break;
-		}
 	}
 }
 
-function getFirstRunHtml(info: FirstRunSetupInfo): string {
-	const ui = {
-		pageLabels: [localize('环境准备'), localize('工具链'), localize('确认配置'), localize('选择工作目录')],
-		choiceTitle: info.choiceTitle,
-		choiceText: info.choiceText,
-		permission: localize('准备环境需要确认，可能要求管理员权限。'),
-		skip: localize('稍后配置'),
-		continue: localize('继续'),
-		downloadTitle: localize('正在准备编译环境。'),
-		downloadNote: localize('请保持此页面打开。准备完成后可继续配置。'),
-		retry: localize('重试'),
-		next: localize('下一步'),
-		progressLabel: localize('安装进度'),
-		configurationTitle: info.configurationTitle,
-		configurationText: info.configurationText,
-		configurationNote: localize('设置写入个人配置，不影响其他编辑器。'),
-		workspaceTitle: localize('选择工作目录。'),
-		workspaceText: localize('我们会在此目录创建 .clangd，并在完成后直接打开它。'),
-		workspaceLabel: localize('工作目录'),
-		chooseFolder: localize('选择目录'),
-		workspaceNote: localize('已有 .clangd 不会被覆盖。'),
-		applyAndOpen: localize('应用配置并打开工作目录'),
-		selectWorkspace: localize('请选择工作目录。'),
-		preparing: localize('正在准备编译环境…'),
-		completed: localize('编译环境已准备就绪。点击“下一步”继续配置。'),
-		failed: localize('编译环境准备失败：{0}')
+function isEditorPage(page: SaveMessage['page']): boolean {
+	return ['font', 'indent', 'theme', 'autoformat', 'clangd', 'template'].includes(page);
+}
+
+function getFirstRunEditorState(): FirstRunEditorState {
+	const editor = vscode.workspace.getConfiguration('editor', null);
+	const colorTheme = vscode.workspace.getConfiguration('workbench', null).get<string>('colorTheme') ?? 'One Monokai';
+	const inlayHintsEnabled = editor.get<boolean | string>('inlayHints.enabled') ?? 'on';
+	return {
+		fontFamily: editor.get<string>('fontFamily') ?? '',
+		fontSize: editor.get<number>('fontSize') ?? 14,
+		fontLigatures: editor.get<boolean | string>('fontLigatures') === true || editor.get<boolean | string>('fontLigatures') === 'true',
+		tabSize: editor.get<number>('tabSize') ?? 2,
+		cppTemplate: vscode.workspace.getConfiguration('cph.language.cpp', null).get<string>('Template') ?? defaultCppTemplate,
+		colorTheme, themes: getThemeOptions(colorTheme),
+		autoDetectColorScheme: vscode.workspace.getConfiguration('window', null).get<boolean>('autoDetectColorScheme') ?? false,
+		autoSave: vscode.workspace.getConfiguration('files', null).get<string>('autoSave') ?? 'off',
+		autoFormat: editor.get<boolean>('formatOnSave') === true && editor.get<boolean>('formatOnPaste') === true,
+		clangdVariableTypeHints: inlayHintsEnabled !== false && inlayHintsEnabled !== 'off'
 	};
-	const serialized = JSON.stringify({ ui, info }).replace(/</g, '\\u003c');
-	return `<!doctype html>
-<html lang="${vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
-<title>${localize('开箱配置')}</title>
-<style>
-:root { color-scheme: dark; }
-* { box-sizing: border-box; }
-html, body { height: 100%; }
-body { margin: 0; overflow: hidden; background: radial-gradient(circle at 20% 0%, #25345f 0, transparent 42%), #0f1117; color: #f4f6fb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-main { height: 100vh; display: flex; flex-direction: column; max-width: 1120px; margin: 0 auto; padding: 0 36px; }
-.progress { display: flex; justify-content: center; align-items: center; gap: 9px; padding: 20px 0 6px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #2c3550; transition: transform .32s ease, background-color .32s ease; }
-.dot.active { background: #78a9ff; transform: scale(1.35); }
-.stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
-.page { position: absolute; inset: 0; display: flex; flex-direction: column; visibility: hidden; opacity: 0; transform: translateX(30px); transition: opacity .28s ease, transform .28s ease; }
-.page.visible { visibility: visible; opacity: 1; transform: none; }
-.page-head { padding-top: 8vh; }
-.badge { color: #a8c7ff; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.big-logo { font-size: clamp(36px, 6vw, 62px); font-weight: 800; letter-spacing: -.04em; background: linear-gradient(90deg, #78a9ff, #a8c7ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-h1 { margin: 14px 0 10px; font-size: clamp(30px, 4vw, 48px); letter-spacing: -.04em; }
-.lead { color: #b7bfce; font-size: 17px; line-height: 1.6; max-width: 760px; }
-.page-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: stretch; flex: 1; min-height: 0; padding: 24px 0; }
-.page-body.centered { grid-template-columns: minmax(0, 1fr); justify-content: center; align-content: start; padding-top: 12px; }
-.page-body.centered .pane { width: min(960px, 100%); justify-self: center; }
-.pane { min-width: 0; border: 1px solid #30394d; border-radius: 16px; background: rgba(16, 19, 28, .9); padding: 24px; }
-.pane.card { display: flex; flex-direction: column; gap: 15px; }
-.row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #262e40; }
-.row:last-child { border-bottom: 0; }
-.row-label { color: #dbe4f5; }
-.hint, .note { color: #8d98aa; font-size: 12px; line-height: 1.5; }
-input, select { width: 100%; padding: 9px 10px; border: 1px solid #30394d; border-radius: 8px; background: #10131c; color: #f4f6fb; font: inherit; }
-input[type="checkbox"] { width: 18px; height: 18px; accent-color: #78a9ff; }
-.workspace-picker { display: flex; min-width: 0; gap: 8px; }
-.workspace-picker input { min-width: 0; }
-.workspace-picker button { flex: 0 0 auto; white-space: nowrap; }
-.toggle { display: flex; align-items: center; gap: 10px; }
-.actions { display: flex; justify-content: space-between; align-items: center; padding: 10px 0 26px; }
-button { appearance: none; font: inherit; color: inherit; cursor: pointer; }
-.btn { padding: 11px 24px; border: 0; border-radius: 9px; font-weight: 700; font-size: 14px; }
-.primary { background: #78a9ff; color: #071329; }
-.secondary { background: #253b64; color: #e8f0ff; }
-.ghost { background: transparent; color: #aeb8c9; border: 1px solid #30394d; }
-.btn[disabled] { opacity: .45; cursor: default; }
-.terminal { background: #0b0e14; border: 1px solid #262e40; border-radius: 10px; padding: 14px; font-family: var(--vscode-editor-font-family, monospace); font-size: 13px; line-height: 1.7; color: #9cdcfe; white-space: pre-wrap; word-break: break-word; }
-.progress-panel { display: flex; flex-direction: column; gap: 14px; }
-.progress-track { height: 10px; overflow: hidden; border-radius: 999px; background: #252d3d; }
-.progress-bar { width: 38%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #78a9ff, #a8c7ff); animation: progress-indeterminate 1.5s ease-in-out infinite; }
-.progress-panel.complete .progress-bar { width: 100%; animation: none; }
-.progress-panel.error .progress-bar { width: 100%; animation: none; background: #f48771; }
-.status { min-height: 1.6em; color: #a8c7ff; font-size: 17px; line-height: 1.6; }
-@keyframes progress-indeterminate { from { transform: translateX(-110%); } to { transform: translateX(290%); } }
-@media (max-width: 780px) { .page-body { grid-template-columns: 1fr; overflow: auto; } body { overflow: auto; } main { height: auto; min-height: 100vh; } .stage { min-height: 680px; } }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-</style>
-</head>
-<body><main>
-<div class="progress" id="progress" aria-label="${ui.progressLabel}"></div>
-<div class="stage">
-<section class="page visible" data-page="choice">
-<div class="page-head"><div class="big-logo">${ui.choiceTitle}</div><p class="lead" id="choice-text">${ui.choiceText}</p></div>
-<div class="page-body centered"><div class="pane card">
-<b>${localize('环境配置')}</b>
-<p class="lead">${localize('我们会按原有步骤准备编译环境，然后进入配置确认。')}</p>
-<div id="source-choice" hidden><div class="row"><div class="row-label">${localize('下载源')}</div><select id="download-source"></select></div></div>
-<p class="hint">${ui.permission}</p>
-</div></div>
-<div class="actions"><button id="skip" class="btn ghost">${ui.skip}</button><button id="continue" class="btn primary">${ui.continue}</button></div>
-</section>
-<section class="page" data-page="download">
-<div class="page-head"><div class="badge">${localize('工具链')}</div><h1 id="download-title">${ui.downloadTitle}</h1><p id="download-status" class="status">${ui.preparing}</p></div>
-<div class="page-body centered"><div class="pane card progress-panel" id="progress-panel"><div class="progress-track"><div class="progress-bar"></div></div><p id="progress-description" class="hint" aria-live="polite">${ui.preparing}</p></div></div>
-<div class="actions"><span class="note">${ui.downloadNote}</span><span><button id="retry" class="btn secondary" hidden>${ui.retry}</button><button id="download-next" class="btn primary" hidden>${ui.next}</button></span></div>
-</section>
-<section class="page" data-page="configuration">
-<div class="page-head"><div class="badge">${localize('配置')}</div><h1>${ui.configurationTitle}</h1><p class="lead">${ui.configurationText}</p></div>
-<div class="page-body centered"><div class="pane card"><div class="row"><div class="row-label">${localize('默认 C++ 语言版本')}</div><select id="cpp-standard"><option value="c++11">C++11</option><option value="c++14">C++14</option><option value="c++17">C++17</option><option value="c++20">C++20</option><option value="c++23">C++23</option></select></div></div></div>
-	<div class="actions"><span></span><button id="configuration-next" class="btn primary">${ui.next}</button></div>
-</section>
-<section class="page" data-page="workspace">
-<div class="page-head"><div class="badge">${localize('工作目录')}</div><h1>${ui.workspaceTitle}</h1><p class="lead">${ui.workspaceText}</p></div>
-<div class="page-body centered"><div class="pane card"><div class="row"><div class="row-label">${ui.workspaceLabel}</div><div class="workspace-picker"><input id="workspace-folder" type="text" readonly><button id="workspace-pick" class="btn secondary" type="button">${ui.chooseFolder}</button></div></div></div></div>
-	<div class="actions"><span class="note">${ui.workspaceNote}</span><button id="workspace-finish" class="btn primary">${ui.applyAndOpen}</button></div>
-</section>
-</div></main>
-<script>
-const vscode = acquireVsCodeApi();
-const data = ${serialized};
-const byId = id => document.getElementById(id);
-const pages = ['choice', 'download', 'configuration', 'workspace'];
-let pageIndex = 0;
-let stageIndex = 0;
-let activeStage = '';
-let toolchainReady = false;
-const page = name => document.querySelector('.page[data-page="' + name + '"]');
-function updateDots() { byId('progress').replaceChildren(...pages.map((name, index) => { const dot = document.createElement('span'); dot.className = 'dot' + (index === pageIndex ? ' active' : ''); dot.setAttribute('aria-label', data.ui.pageLabels[index]); return dot; })); }
-function show(name) { pages.forEach(value => page(value).classList.toggle('visible', value === name)); pageIndex = pages.indexOf(name); updateDots(); }
-function setProgress(message) { byId('progress-description').textContent = message; }
-function localizeProgress(message) { return message; }
-function setSourceOptions() {
-  const sources = data.info.sources || [];
-  if (!sources.length) return;
-  const select = byId('download-source');
-  sources.forEach(source => { const option = document.createElement('option'); option.value = source.id; option.textContent = source.label; option.disabled = source.unavailable === true; select.append(option); });
-  const chinese = sources.find(source => source.id === 'tuna' && !source.unavailable);
-  if (chinese) select.value = chinese.id;
-  byId('source-choice').hidden = false;
-}
-function currentStage() { return data.info.stages[stageIndex] || { id: 'toolchain', title: data.ui.downloadTitle, text: data.ui.preparing }; }
-function installCurrentStage() {
-  const stage = currentStage();
-  activeStage = stage.id;
-  byId('download-title').textContent = stage.title;
-  byId('download-status').textContent = stage.text;
-  byId('progress-panel').className = 'pane card progress-panel';
-  byId('retry').hidden = true;
-  byId('download-next').hidden = true;
-  setProgress(data.ui.preparing);
-  vscode.postMessage({ type: 'installToolchain', sourceId: byId('download-source').value || undefined, stage: stage.id });
-}
-byId('continue').addEventListener('click', () => { show('download'); stageIndex = 0; if (data.info.stages.length) installCurrentStage(); else show('configuration'); });
-byId('skip').addEventListener('click', () => vscode.postMessage({ type: 'skip' }));
-byId('retry').addEventListener('click', installCurrentStage);
-byId('download-next').addEventListener('click', () => { if (stageIndex + 1 < data.info.stages.length) { stageIndex++; installCurrentStage(); } else { show('configuration'); } });
-byId('configuration-next').addEventListener('click', () => show('workspace'));
-byId('workspace-pick').addEventListener('click', () => vscode.postMessage({ type: 'pickWorkspaceFolder' }));
-byId('workspace-finish').addEventListener('click', () => { const workspaceFolder = byId('workspace-folder').value; if (!workspaceFolder) { window.alert(data.ui.selectWorkspace); return; } vscode.postMessage({ type: 'complete', cppStandard: byId('cpp-standard').value, workspaceFolder, installToolchain: toolchainReady }); });
-window.addEventListener('message', event => {
-  const message = event.data;
-  if (message?.type === 'toolchainProgress') { setProgress(localizeProgress(message.message)); return; }
-  if (message?.type === 'toolchainResult') {
-    if (message.success) { toolchainReady = true; byId('progress-panel').classList.add('complete'); byId('download-status').textContent = data.ui.completed; setProgress(data.ui.completed); byId('download-next').hidden = false; }
-    else { byId('progress-panel').classList.add('error'); byId('download-status').textContent = data.ui.failed.replace('{0}', localizeProgress(message.message)); setProgress(byId('download-status').textContent); byId('retry').hidden = false; }
-    return;
-  }
-  if (message?.type === 'workspaceFolder' && typeof message.value === 'string') { byId('workspace-folder').value = message.value; }
-});
-byId('cpp-standard').value = data.info.cppStandard;
-setSourceOptions();
-updateDots();
-</script>
-</body></html>`;
 }
 
-function getHtml(state: GettingStartedState, firstRun = false, firstRunSetupInfo?: FirstRunSetupInfo): string {
-	if (firstRun) {
-		return getFirstRunHtml(firstRunSetupInfo ?? {
-			choiceTitle: localize('ShortestPath IDE'),
-			choiceText: localize('我们会准备编译环境，并选择 C++ 语言版本，然后打开工作台。'),
-			stages: [{ id: 'toolchain', title: localize('正在准备编译环境'), text: localize('正在准备编译环境…') }],
-			configurationTitle: localize('配置'),
-			configurationText: localize('选择默认的 C++ 语言版本。'),
-			cppStandard: 'c++23',
-			sources: []
-		});
-	}
-	const serializedState = JSON.stringify(state).replace(/</g, '\\u003c');
-	return `<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
-<title>开始使用</title>
-<style>
-:root { color-scheme: dark; }
-* { box-sizing: border-box; }
-html, body { height: 100%; }
-body { margin: 0; overflow: hidden; background: radial-gradient(circle at 20% 0%, #25345f 0, transparent 42%), #0f1117; color: #f4f6fb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-main { height: 100vh; display: flex; flex-direction: column; max-width: 1120px; margin: 0 auto; padding: 0 36px; }
-.progress { display: flex; justify-content: center; align-items: center; gap: 9px; padding: 20px 0 6px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #2c3550; transition: transform .32s cubic-bezier(.2,.8,.2,1), background-color .32s ease; }
-.dot.active { background: #78a9ff; transform: scale(1.4); }
-.stage { position: relative; flex: 1; min-height: 0; }
-.page { position: absolute; inset: 0; display: flex; flex-direction: column; opacity: 0; visibility: hidden; transform: translateX(36px); transition: opacity .32s cubic-bezier(.2,.8,.2,1), transform .32s cubic-bezier(.2,.8,.2,1); }
-.page.visible { opacity: 1; visibility: visible; transform: none; }
-.page.exit-left { opacity: 0; transform: translateX(-36px); }
-.page.exit-right { opacity: 0; transform: translateX(36px); }
-.page.enter-left { opacity: 0; transform: translateX(-36px); }
-.page.enter-right { opacity: 0; transform: translateX(36px); }
-.page-head { padding: 22px 0 2px; }
-.badge { color: #a8c7ff; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 12px; }
-h1 { font-size: 32px; margin: 8px 0 10px; letter-spacing: -.03em; }
-.lead { color: #b7bfce; font-size: 15px; line-height: 1.6; margin: 0; max-width: 660px; }
-.page-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; padding: 16px 0 8px; }
-.page-body.centered { grid-template-columns: minmax(0, 680px); justify-content: center; }
-.pane { min-height: 0; overflow: auto; }
-.card { border: 1px solid #30394d; border-radius: 16px; background: #171b25; padding: 6px 22px; }
-.row { display: grid; grid-template-columns: 190px 1fr; gap: 14px; align-items: center; padding: 15px 0; border-bottom: 1px solid #262e40; }
-.row:last-child { border: 0; }
-.row > .row-label { font-weight: 600; }
-.hint { color: #8d98aa; font-size: 12px; margin-top: 4px; line-height: 1.5; }
-input, select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #30394d; border-radius: 8px; background: #10131c; color: #f4f6fb; font: inherit; }
-input[type="checkbox"] { width: 18px; height: 18px; accent-color: #78a9ff; }
-.toggle { display: flex; align-items: center; gap: 10px; }
-.row.disabled { opacity: .6; }
-.fallback-list { display: grid; gap: 7px; }
-.fallback-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; }
-.fallback-row .icon { min-width: 30px; padding: 7px 0; }
-.add-fallback { margin-top: 8px; }
-.preview { height: 100%; min-height: 300px; border: 1px solid #30394d; border-radius: 16px; background: #10131c; display: flex; flex-direction: column; overflow: hidden; }
-.preview .bar { display: flex; align-items: center; gap: 6px; padding: 11px 14px; border-bottom: 1px solid #262e40; }
-.preview .bar .light { width: 10px; height: 10px; border-radius: 50%; background: #2c3550; }
-.preview .bar .bar-title { margin-left: 8px; color: #8d98aa; font-size: 12px; }
-.preview .body { flex: 1; padding: 14px 18px; font-size: 14px; line-height: 1.7; overflow: auto; }
-.actions { display: flex; justify-content: space-between; align-items: center; padding: 10px 0 26px; }
-button { appearance: none; font: inherit; color: inherit; cursor: pointer; }
-.btn { padding: 11px 24px; border: 0; border-radius: 9px; font-weight: 700; font-size: 14px; }
-.btn.primary { background: #78a9ff; color: #071329; }
-.btn.secondary { background: #253b64; color: #e8f0ff; }
-.btn.ghost { background: transparent; color: #aeb8c9; border: 1px solid #30394d; }
-.btn[disabled] { opacity: .45; cursor: default; }
-.fade-item { opacity: 0; transform: translateY(10px); }
-.page.visible .fade-item { animation: fadeUp .4s cubic-bezier(.2,.8,.2,1) forwards; animation-delay: calc(var(--i, 0) * 45ms); }
-@keyframes fadeUp { to { opacity: 1; transform: none; } }
-.code { font-family: var(--vscode-editor-font-family, "SF Mono", "Cascadia Code", Consolas, monospace); white-space: pre; }
-.syntax-keyword { color: #c586c0; }
-.syntax-type { color: #4ec9b0; }
-.syntax-string { color: #ce9178; }
-.syntax-number { color: #b5cea8; }
-.syntax-comment { color: #6a9955; }
-.hint-inline { color: #d2b27b; font-style: italic; }
-.mock-file { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 7px 0; border-bottom: 1px dashed #262e40; color: #b7bfce; }
-.mock-file .mock-size { color: #8d98aa; font-size: 12px; }
-.mock-file.cleaned { opacity: .45; text-decoration: line-through; color: #6a9955; }
-.terminal { background: #0b0e14; border: 1px solid #262e40; border-radius: 10px; padding: 12px 14px; font-family: var(--vscode-editor-font-family, "SF Mono", "Cascadia Code", Consolas, monospace); font-size: 12.5px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; color: #9cdcfe; }
-.terminal .dim { color: #8d98aa; }
-.term-row { color: #d4d4d4; }
-.summary { display: grid; gap: 10px; }
-.summary-item { display: flex; gap: 10px; align-items: baseline; color: #b7bfce; }
-.summary-item b { color: #f4f6fb; }
-.big-logo { font-size: 52px; font-weight: 800; letter-spacing: -.04em; background: linear-gradient(90deg, #78a9ff, #a8c7ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-@media (max-width: 780px) { .page-body { grid-template-columns: 1fr; } body { overflow: auto; } main { height: auto; min-height: 100vh; } .stage { min-height: 640px; } }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-</style>
-</head>
-<body><main>
-<div class="progress" id="progress" aria-label="步骤"></div>
-<div class="stage">
-
-<section class="page" data-page="welcome">
-<div class="page-head fade-item" style="--i:0"><div class="big-logo">ShortestPath IDE</div><h1>开始使用</h1><p class="lead">用几步配置好你的竞赛编程环境偏好。所有改动都会实时生效，随时可以返回调整。</p></div>
-<div class="page-body centered">
-<div class="pane card" style="display:flex;flex-direction:column;gap:16px;padding:26px 28px">
-<div class="fade-item" style="--i:1"><b>接下来你将依次配置</b></div>
-<div class="fade-item" style="--i:2">① 代码字体、字号与连字</div>
-<div class="fade-item" style="--i:3">② 界面主题</div>
-<div class="fade-item" style="--i:4">③ 默认 C++ 语言版本</div>
-<div class="fade-item" style="--i:5">④ clangd 变量类型提示</div>
-<div class="fade-item" style="--i:6">⑤ 生成文件自动清理</div>
-<div class="fade-item" style="--i:7">⑥ 自动保存</div>
-<div class="fade-item" style="--i:8">⑦ 自动格式化</div>
-<div class="fade-item" style="--i:9">⑧ CPH 题目文件命名</div>
-<div class="fade-item" style="--i:10">⑨ 代码模板</div>
-</div>
-</div>
-<div class="actions"><span></span><button id="welcome-next" class="btn primary fade-item" style="--i:11">开始</button></div>
-</section>
-
-<section class="page" data-page="font">
-<div class="page-head fade-item" style="--i:0"><div class="badge">1 / 9 · 字体</div><h1>代码字体</h1><p class="lead">选择适合长时间阅读的主要等宽字体，并用回退字体补齐缺失字形。</p></div>
-<div class="page-body">
-<div class="pane card">
-<div class="row"><div class="row-label">主要字体<div class="hint">从检测到的系统等宽字体中选择。</div></div><div><select id="fontFamily" disabled><option>正在读取系统字体…</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div></div></div>
-<div class="row"><div class="row-label">回退字体<div class="hint">字形缺失时按顺序回退，可选择中文 / Emoji 等字体。</div></div><div><div id="fallbackFonts" class="fallback-list"></div><button id="addFallback" class="btn secondary add-fallback" type="button">添加回退字体</button></div></div>
-<div class="row"><div class="row-label">字体大小</div><input id="fontSize" type="number" min="1" max="40" step="1"></div>
-<div class="row"><div class="row-label">启用字体连字<div id="fontLigaturesStatus" class="hint" role="status"></div></div><label class="toggle"><input id="fontLigatures" type="checkbox"><span>启用</span></label></div>
-</div>
-<div class="pane preview"><div class="bar"><span class="light"></span><span class="light"></span><span class="light"></span><span class="bar-title">实时预览（连字：== != >= <= -> =>）</span></div><div id="fontPreview" class="body code">#include &lt;bits/stdc++.h&gt;
-using namespace std;
-
-int main() {
-    int n; cin &gt;&gt; n;
-    bool ok = (n &gt;= 10) &amp;&amp; (n != 0) &amp;&amp; (x == y);
-    map&lt;int, int&gt; mp; auto it = mp.begin(); it-&gt;second = 1;
-    auto f = [&amp;](int x) =&gt; x * 2;
-    while (lo &lt;= hi) { int mid = (lo + hi) / 2; }
-    cout &lt;&lt; "hi" &lt;&lt; endl;
-    return 0;
-}</div></div>
-</div>
-<div class="actions"><button id="font-prev" class="btn ghost">上一步</button><button id="font-next" class="btn primary">下一步</button></div>
-</section>
-
-<section class="page" data-page="theme">
-<div class="page-head fade-item" style="--i:0"><div class="badge">2 / 9 · 主题</div><h1>界面主题</h1><p class="lead">选择一个你看着顺眼的主题，选择后立即应用到整个 IDE。</p></div>
-<div class="page-body centered">
-<div class="pane card">
-<div class="row"><div class="row-label">主题</div><select id="colorTheme"></select></div>
-<div class="row"><div class="row-label">跟随系统主题<div class="hint">开启后随系统亮暗自动切换。</div></div><label class="toggle"><input id="autoDetectColorScheme" type="checkbox"><span>启用</span></label></div>
-</div>
-</div>
-<div class="actions"><button id="theme-prev" class="btn ghost">上一步</button><button id="theme-next" class="btn primary">下一步</button></div>
-</section>
-
-<section class="page" data-page="cpp">
-<div class="page-head fade-item" style="--i:0"><div class="badge">3 / 9 · 编译</div><h1>C++ 语言版本</h1><p class="lead">选择默认编译使用的 C++ 标准，会同步应用到 CPH 与编译运行。</p></div>
-<div class="page-body">
-<div class="pane card">
-<div class="row"><div class="row-label">C++ 语言版本</div><select id="cppStandard"><option value="c++11">C++11</option><option value="c++14">C++14</option><option value="c++17">C++17</option><option value="c++20">C++20</option><option value="c++23">C++23</option></select></div>
-<div class="row"><div class="row-label">编译选项<div class="hint">由版本自动生成，可在设置页微调。</div></div><input id="compilerFlags" type="text" readonly></div>
-</div>
-<div class="pane preview"><div class="bar"><span class="light"></span><span class="light"></span><span class="light"></span><span class="bar-title">编译命令预览</span></div><div class="body"><div class="terminal"><div class="dim">$ </div><div class="term-row" id="compileCommand">g++ -std=c++23 -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG main.cpp -o main</div><div class="dim">编译成功 ✓  main</div></div></div></div>
-</div>
-<div class="actions"><button id="cpp-prev" class="btn ghost">上一步</button><button id="cpp-next" class="btn primary">下一步</button></div>
-</section>
-
-<section class="page" data-page="clangd">
-<div class="page-head fade-item" style="--i:0"><div class="badge">4 / 9 · 智能提示</div><h1>clangd 变量类型提示</h1><p class="lead">在 <span class="code">auto</span> 等推断变量后显示推断出的类型。</p></div>
-<div class="page-body">
-<div class="pane card">
-<div class="row"><div class="row-label">显示变量类型提示</div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox"><span>启用</span></label></div>
-</div>
-<div class="pane preview"><div class="bar"><span class="light"></span><span class="light"></span><span class="light"></span><span class="bar-title">实时效果</span></div><div class="body code"><span class="syntax-keyword">auto</span> it <span id="hintIt" class="hint-inline">/*: iterator*/</span> = st.lower_bound(x);
-<span class="syntax-keyword">auto</span> sum <span id="hintSum" class="hint-inline">/*: long long*/</span> = accumulate(a.begin(), a.end(), <span class="syntax-number">0LL</span>);
-<span class="syntax-keyword">auto</span> [it, ok <span id="hintVal" class="hint-inline">/*: bool*/</span>] = mp.insert(<span id="hintParamX" class="hint-inline">/*x: */</span>{<span id="hintParamK" class="hint-inline">/*&amp;x: */</span>k, <span id="hintParamV" class="hint-inline">/*&amp;y: */</span>v});</div></div>
-</div>
-<div class="actions"><button id="clangd-prev" class="btn ghost">上一步</button><button id="clangd-next" class="btn primary">下一步</button></div>
-</section>
-
-<section class="page" data-page="cleanup">
-<div class="page-head fade-item" style="--i:0"><div class="badge">5 / 9 · 文件</div><h1>生成文件自动清理</h1><p class="lead">程序运行结束后自动删除生成的可执行文件，保持目录干净。</p></div>
-<div class="page-body">
-<div class="pane card">
-<div class="row"><div class="row-label">自动清理生成文件</div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div class="row-label">保留时间（秒）<div class="hint">生成文件保留多少秒后自动删除。</div></div><input id="executableCleanupDelaySeconds" type="number" min="1" max="86400" step="1"></div>
-</div>
-<div class="pane preview"><div class="bar"><span class="light"></span><span class="light"></span><span class="light"></span><span class="bar-title">运行后</span></div><div class="body">
-<div class="mock-file"><span>📄 main.cpp</span><span class="mock-size">源码，已保留</span></div>
-<div id="fileExe" class="mock-file"><span>⚙️ main.exe</span><span class="mock-size" id="fileExeState">60 秒后删除</span></div>
-<div id="fileBin" class="mock-file"><span>⚙️ main.bin</span><span class="mock-size" id="fileBinState">60 秒后删除</span></div>
-<div id="fileDsym" class="mock-file"><span>⚙️ main.dSYM</span><span class="mock-size" id="fileDsymState">60 秒后删除</span></div>
-</div></div>
-</div>
-<div class="actions"><button id="cleanup-prev" class="btn ghost">上一步</button><button id="cleanup-next" class="btn primary">下一步</button></div>
-</section>
-
-<section class="page" data-page="autosave">
-<div class="page-head fade-item" style="--i:0"><div class="badge">6 / 9 · 保存</div><h1>自动保存</h1><p class="lead">按你的习惯选择保存时机，避免忘记保存。</p></div>
-<div class="page-body">
-<div class="pane card">
-<div class="row"><div class="row-label">自动保存</div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
-</div>
-<div class="pane preview"><div class="bar"><span class="light"></span><span class="light"></span><span class="light"></span><span class="bar-title">状态栏效果</span></div><div class="body" style="padding:0;height:100%">
-<div class="ide-mock" style="display:grid;grid-template-rows:1fr 26px;height:100%">
-<div style="background:var(--vscode-editor-background,#10131c);color:var(--vscode-editor-foreground,#e8e8e8);padding:14px 16px;font-family:var(--vscode-editor-font-family,monospace);font-size:13px;line-height:1.7;overflow:hidden"><span style="color:var(--vscode-editorLineNumber-foreground,#6b7280)">1  </span><span class="syntax-type">int</span> main() {<br><span style="color:var(--vscode-editorLineNumber-foreground,#6b7280)">2  </span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="syntax-type">vector</span>&lt;<span class="syntax-type">int</span>&gt; a;<br><span style="color:var(--vscode-editorLineNumber-foreground,#6b7280)">3  </span>&nbsp;&nbsp;&nbsp;&nbsp;read(a);<br><span style="color:var(--vscode-editorLineNumber-foreground,#6b7280)">4  </span>}</div>
-<div style="background:var(--vscode-statusBar-background,#253b64);color:var(--vscode-statusBar-foreground,#e8f0ff);display:flex;align-items:center;gap:10px;padding:0 12px;font-size:11.5px"><span id="autoSaveDot" style="width:8px;height:8px;border-radius:50%;background:#f4a261;display:inline-block"></span><span id="autoSaveStatus">● 未保存 · 需手动保存（Cmd+S）</span><span style="margin-left:auto">C++  Ln 4, Col 1</span></div>
-</div>
-</div></div>
-</div>
-<div class="actions"><button id="autosave-prev" class="btn ghost">上一步</button><button id="autosave-next" class="btn primary">下一步</button></div>
-</section>
-
-<section class="page" data-page="autoformat">
-<div class="page-head fade-item" style="--i:0"><div class="badge">7 / 9 · 格式化</div><h1>自动格式化</h1><p class="lead">保存或粘贴代码时自动格式化，保持代码风格一致。</p></div>
-<div class="page-body centered">
-<div class="pane card">
-<div class="row"><div class="row-label">启用自动格式化<div class="hint">同时在保存和粘贴时格式化代码。</div></div><label class="toggle"><input id="autoFormat" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div class="row-label">详细设置<div class="hint">配置 .clang-format 的代码风格与缩进规则。</div></div><button id="openAutoFormatSettings" class="btn secondary">打开详细设置</button></div>
-</div>
-</div>
-<div class="actions"><button id="autoformat-prev" class="btn ghost">上一步</button><button id="autoformat-next" class="btn primary">下一步</button></div>
-</section>
-
-<section class="page" data-page="cphNaming">
-<div class="page-head fade-item" style="--i:0"><div class="badge">8 / 9 · CPH</div><h1>CPH 题目文件命名</h1><p class="lead">导入题目时按在线评测、比赛和题号自动组织文件。</p></div>
-<div class="page-body centered">
-<div class="pane card">
-<div class="row"><div class="row-label">启用自定义文件名<div class="hint">关闭后 CPH 使用其默认命名；开启后使用 ShortestPath IDE 的推荐模板。</div></div><label class="toggle"><input id="cphCustomFileNameEnabled" type="checkbox"><span>启用</span></label></div>
-
-<div class="row"><div class="row-label">新导入题目的默认语言</div><select id="cphDefaultLanguage"><option value="cpp">C++</option><option value="c">C</option><option value="python">Python</option><option value="rust">Rust</option><option value="java">Java</option><option value="js">JavaScript</option><option value="none">不指定</option></select></div>
-<div class="row cph-naming-setting"><div class="row-label">文件名模板<div class="hint">选择预设；仅选择“自定义”后才能手动输入。</div></div><div><select id="cphFileNameTemplatePreset"><option value="{ojName}/{contestId}/{problemId}.{ext}">ShortestPath 推荐：&lt;OJ 名称&gt;/&lt;比赛 ID&gt;/&lt;题目编号&gt;</option><option value="{oj}/{contestId}/{problemId}_{slug}.{ext}">&lt;OJ 简称&gt;/&lt;比赛 ID&gt;/&lt;题目编号&gt;_&lt;题目名&gt;</option><option value="{contestId}_{problemId}_{slug}.{ext}">&lt;比赛 ID&gt;_&lt;题目编号&gt;_&lt;题目名&gt;</option><option value="custom">自定义</option></select><input id="cphFileNameTemplate" placeholder="例如：{oj}/{contestId}/{problemId}_{slug}.{ext}" hidden></div></div>
-<div id="cphFileNameTemplateHelp" class="row cph-naming-setting" hidden><div class="row-label">自定义占位符<div class="hint"><span class="code">{oj}</span> OJ 简称，<span class="code">{ojName}</span> OJ 全称，<span class="code">{contestId}</span> 比赛 ID，<span class="code">{problemId}</span> 题号，<span class="code">{slug}</span> 题名简写，<span class="code">{name}</span> 题名，<span class="code">{index}</span> 导入序号，<span class="code">{group}</span> 分组，<span class="code">{url}</span> 链接，<span class="code">{ext}</span> 扩展名，<span class="code">{lang}</span> 语言。</div></div></div>
-<div class="row cph-naming-setting"><div class="row-label">命名效果示例<div class="hint">以 Codeforces 第 2078 场 A 题、C++ 为例；实时预览上方通用模板。</div></div><div id="cphFileNameTemplateExample" class="terminal"></div></div>
-<div class="row cph-naming-setting"><div class="row-label">文件名模板覆盖<div class="hint">按 OJ 简称设置专用模板；匹配时优先于上方的通用模板。</div></div><div><div class="hint">可用 OJ 简称：${state.availableOjNames.join('、') || '未解析到，请在在线评测映射中添加'}</div><input id="cphFileNameTemplateOverrides" type="hidden"><div id="cphFileNameTemplateOverridesEditor"></div><button id="addCphFileNameTemplateOverride" class="btn secondary" type="button" style="margin-top:8px">添加 OJ 规则</button></div></div>
-<div class="row"><div class="row-label">详细设置<div class="hint">按 OJ 配置文件名模板、覆盖规则及其他 CPH 行为。</div></div><button id="openCphSettings" class="btn secondary">打开 CPH 设置</button></div>
-</div>
-</div>
-<div class="actions"><button id="cphNaming-prev" class="btn ghost">上一步</button><button id="cphNaming-next" class="btn primary">下一步</button></div>
-</section>
-
-<section class="page" data-page="snippets">
-<div class="page-head fade-item" style="--i:0"><div class="badge">9 / 9 · 模板</div><h1>代码模板</h1><p class="lead">配置 C++ 用户代码片段，写题时一键插入常用代码。</p></div>
-<div class="page-body">
-<div class="pane card">
-<div class="row"><div class="row-label">代码模板<div class="hint">打开独立的代码模板配置页，可定义多个语言的片段。</div></div><button id="openSnippets" class="btn secondary">配置代码模板</button></div>
-</div>
-<div class="pane preview"><div class="bar"><span class="light"></span><span class="light"></span><span class="light"></span><span class="bar-title">示例模板</span></div><div class="body code"><span class="syntax-comment">// 输入 cpp 回车：</span>
-
-<span class="syntax-keyword">#include</span> &lt;bits/stdc++.h&gt;
-
-<span class="syntax-keyword">using namespace</span> std;
-
-<span class="syntax-keyword">void</span> solve() {
-
-}
-
-<span class="syntax-keyword">int</span> main() {
-    <span class="syntax-type">ios::sync_with_stdio</span>(<span class="syntax-keyword">false</span>);
-    <span class="syntax-type">cin.tie</span>(<span class="syntax-number">0</span>);
-
-    <span class="syntax-keyword">int</span> t;
-    cin &gt;&gt; t;
-    <span class="syntax-keyword">while</span> (t--) solve();
-}</div></div>
-</div>
-<div class="actions"><button id="snippets-prev" class="btn ghost">上一步</button><button id="snippets-next" class="btn primary">下一步</button></div>
-</section>
-
-<section class="page" data-page="done">
-<div class="page-head fade-item" style="--i:0"><div class="badge">完成</div><h1>全部就绪 🎉</h1><p class="lead">你的偏好已保存并实时生效。随时可以在设置页或命令面板重新打开本向导。</p></div>
-<div class="page-body centered">
-<div class="pane">
-<div class="summary">
-<div class="summary-item fade-item" style="--i:1"><span>①</span><span>字体：<b id="doneFont">…</b></span></div>
-<div class="summary-item fade-item" style="--i:2"><span>②</span><span>主题：<b id="doneTheme">…</b></span></div>
-<div class="summary-item fade-item" style="--i:3"><span>③</span><span>C++ 版本：<b id="doneCpp">…</b></span></div>
-<div class="summary-item fade-item" style="--i:4"><span>④</span><span>变量类型提示：<b id="doneHints">…</b></span></div>
-<div class="summary-item fade-item" style="--i:5"><span>⑤</span><span>自动清理：<b id="doneCleanup">…</b></span></div>
-<div class="summary-item fade-item" style="--i:6"><span>⑥</span><span>自动保存：<b id="doneAutoSave">…</b></span></div>
-<div class="summary-item fade-item" style="--i:7"><span>⑦</span><span>自动格式化：<b id="doneAutoFormat">…</b></span></div>
-<div class="summary-item fade-item" style="--i:8"><span>⑧</span><span>CPH 文件名：<b id="doneCphNaming">…</b></span></div>
-</div>
-</div>
-</div>
-<div class="actions"><button id="done-prev" class="btn ghost">上一步</button><button id="done-finish" class="btn primary">完成</button></div>
-</section>
-
-</div>
-</main>
-<script>
-const vscode = acquireVsCodeApi();
-const byId = id => document.getElementById(id);
-const PAGES = ['welcome', 'font', 'theme', 'cpp', 'clangd', 'cleanup', 'autosave', 'autoformat', 'cphNaming', 'snippets', 'done'];
-let state = ${serializedState};
-let currentIndex = 0;
-let transitioning = false;
-let systemFonts = [];
-let monospaceFonts = [];
-let fontLoadError = '';
-let fontLoadComplete = false;
-let fontDetectionGeneration = 0;
-let ligatureGeneration = 0;
-let selectedFonts = [];
-const normalizeFont = font => font.trim().replace(/^['"]|['"]$/g, '');
-const serializeFontStack = fonts => fonts.map(font => font === 'monospace' ? font : /\\s/.test(font) ? '"' + font + '"' : font).join(', ');
-function isMonospaceFont(font, context) { context.font = '16px ' + serializeFontStack([font]); return Math.abs(context.measureText('iiiiiiiiii').width - context.measureText('WWWWWWWWWW').width) < 0.01; }
-async function supportsLigatures(font) {
-  const stack = serializeFontStack([font]);
-  const size = 48;
-  try { await document.fonts.load(size + 'px ' + stack); } catch (error) { }
-  const probe = document.createElement('canvas');
-  probe.width = 240; probe.height = 96;
-  const context = probe.getContext('2d');
-  if (!context) return false;
-  context.font = size + 'px ' + stack;
-  const composed = document.createElement('canvas');
-  composed.width = probe.width; composed.height = probe.height;
-  const composedContext = composed.getContext('2d');
-  if (!composedContext) return false;
-  composedContext.font = size + 'px ' + stack;
-  const cell = composedContext.measureText('M').width;
-  const probes = ['->', '=>', '>=', '<=', '!=', '==', ':=', '&&', '||', 'ffi'];
-  for (let index = 0; index < probes.length; index++) {
-    const text = probes[index];
-    composedContext.clearRect(0, 0, composed.width, composed.height);
-    for (let charIndex = 0; charIndex < text.length; charIndex++) {
-      composedContext.fillText(text[charIndex], charIndex * cell, size);
-    }
-    context.clearRect(0, 0, probe.width, probe.height);
-    context.fillText(text, 0, size);
-    const singleData = context.getImageData(0, 0, probe.width, probe.height).data;
-    const composedData = composedContext.getImageData(0, 0, composed.width, composed.height).data;
-    let difference = 0;
-    for (let pixel = 0; pixel < singleData.length; pixel += 4) {
-      if (singleData[pixel] !== composedData[pixel] || singleData[pixel + 1] !== composedData[pixel + 1] || singleData[pixel + 2] !== composedData[pixel + 2] || singleData[pixel + 3] !== composedData[pixel + 3]) {
-        difference++;
-        if (difference > 8) return true;
-      }
-    }
-  }
-  return false;
-}
-async function getMonospaceFonts(fonts) {
-  const context = document.createElement('canvas').getContext('2d');
-  if (!context) return [];
-  const result = [];
-  const batchSize = 40;
-  for (let index = 0; index < fonts.length; index += batchSize) {
-    fonts.slice(index, index + batchSize).forEach(font => { if (isMonospaceFont(font, context)) result.push(font); });
-    if (index + batchSize < fonts.length) {
-      await new Promise(resolve => {
-        const schedule = globalThis.requestAnimationFrame ?? (callback => setTimeout(callback, 0));
-        schedule(resolve);
-      });
-    }
-  }
-  return result;
-}
-function addOptions(select, fonts, label) {
-  const group = document.createElement('optgroup');
-  group.label = label;
-  fonts.forEach(font => {
-    const option = document.createElement('option');
-    option.value = font;
-    option.textContent = font;
-    option.style.fontFamily = serializeFontStack([font]);
-    group.append(option);
-  });
-  select.append(group);
-}
-function setFontPreview() {
-  byId('fontPreview').style.fontFamily = serializeFontStack(selectedFonts);
-  byId('fontPreview').style.fontSize = state.fontSize + 'px';
-  byId('fontPreview').style.fontVariantLigatures = state.fontLigatures ? 'normal' : 'none';
-}
-function fontSelect(font, fonts, label, allowCurrentCustomFont) {
-  const select = document.createElement('select');
-  addOptions(select, fonts, label);
-  const hasFont = fonts.includes(font);
-  if (!hasFont && allowCurrentCustomFont) {
-    const custom = document.createElement('option');
-    custom.value = font;
-    custom.textContent = font + '（当前字体）';
-    select.prepend(custom);
-  } else if (!hasFont) {
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = '当前字体不是等宽字体，请选择';
-    placeholder.disabled = true;
-    select.prepend(placeholder);
-  }
-  select.value = hasFont || allowCurrentCustomFont ? font : '';
-  select.disabled = !fonts.length;
-  select.style.fontFamily = serializeFontStack([font]);
-  return select;
-}
-function renderFonts() {
-  const primary = byId('fontFamily');
-  primary.replaceChildren();
-  const fallback = byId('fallbackFonts');
-  fallback.replaceChildren();
-  const status = byId('fontLoadStatus');
-  if (!fontLoadComplete) {
-    const loading = document.createElement('option');
-    loading.textContent = '正在检测系统等宽字体…';
-    primary.append(loading);
-    primary.disabled = true;
-    byId('addFallback').disabled = true;
-    status.textContent = '正在检测 ' + systemFonts.length + ' 个系统字体中的等宽字体，请稍候。';
-    void updateLigatureSupport();
-    return;
-  }
-  const primarySelect = fontSelect(selectedFonts[0] || 'monospace', monospaceFonts, '系统等宽字体', false);
-  const primaryValue = primarySelect.value;
-  [...primarySelect.children].forEach(child => primary.append(child));
-  primary.value = primaryValue;
-  primary.disabled = !monospaceFonts.length;
-  primary.style.fontFamily = serializeFontStack([selectedFonts[0] || 'monospace']);
-  selectedFonts.slice(1).forEach((font, index) => {
-    const row = document.createElement('div');
-    row.className = 'fallback-row';
-    const select = fontSelect(font, systemFonts, '系统字体', true);
-    select.onchange = () => { selectedFonts[index + 1] = select.value; renderFonts(); setFontPreview(); saveFont(); };
-    const up = document.createElement('button');
-    up.type = 'button';
-    up.className = 'btn secondary icon';
-    up.textContent = '↑';
-    up.disabled = index === 0;
-    up.onclick = () => { [selectedFonts[index], selectedFonts[index + 1]] = [selectedFonts[index + 1], selectedFonts[index]]; renderFonts(); setFontPreview(); saveFont(); };
-    const down = document.createElement('button');
-    down.type = 'button';
-    down.className = 'btn secondary icon';
-    down.textContent = '↓';
-    down.disabled = index === selectedFonts.length - 2;
-    down.onclick = () => { [selectedFonts[index + 1], selectedFonts[index + 2]] = [selectedFonts[index + 2], selectedFonts[index + 1]]; renderFonts(); setFontPreview(); saveFont(); };
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'btn secondary icon';
-    remove.textContent = '×';
-    remove.onclick = () => { selectedFonts.splice(index + 1, 1); renderFonts(); setFontPreview(); saveFont(); };
-    row.append(select, up, down, remove);
-    fallback.append(row);
-  });
-  byId('addFallback').disabled = !systemFonts.length;
-  status.textContent = fontLoadError
-    ? fontLoadError
-    : !monospaceFonts.length
-      ? '未发现可用的系统等宽字体，无法选择主要字体。'
-      : '已检测到 ' + monospaceFonts.length + ' 个系统等宽字体。';
-  void updateLigatureSupport();
-}
-function applyFonts() {
-  selectedFonts = (state.fontFamily || '').split(',').map(normalizeFont).filter(Boolean);
-  if (!selectedFonts.length) selectedFonts = ['monospace'];
-}
-function saveFont() {
-  byId('fontLigatures').checked = state.fontLigatures;
-  state.fontFamily = serializeFontStack(selectedFonts);
-  save('font', {
-    fontFamily: state.fontFamily,
-    fontLigatures: byId('fontLigatures').checked,
-    fontSize: Number(byId('fontSize').value) || 14
-  });
-}
-async function updateLigatureSupport() {
-  const generation = ++ligatureGeneration;
-  const checkbox = byId('fontLigatures');
-  const status = byId('fontLigaturesStatus');
-  const row = checkbox.closest('.row');
-  const supported = await supportsLigatures(selectedFonts[0] || 'monospace');
-  if (generation !== ligatureGeneration) return;
-  checkbox.disabled = !supported;
-  row.classList.toggle('disabled', !supported);
-  if (supported) {
-    status.textContent = '';
-    return;
-  }
-  if (checkbox.checked) checkbox.checked = false;
-  status.textContent = '当前字体不支持连字，无法启用。';
-}
-function renderTheme() {
-  const select = byId('colorTheme');
-  select.replaceChildren();
-  state.themes.forEach(theme => {
-    const option = document.createElement('option');
-    option.value = theme.id;
-    option.textContent = theme.label;
-    select.append(option);
-  });
-  select.value = state.themes.some(theme => theme.id === state.colorTheme) ? state.colorTheme : '';
-}
-function renderCpp() {
-  byId('cppStandard').value = state.cppStandard;
-  byId('compilerFlags').value = state.compilerFlags || '（未设置）';
-  byId('compileCommand').textContent = state.compiler + ' ' + (state.compilerFlags || '-std=' + state.cppStandard) + ' main.cpp -o main';
-}
-function applyCppStandardClient(flags, standard) {
-  const withoutStandard = flags.replace(/(^|\\s)-std=(?:gnu\\+\\+|c\\+\\+)\\d+\\b/g, ' ').replace(/\\s+/g, ' ').trim();
-  return '-std=' + standard + (withoutStandard ? ' ' + withoutStandard : '');
-}
-function renderHints() {
-  const enabled = state.clangdVariableTypeHints;
-  byId('clangdVariableTypeHints').checked = enabled;
-  byId('hintIt').style.display = enabled ? '' : 'none';
-  byId('hintSum').style.display = enabled ? '' : 'none';
-  byId('hintVal').style.display = enabled ? '' : 'none';
-  byId('hintParamX').style.display = enabled ? '' : 'none';
-  byId('hintParamK').style.display = enabled ? '' : 'none';
-  byId('hintParamV').style.display = enabled ? '' : 'none';
-}
-function renderCleanup() {
-  byId('executableCleanupEnabled').checked = state.executableCleanupEnabled;
-  byId('executableCleanupDelaySeconds').value = state.executableCleanupDelaySeconds;
-  const label = state.executableCleanupEnabled
-    ? state.executableCleanupDelaySeconds + ' 秒后删除'
-    : '已保留';
-  byId('fileExeState').textContent = label;
-  byId('fileBinState').textContent = label;
-  byId('fileDsymState').textContent = label;
-  byId('fileExe').classList.toggle('cleaned', state.executableCleanupEnabled);
-  byId('fileBin').classList.toggle('cleaned', state.executableCleanupEnabled);
-  byId('fileDsym').classList.toggle('cleaned', state.executableCleanupEnabled);
-}
-function renderAutoSave() {
-  byId('autoSave').value = state.autoSave;
-  const dot = byId('autoSaveDot');
-  const status = byId('autoSaveStatus');
-  if (state.autoSave === 'off') {
-    dot.style.background = '#f4a261';
-    status.textContent = '● 未保存 · 需手动保存（Cmd+S）';
-  } else {
-    dot.style.background = '#7bc47f';
-    const labels = { afterDelay: '✓ 已自动保存 · 延迟后', onFocusChange: '✓ 已自动保存 · 切换焦点时', onWindowChange: '✓ 已自动保存 · 切换窗口时' };
-    status.textContent = labels[state.autoSave] || labels.afterDelay;
-  }
-}
-function renderAutoFormat() {
-  byId('autoFormat').checked = state.autoFormat;
-}
-function getCphFileNameTemplateOverrides() {
-  try {
-    const overrides = JSON.parse(byId('cphFileNameTemplateOverrides').value || '{}');
-    return overrides && typeof overrides === 'object' && !Array.isArray(overrides)
-      ? Object.entries(overrides).filter(([, template]) => typeof template === 'string')
-      : [];
-  } catch (error) {
-    return [];
-  }
-}
-function renderCphFileNameTemplateOverrides() {
-  const editor = byId('cphFileNameTemplateOverridesEditor');
-  editor.replaceChildren();
-  getCphFileNameTemplateOverrides().forEach(([oj, template]) => {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:8px;margin-top:8px';
-    const ojInput = document.createElement('input');
-    ojInput.className = 'cph-override-oj'; ojInput.value = oj; ojInput.placeholder = 'OJ 简称'; ojInput.setAttribute('aria-label', 'OJ 简称');
-    const templateInput = document.createElement('input');
-    templateInput.className = 'cph-override-template'; templateInput.value = template; templateInput.placeholder = '{ojName}/{contestId}/{problemId}.{ext}'; templateInput.setAttribute('aria-label', '文件名模板');
-    const remove = document.createElement('button');
-    remove.type = 'button'; remove.className = 'btn secondary cph-override-remove'; remove.textContent = '删除';
-    row.append(ojInput, templateInput, remove);
-    editor.append(row);
-  });
-}
-function saveCphFileNameTemplateOverrides(force = false) {
-  const overrides = {};
-  const rows = [...document.querySelectorAll('#cphFileNameTemplateOverridesEditor > div')].map(row => {
-    const oj = row.querySelector('.cph-override-oj').value.trim();
-    const template = row.querySelector('.cph-override-template').value.trim();
-    return { oj, template };
-  });
-  if (!force && rows.some(({ oj, template }) => Boolean(oj) !== Boolean(template))) return;
-  rows.forEach(({ oj, template }) => { if (oj && template) overrides[oj] = template; });
-  byId('cphFileNameTemplateOverrides').value = JSON.stringify(overrides, undefined, 2);
-  saveCphNaming(false, false);
-}
-function renderCphFileNameTemplateExample() {
-  const sampleValues = { oj: 'CF', ojName: 'Codeforces', contestId: '2078', problemId: 'A', slug: 'Sample_Problem', name: 'Sample Problem', index: 'A', group: 'Codeforces Round 2078', url: 'https://codeforces.com/contest/2078/problem/A', ext: 'cpp', lang: 'cpp' };
-  const sampleTemplate = state.cphFileNameTemplate;
-  byId('cphFileNameTemplateExample').textContent = sampleTemplate.replace(/\\{(oj|ojName|contestId|problemId|slug|name|index|group|url|ext|lang)\\}/g, (_, key) => sampleValues[key]);
-}
-function renderCphNaming() {
-  byId('cphCustomFileNameEnabled').checked = state.cphCustomFileNameEnabled;
-  byId('cphDefaultLanguage').value = state.cphDefaultLanguage;
-  byId('cphFileNameTemplate').value = state.cphFileNameTemplate;
-  byId('cphFileNameTemplateOverrides').value = state.cphFileNameTemplateOverrides;
-
-  renderCphFileNameTemplateOverrides();
-  const preset = byId('cphFileNameTemplatePreset');
-  const customTemplate = byId('cphFileNameTemplate');
-  const matched = [...preset.options].some(option => option.value !== 'custom' && option.value === state.cphFileNameTemplate);
-  preset.value = matched ? state.cphFileNameTemplate : 'custom';
-  customTemplate.hidden = matched;
-  customTemplate.disabled = matched || !state.cphCustomFileNameEnabled;
-  byId('cphFileNameTemplateHelp').hidden = matched;
-  renderCphFileNameTemplateExample();
-  preset.disabled = !state.cphCustomFileNameEnabled;
-  byId('cphFileNameTemplateOverrides').disabled = !state.cphCustomFileNameEnabled;
-  document.querySelectorAll('#cphFileNameTemplateOverridesEditor input, #cphFileNameTemplateOverridesEditor button, #addCphFileNameTemplateOverride').forEach(item => item.disabled = !state.cphCustomFileNameEnabled);
-  document.querySelectorAll('.cph-naming-setting').forEach(row => row.classList.toggle('disabled', !state.cphCustomFileNameEnabled));
-}
-function renderDone() {
-  byId('doneFont').textContent = state.fontFamily ? state.fontFamily + ' · ' + state.fontSize + 'px' : '编辑器默认 · ' + state.fontSize + 'px';
-  byId('doneTheme').textContent = state.themes.find(theme => theme.id === state.colorTheme)?.label || state.colorTheme || '默认';
-  byId('doneCpp').textContent = state.cppStandard;
-  byId('doneHints').textContent = state.clangdVariableTypeHints ? '显示' : '隐藏';
-  byId('doneCleanup').textContent = state.executableCleanupEnabled
-    ? state.executableCleanupDelaySeconds + ' 秒后删除'
-    : '关闭';
-  byId('doneAutoSave').textContent = ({ off: '关闭', afterDelay: '延迟后', onFocusChange: '切换焦点时', onWindowChange: '切换窗口时' })[state.autoSave] || '关闭';
-  byId('doneAutoFormat').textContent = state.autoFormat ? '启用' : '关闭';
-  byId('doneCphNaming').textContent = state.cphCustomFileNameEnabled ? '自定义命名' : 'CPH 默认命名';
-}
-function render() {
-  renderTheme();
-  renderCpp();
-  renderHints();
-  renderCleanup();
-  renderAutoSave();
-  renderAutoFormat();
-  renderCphNaming();
-  renderDone();
-  applyFonts();
-  byId('fontSize').value = state.fontSize;
-  byId('fontLigatures').checked = state.fontLigatures;
-  byId('autoDetectColorScheme').checked = state.autoDetectColorScheme;
-  setFontPreview();
-  renderFonts();
-}
-function updateDots() {
-  const progress = byId('progress');
-  progress.replaceChildren();
-  PAGES.forEach((page, index) => {
-    const dot = document.createElement('span');
-    dot.className = 'dot' + (index === currentIndex ? ' active' : '');
-    dot.setAttribute('aria-label', page);
-    progress.append(dot);
-  });
-}
-function go(nextIndex, direction) {
-  if (transitioning || nextIndex < 0 || nextIndex >= PAGES.length) return;
-  if (nextIndex === currentIndex) return;
-  transitioning = true;
-  const current = document.querySelector('.page[data-page="' + PAGES[currentIndex] + '"]');
-  const next = document.querySelector('.page[data-page="' + PAGES[nextIndex] + '"]');
-  const enterClass = direction === 'next' ? 'enter-right' : 'enter-left';
-  const exitClass = direction === 'next' ? 'exit-left' : 'exit-right';
-  next.classList.remove('visible', 'exit-left', 'exit-right', 'enter-left', 'enter-right');
-  next.classList.add(enterClass);
-  next.style.visibility = 'visible';
-  void next.offsetWidth;
-  next.classList.remove(enterClass);
-  next.classList.add('visible');
-  current.classList.remove('visible');
-  current.classList.add(exitClass);
-  currentIndex = nextIndex;
-  updateDots();
-  setTimeout(() => {
-    current.classList.remove('exit-left', 'exit-right');
-    current.style.visibility = 'hidden';
-    transitioning = false;
-  }, 340);
-}
-function save(page, value) {
-  vscode.postMessage({ type: 'save', page, value });
-}
-const NEXT = {
-		welcome: 'font', font: 'theme', theme: 'cpp', cpp: 'clangd', clangd: 'cleanup', cleanup: 'autosave', autosave: 'autoformat', autoformat: 'cphNaming', cphNaming: 'snippets', snippets: 'done'
-};
-function bindNext(nextId) {
-  byId(nextId).addEventListener('click', () => {
-    const target = PAGES.indexOf(NEXT[PAGES[currentIndex]]);
-    if (target >= 0) go(target, 'next');
-  });
-}
-function bindPrev(prevId) {
-  byId(prevId).addEventListener('click', () => go(currentIndex - 1, 'prev'));
-}
-['welcome-next', 'font-next', 'theme-next', 'cpp-next', 'clangd-next', 'cleanup-next', 'autosave-next', 'autoformat-next', 'cphNaming-next', 'snippets-next'].forEach(bindNext);
-['font-prev', 'theme-prev', 'cpp-prev', 'clangd-prev', 'cleanup-prev', 'autosave-prev', 'autoformat-prev', 'cphNaming-prev', 'snippets-prev', 'done-prev'].forEach(bindPrev);
-byId('done-finish').addEventListener('click', () => vscode.postMessage({ type: 'complete' }));
-byId('openSnippets').addEventListener('click', () => vscode.postMessage({ type: 'snippets' }));
-byId('fontFamily').addEventListener('change', () => { selectedFonts[0] = byId('fontFamily').value; setFontPreview(); void updateLigatureSupport(); saveFont(); renderFonts(); });
-byId('fontSize').addEventListener('input', () => { const size = Math.min(40, Math.max(1, Number(byId('fontSize').value) || 14)); state.fontSize = size; setFontPreview(); save('font', { fontFamily: serializeFontStack(selectedFonts), fontLigatures: byId('fontLigatures').checked, fontSize: size }); });
-byId('fontLigatures').addEventListener('change', () => { state.fontLigatures = byId('fontLigatures').checked; setFontPreview(); save('font', { fontFamily: serializeFontStack(selectedFonts), fontLigatures: state.fontLigatures, fontSize: Number(byId('fontSize').value) || 14 }); });
-byId('addFallback').addEventListener('click', () => { if (systemFonts.length) { selectedFonts.push(systemFonts[0]); renderFonts(); setFontPreview(); saveFont(); } });
-byId('colorTheme').addEventListener('change', () => { state.colorTheme = byId('colorTheme').value; save('theme', { colorTheme: state.colorTheme, autoDetectColorScheme: byId('autoDetectColorScheme').checked }); });
-byId('autoDetectColorScheme').addEventListener('change', () => { state.autoDetectColorScheme = byId('autoDetectColorScheme').checked; save('theme', { colorTheme: byId('colorTheme').value, autoDetectColorScheme: state.autoDetectColorScheme }); });
-byId('cppStandard').addEventListener('change', () => { state.cppStandard = byId('cppStandard').value; state.compilerFlags = applyCppStandardClient(state.compilerFlags, state.cppStandard); save('cpp', { cppStandard: state.cppStandard }); renderCpp(); });
-byId('clangdVariableTypeHints').addEventListener('change', () => { state.clangdVariableTypeHints = byId('clangdVariableTypeHints').checked; save('clangd', { clangdVariableTypeHints: state.clangdVariableTypeHints }); renderHints(); });
-byId('executableCleanupEnabled').addEventListener('change', () => { state.executableCleanupEnabled = byId('executableCleanupEnabled').checked; save('cleanup', { executableCleanupEnabled: state.executableCleanupEnabled, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value) || 60 }); renderCleanup(); });
-byId('executableCleanupDelaySeconds').addEventListener('input', () => { const delay = Math.max(1, Math.min(86400, Math.floor(Number(byId('executableCleanupDelaySeconds').value) || 60))); state.executableCleanupDelaySeconds = delay; save('cleanup', { executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: delay }); renderCleanup(); });
-byId('autoSave').addEventListener('change', () => { state.autoSave = byId('autoSave').value; save('autosave', { autoSave: state.autoSave }); renderAutoSave(); });
-byId('autoFormat').addEventListener('change', () => { state.autoFormat = byId('autoFormat').checked; save('autoformat', { autoFormat: state.autoFormat }); renderDone(); });
-function cphNamingValue(restoreCphFileNameSettings) { return { cphCustomFileNameEnabled: byId('cphCustomFileNameEnabled').checked, cphDefaultLanguage: byId('cphDefaultLanguage').value, cphFileNameTemplate: byId('cphFileNameTemplate').value, cphFileNameTemplateOverrides: byId('cphFileNameTemplateOverrides').value, restoreCphFileNameSettings }; }
-function saveCphNaming(restoreCphFileNameSettings = false, renderPage = true) { state.cphCustomFileNameEnabled = byId('cphCustomFileNameEnabled').checked; state.cphDefaultLanguage = byId('cphDefaultLanguage').value; state.cphFileNameTemplate = byId('cphFileNameTemplate').value; state.cphFileNameTemplateOverrides = byId('cphFileNameTemplateOverrides').value; save('cphNaming', cphNamingValue(restoreCphFileNameSettings)); if (renderPage) renderCphNaming(); else renderCphFileNameTemplateExample(); renderDone(); }
-byId('cphCustomFileNameEnabled').addEventListener('change', () => saveCphNaming(state.cphCustomFileNameEnabled === false && byId('cphCustomFileNameEnabled').checked));
-byId('cphDefaultLanguage').addEventListener('change', saveCphNaming);
-byId('cphFileNameTemplatePreset').addEventListener('change', () => { const preset = byId('cphFileNameTemplatePreset'), input = byId('cphFileNameTemplate'), custom = preset.value === 'custom'; input.hidden = !custom; input.disabled = !custom; if (custom) { input.focus(); } else { input.value = preset.value; saveCphNaming(); } });
-byId('cphFileNameTemplate').addEventListener('input', () => saveCphNaming(false, false));
-byId('cphFileNameTemplateOverridesEditor').addEventListener('change', event => { if (event.target.matches('.cph-override-oj, .cph-override-template')) saveCphFileNameTemplateOverrides(); });
-byId('cphFileNameTemplateOverridesEditor').addEventListener('click', event => { if (event.target.matches('.cph-override-remove')) { event.target.closest('div').remove(); saveCphFileNameTemplateOverrides(true); } });
-byId('addCphFileNameTemplateOverride').addEventListener('click', () => { const editor = byId('cphFileNameTemplateOverridesEditor'); const row = document.createElement('div'); row.style.cssText = 'display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:8px;margin-top:8px'; const oj = document.createElement('input'); oj.className = 'cph-override-oj'; oj.placeholder = 'OJ 简称'; oj.setAttribute('aria-label', 'OJ 简称'); const template = document.createElement('input'); template.className = 'cph-override-template'; template.placeholder = '{ojName}/{contestId}/{problemId}.{ext}'; template.setAttribute('aria-label', '文件名模板'); const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn secondary cph-override-remove'; remove.textContent = '删除'; row.append(oj, template, remove); editor.append(row); oj.focus(); });
-byId('openAutoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormatSettings' }));
-byId('openCphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
-window.addEventListener('message', event => {
-  const message = event.data;
-	if (message?.type === 'systemFonts') {
-    const generation = ++fontDetectionGeneration;
-    systemFonts = message.value.fonts;
-    monospaceFonts = [];
-    fontLoadError = message.value.error || '';
-    fontLoadComplete = false;
-    if (fontLoadError || !systemFonts.length) {
-      fontLoadComplete = true;
-      render();
-      return;
-    }
-    void getMonospaceFonts(systemFonts).then(detected => {
-      if (generation !== fontDetectionGeneration) return;
-      monospaceFonts = detected;
-      fontLoadComplete = true;
-      render();
-    });
-  } else if (message?.type === 'state') {
-    state = message.value;
-    render();
-  }
-});
-	document.querySelector('.page[data-page="' + PAGES[0] + '"]').classList.add('visible');
-updateDots();
-render();
-</script>
-</body></html>`;
+function getFirstRunHtml(): string {
+	return firstRunView(environmentRunner!.snapshot, {
+		title: localize('编译配置'), intro: localize('检查编译器、运行样例，并验证代码提示。'), setupSteps: localize('开箱配置步骤'),
+		start: localize('开始配置'), retry: localize('重试'), next: localize('下一步'), finish: localize('完成'), back: localize('上一步'),
+		pending: localize('待检查'), running: localize('正在配置，请等待…'), complete: localize('已完成'), error: localize('失败'),
+		ready: localize('环境已就绪，自测通过。'), failed: localize('配置未完成。请展开失败步骤查看日志，然后重试。'),
+		waiting: localize('完成环境检查后继续。'),
+		editorTitle: localize('编辑配置'), editorIntro: localize('按你的习惯调整编辑体验。'),
+		fontSizeLabel: localize('字号'), indentLabel: localize('代码缩进'), themeLabel: localize('颜色主题'),
+		autoFormatLabel: localize('自动格式化'), hintsLabel: localize('clang 类型提示'),
+		formatHint: localize('保存与粘贴时自动整理代码格式。'), typeHint: localize('在代码旁显示变量的推导类型。'),
+		templateTitle: localize('模版配置'), templateIntro: localize('CPH 新建 C++ 文件时会自动填入这份模版。'),
+		retryPreview: localize('重试预览'),
+		workspaceTitle: localize('代码存放目录'), workspaceIntro: localize('选择一个文件夹存放代码，完成后将自动打开该目录。'),
+		workspaceFolderLabel: localize('已选目录'), workspaceEmpty: localize('尚未选择目录。'), chooseWorkspace: localize('选择目录')
+	}, getFirstRunEditorState(), firstRunEditorSession.page, firstRunEditorSession.finishing, firstRunEditorSession.workspaceFolder, firstRunEditorSession.choosingWorkspace);
 }

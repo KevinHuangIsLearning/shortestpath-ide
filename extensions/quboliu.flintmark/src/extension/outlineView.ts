@@ -95,7 +95,6 @@ export function registerOutlineView(
   const provider = new OutlineProvider(structures);
 
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider("ofm.outline", provider),
     structures.onDidChange(() => provider.refresh()),
     vscode.commands.registerCommand("ofm.refreshOutline", () => {
       structures.refreshActive();

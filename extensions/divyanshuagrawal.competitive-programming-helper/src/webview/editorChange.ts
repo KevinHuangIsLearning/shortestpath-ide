@@ -1,11 +1,22 @@
 import * as vscode from 'vscode';
-import { getJudgeViewProvider } from '../extension';
+import { getJudgeViewProvider, updateJudgeVisibility } from '../extension';
+import { getProblem } from '../parser';
+import { usesIntegratedTests } from '../integratedTests';
 import { getProblemForDocument } from '../utils';
 import { getAutoShowJudgePref, getDefaultOnlineJudge } from '../preferences';
 import { setOnlineJudgeEnv } from '../compiler';
-import { getRefreshSourcePath } from './judgeLifecycle';
+import { getRefreshSourcePath, shouldClearJudgeForActiveDocument } from './judgeLifecycle';
 
 let lastActiveSourcePath: string | undefined;
+
+/** Paired source tabs can become active without exposing a TextEditor. */
+export const updateActiveTabJudgeVisibility = () => {
+    const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+    const uri = (input as { uri?: vscode.Uri } | undefined)?.uri;
+    if (uri && !shouldClearJudgeForActiveDocument({ fileName: uri.fsPath, uri })) {
+        updateJudgeVisibility(getProblem(uri.fsPath) ?? undefined);
+    }
+};
 
 /**
  * Refresh the webview only when another supported local source file becomes
@@ -22,6 +33,10 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
             'No active text editor; preserving the current Judge view',
         );
         return;
+    }
+
+    if (!shouldClearJudgeForActiveDocument(e.document)) {
+        updateJudgeVisibility(getProblemForDocument(e.document));
     }
 
     const sourcePath = getRefreshSourcePath(
@@ -51,6 +66,7 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
     }
 
     if (
+        !usesIntegratedTests(problem) &&
         getAutoShowJudgePref() &&
         getJudgeViewProvider().isViewUninitialized()
     ) {
@@ -103,6 +119,11 @@ export const judgeViewTabsChanged = () => {
         'shortestpath.oj.hideProblemForCphSourcePath',
         problemPath,
     );
+};
+
+export const refreshActiveJudgeTab = () => {
+    judgeViewTabsChanged();
+    updateActiveTabJudgeVisibility();
 };
 
 export const checkLaunchWebview = () => {

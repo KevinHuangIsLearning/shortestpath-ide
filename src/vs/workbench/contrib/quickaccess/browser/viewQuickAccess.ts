@@ -151,7 +151,6 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Viewlets / Panels
 		addPaneComposites(ViewContainerLocation.Sidebar, localize('views', "Side Bar"));
 		addPaneComposites(ViewContainerLocation.Panel, localize('panels', "Panel"));
-		addPaneComposites(ViewContainerLocation.AuxiliaryBar, localize('secondary side bar', "Secondary Side Bar"));
 
 		const addPaneCompositeViews = (location: ViewContainerLocation) => {
 			const paneComposites = this.paneCompositeService.getPaneComposites(location);
@@ -166,7 +165,6 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Side Bar / Panel Views
 		addPaneCompositeViews(ViewContainerLocation.Sidebar);
 		addPaneCompositeViews(ViewContainerLocation.Panel);
-		addPaneCompositeViews(ViewContainerLocation.AuxiliaryBar);
 
 		// Terminals
 		this.terminalGroupService.groups.forEach((group, groupIndex) => {

@@ -38,7 +38,6 @@ import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/t
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorTitleControlDimensions } from './editorTitleControl.js';
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
-import { EDITOR_CORE_NAVIGATION_COMMANDS } from './editorCommands.js';
 import { IAuxiliaryEditorPart, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -316,7 +315,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPart',
 			resetMenu: editorActionsMenuId,
-			overflowBehavior: { maxItems: 9, exempted: EDITOR_CORE_NAVIGATION_COMMANDS },
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			highlightToggledItems: true
 		}));
 
@@ -392,9 +391,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorActionsToolbar()));
 
 		const editorActionsToolbar = assertReturnsDefined(this.editorActionsToolbar);
-		const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
-		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
-		this.editorActionsToolbarHasActions = primary.length > 0 || secondary.length > 0;
+		const { primary } = this.prepareEditorActions(editorActions.actions);
+		editorActionsToolbar.setActions(prepareActions(primary), []);
+		this.editorActionsToolbarHasActions = primary.length > 0;
 
 		this.updateEditorLayoutActionsToolbar();
 	}
@@ -625,6 +624,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected get tabHeight() {
 		const isCompact = this.groupsView.partOptions.tabHeight === 'compact';
+		// ShortestPath uses a Chrome-style strip: 6px above a 34px (26px compact) tab.
+		if (this.parent.classList.contains('tabs') && this.parent.closest('.shortestpath-dual-mode') && !this.parent.closest('.modal-editor-part')) {
+			return isCompact ? 32 : 40;
+		}
 		// In modern multi-tab mode the tabs-and-actions-container gains extra
 		// padding (tabs.css), so the total height differs from the base values.
 		// The `.tabs` class is present only when showTabs === 'multiple'; single-tab

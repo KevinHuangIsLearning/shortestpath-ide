@@ -3,7 +3,8 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ideBridgeFeatures, ideSchemaRevision } from './generated/ide-bridge-contract';
+import { ideBridgeFeatures, ideSchemaRevision, IdeRecoveryStatus } from './generated/ide-bridge-contract';
+import type { WorkspaceProblemRecoveryContext } from './workspaceProblemCache';
 import { randomUUID } from 'crypto';
 import { AddressInfo } from 'net';
 import { RawData, WebSocket, WebSocketServer } from 'ws';
@@ -51,7 +52,11 @@ export type ImportAction = 'created' | 'updated';
 
 export type LocalBridgeHandlers = {
 	importProblem(problem: ImportedProblem, signal: AbortSignal): Promise<ImportAction>;
-	activateProblem?(problem: ImportedProblem): Promise<void> | void;
+	activateProblem?(problem: ImportedProblem, resumed?: boolean, isCurrent?: () => boolean): Promise<void> | void;
+	activateBoundProblem?(problemRef: string): Promise<void>;
+	resumeProblem?(problem: ImportedProblem): Promise<void>;
+	handleRecoveryStatus?(problemRef: string, status: IdeRecoveryStatus): void;
+	didBindProblem?(problem: ImportedProblem, resumed: boolean): void;
 	updateProblemState(problemRef: string, state: ProblemState, capabilities?: ProblemCapabilities): Promise<void>;
 	handleEvent(problemRef: string, event: IncomingEvent): Promise<void> | void;
 	handleDisconnect(problemRef: string): Promise<void> | void;
@@ -104,6 +109,7 @@ export class ShortestPathOjLocalBridge {
 	private readonly longRunningRequestListeners = new Set<(problemRef: string, active: boolean) => void>();
 	private readonly traceListeners = new Set<(message: string) => void>();
 	private activeSession: InternalActiveSession | undefined;
+	private recoveryTicket: { token: string; problem: WorkspaceProblemRecoveryContext } | undefined;
 	private bindQueue = Promise.resolve();
 	private nextConnectionId = 1;
 
@@ -154,6 +160,20 @@ export class ShortestPathOjLocalBridge {
 		return active?.problemRef === problemRef && active.connection.socket.readyState === WebSocket.OPEN;
 	}
 
+	prepareRecovery(problem: WorkspaceProblemRecoveryContext): string {
+		if (!problem.accountId || !problem.target) { throw new Error('connection_recovery_requires_v2'); }
+		this.recoveryTicket = { token: randomUUID(), problem };
+		return this.recoveryTicket.token;
+	}
+
+	cancelRecovery(): void { this.recoveryTicket = undefined; }
+
+	private recoveryFor(connection: BridgeConnection, request: ProtocolRequest) {
+		const data = request.data as { token?: string } | undefined;
+		const ticket = this.recoveryTicket;
+		return ticket && connection.version === 2 && data?.token === ticket.token && new URL(ticket.problem.url).origin === connection.origin ? ticket : undefined;
+	}
+
 	async listeningPort(): Promise<number> {
 		const current = this.server.address();
 		if (current) {
@@ -185,6 +205,11 @@ export class ShortestPathOjLocalBridge {
 			}
 			return result;
 		});
+	}
+
+	async requestHintState(problemRef: string): Promise<ProblemState> {
+		const response = await this.request(problemRef, 'hint.state.request', {}, 'hint.state.result', false);
+		return parseProblemStateSyncData(response.data);
 	}
 
 	async requestLike(problemRef: string, hintId: string, target: 'question' | 'answer', liked: boolean): Promise<LikeResult> {
@@ -316,7 +341,22 @@ export class ShortestPathOjLocalBridge {
 			this.send(connection, { id: randomUUID(), replyTo: message.id, type: 'bridge.hello.result', ok: true, data: { protocolMajor: 2, schemaRevision: ideSchemaRevision, features: ideBridgeFeatures } });
 			return;
 		}
-		if (message.type === 'problem.bind') {
+		if (message.type === 'bridge.recovery.context' || message.type === 'bridge.recovery.status') {
+			const ticket = this.recoveryFor(connection, message);
+			if (!ticket) { this.sendFailure(connection, message.id, `${message.type}.result`, undefined, 'recovery_expired', '恢复请求已失效。'); return; }
+			if (message.type === 'bridge.recovery.context') {
+				this.sendSuccess(connection, message.id, `${message.type}.result`, undefined, { problemRef: ticket.problem.ref, url: ticket.problem.url, accountId: ticket.problem.accountId, target: ticket.problem.target });
+			} else {
+				const status = (message.data as { status?: IdeRecoveryStatus }).status;
+				if (!status || !['connecting', 'verification_required', 'login_required', 'account_mismatch', 'error'].includes(status)) {
+					this.sendFailure(connection, message.id, `${message.type}.result`, undefined, 'invalid_request', '恢复状态无效。'); return;
+				}
+				this.handlers.handleRecoveryStatus?.(ticket.problem.ref, status);
+				this.sendSuccess(connection, message.id, `${message.type}.result`, undefined, {});
+			}
+			return;
+		}
+		if (message.type === 'problem.bind' || message.type === 'problem.resume') {
 			this.bindQueue = this.bindQueue
 				.catch(() => undefined)
 				.then(() => this.bindProblem(connection, message));
@@ -325,6 +365,19 @@ export class ShortestPathOjLocalBridge {
 		}
 		if (message.type === 'problem.state.sync') {
 			await this.syncProblemState(connection, message);
+			return;
+		}
+		if (message.type === 'problem.activate') {
+			this.bindQueue = this.bindQueue.catch(() => undefined).then(async () => {
+				const active = this.validateActiveRequest(connection, message, 'problem.activate.result');
+				if (!active) { return; }
+				try {
+					if (!this.handlers.activateBoundProblem) { throw new Error('workspace_modes_unsupported'); }
+					await this.handlers.activateBoundProblem(active.problemRef);
+					this.sendSuccess(connection, message.id, 'problem.activate.result', active.sessionId, {});
+				} catch (error) { this.sendProtocolFailure(connection, message, 'problem.activate.result', error, active.sessionId); }
+			});
+			await this.bindQueue;
 			return;
 		}
 		if (incomingEventTypes.has(message.type)) {
@@ -338,8 +391,12 @@ export class ShortestPathOjLocalBridge {
 	}
 
 	private async bindProblem(connection: BridgeConnection, request: ProtocolRequest): Promise<void> {
+		const resumed = request.type === 'problem.resume';
+		const resultType = `${request.type}.result`;
+		const ticket = resumed ? this.recoveryFor(connection, request) : undefined;
+		if (resumed && (!ticket || connection.version !== 2)) { this.sendFailure(connection, request.id, resultType, undefined, 'recovery_expired', '恢复请求已失效。'); return; }
 		if (request.sessionId !== undefined) {
-			this.sendFailure(connection, request.id, 'problem.bind.result', undefined, 'invalid_request', 'problem.bind 不能携带 sessionId。');
+			this.sendFailure(connection, request.id, resultType, undefined, 'invalid_request', 'problem.bind 不能携带 sessionId。');
 			return;
 		}
 		let problem: ImportedProblem;
@@ -347,41 +404,54 @@ export class ShortestPathOjLocalBridge {
 			problem = parseProblemBindData(request.data, connection.version);
 		} catch (error) {
 			this.trace(`Connection #${connection.id} rejected problem.bind: ${errorMessage(error)}`);
-			this.sendProtocolFailure(connection, request, 'problem.bind.result', error);
+			this.sendProtocolFailure(connection, request, resultType, error);
 			return;
 		}
 		if (new URL(problem.url).origin !== connection.origin) {
-				this.sendFailure(connection, request.id, 'problem.bind.result', undefined, 'invalid_request', '题目地址不属于允许的站点。');
+				this.sendFailure(connection, request.id, resultType, undefined, 'invalid_request', '题目地址不属于允许的站点。');
 				return;
+		}
+		if (ticket && (problem.accountId !== ticket.problem.accountId || problem.ref !== ticket.problem.ref || JSON.stringify(problem.target) !== JSON.stringify(ticket.problem.target))) {
+			this.sendFailure(connection, request.id, resultType, undefined, 'context_mismatch', '恢复账号或题目不匹配。'); return;
 		}
 		this.trace(`Connection #${connection.id} binding ${problem.ref}.`);
 		const current = this.activeSession;
 		const reactivated = current?.connection === connection && current.problemRef === problem.ref;
 		let action: ImportAction;
 		try {
-			action = await this.runImport(problem);
+			if (resumed) {
+				if (!this.handlers.resumeProblem) { throw new Error('recovery_unsupported'); }
+				await this.handlers.resumeProblem(problem);
+				action = 'updated';
+			} else {
+				this.cancelRecovery();
+				action = await this.runImport(problem);
+			}
+			if (resumed && this.recoveryTicket !== ticket) { throw new Error('recovery_expired'); }
 		} catch (error) {
 			this.trace(`Connection #${connection.id} failed to import ${problem.ref}: ${errorMessage(error)}`);
-			this.sendFailure(connection, request.id, 'problem.bind.result', undefined, 'request_failed', errorMessage(error));
+			this.sendFailure(connection, request.id, resultType, undefined, 'request_failed', errorMessage(error));
 			return;
 		}
 		const sessionId = reactivated && connection.version === 1 ? current.sessionId : randomUUID();
 		const replaced = current !== undefined && !reactivated;
 		const next: InternalActiveSession = { sessionId, problemRef: problem.ref, connection };
 		try {
-			await this.handlers.activateProblem?.(problem);
+			await this.handlers.activateProblem?.(problem, resumed, () => !resumed || this.recoveryTicket === ticket);
+			if (resumed && this.recoveryTicket !== ticket) { throw new Error('recovery_expired'); }
 		} catch (error) {
-			this.sendFailure(connection, request.id, 'problem.bind.result', undefined, 'request_failed', errorMessage(error));
+			this.sendFailure(connection, request.id, resultType, undefined, 'request_failed', errorMessage(error));
 			return;
 		}
 		this.activeSession = next;
 		this.trace(`Connection #${connection.id} bound ${problem.ref} (${reactivated ? 'reactivated' : action}).`);
-		this.sendSuccess(connection, request.id, 'problem.bind.result', sessionId, {
+		this.sendSuccess(connection, request.id, resultType, sessionId, {
 			active: true,
 			action: reactivated ? 'reactivated' : action,
 			replacedPrevious: replaced,
 			message: '题目已在 ShortestPath IDE 中打开。',
 		});
+		this.handlers.didBindProblem?.(problem, resumed);
 		if (replaced && current.connection !== connection) {
 			this.send(current.connection, {
 				version: 1,
@@ -437,7 +507,7 @@ export class ShortestPathOjLocalBridge {
 	): Promise<ProtocolResponse> {
 		const active = this.activeSession;
 		if (!active || active.problemRef !== problemRef || active.connection.socket.readyState !== WebSocket.OPEN) {
-			return Promise.reject(new Error('题目网页未连接，请从网站重新在 ShortestPath IDE 中打开。'));
+			return Promise.reject(new Error('正在恢复题目连接，请稍后重试。'));
 		}
 		if (type === 'submission.request' && [...active.connection.pending.values()].some(pending => ['submission.result', 'submission.create.result'].includes(pending.expectedType))) {
 			return Promise.reject(new Error('当前会话已有一个提交请求正在处理。'));
@@ -620,7 +690,7 @@ export class ShortestPathOjLocalBridge {
 		);
 	}
 
-	private sendSuccess(connection: BridgeConnection, replyTo: string, type: string, sessionId: string, data: object): void {
+	private sendSuccess(connection: BridgeConnection, replyTo: string, type: string, sessionId: string | undefined, data: object): void {
 		this.send(connection, { version: 1, id: randomUUID(), replyTo, type, sessionId, ok: true, data });
 	}
 

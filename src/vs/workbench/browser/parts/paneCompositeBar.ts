@@ -93,6 +93,8 @@ export class PaneCompositeBar extends Disposable {
 	private static readonly activityBarPinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	private static readonly extensionMarketplaceContextKey = 'shortestpath.extensionMarketplaceEnabled';
 	private static readonly extensionsViewContainerId = 'workbench.view.extensions';
+	private static readonly cphViewContainerId = 'workbench.view.extension.cph-judge-view-container';
+	private static readonly integratedLocalTestsContextKey = 'shortestpath.oj.integratedLocalTests';
 
 	private static readonly shortestPathDefaultActivityContainers = new Set([
 		'workbench.view.explorer',
@@ -187,7 +189,7 @@ export class PaneCompositeBar extends Disposable {
 
 		// Move View Container
 		const moveActions = [];
-		for (const location of [ViewContainerLocation.Sidebar, ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel]) {
+		for (const location of [ViewContainerLocation.Sidebar, ViewContainerLocation.Panel]) {
 			if (currentLocation !== location) {
 				moveActions.push(this.createMoveAction(viewContainer, location, defaultLocation));
 			}
@@ -241,6 +243,10 @@ export class PaneCompositeBar extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.contextKeyService.onDidChangeContext(event => {
+			if (event.affectsSome(new Set([PaneCompositeBar.integratedLocalTestsContextKey]))) {
+				const cph = this.viewDescriptorService.getViewContainerById(PaneCompositeBar.cphViewContainerId);
+				if (cph && this.viewDescriptorService.getViewContainerLocation(cph) === this.location) { this.showOrHideViewContainer(cph); }
+			}
 			if (!event.affectsSome(new Set([PaneCompositeBar.extensionMarketplaceContextKey]))) {
 				return;
 			}
@@ -497,6 +503,9 @@ export class PaneCompositeBar extends Disposable {
 	private shouldBeHidden(viewContainerOrId: string | ViewContainer, cachedViewContainer?: ICachedViewContainer): boolean {
 		const viewContainer = isString(viewContainerOrId) ? this.getViewContainer(viewContainerOrId) : viewContainerOrId;
 		const viewContainerId = isString(viewContainerOrId) ? viewContainerOrId : viewContainerOrId.id;
+		if (this.isShortestPathActivityBar && viewContainerId === PaneCompositeBar.cphViewContainerId && this.contextKeyService.getContextKeyValue(PaneCompositeBar.integratedLocalTestsContextKey) === true) {
+			return true;
+		}
 		// CPH is a core ShortestPath IDE entry point. Its webview provider is
 		// registered lazily, so the generic hide-if-empty rule would otherwise
 		// hide its activity-bar icon on a brand-new profile.

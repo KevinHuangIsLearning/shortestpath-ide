@@ -16,7 +16,8 @@
         "Other"
     ],
     "activationEvents": [
-        "*"
+        "*",
+        "onCommand:cph.integratedTests"
     ],
     "sponsor": {
         "url": "https://rb.gy/5iiorz"
@@ -37,6 +38,7 @@
                 {
                     "type": "webview",
                     "id": "cph.judgeView",
+                    "when": "!shortestpath.oj.integratedLocalTests",
                     "name": "%cph.judgeView.name%"
                 }
             ]
@@ -58,6 +60,11 @@
             }
         ],
         "menus": {
+            "commandPalette": [
+                { "command": "cph.runTestCases", "when": "!shortestpath.oj.integratedLocalTests" },
+                { "command": "cph.compileWithoutRunning", "when": "!shortestpath.oj.integratedLocalTests" },
+                { "command": "cph.submitToCodeForces", "when": "!shortestpath.oj.integratedLocalTests" }
+            ],
             "webview/context": [
                 {
                     "command": "cph.compileWithoutRunning",
@@ -76,7 +83,8 @@
             },
             {
                 "key": "ctrl+alt+d",
-                "command": "cph.judgeView.focus"
+                "command": "cph.judgeView.focus",
+                "when": "!shortestpath.oj.integratedLocalTests"
             }
         ],
         "configuration": {
@@ -138,7 +146,7 @@
                 "cph.language.cpp.Args": {
                     "title": "%cph.language.cpp.Args.title%",
                     "type": "string",
-                    "default": "",
+                    "default": "-std=c++20 -O2 -g -Wall -Wextra -DDEBUG",
                     "description": "%cph.language.cpp.Args.description%"
                 },
                 "cph.language.cpp.SubmissionCompiler": {
@@ -403,6 +411,10 @@
                     "type": "boolean",
                     "default": false,
                     "description": "%cph.general.retainWebviewContext.description%"
+                },
+                "cph.language.cpp.Template": {
+                    "type": "string",
+                    "description": "%cph.language.cpp.Template.description%"
                 },
                 "cph.general.defaultLanguageTemplateFileLocation": {
                     "type": "string",

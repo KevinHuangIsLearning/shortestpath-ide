@@ -268,7 +268,7 @@
         "c-cpp-compile-run.cpp-flags": {
           "type": "string",
           "description": "%shortestpath.018%",
-          "default": "-std=c++23 -O2 -g -Wall -Wextra -Wpedantic -Wconversion -fsanitize=address,undefined -D_GLIBCXX_DEBUG",
+          "default": "-std=c++20 -O2 -g -Wall -Wextra -DDEBUG",
           "scope": "resource"
         },
         "c-cpp-compile-run.cpp-linker-flags": {

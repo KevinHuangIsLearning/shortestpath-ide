@@ -15,6 +15,8 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from './webviewCommands.js';
+import { SideBySideEditor } from '../../../browser/parts/editor/sideBySideEditor.js';
+import { WebviewSourceEditorInput, WebviewSourceEditorInputSerializer } from './webviewSourceEditorInput.js';
 import { WebviewEditor } from './webviewEditor.js';
 import { WebviewInput } from './webviewEditorInput.js';
 import { WebviewEditorInputSerializer } from './webviewEditorInputSerializer.js';
@@ -26,6 +28,17 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 	WebviewEditor.ID,
 	localize('webview.editor.label', "webview editor")),
 	[new SyncDescriptor(WebviewInput)]);
+
+class WebviewSourceEditor extends SideBySideEditor {
+	static override readonly ID = 'workbench.editor.webviewSource';
+	override getId(): string { return WebviewSourceEditor.ID; }
+}
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(WebviewSourceEditor, WebviewSourceEditor.ID, localize('webview.source.label', "Problem Editor")),
+	[new SyncDescriptor(WebviewSourceEditorInput)]
+);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(WebviewSourceEditorInput.ID, WebviewSourceEditorInputSerializer);
 
 class WebviewPanelContribution extends Disposable implements IWorkbenchContribution {
 

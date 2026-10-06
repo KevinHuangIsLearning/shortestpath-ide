@@ -27,6 +27,19 @@
 		{ "id": "github", "label": { "en": "GitHub Release", "zh-CN": "GitHub Release" } },
 		{ "id": "ghfast", "label": { "en": "GH mirror (may be unstable)", "zh-CN": "GH 镜像（可能不稳定）" } }
 	],
+	"setupStages": [
+		{
+			"id": "toolchain",
+			"title": {
+				"en": "C++ compiler and clangd",
+				"zh-CN": "C++ 编译器与 clangd"
+			},
+			"text": {
+				"en": "Detect the system GCC and prepare clangd when needed.",
+				"zh-CN": "检测系统 GCC，缺少时安装 clangd。"
+			}
+		}
+	],
 	"portableToolchain": false,
 	"compilerCandidates": ["g++-16", "g++-15", "g++"],
 	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}/clangd/clangd_22.1.6/bin/clangd", "clangd"],

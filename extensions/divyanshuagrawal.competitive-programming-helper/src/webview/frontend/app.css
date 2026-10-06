@@ -1070,7 +1070,7 @@ body {
 }
 
 #app {
-    margin-bottom: 88px;
+    margin-bottom: 12px;
 }
 
 .judge-header {
@@ -1941,4 +1941,19 @@ body {
     .large-sample-output-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* Keep testcase actions directly after the cards in the document flow. */
+.actions.case-actions {
+    position: static;
+    width: 100%;
+    margin: 12px 0;
+    padding: 10px 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.case-actions .actions-main-row > .btn {
+    flex: 1;
 }

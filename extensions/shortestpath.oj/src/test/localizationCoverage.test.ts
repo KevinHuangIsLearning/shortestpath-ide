@@ -42,7 +42,11 @@ test('compiles the OJ bootstrap and translates control attributes without rewrit
 	const localization = fs.readFileSync(path.join(extensionRoot, 'src', 'localization.ts'), 'utf8');
 	const literal = localization.match(/const script = (`[\s\S]*?`);/)?.[1];
 	assert.ok(literal);
-	const script = new Function('nonce', 'strings', `return ${literal};`)('nonce', JSON.stringify({ '已有提交 ID': 'Existing submission ID' })) as string;
+	const compiled = fs.readFileSync(path.resolve(__dirname, '../localization.js'), 'utf8');
+	const englishStart = compiled.indexOf('const english = ');
+	const englishEnd = compiled.indexOf('function localizeFormat(', englishStart);
+	const strings = new Function(`${compiled.slice(englishStart, englishEnd)}; return english;`)();
+	const script = new Function('nonce', 'strings', `return ${literal};`)('nonce', JSON.stringify(strings)) as string;
 	const body = script.replace(/^<script[^>]*>|<\/script>$/g, '');
 	assert.doesNotThrow(() => new Function(body));
 	let attributeWrites = 0;
@@ -50,8 +54,8 @@ test('compiles the OJ bootstrap and translates control attributes without rewrit
 	class FakeText {
 		nodeType = 3;
 		parentElement: FakeElement;
-		private current = '解题报告尚未解锁，剩余 1 分钟';
-		constructor(parent: FakeElement) { this.parentElement = parent; }
+		private current: string;
+		constructor(parent: FakeElement, value = '解题报告尚未解锁，剩余 1 分钟') { this.parentElement = parent; this.current = value; }
 		get nodeValue(): string { return this.current; }
 		set nodeValue(value: string) { textWrites++; this.current = value; }
 	}
@@ -69,7 +73,13 @@ test('compiles the OJ bootstrap and translates control attributes without rewrit
 	}
 	const bodyElement = new FakeElement('BODY');
 	const input = new FakeElement('INPUT'); input.parentElement = bodyElement;
-	const text = new FakeText(bodyElement); bodyElement.childNodes = [input, text];
+	const text = new FakeText(bodyElement);
+	const lockReason = new FakeText(bodyElement, '解题报告尚未解锁，');
+	const waitReason = new FakeText(bodyElement, '查看提示后仍需等待，');
+	const defaultReason = new FakeText(bodyElement, '解题报告尚未解锁。');
+	const countdown = new FakeElement('SPAN'); countdown.parentElement = bodyElement;
+	const countdownText = new FakeText(countdown, '剩余 00:01:00'); countdown.childNodes = [countdownText];
+	bodyElement.childNodes = [input, text, lockReason, waitReason, defaultReason, countdown];
 	let observerCallback: ((records: Array<{ type: string; target: FakeElement | FakeText }>) => void) | undefined;
 	const document = { documentElement: { lang: '' }, body: bodyElement };
 	class FakeObserver { constructor(callback: typeof observerCallback) { observerCallback = callback; } observe(): void {} }
@@ -77,8 +87,16 @@ test('compiles the OJ bootstrap and translates control attributes without rewrit
 	assert.equal(input.getAttribute('placeholder'), 'Existing submission ID');
 	assert.equal(text.nodeValue, 'The editorial is locked. Remaining 1 分钟');
 	assert.equal(attributeWrites, 1);
-	assert.equal(textWrites, 1);
+	assert.equal(lockReason.nodeValue, 'The editorial is locked. ');
+	assert.equal(waitReason.nodeValue, 'You must still wait after viewing hints. ');
+	assert.equal(defaultReason.nodeValue, 'The editorial is still locked.');
+	assert.equal(countdownText.nodeValue, 'Remaining 00:01:00');
+	assert.equal(textWrites, 5);
 	observerCallback?.([{ type: 'attributes', target: input }, { type: 'characterData', target: text }]);
 	assert.equal(attributeWrites, 1);
-	assert.equal(textWrites, 1);
+	assert.equal(lockReason.nodeValue, 'The editorial is locked. ');
+	assert.equal(waitReason.nodeValue, 'You must still wait after viewing hints. ');
+	assert.equal(defaultReason.nodeValue, 'The editorial is still locked.');
+	assert.equal(countdownText.nodeValue, 'Remaining 00:01:00');
+	assert.equal(textWrites, 5);
 });
