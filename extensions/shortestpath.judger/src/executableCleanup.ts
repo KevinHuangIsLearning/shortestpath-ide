@@ -3,10 +3,28 @@
  *--------------------------------------------------------------------------------------------*/
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import * as vscode from 'vscode';
 
 type Lease = { users: number; timer?: NodeJS.Timeout };
 const leases = new Map<string, Lease>();
+
+/** Remove only empty directories in the generated bin/<source hash> layout. */
+function removeEmptyBinaryDirectories(binary: string, source: string): void {
+	const directory = path.dirname(binary);
+	const binDirectory = path.dirname(directory);
+	const sourceHash = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
+	if (path.basename(directory) !== sourceHash || path.basename(binDirectory) !== 'bin') { return; }
+	for (const target of [directory, binDirectory]) {
+		try { fs.rmdirSync(target); }
+		catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === 'ENOENT') { continue; }
+			if (!['ENOTEMPTY', 'EEXIST'].includes(code ?? '')) { globalThis.logger?.warn('Could not clean generated binary directory', error); }
+			return;
+		}
+	}
+}
 
 /** Hold generated artifacts throughout compilation and the entire run, including run-all. */
 export function retainExecutable(binary: string, source: string): { dispose(): void } {
@@ -46,6 +64,7 @@ export function retainExecutable(binary: string, source: string): { dispose(): v
 					if (code !== 'ENOENT') { globalThis.logger?.warn('Could not clean generated executable', error); }
 				}
 			}
+			removeEmptyBinaryDirectories(binary, source);
 			leases.delete(binary);
 		};
 		lease.timer = setTimeout(remove, delay);

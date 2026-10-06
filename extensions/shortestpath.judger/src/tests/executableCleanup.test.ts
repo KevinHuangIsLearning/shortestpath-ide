@@ -4,6 +4,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import crypto from 'crypto';
 const mockSettings: Record<string, unknown> = {};
 jest.mock('vscode', () => ({ workspace: { getConfiguration: () => ({ get: (key: string, fallback: unknown) => mockSettings[key] ?? fallback }) }, Uri: { file: (fsPath: string) => ({ fsPath }) } }), { virtual: true });
 import { retainExecutable } from '../executableCleanup';
@@ -34,4 +35,51 @@ test('zero cleans immediately after release and disabled cleanup keeps artifacts
 });
 test('disabling cleanup while a timer is pending preserves the binary', () => {
     retainExecutable(binary, '/solution.cpp').dispose(); mockSettings.executableCleanupEnabled = false; jest.advanceTimersByTime(2000); expect(fs.existsSync(binary)).toBe(true);
+});
+
+function createManagedBinary(source: string): string {
+	const directory = path.join(root, 'bin', crypto.createHash('sha256').update(source).digest('hex').slice(0, 16));
+	fs.mkdirSync(directory, { recursive: true });
+	const generated = path.join(directory, 'solution.bin');
+	fs.writeFileSync(generated, 'binary');
+	return generated;
+}
+
+test('removes the empty source directory and bin after cleaning executable and debug symbols', () => {
+	const generated = createManagedBinary('/solution.cpp');
+	fs.mkdirSync(`${generated}.dSYM`);
+	fs.writeFileSync(path.join(`${generated}.dSYM`, 'symbols'), 'debug');
+	retainExecutable(generated, '/solution.cpp').dispose();
+	jest.advanceTimersByTime(2000);
+	expect([fs.existsSync(path.join(root, 'bin')), fs.existsSync(root)]).toEqual([false, true]);
+});
+
+test('keeps bin while another source is running and removes it after the last cleanup', () => {
+	const first = createManagedBinary('/first.cpp');
+	const second = createManagedBinary('/second.cpp');
+	const held = retainExecutable(second, '/second.cpp');
+	retainExecutable(first, '/first.cpp').dispose();
+	jest.advanceTimersByTime(2000);
+	expect([fs.existsSync(path.dirname(first)), fs.existsSync(second)]).toEqual([false, true]);
+	held.dispose();
+	jest.advanceTimersByTime(2000);
+	expect(fs.existsSync(path.join(root, 'bin'))).toBe(false);
+});
+
+test('preserves nonempty source directories and custom output directories', () => {
+	const generated = createManagedBinary('/solution.cpp');
+	const extra = path.join(path.dirname(generated), 'keep.txt');
+	fs.writeFileSync(extra, 'keep');
+	retainExecutable(generated, '/solution.cpp').dispose();
+	retainExecutable(binary, '/custom.cpp').dispose();
+	jest.advanceTimersByTime(2000);
+	expect([fs.existsSync(generated), fs.existsSync(extra), fs.existsSync(root)]).toEqual([false, true, true]);
+});
+
+test('cleans empty managed directories when the binary has already been removed', () => {
+	const generated = createManagedBinary('/solution.cpp');
+	retainExecutable(generated, '/solution.cpp').dispose();
+	fs.unlinkSync(generated);
+	jest.advanceTimersByTime(2000);
+	expect(fs.existsSync(path.join(root, 'bin'))).toBe(false);
 });
