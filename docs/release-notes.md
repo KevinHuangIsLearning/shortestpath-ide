@@ -2,37 +2,13 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.4.0 更新 / What's New
+## v0.4.1 更新 / What's New
 
-- 内置浏览器新增网页右下角的「＋ 导入题目」悬浮按钮，使用 Competitive Companion 解析器导入题目或比赛题目；刷新、跳转后自动恢复按钮，导入期间防止重复点击，也可从命令面板发起导入。
-- Judger 新增本地「部分 AC」标记；AC 与部分 AC 均需二次确认，并停止计时。取消标记后从冻结的用时继续，不计入暂停期间；ShortestPath OJ 仍使用服务端状态。
-- 修复多根工作区中 `.shortestpath` 目录的归属问题，按源文件所在的工作区根目录保存，并兼容迁移旧目录中的题目数据。
-- 大样例拖入提示改为按题目保存关闭状态，切换题目后会再次显示；关闭当前题目的提示不会影响其他题目。
-- 大样例输出的文本预览缩减为前 5 行 diff，完整内容仍可通过文件查看。
-- 独立浏览器窗口恢复默认标题规则，显示网页标题和工作区信息。
-- 修复 macOS 应用在 Finder 中显示 VS Code 核心版本的问题，改为显示 ShortestPath IDE 的产品版本。
-- 新增 Linux x64 发布包，提供 `.tar.gz` 与 `.deb` 两种形态。构建于 Ubuntu 22.04，需要 glibc 2.35 及以上。安装包不含编译器，首次运行向导会调用发行版包管理器安装 g++ 并下载 clangd。
-- 简化设置新增「缩进」选项，可选择缩进宽度与缩进字符，并同步写入工作目录的 `.clang-format`，避免自动格式化把代码改成 2 空格缩进。
-- 简化设置新增 Error Lens 行内错误提示开关。
-- 开箱配置默认不再启用自动格式化；`.clang-format` 的写入改为只修改缩进相关选项，保留你自己添加的选项与注释，也不再向非 OI 工程写入。
-- 修复升级迁移标记只对第一个打开的工作目录生效的问题。
-- 修复「请我喝杯咖啡」入口的界面文案未跟随语言设置的问题，并让该卡片的两个按钮铺满整行。
-- Windows 标题栏左上角的侧边栏开关不再紧贴窗口边缘。
+- 修复 Judger 在 Windows 高 DPI 环境下整个面板字号偏大的问题：按钮、标题和样例统一跟随 IDE 界面字号，不再随编辑器字号一起放大。
 
-- Added a floating “+ Import problem” button in the bottom-right corner of integrated browser pages. It uses Competitive Companion parsers to import problems or contest problems, returns after reloads and navigation, and prevents duplicate imports while busy. Import is also available from the Command Palette.
-- Added a local Partial AC status in Judger. Both AC and Partial AC require a second click to confirm and freeze the timer. Cancelling either status resumes from the frozen duration, excluding time spent paused. ShortestPath OJ continues to use server-side status.
-- Fixed `.shortestpath` storage placement in multi-root workspaces. Problems are saved under the workspace containing their source file, with migration support for data in older locations.
-- The large-testcase drop hint now remembers dismissal per problem. Switching problems shows the hint again, and dismissing it for one problem does not affect others.
-- Limited the inline diff preview for large-testcase output to the first five lines. The full content remains available through the file.
-- Restored default window titles for detached browser windows, including the page title and workspace information.
-- Fixed the macOS app version shown in Finder to use the ShortestPath IDE product version instead of the VS Code core version.
-- Added Linux x64 release packages in two formats: `.tar.gz` and `.deb`. Built on Ubuntu 22.04, requiring glibc 2.35 or newer. No compiler is bundled — the first-run wizard installs g++ through your distribution's package manager and downloads clangd.
-- Added an Indentation option to Simplified Settings for indent width and indent character, written into the workspace `.clang-format` so formatted code no longer falls back to clang-format's default 2-space indentation.
-- Added an Error Lens toggle to Simplified Settings for inline diagnostics at the end of the offending line.
-- Auto formatting is no longer enabled by default in the first-run setup. `.clang-format` writes now change only the indentation options, preserving your own options and comments, and ShortestPath no longer writes a `.clang-format` into non-OI projects.
-- Fixed the upgrade migration flag only applying to the first workspace that was opened.
-- Fixed the "Buy Me a Coffee" entry not following the configured display language, and made its two buttons span the full row.
-- The sidebar toggle in the top-left corner of the Windows title bar no longer sits flush against the window edge; the web build is handled the same way.
+### English
+
+- Fixed oversized Judger panel text and controls on Windows high-DPI displays. Buttons, titles, and samples now follow the IDE UI font size instead of the editor font size.
 
 The English version follows the Chinese version.
 

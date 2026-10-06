@@ -1,6 +1,6 @@
 {
-	"version": "0.4.0",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.0",
+	"version": "0.4.1",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.1",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "每次更新都要绞尽脑汁写更新日志，直到看见国内某大厂软件的更新日志，我顿时茅塞顿开！\n- 解决了一些已知问题。\n\n- Fixed some known issues."
+	"releaseNote": "修复 Judger 在 Windows 高 DPI 环境下整个面板字号偏大的问题，面板现在跟随 IDE 界面字号，不再随编辑器字号一起放大。\n\nFixed oversized Judger panel text and controls on Windows high-DPI displays. The panel now follows the IDE UI font size instead of the editor font size."
 }
