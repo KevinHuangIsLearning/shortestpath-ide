@@ -11,7 +11,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { process } from '../../../base/parts/sandbox/electron-browser/globals.js';
 
 function formatCopilotVersion(version: string | undefined): string {
-	return version?.replace('-canary', '').replace(/\.unsigned$/, '') || 'Unknown';
+	return version?.replace(/-(?:canary|unstable)(?=\.|$)/, '').replace(/\.unsigned$/, '') || 'Unknown';
 }
 
 export function createNativeAboutDialogDetails(productService: IProductService, osProps: IOSProperties): { title: string; details: string; detailsToCopy: string } {
@@ -26,7 +26,7 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 	const copilotSdkVersion = formatCopilotVersion(productService.copilotVersions?.sdk);
 
 	const getDetails = (useAgo: boolean): string => {
-		return localize({ key: 'aboutDetail', comment: ['Electron, Chromium, Node.js, V8 and Copilot are product names that need no translation'] },
+		return localize({ key: 'shortestPathAboutDetail', comment: ['ShortestPath IDE, VS Code, Electron, Chromium, Node.js, V8 and Copilot are product names that need no translation'] },
 			"ShortestPath IDE Version: {0}\nVS Code Version: {1}\nCommit: {2}\nDate: {3}\nElectron: {4}\nElectronBuildId: {5}\nChromium: {6}\nNode.js: {7}\nV8: {8}\n@github/copilot: {9}\n@github/copilot-sdk: {10}\nOS: {11}",
 			productService.shortestPathVersion || 'Unknown',
 			version,

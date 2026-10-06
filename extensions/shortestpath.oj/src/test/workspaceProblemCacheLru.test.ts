@@ -12,6 +12,7 @@ import vm from 'node:vm';
 import { createHash } from 'node:crypto';
 import * as protocol from '../shortestpathOjProtocol';
 import * as recency from '../workspaceProblemCache';
+import * as recordStorage from '../workspaceProblemRecordStorage';
 import * as migration from '../workspaceProblemCacheMigration';
 import * as versions from '../problemStatementVersion';
 import * as history from '../submissionHistory';
@@ -49,7 +50,8 @@ async function fixture() {
 	let failedWrite: string | undefined;
 	let delayedWrite: { name: string; started: () => void; ready: Promise<void> } | undefined;
 	let corruptedWrite: string | undefined;
-	const uri = (value: string) => ({ path: value, toString: () => value });
+	type TestUri = { scheme: string; fsPath: string; path: string; toString(): string; with(change: { path: string }): TestUri };
+	const uri = (value: string): TestUri => ({ scheme: 'file', fsPath: value, path: value, toString: () => value, with: change => uri(change.path) });
 	class FileSystemError extends Error {
 		constructor(readonly code: string) { super(code); }
 	}
@@ -76,16 +78,16 @@ async function fixture() {
 			workspaceCacheDirectoryName: '.shortestpath', legacyWorkspaceCacheFileName: 'oj-problems.json', workspaceProblemRecordVersion: 2,
 			workspaceCacheMutationTail: Promise.resolve(), workspaceCacheMigration: undefined,
 			workspaceCacheStorageRoot: uri(storageRoot), workspaceCacheLocationsMigrated: new Set(), workspaceCacheLegacyContents: new WeakMap(),
-			workspaceCachesNeedingRewrite: new WeakSet(), workspaceCacheRecordContents: new WeakMap(), workspaceCacheSourceContents: new WeakMap(),
+			workspaceCachesNeedingRewrite: new WeakSet(), workspaceCacheRecordContents: new WeakMap(), workspaceCacheRecordLocations: new WeakMap(), workspaceCacheSourceContents: new WeakMap(),
 			hintAnswerCache: new Map(),
-			workspaceProblemCache_1: recency, workspaceProblemCacheMigration_1: migration,
+			path: path, path_1: { default: path }, workspaceProblemRecordStorage_1: recordStorage, workspaceProblemCache_1: recency, workspaceProblemCacheMigration_1: migration,
 			crypto_1: { createHash },
 			shortestpathOjProtocol_1: protocol, problemStatementVersion_1: versions, submissionHistory_1: history, sourcePath_1: sourcePath,
 			localization_1: { localizeFormat: (text: string) => text },
 			vscode: {
 				commands: { registerCommand: (_name: string, handler: (url: string) => Promise<void>) => { showForCph = handler; return {}; } },
 				FileSystemError, FileType: { File: 1, Directory: 2, SymbolicLink: 64 },
-				Uri: { joinPath: (parent: { path: string }, ...segments: string[]) => uri(path.join(parent.path, ...segments)) },
+				Uri: { file: uri, joinPath: (parent: { path: string }, ...segments: string[]) => uri(path.join(parent.path, ...segments)) },
 				workspace: { workspaceFolders: [{ uri: uri(workspaceRoot) }], fs: {
 					readDirectory: (uri: { path: string }) => io(async () => (await fs.readdir(uri.path, { withFileTypes: true })).map(entry => [entry.name, entry.isFile() ? 1 : 2])),
 					readFile: (uri: { path: string }) => io(() => fs.readFile(uri.path)),
@@ -358,4 +360,24 @@ test('project-level legacy aggregates relocate without losing cached editorials 
 		assert.deepEqual(structuredClone(restored.editorials?.[ref]), editorial);
 		assert.equal(await fs.stat(f.projectDirectory).then(() => true, () => false), false);
 	} finally { await f.cleanup(); }
+});
+
+
+test('indexed project records relocate to private snapshots while preserving Judger cases and custom source files', async () => {
+    const f = await fixture();
+    try {
+        const value = problem(1), source = path.join(f.root, 'custom.cpp');
+        const owned = path.join(f.root, 'custom.prob.judger');
+        const record = path.join(owned, `oj-${f.fileName(1)}`);
+        await fs.mkdir(owned, { recursive: true }); await fs.mkdir(f.projectDirectory, { recursive: true });
+        await fs.writeFile(source, 'user source');
+        await fs.writeFile(path.join(owned, 'problem.json'), 'user cases');
+        await fs.writeFile(record, JSON.stringify({ version: 2, problem: value, sourcePath: source, submissions: [], previousStatements: [], lastUsedAt: 42 }));
+        await fs.writeFile(path.join(f.projectDirectory, 'oj-index.json'), JSON.stringify([{ problemRef: value.ref, path: path.relative(f.projectDirectory, record) }]));
+        const restored = await f.load().read(value.ref);
+        assert.equal(restored.problems[value.ref].ref, value.ref); assert.equal(restored.sourcePaths[value.ref], source);
+        assert.deepEqual([await fs.readFile(source, 'utf8'), await fs.readFile(path.join(owned, 'problem.json'), 'utf8')], ['user source', 'user cases']);
+        await assert.rejects(fs.stat(record), { code: 'ENOENT' });
+        assert.deepEqual(await f.files(), [f.fileName(1)]);
+    } finally { await f.cleanup(); }
 });

@@ -11,7 +11,7 @@ type Mapping = Record<string, Record<string, string>>;
 const ojFields: Field[] = [
 	{ key: 'host', label: localize('域名（键）') }, { key: 'oj', label: localize('OJ 代号') }, { key: 'ojName', label: localize('OJ 名称') },
 	{ key: 'contestIdRegex', label: localize('比赛 ID 正则') }, { key: 'problemIdRegex', label: localize('题目 ID 正则') },
-	{ key: 'problemSource', label: localize('题面来源'), hint: localize('留空时使用 CPH 设置中的默认题面来源。'), options: [{ value: '', label: localize('使用默认值') }, { value: 'vjudge', label: 'VJudge' }, { value: 'original', label: localize('原 OJ') }, { value: 'none', label: localize('不显示') }] }
+	{ key: 'problemSource', label: localize('题面来源'), hint: localize('留空时使用 Judger 设置中的默认题面来源。'), options: [{ value: '', label: localize('使用默认值') }, { value: 'vjudge', label: 'VJudge' }, { value: 'original', label: localize('原 OJ') }, { value: 'none', label: localize('不显示') }] }
 ];
 const vjudgeFields: Field[] = [
 	{ key: 'name', label: localize('VJudge OJ 名称（键）') }, { key: 'urlTemplate', label: localize('原题 URL 模板'), hint: localize('可用 {contestId}、{problemId}') },
@@ -22,7 +22,7 @@ export function openOjMappings(): void { open(localize('在线评测映射'), 'o
 export function openVjudgeMappings(): void { open(localize('VJudge 映射'), 'vjudgeOjNames', vjudgeFields); }
 
 function open(title: string, setting: 'ojMapping' | 'vjudgeOjNames', fields: readonly Field[]): void {
-	const current = vscode.workspace.getConfiguration('cph.general').get<Record<string, unknown>>(setting) ?? {};
+	const current = vscode.workspace.getConfiguration('judger.general').get<Record<string, unknown>>(setting) ?? {};
 	const entries = Object.entries(current).map(([name, value]) => {
 		const entry = { [fields[0].key]: name, ...(objectStrings(value)) };
 		return setting === 'ojMapping' && entry.oj === 'ShortestPath' ? { ...entry, problemSource: 'none' } : entry;
@@ -41,7 +41,7 @@ function open(title: string, setting: 'ojMapping' | 'vjudgeOjNames', fields: rea
 				for (const field of fields.slice(1)) { const value = string(input[field.key]); if (value) { item[field.key] = value; } }
 				result[name] = item;
 			}
-			await vscode.workspace.getConfiguration('cph.general').update(setting, result, vscode.ConfigurationTarget.Global);
+			await vscode.workspace.getConfiguration('judger.general').update(setting, result, vscode.ConfigurationTarget.Global);
 			await panel.webview.postMessage({ type: 'saved' });
 		} catch (error) { await panel.webview.postMessage({ type: 'error', message: error instanceof Error ? error.message : String(error) }); }
 	});

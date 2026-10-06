@@ -141,7 +141,7 @@ test('manual environment checks preserve preferences and the selected C++ versio
 	host.settings.set('shortestpath.setup.completed', true);
 	const preferences = {
 		'editor.fontSize': 22, 'workbench.colorTheme': 'Custom Theme',
-		'cph.language.cpp.Template': 'int main() { return 7; }', 'cph.language.cpp.Args': '-std=c++23 -O3'
+		'judger.language.cpp.Template': 'int main() { return 7; }', 'judger.language.cpp.Args': '-std=c++23 -O3'
 	};
 	for (const [key, value] of Object.entries(preferences)) { host.settings.set(key, value); }
 	host.open();
@@ -250,7 +250,7 @@ test('immediate completion waits for template formatting and persists the format
 	assert.notEqual(host.settings.get('shortestpath.setup.completed'), true);
 	resolve('int main() {\n        return 3;\n}\n');
 	await completing;
-	assert.equal(host.settings.get('cph.language.cpp.Template'), 'int main() {\n        return 3;\n}\n');
+	assert.equal(host.settings.get('judger.language.cpp.Template'), 'int main() {\n        return 3;\n}\n');
 	assert.equal(host.settings.get('shortestpath.setup.completed'), true);
 });
 

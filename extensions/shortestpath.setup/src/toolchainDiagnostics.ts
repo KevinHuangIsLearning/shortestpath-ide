@@ -38,7 +38,7 @@ async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promi
 		}
 	}, undefined, context.subscriptions);
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
-		if (panel.visible && (event.affectsConfiguration('clangd.arguments') || event.affectsConfiguration('clangd.path') || event.affectsConfiguration('cph.language.cpp.Command') || event.affectsConfiguration('c-cpp-compile-run.cpp-compiler'))) {
+		if (panel.visible && (event.affectsConfiguration('clangd.arguments') || event.affectsConfiguration('clangd.path') || event.affectsConfiguration('judger.language.cpp.Command') || event.affectsConfiguration('c-cpp-compile-run.cpp-compiler'))) {
 			void refresh();
 		}
 	});
@@ -54,25 +54,25 @@ async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promi
 
 async function collectDiagnostics(sourcePath: string | undefined): Promise<DiagnosticItem[]> {
 	const configuration = vscode.workspace.getConfiguration(undefined, null);
-	const compiler = configuration.get<string>('cph.language.cpp.Command') ?? '';
+	const compiler = configuration.get<string>('judger.language.cpp.Command') ?? '';
 	const compileRunCompiler = configuration.get<string>('c-cpp-compile-run.cpp-compiler') ?? '';
 	const clangd = configuration.get<string>('clangd.path') ?? '';
 	const clangdArguments = configuration.get<unknown>('clangd.arguments');
-	const cphFlags = configuration.get<string>('cph.language.cpp.Args') ?? '';
+	const cphFlags = configuration.get<string>('judger.language.cpp.Args') ?? '';
 	const compileRunFlags = configuration.get<string>('c-cpp-compile-run.cpp-flags') ?? '';
 	const items: DiagnosticItem[] = [];
-	items.push(await executableDiagnostic(localize('C++ 编译器（CPH）'), compiler, ['--version']));
+	items.push(await executableDiagnostic(localize('C++ 编译器（Judger）'), compiler, ['--version']));
 	items.push(await executableDiagnostic('clangd', clangd, ['--version']));
 	items.push({
 		label: localize('C/C++ Compile Run 编译器'),
 		status: compileRunCompiler === compiler && !!compiler ? 'ok' : 'warning',
-		detail: compileRunCompiler === compiler && !!compiler ? localize('与 CPH 使用相同编译器。') : localizeFormat('当前：{0}{1}', compileRunCompiler || localize('未配置'), compiler ? localizeFormat('；CPH：{0}', compiler) : ''),
+		detail: compileRunCompiler === compiler && !!compiler ? localize('与 Judger 使用相同编译器。') : localizeFormat('当前：{0}{1}', compileRunCompiler || localize('未配置'), compiler ? localizeFormat('；Judger：{0}', compiler) : ''),
 		path: compileRunCompiler || undefined
 	});
 	items.push({
 		label: localize('编译选项'),
 		status: cphFlags === compileRunFlags && !!cphFlags ? 'ok' : 'warning',
-		detail: cphFlags === compileRunFlags && !!cphFlags ? localizeFormat('CPH 与 Compile Run 一致：{0}', cphFlags) : localizeFormat('CPH：{0}；Compile Run：{1}', cphFlags || localize('未配置'), compileRunFlags || localize('未配置'))
+		detail: cphFlags === compileRunFlags && !!cphFlags ? localizeFormat('Judger 与 Compile Run 一致：{0}', cphFlags) : localizeFormat('Judger：{0}；Compile Run：{1}', cphFlags || localize('未配置'), compileRunFlags || localize('未配置'))
 	});
 	const queryDriver = Array.isArray(clangdArguments) && clangdArguments.some(argument =>
 		typeof argument === 'string' && (
@@ -87,7 +87,7 @@ async function collectDiagnostics(sourcePath: string | undefined): Promise<Diagn
 	});
 	items.push(await clangdSystemHeadersDiagnostic(clangd, Array.isArray(clangdArguments) ? clangdArguments.filter((argument): argument is string => typeof argument === 'string') : [], sourcePath));
 	for (const extension of [
-		{ id: 'divyanshuagrawal.competitive-programming-helper', label: 'Competitive Programming Helper（CPH）' },
+		{ id: 'shortestpath.judger', label: 'ShortestPath Judger' },
 		{ id: 'danielpinto8zz6.c-cpp-compile-run', label: 'C/C++ Compile Run' },
 		{ id: 'llvm-vs-code-extensions.vscode-clangd', label: 'clangd 扩展' }
 	]) {
@@ -156,5 +156,5 @@ function runAllowFailure(executable: string, args: string[]): Promise<{ output: 
 }
 
 function getHtml(): string {
-	return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"><style>body{margin:0;background:var(--vscode-editor-background);color:var(--vscode-foreground);font-family:var(--vscode-font-family)}main{max-width:900px;margin:auto;padding:40px 28px}h1{margin:0 0 8px;font-size:28px}p{color:var(--vscode-descriptionForeground);line-height:1.55}.toolbar{display:flex;gap:10px;margin:24px 0}button{border:0;border-radius:3px;padding:8px 14px;color:var(--vscode-button-foreground);background:var(--vscode-button-background);font:inherit;cursor:pointer}.repair{background:var(--vscode-inputValidation-warningBackground);color:var(--vscode-inputValidation-warningForeground)}.list{border:1px solid var(--vscode-editorWidget-border);border-radius:8px;overflow:hidden}.item{display:grid;grid-template-columns:12px 210px 1fr auto;gap:14px;align-items:start;padding:16px;border-bottom:1px solid var(--vscode-editorWidget-border)}.item:last-child{border:0}.dot{width:10px;height:10px;border-radius:50%;margin-top:5px}.ok{background:var(--vscode-testing-iconPassed)}.warning{background:var(--vscode-testing-iconQueued)}.error{background:var(--vscode-testing-iconFailed)}.label{font-weight:600}.detail{color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family);font-size:12px;overflow-wrap:anywhere}.open{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);padding:5px 9px;font-size:12px}</style></head><body><main><h1>工具链诊断</h1><p>检查 CPH、Compile Run 与 clangd 的实际可执行文件、版本及配置是否一致。黄色表示可继续使用但建议修复，红色表示当前环境无法正常工作。</p><div class="toolbar"><button id="refresh">重新检测</button><button id="redetect">重新探测编译器</button><button id="repair" class="repair" hidden>修复工具链</button></div><div id="list" class="list"></div></main><script>const vscode=acquireVsCodeApi();const list=document.getElementById('list'),repair=document.getElementById('repair');document.getElementById('refresh').onclick=()=>vscode.postMessage({type:'refresh'});document.getElementById('redetect').onclick=()=>vscode.postMessage({type:'redetect'});repair.onclick=()=>vscode.postMessage({type:'repair'});window.addEventListener('message',event=>{if(event.data?.type!=='state')return;repair.hidden=!event.data.value.needsRepair;list.replaceChildren(...event.data.value.items.map(item=>{const row=document.createElement('div');row.className='item';row.innerHTML='<span class="dot '+item.status+'"></span><span class="label"></span><span class="detail"></span>';row.querySelector('.label').textContent=item.label;row.querySelector('.detail').textContent=item.detail;if(item.path){const button=document.createElement('button');button.className='open';button.textContent='打开目录';button.onclick=()=>vscode.postMessage({type:'openPath',path:item.path});row.append(button);}return row;}));});</script></body></html>`;
+	return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"><style>body{margin:0;background:var(--vscode-editor-background);color:var(--vscode-foreground);font-family:var(--vscode-font-family)}main{max-width:900px;margin:auto;padding:40px 28px}h1{margin:0 0 8px;font-size:28px}p{color:var(--vscode-descriptionForeground);line-height:1.55}.toolbar{display:flex;gap:10px;margin:24px 0}button{border:0;border-radius:3px;padding:8px 14px;color:var(--vscode-button-foreground);background:var(--vscode-button-background);font:inherit;cursor:pointer}.repair{background:var(--vscode-inputValidation-warningBackground);color:var(--vscode-inputValidation-warningForeground)}.list{border:1px solid var(--vscode-editorWidget-border);border-radius:8px;overflow:hidden}.item{display:grid;grid-template-columns:12px 210px 1fr auto;gap:14px;align-items:start;padding:16px;border-bottom:1px solid var(--vscode-editorWidget-border)}.item:last-child{border:0}.dot{width:10px;height:10px;border-radius:50%;margin-top:5px}.ok{background:var(--vscode-testing-iconPassed)}.warning{background:var(--vscode-testing-iconQueued)}.error{background:var(--vscode-testing-iconFailed)}.label{font-weight:600}.detail{color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family);font-size:12px;overflow-wrap:anywhere}.open{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);padding:5px 9px;font-size:12px}</style></head><body><main><h1>工具链诊断</h1><p>检查 Judger、Compile Run 与 clangd 的实际可执行文件、版本及配置是否一致。黄色表示可继续使用但建议修复，红色表示当前环境无法正常工作。</p><div class="toolbar"><button id="refresh">重新检测</button><button id="redetect">重新探测编译器</button><button id="repair" class="repair" hidden>修复工具链</button></div><div id="list" class="list"></div></main><script>const vscode=acquireVsCodeApi();const list=document.getElementById('list'),repair=document.getElementById('repair');document.getElementById('refresh').onclick=()=>vscode.postMessage({type:'refresh'});document.getElementById('redetect').onclick=()=>vscode.postMessage({type:'redetect'});repair.onclick=()=>vscode.postMessage({type:'repair'});window.addEventListener('message',event=>{if(event.data?.type!=='state')return;repair.hidden=!event.data.value.needsRepair;list.replaceChildren(...event.data.value.items.map(item=>{const row=document.createElement('div');row.className='item';row.innerHTML='<span class="dot '+item.status+'"></span><span class="label"></span><span class="detail"></span>';row.querySelector('.label').textContent=item.label;row.querySelector('.detail').textContent=item.detail;if(item.path){const button=document.createElement('button');button.className='open';button.textContent='打开目录';button.onclick=()=>vscode.postMessage({type:'openPath',path:item.path});row.append(button);}return row;}));});</script></body></html>`;
 }

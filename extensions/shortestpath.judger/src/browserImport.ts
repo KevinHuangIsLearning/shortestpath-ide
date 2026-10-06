@@ -1,0 +1,90 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import * as vscode from 'vscode';
+import fs from 'fs';
+import path from 'path';
+import { validateCompanionProblem } from './companionProtocol';
+import localize from './i18n';
+import { Problem } from './types';
+import { registerBrowserImportButtons } from './browserImportButton';
+
+type CDPResult = {
+	targetInfos?: { targetId: string; type: string }[];
+	sessionId?: string;
+	frameTree?: { frame: { id: string } };
+	executionContextId?: number;
+	result?: { value?: unknown };
+	exceptionDetails?: { text?: string; exception?: { description?: string } };
+};
+type CDPMessage = { id?: number; sessionId?: string; result?: CDPResult; error?: { message: string } };
+
+/** Parse the current document in a separate JS world, and always detach on completion or failure. */
+export async function parseBrowserProblems(tab: vscode.BrowserTab, expression: string): Promise<Problem[]> {
+	const session = await tab.startCDPSession();
+	let nextId = 0;
+	let closed = false;
+	const pending = new Map<number, (error: Error) => void>();
+	const closedListener = session.onDidClose(() => {
+		closed = true;
+		for (const reject of [...pending.values()]) { reject(new Error(localize('judger.browserImport.closed', 'The browser was closed.'))); }
+	});
+	const send = (method: string, params: object = {}, sessionId?: string): Promise<CDPResult> => new Promise((resolve, reject) => {
+		if (closed) { reject(new Error(localize('judger.browserImport.closed', 'The browser was closed.'))); return; }
+		const id = ++nextId;
+		const finish = (error?: Error, result: CDPResult = {}) => {
+			clearTimeout(timer); listener.dispose(); pending.delete(id);
+			if (error) { reject(error); } else { resolve(result); }
+		};
+		const listener = session.onDidReceiveMessage(raw => {
+			const message = raw as CDPMessage;
+			if (message.id !== id || message.sessionId !== sessionId) { return; }
+			const exception = message.result?.exceptionDetails;
+			finish(message.error || exception ? new Error(message.error?.message || exception?.exception?.description || exception?.text) : undefined, message.result);
+		});
+		const timer = setTimeout(() => finish(new Error(localize('judger.browserImport.timeout', 'Problem parsing timed out.'))), method === 'Runtime.evaluate' ? 120000 : 30000);
+		pending.set(id, error => finish(error));
+		void Promise.resolve(session.sendMessage({ id, method, params, ...(sessionId ? { sessionId } : {}) })).catch(error => finish(error instanceof Error ? error : new Error(String(error))));
+	});
+	try {
+		const targets = await send('Target.getTargets');
+		const target = targets.targetInfos?.find(info => info.type === 'page');
+		if (!target) { throw new Error(localize('judger.browserImport.noPage', 'No browser page was found.')); }
+		const attached = await send('Target.attachToTarget', { targetId: target.targetId, flatten: true });
+		const sid = attached.sessionId;
+		if (!sid) { throw new Error(localize('judger.browserImport.noPage', 'No browser page was found.')); }
+		const frames = await send('Page.getFrameTree', {}, sid);
+		if (!frames.frameTree) { throw new Error(localize('judger.browserImport.noPage', 'No browser page was found.')); }
+		const world = await send('Page.createIsolatedWorld', { frameId: frames.frameTree.frame.id, worldName: 'shortestpath-companion' }, sid);
+		if (world.executionContextId === undefined) { throw new Error(localize('judger.browserImport.noPage', 'No browser page was found.')); }
+		const parsed = await send('Runtime.evaluate', { expression, contextId: world.executionContextId, awaitPromise: true, returnByValue: true }, sid);
+		if (!Array.isArray(parsed.result?.value) || parsed.result.value.length === 0) {
+			throw new Error(localize('judger.browserImport.empty', 'Competitive Companion did not return any problems.'));
+		}
+		return parsed.result.value.map(validateCompanionProblem);
+	} finally {
+		closedListener.dispose();
+		await session.close();
+	}
+}
+
+export function registerBrowserImport(context: vscode.ExtensionContext, importProblem: (problem: Problem) => Promise<{ created: boolean }>): void {
+	const running = new Set<string>();
+	context.subscriptions.push(vscode.commands.registerCommand('judger.importBrowserProblem', async (tabId?: string) => {
+		const tab = tabId ? vscode.window.browserTabs?.find(candidate => candidate.id === tabId) : vscode.window.activeBrowserTab;
+		if (!tab) { vscode.window.showInformationMessage(localize('judger.browserImport.open', 'Open a problem in the integrated browser first.')); return; }
+		if (!vscode.workspace.workspaceFolders?.length) { vscode.window.showInformationMessage(localize('judger.companion.openFolder', 'Please open a folder first.')); return; }
+		if (running.has(tab.id)) { return; }
+		running.add(tab.id);
+		try {
+			await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: localize('judger.browserImport.progress', 'Importing with Competitive Companion…') }, async () => {
+				const expression = await fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.bundle.txt'), 'utf8');
+				const problems = await parseBrowserProblems(tab, expression);
+				for (const problem of problems) { if (!(await importProblem(problem)).created) { break; } }
+			});
+		} catch (error) { vscode.window.showErrorMessage(localize('judger.browserImport.error', 'Could not import this page: {0}', String(error))); }
+		finally { running.delete(tab.id); }
+	}));
+	registerBrowserImportButtons(context);
+}

@@ -1,6 +1,12 @@
 name: Release ShortestPath IDE
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing Release-v* or Beta-v* tag to rebuild'
+        required: true
+        type: string
   push:
     tags:
       - 'Release-v*'
@@ -9,8 +15,26 @@ on:
 permissions:
   contents: write
 
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+
 jobs:
+  validate-release:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate tag name
+        run: |
+          case "$RELEASE_TAG" in
+            Release-v?*|Beta-v?*) ;;
+            *) echo 'Expected a Release-v* or Beta-v* tag.' >&2; exit 1 ;;
+          esac
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+
   build-windows:
+    needs: validate-release
     name: Build Windows x64
     runs-on: windows-latest
     timeout-minutes: 90
@@ -23,19 +47,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           lfs: true
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
       - name: Verify ShortestPath release version
-        if: startsWith(github.ref_name, 'Release-v')
+        if: startsWith(env.RELEASE_TAG, 'Release-v')
         shell: bash
         run: |
-          expected_version="${GITHUB_REF_NAME#Release-v}"
+          expected_version="${RELEASE_TAG#Release-v}"
           declared_version="$(node -p "require('./product.json').shortestPathVersion")"
           if [[ "$declared_version" != "$expected_version" ]]; then
-            echo "product.json shortestPathVersion ($declared_version) must match $GITHUB_REF_NAME" >&2
+            echo "product.json shortestPathVersion ($declared_version) must match $RELEASE_TAG" >&2
             exit 1
           fi
       - name: Locate Visual Studio C++ toolchain
@@ -85,9 +110,27 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $url = 'https://github.com/redpanda-cpp/mingw-lite/releases/download/15.2.0-r8/mingw64-ucrt-15.2.0-r8.tar.zst'
           $destination = 'resources\oi-defaults\toolchains\mingw64-ucrt-15.2.0-r8.tar.zst'
+          New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
           curl.exe -fL --retry 3 --connect-timeout 30 $url --output $destination
+          if ($LASTEXITCODE -ne 0) {
+            throw "MinGW Lite download failed with exit code $LASTEXITCODE."
+          }
           if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 20MB) {
             throw "The bundled MinGW Lite archive was not downloaded correctly."
+          }
+      - name: Add bundled clangd
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/clangd/clangd/releases/download/22.1.6/clangd-windows-22.1.6.zip'
+          $destination = 'resources\oi-defaults\toolchains\clangd-windows-22.1.6.zip'
+          New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+          curl.exe -fL --retry 3 --connect-timeout 30 $url --output $destination
+          if ($LASTEXITCODE -ne 0) {
+            throw "clangd download failed with exit code $LASTEXITCODE."
+          }
+          if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -lt 20MB) {
+            throw "The bundled clangd archive was not downloaded correctly."
           }
       - name: Build Windows package
         shell: pwsh
@@ -129,7 +172,7 @@ jobs:
             -PackagePath $destination `
             -RequirePortableData
           $requiredExtensionEntries = @(
-            'resources\app\extensions\divyanshuagrawal.competitive-programming-helper\dist\extension.js',
+            'resources\app\extensions\shortestpath.judger\dist\extension.js',
             'resources\app\extensions\usernamehw.errorlens\dist\extension.js',
             'resources\app\extensions\shortestpath.setup\out\extension.js',
             'resources\app\extensions\shortestpath.oj\out\extension.js',
@@ -175,6 +218,7 @@ jobs:
           if-no-files-found: error
 
   build-macos:
+    needs: validate-release
     name: Build macOS ARM64
     runs-on: macos-14
     timeout-minutes: 90
@@ -187,6 +231,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           lfs: true
       - uses: actions/setup-node@v7
         with:
@@ -213,7 +258,7 @@ jobs:
         run: |
           app="../VSCode-darwin-arm64/ShortestPath IDE.app"
           for entry in \
-            "divyanshuagrawal.competitive-programming-helper/dist/extension.js" \
+            "shortestpath.judger/dist/extension.js" \
             "usernamehw.errorlens/dist/extension.js" \
             "shortestpath.setup/out/extension.js" \
             "shortestpath.oj/out/extension.js" \
@@ -237,13 +282,120 @@ jobs:
           path: artifacts/ShortestPath-IDE-macos-arm64.zip
           if-no-files-found: error
 
+  build-linux:
+    needs: validate-release
+    name: Build Linux x64
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      # Electron 43 headers combine deprecated and visibility attributes that GCC rejects.
+      CC: clang-15
+      CXX: clang++-15
+      VSCODE_ARCH: x64
+      npm_config_arch: x64
+      npm_config_foreground_scripts: "true"
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          lfs: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-15 pkg-config libkrb5-dev libxkbfile-dev
+          "$CC" --version
+          "$CXX" --version
+      - name: Install dependencies
+        run: |
+          npmrc=$(cat .npmrc)
+          trap 'printf "%s" "$npmrc" > .npmrc' EXIT
+          sed -i '/^build_from_source=/d' .npmrc
+          npm ci
+          printf "%s" "$npmrc" > .npmrc
+          trap - EXIT
+          # Dropping `build_from_source` also turns off node-pty's source build: its
+          # install script keeps the prebuilds it ships for every platform unless that
+          # flag is set. Nothing in build/.moduleignore removes them, so the packaged
+          # tree would carry win32/darwin/arm64 `*.node` files, and
+          # `vscode-linux-x64-prepare-deb` feeds every unpacked `*.node` to
+          # dpkg-shlibdeps, which cannot resolve the aarch64 libraries of
+          # prebuilds/linux-arm64/pty.node against the amd64 sysroot. Rebuilding from
+          # source deletes the prebuilds directory and produces
+          # node-pty/build/Release/pty.node, which is what .moduleignore and the
+          # reference dependency list expect.
+          npm rebuild node-pty @vscode/policy-watcher @vscode/spdlog @vscode/sqlite3 native-keymap --build-from-source --foreground-scripts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Build bundled OI extensions
+        run: npm run compile-oi-extensions
+      - name: Build Linux package
+        run: npm run gulp vscode-linux-x64-min
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Archive Linux application
+        run: |
+          app="../VSCode-linux-x64"
+          test -f "$app/shortestpath" || {
+            echo "Packaged executable was not found: $app/shortestpath" >&2
+            exit 1
+          }
+          for entry in \
+            "shortestpath.judger/dist/extension.js" \
+            "usernamehw.errorlens/dist/extension.js" \
+            "shortestpath.setup/out/extension.js" \
+            "shortestpath.oj/out/extension.js" \
+            "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
+            "llvm-vs-code-extensions.vscode-clangd/out/bundle.js"; do
+            test -f "$app/resources/app/extensions/$entry" || {
+              echo "Required extension entry file was not packaged: $entry" >&2
+              exit 1
+            }
+          done
+          mkdir -p artifacts
+          tar -czf artifacts/ShortestPath-IDE-linux-x64.tar.gz \
+            -C .. --transform 's,^VSCode-linux-x64,ShortestPath-IDE-linux-x64,' VSCode-linux-x64
+      - name: Install Debian packaging tools
+        run: sudo apt-get update && sudo apt-get install -y fakeroot
+      - name: Build Linux deb package
+        run: |
+          npm run gulp -- vscode-linux-x64-prepare-deb
+          npm run gulp -- vscode-linux-x64-build-deb
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Stage Linux deb package
+        run: |
+          set -e
+          deb=$(ls .build/linux/deb/amd64/deb/*.deb)
+          version=$(dpkg-deb -f "$deb" Version)
+          expected=$(node -p "require('./product.json').shortestPathVersion")
+          case "$version" in
+            "$expected"-*) ;;
+            *) echo "Unexpected deb version $version (expected $expected-*)." >&2; exit 1 ;;
+          esac
+          cp "$deb" artifacts/ShortestPath-IDE-linux-x64.deb
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-x64
+          path: |
+            artifacts/ShortestPath-IDE-linux-x64.tar.gz
+            artifacts/ShortestPath-IDE-linux-x64.deb
+          if-no-files-found: error
+
   publish-release:
     name: Publish GitHub Release
-    needs: [build-windows, build-macos]
+    needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
       # `gh release create` derives the repository from the local Git checkout.
       - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
       - uses: actions/download-artifact@v8
         with:
           path: release
@@ -252,7 +404,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${{ github.ref_name }}"
+          tag="$RELEASE_TAG"
           latest_asset=()
           if [[ "$tag" == Release-v* ]]; then
             version="${tag#Release-v}"

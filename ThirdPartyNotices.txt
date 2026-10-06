@@ -23,7 +23,7 @@ Competitive Programming Helper Plus (cph) 2077.0.0
 https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus
 
 GNU General Public License v3.0 or later
-License text: extensions/divyanshuagrawal.competitive-programming-helper/LICENSE
+License text: extensions/shortestpath.judger/LICENSE
 
 ---------------------------------------------------------
 
@@ -3534,3 +3534,9 @@ In no event shall the Zsh Development Group be liable to any party for direct, i
 
 The Zsh Development Group specifically disclaim any warranties, including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose.  The software provided hereunder is on an "as is" basis, and the Zsh Development Group have no obligation to provide maintenance, support, updates, enhancements, or modifications.
 ---------------------------------------------------------
+
+Testlib (Mike Mirzayanov and contributors)
+https://github.com/MikeMirzayanov/testlib
+Bundled revision: 1e4e8a24c79c6bad3becbdb5a332ffc352b7d5dd
+License: MIT
+License text: extensions/shortestpath.judger/static/testlib/LICENSE

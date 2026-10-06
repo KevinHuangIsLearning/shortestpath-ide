@@ -18,6 +18,11 @@ export interface IResolveNLSConfigurationContext {
 	readonly nlsMetadataPath: string;
 
 	/**
+	 * Precomputed identity of the commit and NLS tables, supplied by packaged products.
+	 */
+	readonly nlsMetadataHash?: string;
+
+	/**
 	 * Path to the user data directory. Used as a cache for
 	 * language packs converted to the format we need.
 	 */
@@ -40,7 +45,7 @@ export interface IResolveNLSConfigurationContext {
 	readonly osLocale: string;
 }
 
-export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPath, commit, nlsMetadataPath }: IResolveNLSConfigurationContext): Promise<INLSConfiguration> {
+export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPath, commit, nlsMetadataPath, nlsMetadataHash }: IResolveNLSConfigurationContext): Promise<INLSConfiguration> {
 	mark('code/willGenerateNls');
 
 	if (
@@ -78,7 +83,7 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 		// Development indices change between builds without a product commit.
 		const languagePackCommit = commit ?? `dev-${createHash('sha256').update(await promises.readFile(join(nlsMetadataPath, 'nls.keys.json'))).update(await promises.readFile(join(nlsMetadataPath, 'nls.messages.json'))).digest('hex')}`;
 		const globalLanguagePackCachePath = join(userDataPath, 'clp', languagePackId);
-		const commitLanguagePackCachePath = join(globalLanguagePackCachePath, languagePackCommit);
+		const commitLanguagePackCachePath = join(globalLanguagePackCachePath, nlsMetadataHash ?? languagePackCommit);
 		const languagePackMessagesFile = join(commitLanguagePackCachePath, 'nls.messages.json');
 		const translationsConfigFile = join(globalLanguagePackCachePath, 'tcf.json');
 		const languagePackCorruptMarkerFile = join(globalLanguagePackCachePath, 'corrupted.info');
@@ -191,6 +196,7 @@ async function getLanguagePackConfigurations(userDataPath: string, nlsMetadataPa
 	for (const builtInLanguagePack of builtInLanguagePacks) {
 		const extensionRoot = join(nlsMetadataPath, '..', 'extensions', builtInLanguagePack.extensionFolder);
 		const manifestPath = join(extensionRoot, 'package.json');
+		if (!await Promises.exists(manifestPath)) { continue; }
 		try {
 			const manifest = JSON.parse(await promises.readFile(manifestPath, 'utf-8')) as {
 				version?: string;

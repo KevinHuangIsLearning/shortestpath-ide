@@ -234,6 +234,15 @@ import './contrib/speech/browser/speech.contribution.js';
 import './contrib/chat/browser/chat.shared.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+import './contrib/chat/browser/agentSessions/agentHost/agentHost.shared.contribution.js';
+import './contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import './contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import './contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import './contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import './contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import './contrib/chat/browser/agentSessions/agentHost/agentHostProtectedResourcesService.js';
+import './services/agentHost/common/agentHostFileSystemService.js';
+import './contrib/inlineChat/browser/inlineChat.shared.contribution.js';
 
 // MCP services back MainThreadMcp.
 import './contrib/mcp/browser/mcp.contribution.js';

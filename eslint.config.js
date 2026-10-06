@@ -42,6 +42,12 @@ const allowedJavaScriptFiles = fs.readFileSync(path.join(import.meta.dirname, '.
 	.map(line => line.trim())
 	.filter(line => line && !line.startsWith('#'));
 
+const allowedBracketNotationFiles = fs.readFileSync(path.join(import.meta.dirname, '.eslint-allowed-bracket-notation-files'), 'utf8')
+	.toString()
+	.split(/\r\n|\n/)
+	.map(line => line.trim())
+	.filter(line => line && !line.startsWith('#'));
+
 export default defineConfig(
 	// Global ignores
 	{
@@ -192,6 +198,26 @@ export default defineConfig(
 			]
 		}
 	},
+	// The setup extension's Linux installer is this fork's own file, so it carries
+	// the ShortestPath header rather than the Microsoft one required by the shared
+	// configuration above. windows.js keeps its Microsoft header.
+	{
+		files: [
+			'extensions/shortestpath.setup/resources/linux.js',
+		],
+		rules: {
+			'header/header': [
+				2,
+				'block',
+				[
+					'---------------------------------------------------------------------------------------------',
+					' *  Copyright (c) 2026 ShortestPath IDE contributors.',
+					' *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.',
+					' *--------------------------------------------------------------------------------------------'
+				]
+			]
+		}
+	},
 	{
 		files: [
 			'src/vs/workbench/contrib/shortestpath/**/shortestPathNewTabInput*.ts',
@@ -208,9 +234,23 @@ export default defineConfig(
 					' *  Modifications Copyright (c) 2026 ShortestPath IDE contributors.',
 					' *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.',
 					' *--------------------------------------------------------------------------------------------'
-				]
 			]
+		]
 		}
+	},
+	// Disallow bracket notation for property names that can use dot notation.
+	{
+		files: [
+			'**/*.{js,cjs,mjs,ts,tsx,mts,cts}',
+			'.eslint-plugin-local/**/*.ts',
+		],
+		ignores: allowedBracketNotationFiles,
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-bracket-notation-for-identifiers': 'warn',
+		},
 	},
 	// TS
 	{
@@ -439,6 +479,12 @@ export default defineConfig(
 			'**/test/**',
 			'**/*.test.ts',
 			'**/*.integrationTest.ts',
+			// This directory is the validation boundary for typed metadata
+			// readers. Callers elsewhere must consume those readers.
+			'src/vs/platform/agentHost/common/meta/**',
+			// Copilot SDK metadata is already typed and is not an AHP `_meta`
+			// bag. Keep its access isolated in one adapter.
+			'src/vs/platform/agentHost/node/copilot/copilotSdkMeta.ts',
 			// Codex's own generated app-server protocol (not AHP `_meta`).
 			'src/vs/platform/agentHost/node/codex/protocol/**',
 		],

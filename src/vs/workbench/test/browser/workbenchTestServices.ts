@@ -1362,6 +1362,10 @@ export class TestHostService implements IHostService {
 		this._onDidChangeFocus.fire(this._hasFocus);
 	}
 
+	setActiveWindow(windowId: number) {
+		this._onDidChangeWindow.fire(windowId);
+	}
+
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async close(): Promise<void> { }

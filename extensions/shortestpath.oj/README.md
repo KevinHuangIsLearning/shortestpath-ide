@@ -1,7 +1,7 @@
 # ShortestPath OJ Integration
 
 This built-in extension implements the official local interoperability protocol
-between ShortestPath OJ and ShortestPath IDE. It remains independent from CPH Plus.
+between ShortestPath OJ and ShortestPath IDE. It remains independent from ShortestPath Judger.
 
 After activation, the IDE listens on:
 

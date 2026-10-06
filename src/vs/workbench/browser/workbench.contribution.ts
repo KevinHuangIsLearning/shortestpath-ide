@@ -14,7 +14,7 @@ import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contri
 import { NotificationsPosition, NotificationsSettings } from '../common/notifications.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../services/history/common/history.js';
-import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity } from '../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -835,6 +835,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'tags': ['experimental'],
 				'markdownDescription': localize({ key: 'modernUIUppercaseViewHeaders', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether view headers, side bar titles, and panel tabs use uppercase text when {0} is enabled.", '`#workbench.experimental.modernUI#`'),
+			},
+			[LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE]: {
+				'type': 'string',
+				'enum': [ModernUIEditorTabStyle.Connected, ModernUIEditorTabStyle.Pill],
+				'enumDescriptions': [
+					localize('modernUIEditorTabStyle.connected', "Connect the active tab to the editor surface with an outside border and curved shoulders."),
+					localize('modernUIEditorTabStyle.pill', "Show editor tabs as separate rounded pills."),
+				],
+				'default': ModernUIEditorTabStyle.Connected,
+				'tags': ['experimental'],
+				'markdownDescription': localize({ key: 'modernUIEditorTabStyle', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the editor tab style when {0} is enabled. High contrast themes retain explicit selection and focus borders.", '`#workbench.experimental.modernUI#`'),
+				agentsWindow: { default: ModernUIEditorTabStyle.Pill, readOnly: true },
 			},
 		}
 	});

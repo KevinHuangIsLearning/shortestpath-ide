@@ -6,6 +6,9 @@
 import * as vscode from 'vscode';
 
 const english: Readonly<Record<string, string>> = {
+    '已在“{0}”中创建 .clangd 和 .clang-format。': 'Created .clangd and .clang-format in “{0}”.',
+    '“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？': '“{0}” has no OI project configuration yet. Create .clangd and .clang-format?',
+
 	'新建文件': 'New Files',
 	'默认代码模板': 'Default Code Template',
 	'尚未获取到代码格式化结果，请稍后重试。': 'Code formatting is not available yet. Please retry shortly.',
@@ -20,7 +23,7 @@ const english: Readonly<Record<string, string>> = {
 	'请选择有效的本地目录。': 'Choose a valid local folder.',
 	'无法选择代码存放目录：{0}': 'Could not choose the code folder: {0}',
 	'模版配置': 'Template Setup',
-	'CPH 新建 C++ 文件时会自动填入这份模版。': 'CPH automatically inserts this template into new C++ files.',
+	'Judger 新建 C++ 文件时会自动填入这份模版。': 'Judger automatically inserts this template into new C++ files.',
 	'正在加载代码预览…': 'Loading code preview…',
 	'重试预览': 'Retry Preview',
 	'无法加载代码预览。': 'Could not load the code preview.',
@@ -31,7 +34,7 @@ const english: Readonly<Record<string, string>> = {
 	'编译配置': 'Compiler Setup',
 	'检查编译器、运行样例，并验证代码提示。': 'Check the compiler, run sample tests, and verify code completion.',
 	'开箱配置步骤': 'Setup Steps',
-	'运行 A+B 示例，检查命令行编译、CPH 样例测试与代码提示。': 'Run an A+B example to check command-line compilation, CPH sample tests, and code completion.',
+	'运行 A+B 示例，检查命令行编译、Judger 样例测试与代码提示。': 'Run an A+B example to check command-line compilation, Judger sample tests, and code completion.',
 	"完成环境检查后继续。": "Complete the environment checks to continue.",
 	'编辑配置': 'Editor Setup',
 	'按你的习惯调整编辑体验。': 'Customize the editor to suit your preferences.',
@@ -41,14 +44,14 @@ const english: Readonly<Record<string, string>> = {
 	'切换编辑器时保存': 'Save when switching editors',
 	"无法保存编辑配置：{0}": "Could not save editor settings: {0}",
 	'检查命令行 A+B 样例结果…': 'Checking command-line A+B sample results…',
-	'检查 CPH 编译、运行与样例判题…': 'Checking CPH compilation, execution, and sample judging…',
-	'命令行、CPH 与代码提示自测全部通过。': 'Command-line, CPH, and code completion self-tests passed.',
-	'CPH 样例 {0}：输入 {1}，期望 {2}，实际 {3}，{4}': 'CPH sample {0}: input {1}, expected {2}, actual {3}, {4}',
-	'CPH 自检失败：{0}': 'CPH self-test failed: {0}',
+	'检查 Judger 编译、运行与样例判题…': 'Checking Judger compilation, execution, and sample judging…',
+	'命令行、Judger 与代码提示自测全部通过。': 'Command-line, Judger, and code completion self-tests passed.',
+	'Judger 样例 {0}：输入 {1}，期望 {2}，实际 {3}，{4}': 'Judger sample {0}: input {1}, expected {2}, actual {3}, {4}',
+	'Judger 自检失败：{0}': 'Judger self-test failed: {0}',
 	'编译失败': 'Compilation failed',
 	'错误答案未被正确识别': 'Wrong answers were not correctly rejected',
 	'样例运行或判题失败': 'Sample execution or judging failed',
-	'CPH 编译、样例通过与错误答案识别检查均通过。': 'CPH compilation, accepted samples, and wrong-answer rejection checks passed.',
+	'Judger 编译、样例通过与错误答案识别检查均通过。': 'Judger compilation, accepted samples, and wrong-answer rejection checks passed.',
 	"通过": "Passed",
 	'类型提示': 'Type Hints',
 	'颜色主题': 'Color Theme',
@@ -77,17 +80,17 @@ const english: Readonly<Record<string, string>> = {
 	"测试程序的输出不符合预期。": "The test program output is unexpected.",
 	'检查 clangd 的 C++20 语法与系统头文件…': 'Checking C++20 syntax and system headers with clangd…',
 	'编译、运行与代码提示自测全部通过。': 'Compilation, execution, and code completion self-tests passed.',
-	'CPH 默认提交方式': 'CPH Default Submission Method',
+	'Judger 默认提交方式': 'Judger Default Submission Method',
 	'当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。': 'Used when both original OJ and VJudge submission are available. Per-OJ custom scripts are unaffected.',
 	'测试 VJudge URL': 'Test VJudge URL',
 	'默认（所有 VJudge 映射 OJ）': 'Default (all VJudge-mapped OJs)',
-	'CPH 自定义提交脚本': 'CPH Custom Submission Scripts',
-	'请先启用 CPH Plus 插件。': 'Enable CPH Plus first.',
+	"Judger 自定义提交脚本": "Judger Custom Submission Scripts",
+	"请先启用 ShortestPath Judger 插件。": "Enable ShortestPath Judger first.",
 	"请输入有效的 OJ 名称。": "Enter a valid OJ name.",
 	"URL 必须使用 HTTP 或 HTTPS，并使用支持的占位符。": "Use an HTTP or HTTPS URL with supported placeholders.",
 	"已打开页面并执行脚本。": "Opened the page and executed the script.",
-	'已保存。': 'Saved.',
-	'按 OJ 保存；点击 CPH 的填写提交表单按钮时执行。默认 VJudge 脚本只填写表单，最终提交由你确认。': 'Save a script per OJ and run it with the CPH Fill submission form button. The default VJudge script fills the form; you confirm the final submission.',
+	"已保存。": "Saved.",
+	"按 OJ 保存；点击 Judger 的填写提交表单按钮时执行。默认 VJudge 脚本只填写表单，最终提交由你确认。": "Save a script per OJ and run it with the Judger Fill submission form button. The default VJudge script fills the form; you confirm the final submission.",
 	"URL 支持 {oj}、{ojName}、{contestId}、{problemId}、{url}、{vjudgeUrl}。JavaScript 还支持 {code}、{language}、{fileName}；占位符替换为字符串字面量，不要额外加引号，例如 editor.setValue({code})。": "URL placeholders: {oj}, {ojName}, {contestId}, {problemId}, {url}, {vjudgeUrl}. JavaScript also supports {code}, {language}, {fileName}. JavaScript placeholders become string literals: do not add quotes, e.g. editor.setValue({code}).",
 	"提交页面 URL 模板": "Submission URL template",
 	"提交 JavaScript": "Submission JavaScript",
@@ -101,7 +104,7 @@ const english: Readonly<Record<string, string>> = {
 	"打开并执行": "Open and run",
 	"正在处理…": "Working…",
 	"配置提交脚本": "Configure submission scripts",
-	'按 OJ 配置提交页面 URL 和 JavaScript，点击 CPH 提交按钮时打开并填写表单。': 'Configure a submission URL and JavaScript per OJ, then fill the form using the CPH submission button.',
+	"按 OJ 配置提交页面 URL 和 JavaScript，点击 Judger 提交按钮时打开并填写表单。": "Configure a submission URL and JavaScript per OJ, then fill the form using the Judger submission button.",
 
 	"选择目录": "Choose Folder",
 	"配置": "Configuration",
@@ -153,7 +156,7 @@ const english: Readonly<Record<string, string>> = {
 	'环境尚未准备完成，请完成安装后再次检测。': 'The environment is not ready yet. Finish the installation and check again.',
 	'代码模板': 'Code Snippets',
 	'自动格式化': 'Automatic Formatting',
-	'CPH 设置': 'CPH Settings',
+	'Judger 设置': 'Judger Settings',
 	'工具链诊断': 'Toolchain Diagnostics',
 	'在线评测映射': 'Online Judge Mappings',
 	'VJudge 映射': 'VJudge Mappings',
@@ -213,6 +216,7 @@ const english: Readonly<Record<string, string>> = {
 	,'应用管理': 'Application Management'
 	,'代码片段': 'Code Snippets'
 	,'C++ 与 clangd': 'C++ and clangd'
+	,'外观': 'Appearance'
 	,'外观与保存': 'Appearance and Save'
 	,'工具': 'Tools'
 	,'只保留竞赛编程常用选项。更改会自动保存；其他设置可在高级设置中调整。': 'Only commonly used competitive-programming options are shown here. Changes save automatically; adjust other settings in Advanced Settings.'
@@ -236,11 +240,11 @@ const english: Readonly<Record<string, string>> = {
 	,'“每次询问”会在 C++ 提交前选择 C++14 或 C++20。': '“Ask Every Time” lets you choose C++14 or C++20 before each C++ submission.'
 	,'每次询问': 'Ask Every Time'
 	,'编译选项': 'Compiler Options'
-	,'同时应用到 CPH 和 C/C++ Compile Run。': 'Applied to both CPH and C/C++ Compile Run.'
+	,'同时应用到 Judger 和 C/C++ Compile Run。': 'Applied to both Judger and C/C++ Compile Run.'
 	,'clangd 变量类型提示': 'clangd Variable Type Hints'
 	,'在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。': 'Show inferred types after variables such as auto; this uses VS Code’s inlay-hint setting.'
 	,'自动清理生成文件': 'Automatically Clean Generated Files'
-	,'同时作用于 CPH 和 C/C++ Compile Run。': 'Applies to both CPH and C/C++ Compile Run.'
+	,'同时作用于 Judger 和 C/C++ Compile Run。': 'Applies to both Judger and C/C++ Compile Run.'
 	,'生成文件保留时间': 'Generated File Retention'
 	,'程序运行结束后自动删除 exe。单位：秒；0 表示立即删除。': 'Automatically delete executables after a program finishes. Unit: seconds; 0 deletes immediately.'
 	,'同步系统主题': 'Follow System Theme'
@@ -258,8 +262,8 @@ const english: Readonly<Record<string, string>> = {
 	,'打开引导': 'Open Guide'
 	,'配置 C++ 用户代码片段。': 'Configure C++ user code snippets.'
 	,'配置代码模板': 'Configure Code Snippets'
-	,'配置题目下载、Judge、VJudge 与 CPH 编译运行行为。': 'Configure problem downloading, Judge, VJudge, and CPH compile-and-run behavior.'
-	,'配置 CPH': 'Configure CPH'
+	,'配置题目下载、Judge、VJudge 与 Judger 编译运行行为。': 'Configure problem downloading, Judge, VJudge, and Judger compile-and-run behavior.'
+	,'配置 Judger': 'Configure Judger'
 	,'ShortestPath IDE 更新': 'ShortestPath IDE Updates'
 	,'立即检查新版本，并在可用时打开下载页面。': 'Check for a new version now and open the download page when one is available.'
 	,'检查更新': 'Check for Updates'
@@ -271,14 +275,14 @@ const english: Readonly<Record<string, string>> = {
 	,'更新检查命令未返回结果，可能是扩展尚未激活。': 'The update command returned no result. The extension may not be active yet.'
 	,'未返回具体原因。': 'No specific reason was provided.'
 	,'在诊断位置上方显示 Error Lens 的代码透镜。': 'Show the Error Lens code lens above diagnostic locations.'
-	,'检查 CPH、Compile Run、clangd 与编译器是否可用且配置一致。': 'Check whether CPH, Compile Run, clangd, and the compiler are available and configured consistently.'
+	,'检查 Judger、Compile Run、clangd 与编译器是否可用且配置一致。': 'Check whether Judger, Compile Run, clangd, and the compiler are available and configured consistently.'
 	,'打开诊断页': 'Open Diagnostics'
 	,'没有匹配的设置。': 'No matching settings.'
 	,'高级设置': 'Advanced Settings'
 	,'只保留竞赛编程常用选项。更改会自动保存；其他设置可在{0}中调整。': 'Only commonly used competitive-programming options are shown here. Changes save automatically; adjust other settings in {0}.'
 	,'请先打开一个本地文件夹，再初始化 OI 项目配置。': 'Open a local folder before initializing OI project configuration.'
-	,'已在“{0}”中创建 .clangd 和 .clang-format。': 'Created .clangd and .clang-format in “{0}”.'
-	,'“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？': '“{0}” does not contain OI project configuration. Create .clangd and .clang-format?'
+	,'“{0}”的 OI 项目配置已补全。': 'Completed the OI project configuration in “{0}”.'
+	,'“{0}”的 OI 项目配置不完整。要补全 .clangd 和 .clang-format 吗？': '“{0}” does not have a complete OI project configuration. Complete .clangd and .clang-format?'
 	,'初始化 OI 配置': 'Initialize OI Configuration'
 	,'暂不初始化': 'Not Now'
 	,'ShortestPath 所处运行路径包含空格，可能出现意外错误，开发者不会处理因包含空格而导致的 bug。': 'The ShortestPath runtime path contains spaces, which may cause unexpected errors. Bugs caused by spaces in the path will not be handled.'
@@ -319,13 +323,13 @@ const english: Readonly<Record<string, string>> = {
 	,'更改会自动保存。编译器与编译选项请在 ShortestPath IDE 主设置页统一修改。': 'Changes are saved automatically. Change the compiler and compiler options in the main ShortestPath IDE settings page.'
 	,'单个测试点超时（毫秒）': 'Per-test timeout (ms)'
 	,'编译成功时隐藏 stderr': 'Hide stderr after successful compilation'
-	,'C++ 编译器（CPH）': 'C++ Compiler (CPH)'
+	,'C++ 编译器（Judger）': 'C++ Compiler (Judger)'
 	,'C/C++ Compile Run 编译器': 'C/C++ Compile Run Compiler'
-	,'与 CPH 使用相同编译器。': 'Uses the same compiler as CPH.'
+	,'与 Judger 使用相同编译器。': 'Uses the same compiler as Judger.'
 	,'当前：{0}{1}': 'Current: {0}{1}'
-	,'；CPH：{0}': '; CPH: {0}'
-	,'CPH 与 Compile Run 一致：{0}': 'CPH and Compile Run match: {0}'
-	,'CPH：{0}；Compile Run：{1}': 'CPH: {0}; Compile Run: {1}'
+	,'；Judger：{0}': '; Judger: {0}'
+	,'Judger 与 Compile Run 一致：{0}': 'Judger and Compile Run match: {0}'
+	,'Judger：{0}；Compile Run：{1}': 'Judger: {0}; Compile Run: {1}'
 	,'未配置': 'Not configured'
 	,'已允许 Homebrew GCC 的所有稳定链接路径。': 'All stable Homebrew GCC link paths are allowed.'
 	,'已指向 {0}': 'Points to {0}'
@@ -344,7 +348,7 @@ const english: Readonly<Record<string, string>> = {
 	,'界面主题': 'Color theme'
 	,'默认 C++ 语言版本': 'Default C++ language version'
 	,'生成文件自动清理': 'Automatic generated-file cleanup'
-	,'CPH 题目文件命名': 'CPH problem file naming'
+	,'Judger 题目文件命名': 'Judger problem file naming'
 	,'实时预览': 'Live preview'
 	,'主要字体': 'Primary Font'
 	,'从检测到的系统等宽字体中选择。': 'Choose from detected system monospaced fonts.'
@@ -391,7 +395,7 @@ const english: Readonly<Record<string, string>> = {
 	,'为不同 OJ 设置专用模板，匹配时优先于通用模板。': 'Set a template for each OJ; matching templates take priority over the global one.'
 	,'VJudge URL 后缀': 'VJudge URL suffix'
 	,'在浏览器中显示题目': 'Show problems in the browser'
-	,'检查 CPH、Compile Run 与 clangd 的实际可执行文件、版本及配置是否一致。黄色表示可继续使用但建议修复，红色表示当前环境无法正常工作。': 'Check whether CPH, Compile Run, and clangd use consistent executables, versions, and configuration. Yellow means usable but recommended to fix; red means the environment cannot work correctly.'
+	,'检查 Judger、Compile Run 与 clangd 的实际可执行文件、版本及配置是否一致。黄色表示可继续使用但建议修复，红色表示当前环境无法正常工作。': 'Check whether Judger, Compile Run, and clangd use consistent executables, versions, and configuration. Yellow means usable but recommended to fix; red means the environment cannot work correctly.'
 	,'代码字体': 'Code Font'
 	,'选择适合长时间阅读的主要等宽字体，并用回退字体补齐缺失字形。': 'Choose a primary monospaced font for long reading and fallback fonts for missing glyphs.'
 	,'选择一个你看着顺眼的主题，选择后立即应用到整个 IDE。': 'Choose a theme you like. It is applied to the entire IDE immediately.'
@@ -402,7 +406,7 @@ const english: Readonly<Record<string, string>> = {
 	,'正在检测系统等宽字体…': 'Detecting system monospaced fonts…'
 	,'当前字体不支持连字，无法启用。': 'The current font does not support ligatures and cannot be enabled.'
 	,'题面来源': 'Problem Source'
-	,'留空时使用 CPH 设置中的默认题面来源。': 'Leave blank to use the default problem source from CPH Settings.'
+	,'留空时使用 Judger 设置中的默认题面来源。': 'Leave blank to use the default problem source from Judger Settings.'
 	,'使用默认值': 'Use Default'
 	,'不显示': 'Do Not Show'
 	,'无法运行：{0}': 'Unable to run: {0}'
@@ -421,7 +425,7 @@ const english: Readonly<Record<string, string>> = {
 	,'⑤ 生成文件自动清理': '⑤ Automatic generated-file cleanup'
 	,'⑥ 自动保存': '⑥ Auto Save'
 	,'⑦ 自动格式化': '⑦ Automatic formatting'
-	,'⑧ CPH 题目文件命名': '⑧ CPH problem file naming'
+	,'⑧ Judger 题目文件命名': '⑧ Judger problem file naming'
 	,'⑨ 代码模板': '⑨ Code snippets'
 	,'1 / 9 · 字体': '1 / 9 · Fonts'
 	,'2 / 9 · 主题': '2 / 9 · Theme'
@@ -430,7 +434,7 @@ const english: Readonly<Record<string, string>> = {
 	,'5 / 9 · 文件': '5 / 9 · Files'
 	,'6 / 9 · 保存': '6 / 9 · Saving'
 	,'7 / 9 · 格式化': '7 / 9 · Formatting'
-	,'8 / 9 · CPH': '8 / 9 · CPH'
+	,'8 / 9 · Judger': '8 / 9 · Judger'
 	,'9 / 9 · 模板': '9 / 9 · Snippets'
 	,'配置会实时保存到当前工作目录的': 'Settings are saved immediately to'
 	,'，并可选择同时启用保存和粘贴时格式化。': ', with optional formatting on save and paste.'
@@ -508,7 +512,7 @@ const english: Readonly<Record<string, string>> = {
 	,'Latest（使用最新支持标准）': 'Latest (use the latest supported standard)'
 	,'打开 .clang-format': 'Open .clang-format'
 	,'字形缺失时按顺序回退，可选择中文 / Emoji 等字体。': 'Fallback in order for missing glyphs; CJK and Emoji fonts are supported.'
-	,'选择默认编译使用的 C++ 标准，会同步应用到 CPH 与编译运行。': 'Choose the default C++ standard used by both CPH and Compile Run.'
+	,'选择默认编译使用的 C++ 标准，会同步应用到 Judger 与编译运行。': 'Choose the default C++ standard used by both Judger and Compile Run.'
 	,'编译成功 ✓ main': 'Compilation succeeded ✓ main'
 	,'在': 'Show the inferred type after'
 	,'等推断变量后显示推断出的类型。': 'and other inferred variables.'
@@ -521,7 +525,7 @@ const english: Readonly<Record<string, string>> = {
 	,'配置 .clang-format 的代码风格与缩进规则。': 'Configure code style and indentation rules in .clang-format.'
 	,'导入题目时按在线评测、比赛和题号自动组织文件。': 'Organize imported problems by online judge, contest, and problem ID.'
 	,'启用自定义文件名': 'Enable Custom File Names'
-	,'关闭后 CPH 使用其默认命名；开启后使用 ShortestPath IDE 的推荐模板。': 'When disabled, CPH uses its default naming. When enabled, it uses the ShortestPath IDE template.'
+	,'关闭后 Judger 使用其默认命名；开启后使用 ShortestPath IDE 的推荐模板。': 'When disabled, Judger uses its default naming. When enabled, it uses the ShortestPath IDE template.'
 	,'自定义占位符': 'Template Placeholders'
 	,'OJ 简称，': 'OJ abbreviation, '
 	,'OJ 全称，': 'OJ name, '
@@ -535,8 +539,8 @@ const english: Readonly<Record<string, string>> = {
 	,'扩展名，': 'extension, '
 	,'语言。': 'language.'
 	,'按 OJ 简称设置专用模板；匹配时优先于上方的通用模板。': 'Set templates by OJ abbreviation; matching templates override the global template above.'
-	,'按 OJ 配置文件名模板、覆盖规则及其他 CPH 行为。': 'Configure per-OJ file-name templates, overrides, and other CPH behavior.'
-	,'打开 CPH 设置': 'Open CPH Settings'
+	,'按 OJ 配置文件名模板、覆盖规则及其他 Judger 行为。': 'Configure per-OJ file-name templates, overrides, and other Judger behavior.'
+	,'打开 Judger 设置': 'Open Judger Settings'
 	,'配置 C++ 用户代码片段，写题时一键插入常用代码。': 'Configure C++ user snippets for quickly inserting common code.'
 	,'打开独立的代码模板配置页，可定义多个语言的片段。': 'Open the dedicated snippet editor to define snippets for multiple languages.'
 	,'示例模板': 'Example Snippet'
@@ -547,10 +551,18 @@ const english: Readonly<Record<string, string>> = {
 	,'变量类型提示：': 'Variable Type Hints: '
 	,'自动清理：': 'Automatic Cleanup: '
 	,'自动格式化：': 'Automatic Formatting: '
-	,'CPH 文件名：': 'CPH File Names: '
+	,'Judger 文件名：': 'Judger File Names: '
 	,'正在检测': 'Detecting'
 	,'例如：知乎、猫猫图片': 'For example: Zhihu or cat pictures'
 	,'设置分类': 'Settings Categories'
+	,'编译与语言': 'Compilers and Languages'
+	,'评测与提交': 'Judging and Submissions'
+	,'文件清理': 'File Cleanup'
+	,'首页': 'Home'
+	,'扩展': 'Extensions'
+	,'工具与诊断': 'Tools and Diagnostics'
+	,'关于与帮助': 'About and Help'
+	,'搜索结果': 'Search Results'
 	,'当前代码字体不是等宽字体，请选择': 'The current code font is not monospaced. Choose another font.'
 	,'编辑语言': 'Language'
 	,'模板列表': 'Snippet List'
@@ -564,7 +576,7 @@ const english: Readonly<Record<string, string>> = {
 	,'{oj} OJ 简称；{ojName} OJ 全称；{contestId} 比赛 ID；{problemId} 题号；{slug} 题名简写；{name} 题名；{index} 导入序号；{group} 分组；{url} 链接；{ext} 扩展名；{lang} 语言。': '{oj} OJ abbreviation; {ojName} OJ name; {contestId} contest ID; {problemId} problem ID; {slug} problem slug; {name} problem name; {index} import index; {group} group; {url} URL; {ext} extension; {lang} language.'
 	,'例如：{oj}/{contestId}/{problemId}_{slug}.{ext}': 'For example: {oj}/{contestId}/{problemId}_{slug}.{ext}'
 	,'OJ 简称': 'OJ abbreviation'
-	,'Competitive Programming Helper（CPH）': 'Competitive Programming Helper (CPH)'
+	,'ShortestPath Judger': 'ShortestPath Judger'
 	,'clangd 扩展': 'clangd Extension'
 	,'未发现可用的系统等宽字体，无法选择主要字体。': 'No system monospaced fonts are available, so a primary font cannot be selected.'
 	,'已保留': 'Retained'
@@ -576,9 +588,10 @@ const english: Readonly<Record<string, string>> = {
 	,'切换焦点时': 'On focus change'
 	,'切换窗口时': 'On window change'
 	,'自定义命名': 'Custom naming'
-	,'CPH 默认命名': 'CPH default naming'
+	,'Judger 默认命名': 'Judger default naming'
 	,'（未设置）': '(not set)'
-	,'CPH 文件名模板覆盖必须是一个 JSON 对象，OJ 简称为键、模板字符串为值。': 'CPH file-name template overrides must be a JSON object whose keys are OJ abbreviations and whose values are template strings.'
+	,'Judger 文件名模板覆盖必须是一个 JSON 对象，OJ 简称为键、模板字符串为值。': 'Judger file-name template overrides must be a JSON object whose keys are OJ abbreviations and whose values are template strings.'
+	,'无法打开放松源：{0}': 'Could not open the relax source: {0}'
 	,'无法读取 {0}.json。请检查 JSON 格式。': 'Could not read {0}.json. Check its JSON syntax.'
 	,'确定删除模板“{0}”吗？删除后会立即保存到 {1}.json。': 'Delete snippet “{0}”? The change will be saved to {1}.json immediately.'
 	,'未命名模板': 'Untitled Snippet'
@@ -605,6 +618,8 @@ const english: Readonly<Record<string, string>> = {
 	,'Exclude（逗号分隔，可选）': 'Exclude (comma-separated, optional)'
 	,'新模板': 'New Snippet'
 	,'尚未设置触发前缀': 'No prefix set'
+	,'这个放松源已经添加过了。': 'This relax source has already been added.'
+	,'请我喝杯咖啡': 'Buy Me a Coffee'
 	,'如果 ShortestPath IDE 对你有帮助，欢迎支持项目持续维护与更新。': 'If ShortestPath IDE has been useful to you, please consider supporting its continued maintenance and updates.'
 	,'打开支持页面': 'Open Support Page'
 	,'关闭 7 天': 'Hide for 7 Days'
@@ -616,6 +631,11 @@ const english: Readonly<Record<string, string>> = {
 	,'配合 Competitive Champion 使用 IDE': 'Use the IDE with Competitive Champion'
 	,'在外部浏览器中查看如何配合 Competitive Champion 使用 IDE。': 'Read how to use the IDE with Competitive Champion in your external browser.'
 	,'无法打开文档页面：{0}': 'Could not open the documentation page: {0}'
+	,'缩进': 'Indentation'
+	,'缩进宽度与缩进字符；同时同步到当前工作目录的 .clang-format，避免自动格式化把代码改成 clang-format 默认的 2 空格。': 'Indentation width and character. This is also written to the .clang-format file in the current working folder so automatic formatting does not fall back to clang-format\'s default 2-space indentation.'
+	,'空格': 'Spaces'
+	,'Error Lens 行内错误提示': 'Error Lens Inline Diagnostics'
+	,'在出错那一行的行尾直接显示诊断文字；关闭后只保留编辑器自己的波浪线，写代码时依然实时报错。': 'Shows diagnostic text inline at the end of the offending line. When off, only the editor\'s own squiggles remain; diagnostics are still reported live while you type.'
 };
 
 export function localize(value: string): string {

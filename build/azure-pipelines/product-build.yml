@@ -43,6 +43,10 @@ parameters:
     values:
       - Product
       - CI
+  - name: VSCODE_BUILD_TITLE_PREFIX
+    displayName: "Build Title Prefix"
+    type: string
+    default: none
   - name: NPM_REGISTRY
     displayName: "Custom NPM Registry"
     type: string
@@ -130,11 +134,16 @@ parameters:
     type: string
     default: none
   - name: VSCODE_CLI_CANARY_VERSION
-    displayName: "Product @github/copilot runtime version ('auto' = infer from an SDK override)"
+    displayName: "Expected SDK-bundled runtime version ('auto' = infer from SDK)"
     type: string
-    default: 1.0.84-canary.70.gdb75d0d.unsigned
+    default: auto
 
 variables:
+  - name: VSCODE_BUILD_TITLE_PREFIX
+    ${{ if eq(parameters.VSCODE_BUILD_TITLE_PREFIX, 'none') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_BUILD_TITLE_PREFIX }}
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
@@ -216,7 +225,7 @@ variables:
   - name: ARTIFACT_PREFIX
     value: ''
 
-name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
+name: "$(VSCODE_BUILD_TITLE_PREFIX)$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
 resources:
   repositories:

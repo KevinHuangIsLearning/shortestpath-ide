@@ -50,5 +50,5 @@ test('first-run defaults match the requested editor, submission, compiler and te
 		'editor.formatOnPaste': false, 'editor.inlayHints.enabled': 'off', 'workbench.colorTheme': 'One Monokai', 'shortestpath.oj.cppSubmissionLanguage': 'cpp20'
 	});
 	assert.equal(defaultCppTemplate, '#include <bits/stdc++.h>\nusing namespace std;\nusing i64 = long long;\n\nvoid solve() {\n\n}\n\nint main() {\n  cin.tie(0)->sync_with_stdio(0);\n  int T = 1;\n  cin >> T;\n  while (T--) solve();\n}\n');
-	assert.equal(recommended['cph.language.cpp.Template'], defaultCppTemplate);
+	assert.equal(recommended['judger.language.cpp.Template'], defaultCppTemplate);
 });

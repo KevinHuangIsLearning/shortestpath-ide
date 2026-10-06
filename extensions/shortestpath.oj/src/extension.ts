@@ -28,6 +28,7 @@ import { isValidSourcePath, encodeSourcePath } from './sourcePath';
 import { appendPreviousStatementVersion, canReuseProblemSource, hasProblemStatementChanged, ProblemStatementSnapshot, sanitizeProblemStatementVersions } from './problemStatementVersion';
 import { formatElapsedTimer } from './timerDisplay';
 import { assertUniqueWorkspaceProblemRecordFileNames, getWorkspaceProblemRecordFileName, getWorkspaceProblemCacheEvictions, touchWorkspaceProblemCache, getWorkspaceProblemRecoveryContext, readWorkspaceProblemRecoveryContext, WorkspaceProblemRecoveryContext } from './workspaceProblemCache';
+import { listProblemRecords, ProblemRecordFileSystem } from './workspaceProblemRecordStorage';
 import { migrateLegacyWorkspaceCache } from './workspaceProblemCacheMigration';
 import {
 	applyEditorialLikeResult,
@@ -61,6 +62,7 @@ const legacyWorkspaceCacheFileName = 'oj-problems.json';
 const workspaceProblemRecordVersion = 2;
 const workspaceFolderRequiredMessage = localize('请先在 ShortestPath IDE 中打开一个文件夹，再从网站导入题目。');
 const workspaceCachesNeedingRewrite = new WeakSet<WorkspaceProblemCache>();
+const workspaceCacheRecordLocations = new WeakMap<WorkspaceProblemCache, Map<string, string>>();
 const workspaceCacheRecordContents = new WeakMap<WorkspaceProblemCache, Map<string, string>>();
 const workspaceCacheSourceContents = new WeakMap<WorkspaceProblemCache, string>();
 const workspaceCacheLegacyContents = new WeakMap<WorkspaceProblemCache, string>();
@@ -443,6 +445,11 @@ class ShortestPathOjProblemPanel {
 		}
 	}
 
+	getTimerForJudger(url: string, sourcePath: string): ProblemState['timer'] | undefined {
+		if (this.state?.problem.url !== url || this.state.sourcePath !== sourcePath) { return undefined; }
+		return { ...this.state.problem.state.timer };
+	}
+
 	reveal(): void {
 		if (!this.state) {
 			return;
@@ -518,9 +525,9 @@ class ShortestPathOjProblemPanel {
 		const mutating = request.action === 'add' || request.action === 'update' || request.action === 'delete';
 		if (mutating) { state.localTestsPending = true; this.render(); }
 		try {
-			await vscode.extensions.getExtension('DivyanshuAgrawal.competitive-programming-helper')?.activate();
+			await vscode.extensions.getExtension('shortestpath.judger')?.activate();
 			if (this.state !== state || state.sourcePath !== sourcePath) { return; }
-			const value = await vscode.commands.executeCommand('cph.integratedTests', { ...request, sourcePath });
+			const value = await vscode.commands.executeCommand('judger.integratedTests', { ...request, sourcePath });
 			const snapshot = readLocalTestsSnapshot(value);
 			if (this.state !== state || !snapshot || snapshot.sourcePath !== state.sourcePath) { return; }
 			this.updateLocalTests(snapshot);
@@ -550,7 +557,7 @@ class ShortestPathOjProblemPanel {
 		void this.editorialPanel?.webview.postMessage({ type: 'reloadStyles', version });
 	}
 
-	private refreshEditorialLike(hintId: string): void {
+	private refreshEditorialLike(hintId: string, target: 'question' | 'answer'): void {
 		const editorial = this.state?.editorial;
 		if (!this.editorialPanel || !editorial || editorial.state !== 'available') {
 			return;
@@ -562,6 +569,7 @@ class ShortestPathOjProblemPanel {
 		void this.editorialPanel.webview.postMessage({
 			type: 'editorialLike',
 			hintId,
+			target,
 			questionLiked: hint.questionLiked,
 			answerLiked: hint.answerLiked,
 			questionLikeCount: hint.questionLikeCount,
@@ -948,7 +956,8 @@ class ShortestPathOjProblemPanel {
 								state.cachedEditorial = state.editorial;
 								void this.actions.saveEditorial(state.problem, state.editorial).catch(error => console.error('Failed to save ShortestPath OJ editorial likes.', error));
 							}
-							this.refreshEditorialLike(value.hintId);
+							this.refreshEditorialLike(value.hintId, value.target);
+                            void this.panel?.webview.postMessage({ type: 'hintLike', hintId: value.hintId, target: value.target, liked: result.liked, count: value.target === 'question' ? result.questionLikeCount : result.answerLikeCount });
 						} finally {
 							this.endOperation(state, operationKey);
 						}
@@ -1138,8 +1147,9 @@ class ShortestPathOjProblemPanel {
 			if (this.state !== state) {
 				return;
 			}
+			if ((value.command === 'like' || value.command === 'editorialLike') && typeof value.hintId === 'string') { void this.panel?.webview.postMessage({ type: 'hintLikeError', hintId: value.hintId, target: value.target }); }
 			if (value.command === 'editorialLike' && typeof value.hintId === 'string') {
-				void this.editorialPanel?.webview.postMessage({ type: 'editorialLikeError', hintId: value.hintId });
+				void this.editorialPanel?.webview.postMessage({ type: 'editorialLikeError', hintId: value.hintId, target: value.target });
 			}
 			if (value.command === 'startStress' && error instanceof OutcomeUnknownError) {
 				this.unknownStressStarts.add(state.problem.ref);
@@ -1307,6 +1317,7 @@ class ShortestPathOjProblemPanels {
 	setRecoveryState(ref: string, state: RecoveryState): void { for (const child of this.panels.values()) { child.setRecoveryState(ref, state); } }
 	setLongRunningOperationNotice(ref: string, active: boolean): void { for (const child of this.panels.values()) { child.setLongRunningOperationNotice(ref, active); } }
 	registerSubmission(...args: Parameters<ShortestPathOjProblemPanel['registerSubmission']>): void { for (const child of this.panels.values()) { child.registerSubmission(...args); } }
+	getTimerForJudger(url: string, sourcePath: string): ProblemState['timer'] | undefined { return this.panels.get(sourcePath)?.getTimerForJudger(url, sourcePath); }
 	refreshEditorial(): void { for (const child of this.panels.values()) { child.refreshEditorial(); } }
 	updateLocalTests(snapshot: LocalTestsSnapshot): void { for (const child of this.panels.values()) { child.updateLocalTests(snapshot); } }
 	reloadStyles(version: number): void { for (const child of this.panels.values()) { child.reloadStyles(version); } }
@@ -1354,7 +1365,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 		retryConnection: () => recovery.retry(),
 		sourceChanged: async (problem, previous, sourcePath) => {
 			await mutateWorkspaceProblemCache(cache => { cache.sourcePaths[problem.ref] = sourcePath; }, true);
-			if (previous) { await vscode.commands.executeCommand('cph.rebindProblemSource', previous, sourcePath); }
+			if (previous) { await vscode.commands.executeCommand('judger.rebindProblemSource', previous, sourcePath); }
 		},
 		login: () => recovery.login(),
 		like: (problem, hintId, target, liked) => bridge.requestLike(problem.ref, hintId, target, liked),
@@ -1511,7 +1522,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 				return { action, cph };
 			}, true);
 			if (!cph.succeeded) {
-				output.appendLine(`CPH Plus did not accept samples for ${problem.ref}.`);
+				output.appendLine(`ShortestPath Judger did not accept samples for ${problem.ref}.`);
 			}
 			return action;
 		},
@@ -1626,6 +1637,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowserDirect', async () => {
 		await openUrl('https://shortestpath.cn/login');
 	}));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.getTimerForJudger', async (url: string, sourcePath: string) => {
+		const activeTimer = panel.getTimerForJudger(url, sourcePath);
+		if (activeTimer) { return activeTimer; }
+		const cache = await readWorkspaceProblemCache();
+		const problem = Object.values(cache.problems).find(item => item.url === url && cache.sourcePaths[item.ref] === sourcePath);
+		return problem ? { ...problem.state.timer } : undefined;
+	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblemForCph', async (url: string) => {
 		const cache = await readWorkspaceProblemCache(cache => Object.values(cache.problems).find(item => item.url === url)?.ref);
 		const problem = Object.values(cache.problems).find(item => item.url === url);
@@ -1651,7 +1669,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 		if (!problem) {
 			const identity = Object.values(cache.recoveryContexts).find(item => item.url === url);
 			if (identity) { recovery.select(identity); throw new Error(localize('正在重新连接…')); }
-			throw new Error(localize('请先将题目导入 CPH Plus 再从题目面板提交。'));
+			throw new Error(localize('请先将题目导入 ShortestPath Judger 再从题目面板提交。'));
 		}
 		await submitProblem(problem, bridge, panel.forProblem(problem.ref) ?? panel, unknownSubmissions);
 	}));
@@ -1707,13 +1725,25 @@ async function ensureWorkspaceCacheLocationMigration(destination: vscode.Uri, so
 	try { legacy = await readLegacyWorkspaceProblemCache(source); }
 	catch (error) { console.warn(`Unable to relocate ${legacyWorkspaceCacheFileName}; leaving it unchanged.`, error); }
 	const files = new Map<string, string>();
-	for (const [ref, content] of workspaceCacheRecordContents.get(incoming) ?? []) { files.set(getWorkspaceProblemRecordFileName(ref), content); }
+	for (const [ref, content] of workspaceCacheRecordContents.get(incoming) ?? []) { files.set(workspaceCacheRecordLocations.get(incoming)?.get(ref) ?? path.join(problemRecordRoot(source), getWorkspaceProblemRecordFileName(ref)), content); }
 	const sourceContent = workspaceCacheSourceContents.get(incoming);
-	if (sourceContent !== undefined) { files.set('.source-paths.json', sourceContent); }
+	if (sourceContent !== undefined) { files.set(path.join(problemRecordRoot(source), '.source-paths.json'), sourceContent); }
 	if (legacy) {
 		mergeWorkspaceProblemCaches(incoming, legacy);
-		files.set(legacyWorkspaceCacheFileName, workspaceCacheLegacyContents.get(legacy)!);
+		files.set(path.join(problemRecordRoot(source), legacyWorkspaceCacheFileName), workspaceCacheLegacyContents.get(legacy)!);
 	}
+    // Remove the published index only when every indexed record is recognized and copied.
+    try {
+        const indexPath = path.join(problemRecordRoot(source), 'oj-index.json');
+        const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(problemRecordUri(source, indexPath)));
+        const index = JSON.parse(content) as Array<{ problemRef: string; path: string }>;
+        if (Array.isArray(index) && index.every(entry => typeof entry.problemRef === 'string' && typeof entry.path === 'string'
+            && workspaceCacheRecordLocations.get(incoming)?.get(entry.problemRef) === path.resolve(problemRecordRoot(source), entry.path))) {
+            files.set(indexPath, content);
+        }
+    } catch (error) {
+        if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) { console.warn('Leaving unreadable OJ index unchanged.', error); }
+    }
 	if (files.size > 0) {
 		const current = await readWorkspaceProblemCacheFiles(destination);
 		mergeWorkspaceProblemCaches(current, incoming);
@@ -1727,10 +1757,10 @@ async function ensureWorkspaceCacheLocationMigration(destination: vscode.Uri, so
 		}
 		// A second IDE may still be writing the project cache. Never remove changed source data.
 		for (const [name, content] of files) {
-			const original = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(source, name)));
+			const original = new TextDecoder().decode(await vscode.workspace.fs.readFile(problemRecordUri(source, name)));
 			if (original !== content) { throw new Error('cache_relocation_source_changed'); }
 		}
-		for (const name of files.keys()) { await vscode.workspace.fs.delete(vscode.Uri.joinPath(source, name), { recursive: false, useTrash: false }); }
+		for (const name of files.keys()) { await vscode.workspace.fs.delete(problemRecordUri(source, name), { recursive: false, useTrash: false }); }
 	}
 	try {
 		if ((await vscode.workspace.fs.readDirectory(source)).length === 0) { await vscode.workspace.fs.delete(source, { recursive: false, useTrash: false }); }
@@ -1803,6 +1833,26 @@ async function ensureWorkspaceCacheMigration(directory: vscode.Uri, source: vsco
 	}
 }
 
+function problemRecordRoot(directory: vscode.Uri): string {
+    return directory.scheme === 'file' ? directory.fsPath : directory.path;
+}
+
+function problemRecordUri(directory: vscode.Uri, file: string): vscode.Uri {
+    return directory.scheme === 'file' ? vscode.Uri.file(file) : directory.with({ path: file.replace(/\\/g, '/') });
+}
+
+function problemRecordFileSystem(directory: vscode.Uri): ProblemRecordFileSystem {
+    const uri = (file: string) => problemRecordUri(directory, file);
+    return {
+        readDirectory: async file => vscode.workspace.fs.readDirectory(uri(file)),
+        readFile: async file => vscode.workspace.fs.readFile(uri(file)),
+        writeFile: async (file, contents) => vscode.workspace.fs.writeFile(uri(file), contents),
+        rename: async (from, to) => vscode.workspace.fs.rename(uri(from), uri(to), { overwrite: true }),
+        delete: async file => vscode.workspace.fs.delete(uri(file), { recursive: false, useTrash: false }),
+        isMissing: error => error instanceof vscode.FileSystemError && error.code === 'FileNotFound',
+    };
+}
+
 async function readWorkspaceProblemCacheFiles(directory = getWorkspaceCacheDirectoryUri()): Promise<WorkspaceProblemCache> {
 	try {
 		const cache = createEmptyWorkspaceProblemCache();
@@ -1824,13 +1874,17 @@ async function readWorkspaceProblemCacheFiles(directory = getWorkspaceCacheDirec
 			if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) { console.warn('Unable to read ShortestPath OJ source index; recovering associations from snapshots.', error); }
 		}
 		let needsRewrite = false;
-		const entries = await vscode.workspace.fs.readDirectory(directory);
-		for (const [name, type] of entries) {
+		const locations = new Map<string, string>();
+        workspaceCacheRecordLocations.set(cache, locations);
+        const entries = await listProblemRecords(problemRecordRoot(directory), problemRecordFileSystem(directory));
+        for (const entry of entries) {
+            const name = entry.name;
+            const type = vscode.FileType.File;
 			if (type !== vscode.FileType.File || name === legacyWorkspaceCacheFileName || name === '.source-paths.json' || !name.endsWith('.json')) {
 				continue;
 			}
 			try {
-				const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(directory, name)));
+				const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(problemRecordUri(directory, entry.file)));
 				if (!content.trim()) {
 					continue;
 				}
@@ -1839,16 +1893,17 @@ async function readWorkspaceProblemCacheFiles(directory = getWorkspaceCacheDirec
 					continue;
 				}
 				const problem = restoreCachedProblemCompatibilityWarnings(record.problem as ImportedProblem);
-				if (name !== getWorkspaceProblemRecordUri(problem.ref, directory).path.split('/').at(-1)) {
+				if (name !== `${entry.legacy ? '' : 'oj-'}${getWorkspaceProblemRecordFileName(problem.ref)}`) {
 					console.warn(`Ignoring ShortestPath OJ cache record with mismatched file name: ${name}`);
 					continue;
 				}
 				cache.problems[problem.ref] = problem;
 				recordContents.set(problem.ref, content);
+                locations.set(problem.ref, entry.file);
 				if (typeof record.lastUsedAt === 'number' && Number.isFinite(record.lastUsedAt) && record.lastUsedAt >= 0) {
 					cache.lastUsedAt[problem.ref] = record.lastUsedAt;
 				} else {
-					cache.lastUsedAt[problem.ref] = (await vscode.workspace.fs.stat(getWorkspaceProblemRecordUri(problem.ref, directory))).mtime;
+					cache.lastUsedAt[problem.ref] = (await vscode.workspace.fs.stat(problemRecordUri(directory, entry.file))).mtime;
 					needsRewrite = true;
 				}
 				if (typeof record.sourcePath === 'string' && isValidSourcePath(record.sourcePath)) {
@@ -2114,7 +2169,7 @@ async function submitProblem(
 	}
 	const sourcePath = explicitSourcePath ?? (await readWorkspaceProblemCache()).sourcePaths[problem.ref];
 	if (!sourcePath) {
-		throw new Error(localize('请先将题目导入 CPH Plus 再从题目面板提交。'));
+		throw new Error(localize('请先将题目导入 ShortestPath Judger 再从题目面板提交。'));
 	}
 	const safeSourcePath = await validateWorkspaceSourcePath(sourcePath);
 	let document: vscode.TextDocument | undefined;
@@ -2298,7 +2353,7 @@ async function addStressCounterExampleToLocalTests(problem: ImportedProblem, tas
 	if (!task.counterExample || task.counterExampleTruncated || task.interactionTrace || problem.localTest?.enabled === false) {
 		throw new Error(localize('当前对拍任务还没有可添加的反例。'));
 	}
-	await vscode.commands.executeCommand('cph.integratedTests', { sourcePath, action: 'add', input: task.counterExample.input, output: task.counterExample.expected, deduplicate: true } satisfies LocalTestRequest);
+	await vscode.commands.executeCommand('judger.integratedTests', { sourcePath, action: 'add', input: task.counterExample.input, output: task.counterExample.expected, deduplicate: true } satisfies LocalTestRequest);
 }
 
 type ProblemViewSections = {
@@ -2638,7 +2693,7 @@ const likeSvgFilled = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height
 
 function renderLikeButton(hintId: string, target: 'question' | 'answer', likes: { liked: boolean; count: number }, enabled: boolean, loading = false): string {
 	const label = `${likes.liked ? '取消点赞' : '点赞'}提示${target === 'question' ? '问题' : '答案'}，当前 ${likes.count} 赞`;
-	return `<button type="button" class="like-btn${likes.liked ? ' liked' : ''}${loading ? ' loading' : ''}" data-command="like" data-hint-id="${escapeAttribute(hintId)}" data-target="${target}" data-liked="${likes.liked}" aria-label="${escapeAttribute(label)}"${enabled && !loading ? '' : ' disabled'}>${loading ? '<span aria-hidden="true">…</span>' : `<span class="like-icon like-icon-outline" aria-hidden="true">${likeSvgOutlined}</span><span class="like-icon like-icon-filled" aria-hidden="true">${likeSvgFilled}</span><span class="like-count" aria-hidden="true">${likes.count}</span>`}</button>`;
+	return `<button type="button" class="like-btn${likes.liked ? ' liked' : ''}" data-command="like" data-hint-id="${escapeAttribute(hintId)}" data-target="${target}" data-liked="${likes.liked}" data-like-enabled="${enabled}" aria-label="${escapeAttribute(label)}"${loading ? ' aria-busy="true"' : ''}${enabled && !loading ? '' : ' disabled'}><span class="like-icon like-icon-outline" aria-hidden="true">${likeSvgOutlined}</span><span class="like-icon like-icon-filled" aria-hidden="true">${likeSvgFilled}</span><span class="like-count" aria-hidden="true">${likes.count}</span></button>`;
 }
 
 function renderHintContent(state: ProblemPanelState, hint: ProblemHint): string {
@@ -2780,50 +2835,62 @@ editorialResizer.addEventListener('keydown', (event) => {
 	}
 });
 updateEditorialLayout();
+const pendingEditorialLikes = new Map();
+const updateEditorialLikeButton = (button, liked, count) => {
+	button.dataset.liked = String(liked);
+	button.classList.toggle('liked', liked);
+	button.setAttribute('aria-label', (liked ? '取消点赞' : '点赞') + '提示' + (button.dataset.target === 'question' ? '问题' : '答案') + '，当前 ' + count + ' 赞');
+	const countElement = button.querySelector('.like-count');
+	if (countElement) {
+		countElement.textContent = String(count);
+	}
+};
 window.addEventListener('message', (event) => {
 	const message = event.data;
-	if (!message || message.type !== 'editorialLike' || typeof message.hintId !== 'string') {
-		if (message && message.type === 'editorialLikeError' && typeof message.hintId === 'string') {
-			document.querySelectorAll('[data-command="like"]').forEach((element) => {
-				if (element instanceof HTMLButtonElement && element.dataset.hintId === message.hintId) {
-					element.disabled = false;
-					element.classList.remove('loading');
-				}
-			});
-		}
+	if (!message || (message.type !== 'editorialLike' && message.type !== 'editorialLikeError') || typeof message.hintId !== 'string') {
 		return;
 	}
-	document.querySelectorAll('[data-command="like"]').forEach((element) => {
-		if (!(element instanceof HTMLButtonElement) || element.dataset.hintId !== message.hintId) {
+	document.querySelectorAll('[data-command="like"]').forEach((button) => {
+		if (!(button instanceof HTMLButtonElement) || button.dataset.hintId !== message.hintId) {
 			return;
 		}
-		const isQuestion = element.dataset.target === 'question';
-		const liked = isQuestion ? message.questionLiked : message.answerLiked;
-		const count = isQuestion ? message.questionLikeCount : message.answerLikeCount;
-		if (typeof liked !== 'boolean' || typeof count !== 'number') {
+		const pending = pendingEditorialLikes.get(button);
+		const completesRequest = button.dataset.target === message.target;
+		if (pending && !completesRequest) {
 			return;
 		}
-		element.dataset.liked = String(liked);
-		element.disabled = false;
-		element.classList.remove('loading');
-		element.classList.toggle('liked', liked);
-		element.setAttribute('aria-label', (liked ? '取消点赞' : '点赞') + '提示' + (isQuestion ? '问题' : '答案') + '，当前 ' + count + ' 赞');
-		const countElement = element.querySelector('.like-count');
-		if (countElement) {
-			countElement.textContent = String(count);
+		if (message.type === 'editorialLikeError') {
+			if (!pending || !completesRequest) {
+				return;
+			}
+			updateEditorialLikeButton(button, pending.liked, pending.count);
+		} else {
+			const isQuestion = button.dataset.target === 'question';
+			const liked = isQuestion ? message.questionLiked : message.answerLiked;
+			const count = isQuestion ? message.questionLikeCount : message.answerLikeCount;
+			if (typeof liked !== 'boolean' || typeof count !== 'number') {
+				return;
+			}
+			updateEditorialLikeButton(button, liked, count);
+		}
+		if (pending && completesRequest) {
+			pendingEditorialLikes.delete(button);
+			button.disabled = false;
 		}
 	});
 });
 document.addEventListener('click', (event) => {
 	const button = event.target.closest('[data-command="like"]');
-	if (!button) {
+	if (!(button instanceof HTMLButtonElement) || button.disabled || pendingEditorialLikes.has(button)) {
 		return;
 	}
 	const hintId = button.dataset.hintId;
 	const target = button.dataset.target;
 	const liked = button.dataset.liked === 'true';
+	const count = Number(button.querySelector('.like-count').textContent);
+	pendingEditorialLikes.set(button, { liked, count });
+	updateEditorialLikeButton(button, !liked, Math.max(0, count + (liked ? -1 : 1)));
 	button.disabled = true;
-	button.classList.add('loading');
 	vscode.postMessage({ command: 'like', hintId, target, liked: !liked });
 });
 </script>

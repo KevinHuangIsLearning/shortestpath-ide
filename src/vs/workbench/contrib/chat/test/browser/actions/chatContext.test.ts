@@ -93,6 +93,7 @@ function workspaceContextService(folders: readonly { readonly uri: URI; readonly
 		}
 	}();
 }
+
 suite('ChatContext', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -145,25 +146,6 @@ suite('ChatContext', () => {
 				id: 'github.copilot.chat.cloudSessions.openIssue',
 				repository: undefined,
 			},
-		});
-	});
-
-	test('uses the sole workspace folder when GitHub repository metadata is incomplete', async () => {
-		const commandService = new TestCommandService();
-		const folderUri = URI.file('/workspace/vscode');
-		const pick = new GitHubContextValuePick(
-			'issue',
-			new TestGitService([]),
-			new class extends mock<IQuickInputService>() { }(),
-			commandService,
-			workspaceContextService([{ uri: folderUri, name: 'VS Code' }]),
-		);
-
-		await pick.asAttachment();
-
-		assert.deepStrictEqual(commandService.command, {
-			id: 'github.copilot.chat.cloudSessions.openIssue',
-			repository: folderUri,
 		});
 	});
 

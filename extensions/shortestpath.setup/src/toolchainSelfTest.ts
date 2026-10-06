@@ -78,13 +78,13 @@ export async function runToolchainSelfTest(compiler: string, clangd: string, fal
 				throw new Error('测试程序的输出不符合预期。');
 			}
 		}
-		report('检查 CPH 编译、运行与样例判题…');
+		report('检查 Judger 编译、运行与样例判题…');
 		await testCph(file, selfTestSamples, report);
 		// Match clangd's fallback command for files with no project configuration.
 		await fs.writeFile(path.join(directory, 'compile_commands.json'), JSON.stringify([{ directory, file, arguments: ['clang', ...fallbackFlags, file] }]));
 		report('检查 clangd 的 C++20 语法与系统头文件…');
 		await run(clangd, [`--check=${file}`, `--compile-commands-dir=${directory}`, '--enable-config=false', '--log=error'], report);
-		report('命令行、CPH 与代码提示自测全部通过。');
+		report('命令行、Judger 与代码提示自测全部通过。');
 	} finally {
 		await fs.rm(directory, { recursive: true, force: true });
 	}

@@ -190,7 +190,7 @@ async function initializeOiWorkspace(context: vscode.ExtensionContext): Promise<
 		return;
 	}
 
-	const configuredCompiler = vscode.workspace.getConfiguration('cph.language.cpp').get<string>('Command');
+	const configuredCompiler = vscode.workspace.getConfiguration('judger.language.cpp').get<string>('Command');
 	const compiler = configuredCompiler || await findPreferredCompiler(loadPreset(context).compilerCandidates) || 'g++';
 	createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, 'c++20');
 	createDefaultClangFormatConfig(workspaceFolder.uri.fsPath);
@@ -221,7 +221,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const updateExtensionMarketplaceVisibility = () => vscode.commands.executeCommand('setContext', 'shortestpath.extensionMarketplaceEnabled', vscode.workspace.getConfiguration('shortestpath').get<boolean>('useExtensionMarketplace') === true);
 	await updateExtensionMarketplaceVisibility();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
-		if (event.affectsConfiguration('cph.language.cpp.Command')) { configureCompilerRuntime(context); }
+		if (event.affectsConfiguration('judger.language.cpp.Command')) { configureCompilerRuntime(context); }
 		if (event.affectsConfiguration('shortestpath.useExtensionMarketplace')) {
 			void updateExtensionMarketplaceVisibility();
 		}
@@ -307,7 +307,7 @@ function warnAboutPortablePathWithSpaces(): void {
 }
 
 async function ensureShortestPathOjMapping(): Promise<void> {
-	const configuration = vscode.workspace.getConfiguration('cph.general', null);
+	const configuration = vscode.workspace.getConfiguration('judger.general', null);
 	const globalValue = configuration.inspect<Record<string, unknown>>('ojMapping')?.globalValue;
 	if (!globalValue) {
 		return;
@@ -320,7 +320,7 @@ async function ensureShortestPathOjMapping(): Promise<void> {
 }
 
 async function ensureShortestPathFileNameTemplateOverride(): Promise<void> {
-	const configuration = vscode.workspace.getConfiguration('cph.general', null);
+	const configuration = vscode.workspace.getConfiguration('judger.general', null);
 	const globalValue = configuration.inspect<Record<string, string>>('fileNameTemplateOverrides')?.globalValue;
 	if (!globalValue || globalValue.ShortestPath) {
 		return;
@@ -357,19 +357,19 @@ async function repairToolchain(context: vscode.ExtensionContext): Promise<void> 
 	const clangd = await findFirstExecutable(preset.clangdCandidates);
 	if (compiler && clangd && !await isAppleClang(compiler)) {
 		// Repair only toolchain-related settings; do not overwrite the user's editor
-		// and CPH preferences with the first-run preset.
+		// and Judger preferences with the first-run preset.
 		const configuration = vscode.workspace.getConfiguration(undefined, null);
-		const flags = configuration.get<string>('cph.language.cpp.Args')
+		const flags = configuration.get<string>('judger.language.cpp.Args')
 			?? configuration.get<string>('c-cpp-compile-run.cpp-flags')
 			?? '';
 		const settings: Record<string, unknown> = {
-			'cph.language.cpp.Command': compiler,
+			'judger.language.cpp.Command': compiler,
 			'c-cpp-compile-run.cpp-compiler': compiler,
 			'clangd.path': clangd,
 			'clangd.arguments': clangdArgumentsForCompiler(compiler)
 		};
 		if (flags) {
-			settings['cph.language.cpp.Args'] = flags;
+			settings['judger.language.cpp.Args'] = flags;
 			settings['c-cpp-compile-run.cpp-flags'] = flags;
 		}
 		await updateGlobalSettings(settings);
@@ -391,7 +391,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	let installerStarted = false;
 	const configuration = vscode.workspace.getConfiguration(undefined, null);
 	const preservedCompilerFlags = firstRunSelection?.mode === 'repair'
-		? configuration.inspect<string>('cph.language.cpp.Args')?.globalValue
+		? configuration.inspect<string>('judger.language.cpp.Args')?.globalValue
 			?? configuration.inspect<string>('c-cpp-compile-run.cpp-flags')?.globalValue
 		: undefined;
 
@@ -430,7 +430,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		if (process.platform === 'win32' && vscode.env.isAppPortable) {
 			compiler = getSpaceSafePortableCompilerPath(context, compiler);
 		}
-		settings['cph.language.cpp.Command'] = compiler;
+		settings['judger.language.cpp.Command'] = compiler;
 		settings['c-cpp-compile-run.output-location'] = '.';
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
 		if (firstRunSelection?.mode !== 'repair' || preservedCompilerFlags !== undefined) {
@@ -442,7 +442,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 				'-Wextra',
 				'-DDEBUG',
 			].join(' ');
-			settings['cph.language.cpp.Args'] = compilerFlags;
+			settings['judger.language.cpp.Args'] = compilerFlags;
 			settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
 		}
 		if (firstRunSelection?.workspaceFolder) {
@@ -484,11 +484,11 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	return compilerReady && clangdReady;
 }
 
-function configureCompilerRuntime(context: vscode.ExtensionContext, compiler = vscode.workspace.getConfiguration('cph.language.cpp', null).get<string>('Command')): void {
+function configureCompilerRuntime(context: vscode.ExtensionContext, compiler = vscode.workspace.getConfiguration('judger.language.cpp', null).get<string>('Command')): void {
 	if (process.platform !== 'win32' || !compiler || !path.win32.isAbsolute(compiler)) { return; }
 	const environment = withCompilerRuntime(process.env, compiler);
 	// All bundled Node extensions share this process. Their compiler and runner
-	// children inherit the same DLL search path, including CPH and Compile Run.
+	// children inherit the same DLL search path, including Judger and Compile Run.
 	for (const key of Object.keys(process.env).filter(key => key.toLowerCase() === 'path')) { delete process.env[key]; }
 	for (const [key, value] of Object.entries(environment)) {
 		if (key.toLowerCase() === 'path') { process.env[key] = value; }
@@ -511,7 +511,7 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 	const settings: Record<string, unknown> = {};
 
 	if (compilerExists) {
-		for (const key of ['cph.language.cpp.Command', 'c-cpp-compile-run.cpp-compiler']) {
+		for (const key of ['judger.language.cpp.Command', 'c-cpp-compile-run.cpp-compiler']) {
 			const value = configuration.inspect<string>(key)?.globalValue;
 			if (value && rebaseManagedToolchainPath(value, compiler, clangd) === compiler && value !== compiler) {
 				settings[key] = compiler;
@@ -534,9 +534,9 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 		}
 	}
 
-	if (compilerExists && (settings['cph.language.cpp.Command'] || settings['c-cpp-compile-run.cpp-compiler']) && configuration.inspect<string[]>('clangd.fallbackFlags')?.globalValue) {
+	if (compilerExists && (settings['judger.language.cpp.Command'] || settings['c-cpp-compile-run.cpp-compiler']) && configuration.inspect<string[]>('clangd.fallbackFlags')?.globalValue) {
 		try {
-			settings['clangd.fallbackFlags'] = await compilerFallbackFlags(compiler, runToolchainCommand, findCppStandard(configuration.get<string>('cph.language.cpp.Args') ?? ''));
+			settings['clangd.fallbackFlags'] = await compilerFallbackFlags(compiler, runToolchainCommand, findCppStandard(configuration.get<string>('judger.language.cpp.Args') ?? ''));
 		} catch (error) {
 			void vscode.window.showWarningMessage(localizeFormat('无法更新代码提示配置：{0}', localize(error instanceof Error ? error.message : String(error))));
 		}
@@ -673,23 +673,23 @@ async function prepareFirstRunStage(context: vscode.ExtensionContext, options: S
 
 async function selfTestEnvironment(options: SetupEnvironmentOptions = {}): Promise<ToolchainInstallResult> {
 	const configuration = vscode.workspace.getConfiguration(undefined, null);
-	const compiler = configuration.get<string>('cph.language.cpp.Command');
+	const compiler = configuration.get<string>('judger.language.cpp.Command');
 	const clangd = configuration.get<string>('clangd.path');
 	const flags = configuration.get<string[]>('clangd.fallbackFlags');
 	if (!compiler || !clangd || !flags?.length) { return { success: false, message: localize('编译环境尚未准备完成。请完成安装后重试。') }; }
 	try {
 		await runToolchainSelfTest(compiler, clangd, flags, options.reportProgress ?? (() => undefined), async (file, samples, report) => {
-			const result = await vscode.commands.executeCommand<{ success: boolean; reason?: string; detail?: string }>('cph.selfTestEnvironment', {
+			const result = await vscode.commands.executeCommand<{ success: boolean; reason?: string; detail?: string }>('judger.selfTestEnvironment', {
 				sourcePath: file, samples,
 				reportProgress: (event: { type: string; text?: string; index?: number; input?: string; expected?: string; actual?: string; pass?: boolean }) => {
 					if (event.type === 'compilerOutput') { report(event.text ?? ''); }
 					if (event.type === 'sample') {
-						report(localizeFormat('CPH 样例 {0}：输入 {1}，期望 {2}，实际 {3}，{4}', (event.index ?? 0) + 1, event.input?.trim(), event.expected?.trim(), event.actual?.trim(), event.pass ? localize('通过') : localize('失败')));
+						report(localizeFormat('Judger 样例 {0}：输入 {1}，期望 {2}，实际 {3}，{4}', (event.index ?? 0) + 1, event.input?.trim(), event.expected?.trim(), event.actual?.trim(), event.pass ? localize('通过') : localize('失败')));
 					}
 				}
 			});
-			if (!result?.success) { throw new Error(localizeFormat('CPH 自检失败：{0}', result?.reason === 'compile' ? localize('编译失败') : result?.reason === 'judge' ? localize('错误答案未被正确识别') : localize('样例运行或判题失败')) + (result?.detail ? `\n${result.detail}` : '')); }
-			report(localize('CPH 编译、样例通过与错误答案识别检查均通过。'));
+			if (!result?.success) { throw new Error(localizeFormat('Judger 自检失败：{0}', result?.reason === 'compile' ? localize('编译失败') : result?.reason === 'judge' ? localize('错误答案未被正确识别') : localize('样例运行或判题失败')) + (result?.detail ? `\n${result.detail}` : '')); }
+			report(localize('Judger 编译、样例通过与错误答案识别检查均通过。'));
 		});
 		return { success: true, message: localize('环境已就绪，自测通过。') };
 	} catch (error) {

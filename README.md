@@ -75,6 +75,13 @@ npm run compile-oi-extensions
 npm run gulp vscode-win32-x64-min
 ```
 
+Build a Linux x64 package:
+
+```bash
+npm run compile-oi-extensions
+npm run gulp vscode-linux-x64-min
+```
+
 ## Open-source projects and licenses
 
 ShortestPath IDE is licensed under [GPL-3.0-or-later](LICENSE). Open-source components included, modified, or bundled by this project remain under their respective licenses. The table below identifies principal sources; it is not a complete third-party dependency inventory.

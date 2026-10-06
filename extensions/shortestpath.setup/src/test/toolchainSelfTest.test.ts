@@ -65,15 +65,15 @@ test('command executor ends stdin and propagates nonzero exits', async () => {
 });
 
 
-test('a failed CPH self-test blocks readiness and cleans up before clangd', async () => {
+test('a failed Judger self-test blocks readiness and cleans up before clangd', async () => {
 	let directory = '';
 	let checkedClangd = false;
-	await assert.rejects(runToolchainSelfTest('g++', 'clangd', ['-std=c++20'], () => {}, async () => { throw new Error('CPH failed'); }, async (_executable, args, _report, input) => {
+	await assert.rejects(runToolchainSelfTest('g++', 'clangd', ['-std=c++20'], () => {}, async () => { throw new Error('Judger failed'); }, async (_executable, args, _report, input) => {
 		if (args.includes('-o')) { directory = path.dirname(args[args.indexOf('-o') - 1]); }
 		if (!args.length) { return selfTestSamples.find(sample => sample.input === input)!.output; }
 		if (args[0]?.startsWith('--check=')) { checkedClangd = true; }
 		return '';
-	}), /CPH failed/);
+	}), /Judger failed/);
 	assert.equal(checkedClangd, false);
 	assert.equal(fs.existsSync(directory), false);
 });

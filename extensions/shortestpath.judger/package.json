@@ -1,0 +1,1512 @@
+{
+    "name": "judger",
+    "displayName": "ShortestPath Judger",
+    "description": "Makes judging, compiling, and downloading problems for competitve programming easy. Also supports auto-submit for a few sites.",
+    "license": "GPL-3.0-or-later",
+    "icon": "icon.png",
+    "publisher": "shortestpath",
+    "version": "2077.0.0",
+    "engines": {
+        "vscode": "^1.52.0"
+    },
+    "enabledApiProposals": [
+        "browser"
+    ],
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "*"
+    ],
+    "sponsor": {
+        "url": "https://rb.gy/5iiorz"
+    },
+    "main": "dist/extension.js",
+    "contributes": {
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "cph-judge-view-container",
+                    "title": "%judger.judgeViewContainer.title%",
+                    "icon": "dist/static/panel-view-icon.svg"
+                }
+            ]
+        },
+        "views": {
+            "cph-judge-view-container": [
+                {
+                    "type": "webview",
+                    "id": "judger.judgeView",
+                    "name": "%judger.judgeView.name%",
+                    "when": "!shortestpath.oj.integratedLocalTests"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "judger.importBrowserProblem",
+                "title": "%judger.importBrowserProblem.title%"
+            },
+            {
+                "command": "judger.runTestCases",
+                "title": "%judger.runTestCases.title%",
+                "icon": "dist/static/play.png"
+            },
+            {
+                "command": "judger.submitToCodeForces",
+                "title": "%judger.submitToCodeForces.title%",
+                "icon": "dist/static/play.png"
+            },
+            {
+                "command": "judger.compileWithoutRunning",
+                "title": "%judger.compileWithoutRunning.title%"
+            },
+            {
+                "command": "judger.installSubmissionScript",
+                "title": "%judger.installSubmissionScript.title%"
+            }
+        ],
+        "menus": {
+            "webview/context": [
+                {
+                    "command": "judger.compileWithoutRunning",
+                    "when": "webviewId == judger.judgeView && webviewSection == 'compile-button'"
+                }
+            ]
+        },
+        "keybindings": [
+            {
+                "key": "ctrl+alt+b",
+                "command": "judger.runTestCases"
+            },
+            {
+                "key": "ctrl+alt+s",
+                "command": "judger.submitToCodeForces"
+            },
+            {
+                "key": "ctrl+alt+d",
+                "command": "judger.judgeView.focus"
+            }
+        ],
+        "configuration": {
+            "title": "%judger.configuration.title%",
+            "properties": {
+                "judger.general.saveLocation": {
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.general.saveLocation.description%",
+                    "scope": "resource"
+                },
+                "judger.general.timeOut": {
+                    "type": "number",
+                    "default": 3000,
+                    "description": "%judger.general.timeOut.description%",
+                    "scope": "resource"
+                },
+                "judger.general.hideStderrorWhenCompiledOK": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%judger.general.hideStderrorWhenCompiledOK.description%",
+                    "scope": "resource"
+                },
+                "judger.general.ignoreSTDERROR": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%judger.general.ignoreSTDERROR.description%",
+                    "scope": "resource"
+                },
+                "judger.general.defaultOnlineJudge": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%judger.general.defaultOnlineJudge.description%",
+                    "scope": "resource"
+                },
+                "judger.language.c.Args": {
+                    "title": "%judger.language.c.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.c.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.c.SubmissionCompiler": {
+                    "type": "string",
+                    "default": "GNU GCC C11 5.1.0",
+                    "enum": [
+                        "GNU GCC C11 5.1.0"
+                    ],
+                    "description": "%judger.language.c.SubmissionCompiler.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.c.Command": {
+                    "type": "string",
+                    "default": "gcc",
+                    "description": "%judger.language.c.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.c.OutputArg": {
+                    "type": "string",
+                    "default": "-o",
+                    "enum": [
+                        "-o",
+                        "/Fe:"
+                    ],
+                    "description": "%judger.language.c.OutputArg.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.cpp.Args": {
+                    "title": "%judger.language.cpp.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.cpp.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.cpp.SubmissionCompiler": {
+                    "type": "string",
+                    "default": "GNU G++23 14.2 (64 bit, msys2)",
+                    "enum": [
+                        "GNU G++17 7.3.0",
+                        "GNU G++14 6.4.0",
+                        "GNU G++11 5.1.0",
+                        "GNU G++17 9.2.0 (64 bit, msys 2)",
+                        "GNU G++20 13.2 (64 bit, winlibs)",
+                        "GNU G++23 14.2 (64 bit, msys2)",
+                        "Microsoft Visual C++ 2017",
+                        "Microsoft Visual C++ 2010",
+                        "Clang++17 Diagnostics"
+                    ],
+                    "description": "%judger.language.cpp.SubmissionCompiler.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.cpp.Command": {
+                    "type": "string",
+                    "default": "g++",
+                    "description": "%judger.language.cpp.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.cpp.OutputArg": {
+                    "type": "string",
+                    "default": "-o",
+                    "enum": [
+                        "-o",
+                        "/Fe:"
+                    ],
+                    "description": "%judger.language.cpp.OutputArg.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.csharp.Args": {
+                    "title": "%judger.language.csharp.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.csharp.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.csharp.SubmissionCompiler": {
+                    "type": "string",
+                    "default": "C# 8, .NET Core 3.1",
+                    "enum": [
+                        "C# 8, .NET Core 3.1",
+                        "C# 10, .NET SDK 6.0",
+                        "C# Mono 6.8"
+                    ],
+                    "description": "%judger.language.csharp.SubmissionCompiler.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.csharp.Command": {
+                    "type": "string",
+                    "default": "dotnet",
+                    "description": "%judger.language.csharp.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.python.Args": {
+                    "title": "%judger.language.python.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.python.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.python.SubmissionCompiler": {
+                    "type": "string",
+                    "default": "PyPy 3.10 (7.3.15, 64bit)",
+                    "enum": [
+                        "PyPy 2.7 (7.2.0)",
+                        "PyPy 3.6 (7.2.0)",
+                        "PyPy 3.10 (7.3.15, 64bit)",
+                        "Python 3.7.2",
+                        "Python 2.7.15"
+                    ],
+                    "description": "%judger.language.python.SubmissionCompiler.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.python.Command": {
+                    "type": "string",
+                    "default": "python3",
+                    "description": "%judger.language.python.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.ruby.Args": {
+                    "title": "%judger.language.ruby.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.ruby.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.ruby.SubmissionCompiler": {
+                    "type": "string",
+                    "default": "Ruby 3.2.2",
+                    "enum": [
+                        "Ruby 3.2.2"
+                    ],
+                    "description": "%judger.language.ruby.SubmissionCompiler.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.ruby.Command": {
+                    "type": "string",
+                    "default": "ruby",
+                    "description": "%judger.language.ruby.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.rust.Args": {
+                    "title": "%judger.language.rust.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.rust.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.rust.SubmissionCompiler": {
+                    "type": "string",
+                    "default": "Rust 1.89.0 (2024)",
+                    "enum": [
+                        "Rust 1.89.0 (2024)"
+                    ],
+                    "description": "%judger.language.rust.SubmissionCompiler.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.rust.Command": {
+                    "type": "string",
+                    "default": "rustc",
+                    "description": "%judger.language.rust.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.go.Args": {
+                    "title": "%judger.language.go.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.go.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.go.SubmissionCompiler": {
+                    "type": "string",
+                    "default": "Go 1.22.2",
+                    "enum": [
+                        "Go 1.22.2"
+                    ],
+                    "description": "%judger.language.go.SubmissionCompiler.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.go.Command": {
+                    "type": "string",
+                    "default": "go",
+                    "description": "%judger.language.go.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.haskell.Args": {
+                    "title": "%judger.language.haskell.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.haskell.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.haskell.SubmissionCompiler": {
+                    "type": "string",
+                    "default": "Haskell GHC 8.10.1",
+                    "enum": [
+                        "Haskell GHC 8.10.1"
+                    ],
+                    "description": "%judger.language.haskell.SubmissionCompiler.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.haskell.Command": {
+                    "type": "string",
+                    "default": "ghc",
+                    "description": "%judger.language.haskell.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.java.Args": {
+                    "title": "%judger.language.java.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.java.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.java.SubmissionCompiler": {
+                    "type": "string",
+                    "default": "Java 21 64bit",
+                    "enum": [
+                        "Java 21 64bit",
+                        "Java 11.0.6",
+                        "Java 8 32bit"
+                    ],
+                    "description": "%judger.language.java.SubmissionCompiler.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.java.Command": {
+                    "type": "string",
+                    "default": "javac",
+                    "description": "%judger.language.java.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.js.Args": {
+                    "title": "%judger.language.js.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.js.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.js.SubmissionCompiler": {
+                    "type": "string",
+                    "default": "Node.js 15.8.0 (64bit)",
+                    "enum": [
+                        "Node.js 15.8.0 (64bit)",
+                        "JavaScript V8 4.8.0"
+                    ],
+                    "description": "%judger.language.js.SubmissionCompiler.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.js.Command": {
+                    "type": "string",
+                    "default": "node",
+                    "description": "%judger.language.js.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.cangjie.Args": {
+                    "title": "%judger.language.cangjie.Args.title%",
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.language.cangjie.Args.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.language.cangjie.Command": {
+                    "type": "string",
+                    "default": "cjc",
+                    "description": "%judger.language.cangjie.Command.description%",
+                    "scope": "language-overridable"
+                },
+                "judger.general.firstTime": {
+                    "title": "%judger.general.firstTime.title%",
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%judger.general.firstTime.description%",
+                    "scope": "resource"
+                },
+                "judger.general.defaultLanguage": {
+                    "title": "%judger.general.defaultLanguage.title%",
+                    "type": "string",
+                    "default": "",
+                    "enum": [
+                        "none",
+                        "c",
+                        "cpp",
+                        "python",
+                        "rust",
+                        "js",
+                        "java",
+                        "ruby",
+                        "csharp",
+                        "go",
+                        "haskell",
+                        "cangjie"
+                    ],
+                    "description": "%judger.general.defaultLanguage.description%",
+                    "scope": "resource"
+                },
+                "judger.general.menuChoices": {
+                    "type": "string",
+                    "default": "cpp java js python c rust ruby csharp go haskell",
+                    "description": "%judger.general.menuChoices.description%",
+                    "scope": "resource"
+                },
+                "judger.general.includeProblemIndex": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Include the problem index for problem file generated ( like P_1_abc ) instead of omitting it",
+                    "scope": "resource"
+                },
+                "judger.general.wordRegex": {
+                    "type": "string",
+                    "default": "[\\p{L}]+|[0-9]+",
+                    "description": "The regex that defines what a word is for problem file generated. Each word is separated by an underscore",
+                    "scope": "resource"
+                },
+                "judger.general.useShortCodeForcesName": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%judger.general.useShortCodeForcesName.description%",
+                    "scope": "resource"
+                },
+                "judger.general.useShortLuoguName": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%judger.general.useShortLuoguName.description%",
+                    "scope": "resource"
+                },
+                "judger.general.useShortAtCoderName": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%judger.general.useShortAtCoderName.description%",
+                    "scope": "resource"
+                },
+                "judger.general.retainWebviewContext": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%judger.general.retainWebviewContext.description%",
+                    "scope": "resource"
+                },
+                "judger.general.defaultLanguageTemplateFileLocation": {
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.general.defaultLanguageTemplateFileLocation.description%",
+                    "scope": "resource"
+                },
+                "judger.general.doTemplateFileVariableReplacement": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Replace $var$ in the template file with its value. For example, replace $url$ with the problem's url. For more information, please refer to the user guide.",
+                    "scope": "resource"
+                },
+                "judger.general.fileNameTemplate": {
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.general.fileNameTemplate.description%",
+                    "scope": "resource"
+                },
+                "judger.general.fileNameTemplateOverrides": {
+                    "type": "object",
+                    "default": {},
+                    "properties": {
+                        "CF": {
+                            "type": "string",
+                            "description": "Codeforces"
+                        },
+                        "AT": {
+                            "type": "string",
+                            "description": "AtCoder"
+                        },
+                        "LG": {
+                            "type": "string",
+                            "description": "Luogu"
+                        },
+                        "HDU": {
+                            "type": "string",
+                            "description": "HDU"
+                        }
+                    },
+                    "patternProperties": {
+                        "^.+$": {
+                            "type": "string"
+                        }
+                    },
+                    "description": "%judger.general.fileNameTemplateOverrides.description%",
+                    "scope": "resource"
+                },
+                "judger.general.autoShowJudge": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%judger.general.autoShowJudge.description%",
+                    "scope": "resource"
+                },
+                "judger.general.remoteServerAddress": {
+                    "type": "string",
+                    "default": "http://20.244.105.138:4546",
+                    "description": "%judger.general.remoteServerAddress.description%",
+                    "scope": "resource"
+                },
+                "judger.general.showLiveUserCount": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%judger.general.showLiveUserCount.description%",
+                    "scope": "resource"
+                },
+                "judger.general.hideOutputDifference": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "If true, the UI will hide the inline output difference by default. Users can toggle and this will be remembered.",
+                    "scope": "resource"
+                },
+                "judger.general.collectProblemsInRoot": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%judger.general.collectProblemsInRoot.description%",
+                    "scope": "resource"
+                },
+                "judger.general.ojMapping": {
+                    "type": "object",
+                    "default": {
+                        "codeforces.com": {
+                            "oj": "CF",
+                            "ojName": "Codeforces",
+                            "contestIdRegex": "(?:contest|gym|problemset\\/problem)\\/(\\d+)",
+                            "problemIdRegex": "(?:contest|gym|problemset\\/problem)\\/\\d+\\/(?:problem\\/)?(\\w+)"
+                        },
+                        "atcoder.jp": {
+                            "oj": "AT",
+                            "ojName": "AtCoder",
+                            "contestIdRegex": "contests\\/(\\w+)\\/tasks\\/\\w+_\\w+",
+                            "problemIdRegex": "contests\\/\\w+\\/tasks\\/\\w+_(\\w+)"
+                        },
+                        "luogu.com.cn": {
+                            "oj": "LG",
+                            "ojName": "Luogu",
+                            "problemIdRegex": "problem\\/(\\w+)"
+                        },
+                        "shortestpath.cn": {
+                            "oj": "ShortestPath",
+                            "ojName": "ShortestPath",
+                            "contestIdRegex": "problem\\/([^\\/]+)\\/[^\\/]+\\/[^\\/]+",
+                            "problemIdRegex": "problem\\/[^\\/]+\\/(.+)$"
+                        },
+                        "open.kattis.com": {
+                            "oj": "Kattis",
+                            "ojName": "Kattis"
+                        },
+                        "codechef.com": {
+                            "oj": "CC",
+                            "ojName": "CodeChef"
+                        },
+                        "spoj.com": {
+                            "oj": "SPOJ",
+                            "ojName": "SPOJ"
+                        },
+                        "hackerrank.com": {
+                            "oj": "HR",
+                            "ojName": "HackerRank"
+                        },
+                        "hackerearth.com": {
+                            "oj": "HE",
+                            "ojName": "HackerEarth"
+                        },
+                        "leetcode.com": {
+                            "oj": "LC",
+                            "ojName": "LeetCode"
+                        },
+                        "acm.timus.ru": {
+                            "oj": "Timus",
+                            "ojName": "Timus"
+                        },
+                        "dmoj.ca": {
+                            "oj": "DMOJ",
+                            "ojName": "DMOJ"
+                        },
+                        "cses.fi": {
+                            "oj": "CSES",
+                            "ojName": "CSES"
+                        },
+                        "usaco.org": {
+                            "oj": "USACO",
+                            "ojName": "USACO"
+                        },
+                        "lightoj.com": {
+                            "oj": "LOJ",
+                            "ojName": "LightOJ"
+                        },
+                        "eolymp.com": {
+                            "oj": "EOlymp",
+                            "ojName": "EOlymp"
+                        },
+                        "acm.hdu.edu.cn": {
+                            "oj": "HDU",
+                            "ojName": "HDU",
+                            "problemIdRegex": "[?&]pid=(\\d+)"
+                        }
+                    },
+                    "properties": {
+                        "codeforces.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "atcoder.jp": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "luogu.com.cn": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "open.kattis.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "codechef.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "spoj.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "hackerrank.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "hackerearth.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "leetcode.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "acm.timus.ru": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "dmoj.ca": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "cses.fi": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "usaco.org": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "lightoj.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "eolymp.com": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "acm.hdu.edu.cn": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string"
+                                },
+                                "ojName": {
+                                    "type": "string"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "patternProperties": {
+                        "^.+$": {
+                            "type": "object",
+                            "properties": {
+                                "oj": {
+                                    "type": "string",
+                                    "description": "OJ abbreviation used for {oj} placeholder"
+                                },
+                                "ojName": {
+                                    "type": "string",
+                                    "description": "OJ full name used for {ojName} placeholder"
+                                },
+                                "contestIdRegex": {
+                                    "type": "string",
+                                    "description": "Optional regex to extract contestId from URL. First capture group is used."
+                                },
+                                "problemIdRegex": {
+                                    "type": "string",
+                                    "description": "Optional regex to extract problemId from URL. First capture group is used."
+                                },
+                                "problemSource": {
+                                    "type": "string",
+                                    "enum": [
+                                        "vjudge",
+                                        "original",
+                                        "none"
+                                    ],
+                                    "description": "Optional problem page source for this OJ. Falls back to Default Problem Source."
+                                }
+                            }
+                        }
+                    },
+                    "description": "%judger.general.ojMapping.description%",
+                    "scope": "resource"
+                },
+                "judger.general.defaultProblemSource": {
+                    "type": "string",
+                    "default": "vjudge",
+                    "enum": [
+                        "vjudge",
+                        "original"
+                    ],
+                    "enumDescriptions": [
+                        "VJudge",
+                        "Original OJ"
+                    ],
+                    "description": "%judger.general.defaultProblemSource.description%",
+                    "scope": "resource"
+                },
+                "judger.general.vjudgeOjNames": {
+                    "type": "object",
+                    "default": {
+                        "CodeForces": {
+                            "urlTemplate": "https://codeforces.com/problemset/problem/{contestId}/{problemId}",
+                            "problemIdRegex": "^(\\d+)([A-Z]\\d*)$"
+                        },
+                        "CF": {
+                            "urlTemplate": "https://codeforces.com/problemset/problem/{contestId}/{problemId}",
+                            "problemIdRegex": "^(\\d+)([A-Z]\\d*)$",
+                            "vjudgeUrlKey": "CodeForces"
+                        },
+                        "AtCoder": {
+                            "urlTemplate": "https://atcoder.jp/contests/{contestId}/tasks/{contestId}_{problemId}",
+                            "problemIdRegex": "^([a-z]+\\d+)_([a-z]\\d*)$",
+                            "compositeFormat": "{contestId}_{problemId}"
+                        },
+                        "Luogu": {
+                            "urlTemplate": "https://www.luogu.com.cn/problem/{problemId}",
+                            "vjudgeUrlKey": "洛谷"
+                        },
+                        "洛谷": {
+                            "urlTemplate": "https://www.luogu.com.cn/problem/{problemId}"
+                        },
+                        "SPOJ": {
+                            "urlTemplate": "https://www.spoj.com/problems/{problemId}"
+                        },
+                        "UVA": {
+                            "urlTemplate": "https://onlinejudge.org/index.php?option=com_onlinejudge&Itemid=8&page=show_problem&problem={problemId}"
+                        },
+                        "HDU": {
+                            "urlTemplate": "https://acm.hdu.edu.cn/showproblem.php?pid={problemId}"
+                        },
+                        "POJ": {
+                            "urlTemplate": "http://poj.org/problem?id={problemId}"
+                        },
+                        "Bailian": {
+                            "urlTemplate": "http://bailian.openjudge.cn/practice/{problemId}"
+                        }
+                    },
+                    "properties": {
+                        "CodeForces": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "CF": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "AtCoder": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "Luogu": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "洛谷": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "SPOJ": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "UVA": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "HDU": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "POJ": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "Bailian": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "problemIdRegex": {
+                                    "type": "string"
+                                },
+                                "compositeFormat": {
+                                    "type": "string"
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "patternProperties": {
+                        "^.+$": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string",
+                                    "description": "Template to reconstruct original OJ URL. Use {contestId} and {problemId} placeholders."
+                                },
+                                "problemIdRegex": {
+                                    "type": "string",
+                                    "description": "Optional: regex to split VJudge's combined problem ID. Capture group 1 → {contestId}, group 2 → {problemId}."
+                                },
+                                "compositeFormat": {
+                                    "type": "string",
+                                    "description": "Optional: template to reconstruct composite problem ID for VJudge URL. Defaults to '{contestId}{problemId}'. Use when VJudge uses a separator (e.g. '{contestId}_{problemId}' for AtCoder)."
+                                },
+                                "vjudgeUrlKey": {
+                                    "type": "string",
+                                    "description": "Optional: override the VJudge URL OJ name. When this entry is matched but the VJudge URL uses a different key (e.g. 'CF' maps to 'CodeForces', 'Luogu' maps to '洛谷'), specify the canonical key here."
+                                }
+                            }
+                        }
+                    },
+                    "description": "%judger.general.vjudgeOjNames.description%",
+                    "scope": "resource"
+                },
+                "judger.general.defaultSubmitMethod": {
+                    "type": "string",
+                    "enum": [
+                        "ask",
+                        "vjudge",
+                        "native"
+                    ],
+                    "enumDescriptions": [
+                        "%judger.general.defaultSubmitMethod.ask%",
+                        "%judger.general.defaultSubmitMethod.vjudge%",
+                        "%judger.general.defaultSubmitMethod.native%"
+                    ],
+                    "default": "ask",
+                    "scope": "application",
+                    "description": "%judger.general.defaultSubmitMethod.description%"
+                },
+                "judger.general.customSubmitScripts": {
+                    "type": "object",
+                    "default": {},
+                    "patternProperties": {
+                        "^.+$": {
+                            "type": "object",
+                            "properties": {
+                                "urlTemplate": {
+                                    "type": "string"
+                                },
+                                "script": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "urlTemplate",
+                                "script"
+                            ]
+                        }
+                    },
+                    "scope": "application",
+                    "description": "%judger.general.customSubmitScripts.description%"
+                },
+                "judger.general.vjudgeOpenInBrowser": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%judger.general.vjudgeOpenInBrowser.description%",
+                    "scope": "resource"
+                },
+                "judger.general.vjudgeUrlSuffix": {
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.general.vjudgeUrlSuffix.description%",
+                    "scope": "resource"
+                },
+                "judger.general.vjudgeBrowserSplitRatio": {
+                    "type": "number",
+                    "default": 50,
+                    "minimum": 10,
+                    "maximum": 90,
+                    "description": "%judger.general.vjudgeBrowserSplitRatio.description%",
+                    "scope": "resource"
+                },
+                "judger.problem.unzipFolder": {
+                    "type": "string",
+                    "default": "${problem}/testcases/${zipBasenameNoExt}",
+                    "description": "%judger.problem.unzipFolder.description%",
+                    "scope": "resource"
+                },
+                "judger.problem.inputFileExtensionList": {
+                    "type": "array",
+                    "default": [
+                        ".in"
+                    ],
+                    "description": "%judger.problem.inputFileExtensionList.description%",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^\\.[A-Za-z0-9]+$"
+                    },
+                    "scope": "resource"
+                },
+                "judger.problem.outputFileExtensionList": {
+                    "type": "array",
+                    "default": [
+                        ".ans",
+                        ".out"
+                    ],
+                    "description": "%judger.problem.outputFileExtensionList.description%",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^\\.[A-Za-z0-9]+$"
+                    },
+                    "scope": "resource"
+                },
+                "judger.submission.builtinScripts": {
+                    "type": "boolean",
+                    "default": true,
+                    "scope": "application",
+                    "description": "%judger.submission.builtinScripts.description%"
+                },
+                "judger.submission.autoSubmit": {
+                    "type": "boolean",
+                    "default": false,
+                    "scope": "application",
+                    "description": "%judger.submission.autoSubmit.description%"
+                },
+                "judger.submission.userScripts": {
+                    "type": "array",
+                    "default": [],
+                    "scope": "application",
+                    "description": "%judger.submission.userScripts.description%",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "judger.submission.languages": {
+                    "type": "object",
+                    "default": {},
+                    "scope": "application",
+                    "description": "%judger.submission.languages.description%"
+                },
+                "judger.problem.deleteAfterUnzip": {
+                    "type": "boolean",
+                    "default": false,
+                    "scope": "resource",
+                    "description": "%judger.problem.deleteAfterUnzip.description%"
+                },
+                "judger.problem.foundMatchTestcaseBehavior": {
+                    "type": "string",
+                    "default": "always",
+                    "scope": "resource",
+                    "description": "%judger.problem.foundMatchTestcaseBehavior.description%",
+                    "enum": [
+                        "always",
+                        "ask",
+                        "never"
+                    ]
+                },
+                "judger.execution.mode": {
+                    "type": "string",
+                    "default": "native",
+                    "scope": "resource",
+                    "description": "%judger.execution.mode.description%",
+                    "enum": [
+                        "standard",
+                        "native",
+                        "instrumented"
+                    ]
+                },
+                "judger.execution.unlimitedStack": {
+                    "type": "boolean",
+                    "default": false,
+                    "scope": "resource",
+                    "description": "%judger.execution.unlimitedStack.description%"
+                },
+                "judger.execution.redirectStdio": {
+                    "type": "boolean",
+                    "default": false,
+                    "scope": "resource",
+                    "description": "%judger.execution.redirectStdio.description%"
+                },
+                "judger.execution.acceptPresentationError": {
+                    "type": "boolean",
+                    "default": true,
+                    "scope": "resource",
+                    "description": "%judger.execution.acceptPresentationError.description%"
+                },
+                "judger.problem.clearBeforeLoad": {
+                    "type": "boolean",
+                    "default": false,
+                    "scope": "resource",
+                    "description": "%judger.problem.clearBeforeLoad.description%"
+                },
+                "judger.problem.maxInlineDataLength": {
+                    "type": "integer",
+                    "default": 65536,
+                    "minimum": 1,
+                    "maximum": 65536,
+                    "scope": "resource",
+                    "description": "%judger.problem.maxInlineDataLength.description%"
+                },
+                "judger.execution.compilationTimeout": {
+                    "type": "integer",
+                    "default": 10000,
+                    "minimum": 100,
+                    "scope": "resource",
+                    "description": "%judger.execution.compilationTimeout.description%"
+                },
+                "judger.execution.outputLimitMb": {
+                    "type": "integer",
+                    "default": 16,
+                    "minimum": 1,
+                    "maximum": 128,
+                    "scope": "resource",
+                    "description": "%judger.execution.outputLimitMb.description%"
+                },
+                "judger.submission.expandLocalHeaders": {
+                    "type": "boolean",
+                    "default": false,
+                    "scope": "resource",
+                    "description": "%judger.submission.expandLocalHeaders.description%"
+                },
+                "judger.execution.compileMode": {
+                    "type": "string",
+                    "default": "auto",
+                    "enum": [
+                        "auto",
+                        "force",
+                        "reuse"
+                    ],
+                    "scope": "resource",
+                    "description": "%judger.execution.compileMode.description%"
+                },
+                "judger.problem.expandBehavior": {
+                    "type": "string",
+                    "default": "failed",
+                    "enum": [
+                        "always",
+                        "never",
+                        "failed",
+                        "first",
+                        "firstFailed",
+                        "same"
+                    ],
+                    "scope": "resource",
+                    "description": "%judger.problem.expandBehavior.description%"
+                },
+                "judger.problem.hiddenStatuses": {
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "AC",
+                            "WA",
+                            "PE",
+                            "TLE",
+                            "MLE",
+                            "RE",
+                            "CE",
+                            "OLE",
+                            "STOP",
+                            "FAIL",
+                            "PARTIAL"
+                        ]
+                    },
+                    "scope": "resource",
+                    "description": "%judger.problem.hiddenStatuses.description%"
+                },
+                "judger.execution.timeAdditionMs": {
+                    "type": "integer",
+                    "default": 1000,
+                    "minimum": 0,
+                    "scope": "resource",
+                    "description": "%judger.execution.timeAdditionMs.description%"
+                },
+                "judger.execution.outputRatioLimit": {
+                    "type": "number",
+                    "default": 0,
+                    "minimum": 0,
+                    "scope": "resource",
+                    "description": "%judger.execution.outputRatioLimit.description%"
+                },
+                "judger.stressTest.generatorTimeLimit": {
+                    "type": "integer",
+                    "default": 10000,
+                    "minimum": 1,
+                    "description": "%judger.stressTest.generatorTimeLimit.description%"
+                },
+                "judger.stressTest.bruteForceTimeLimit": {
+                    "type": "integer",
+                    "default": 60000,
+                    "minimum": 1,
+                    "description": "%judger.stressTest.bruteForceTimeLimit.description%"
+                },
+                "judger.language.cpp.Template": {
+                    "type": "string",
+                    "description": "%judger.language.cpp.Template.description%"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "webpack-production": "webpack --mode production",
+        "webpack-frontend-production": "webpack --mode production --config ./webpack.frontend.config.js",
+        "vscode:prepublish": "npm run webpack-frontend-production && npm run webpack-production",
+        "prewebpack": "webpack --mode development --config ./webpack.frontend.config.js",
+        "webpack": "webpack --mode development",
+        "webpack-dev": "webpack --mode development --watch",
+        "webpack-frontend-dev": "webpack --mode development --watch --config ./webpack.frontend.config.js",
+        "webpack-preview": "webpack --mode development --config ./webpack.preview.config.js",
+        "test-compile": "tsc -p ./",
+        "lint": "node scripts/lint.js",
+        "pretest": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\" && tsc -p ./",
+        "test": "jest out/ --silent=false",
+        "test:userscript-bundle": "node scripts/test-userscript-bundle.js"
+    },
+    "devDependencies": {
+        "@types/adm-zip": "^0.5.8",
+        "@types/jest": "^29.5.10",
+        "@types/node": "^20.9.5",
+        "@types/react": "^18.2.38",
+        "@types/react-dom": "^18.2.17",
+        "@types/vscode": "^1.52.0",
+        "@typescript-eslint/eslint-plugin": "^6.12.0",
+        "@typescript-eslint/parser": "^6.12.0",
+        "@vscode/codicons": "^0.0.35",
+        "copy-webpack-plugin": "^11.0.0",
+        "eslint": "^8.54.0",
+        "eslint-config-prettier": "^9.0.0",
+        "eslint-plugin-prettier": "^5.0.1",
+        "eslint-plugin-react": "^7.33.2",
+        "eslint-plugin-react-hooks": "^4.6.0",
+        "jest": "^29.7.0",
+        "prettier": "3.1.0",
+        "ts-loader": "^9.5.1",
+        "typescript": "^5.3.2",
+        "webpack": "^5.89.0",
+        "webpack-cli": "^5.1.4"
+    },
+    "dependencies": {
+        "@vscode/extension-telemetry": "^0.9.0",
+        "adm-zip": "^0.6.1",
+        "ansi-to-html": "^0.7.2",
+        "python-shell": "^5.0.0",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "react-textarea-autosize": "^8.5.3",
+        "vscode-nls": "^5.2.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus"
+    }
+}

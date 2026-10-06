@@ -23,20 +23,26 @@ export const recommendedDeps = [
 ];
 
 export const referenceGeneratedDepsByArch = {
+	// amd64 is produced by this fork's own Linux release build, which compiles the
+	// native modules with clang-15 on ubuntu-22.04 instead of the upstream build
+	// container and does not mix in the tunnel CLI, so the set differs from the
+	// upstream one (notably it carries `libstdc++6`).
 	'amd64': [
 		'ca-certificates',
 		'libasound2 (>= 1.0.17)',
 		'libatk-bridge2.0-0 (>= 2.5.3)',
 		'libatk1.0-0 (>= 2.11.90)',
 		'libatspi2.0-0 (>= 2.9.90)',
+		'libc6 (>= 2.14)',
 		'libc6 (>= 2.15)',
-		'libc6 (>= 2.16)',
 		'libc6 (>= 2.17)',
 		'libc6 (>= 2.2.5)',
 		'libc6 (>= 2.25)',
 		'libc6 (>= 2.28)',
+		'libc6 (>= 2.29)',
 		'libc6 (>= 2.4)',
 		'libcairo2 (>= 1.6.0)',
+		'libcups2 (>= 1.6.0)',
 		'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
 		'libdbus-1-3 (>= 1.9.14)',
 		'libexpat1 (>= 2.1~beta3)',
@@ -49,6 +55,11 @@ export const referenceGeneratedDepsByArch = {
 		'libnss3 (>= 2:3.30)',
 		'libnss3 (>= 3.26)',
 		'libpango-1.0-0 (>= 1.14.0)',
+		'libstdc++6 (>= 4.1.1)',
+		'libstdc++6 (>= 4.5)',
+		'libstdc++6 (>= 4.8)',
+		'libstdc++6 (>= 6)',
+		'libstdc++6 (>= 9)',
 		'libudev1 (>= 183)',
 		'libx11-6',
 		'libx11-6 (>= 2:1.4.99.1)',

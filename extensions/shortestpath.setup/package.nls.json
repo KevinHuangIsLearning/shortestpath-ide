@@ -13,7 +13,7 @@
 	"command.configure": "ShortestPath IDE: Configure Competitive Programming Environment",
 	"command.rerunFirstRun": "ShortestPath IDE: Re-run First-Run Setup",
 	"command.openSettings": "ShortestPath IDE: Settings",
-	"command.configureCph": "ShortestPath IDE: Configure CPH",
+	"command.configureCph": "ShortestPath IDE: Configure Judger",
 	"command.configureCppSnippets": "ShortestPath IDE: Configure Code Snippets",
 	"command.configureAutoFormat": "ShortestPath IDE: Configure Automatic Formatting",
 	"command.openGettingStarted": "ShortestPath IDE: Open Initial Setup",

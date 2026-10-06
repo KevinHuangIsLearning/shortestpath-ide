@@ -1,6 +1,6 @@
 {
-	"version": "0.3.17-hotfix",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.3.17-hotfix",
+	"version": "0.4.2",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.2",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "- 修复 Windows 便携版在不支持硬链接的磁盘上准备编译环境失败的问题。失败时可选择安装到当前用户的 AppData，或在原位置复制为独立文件。\n- 修复解压中断后重试可能误判工具链已安装，以及迁移工具链后的路径处理。\n\n- Fixed Windows portable toolchain setup failing on drives without hard-link support. On failure, choose installation in the current user’s AppData or copy links as independent files in the original location.\n- Fixed incomplete extractions being mistaken for completed installations on retry and corrected paths after toolchain relocation."
+	"releaseNote": "新增题目与代码配对的解题工作区、内嵌样例与自定义测试、连接恢复和题目评价。题目快照移入 IDE 私有缓存，保留最近 30 题；保留代码关联。改进首次配置、环境自检、C++ 模板和代码片段编辑，并兼容新版 Judger。\n\nAdded paired problem and source workspaces, integrated samples and custom tests, connection recovery, and problem ratings. Problem snapshots now use a private IDE cache retaining the latest 30 problems while preserving source bindings. Improved first-run setup, environment checks, C++ templates, and snippet editing, with support for the current Judger backend."
 }

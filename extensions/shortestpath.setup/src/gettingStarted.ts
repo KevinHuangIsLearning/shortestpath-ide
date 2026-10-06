@@ -229,7 +229,7 @@ function createEnvironmentRunner(info: FirstRunSetupInfo): EnvironmentSetupRunne
 	// Reopening setup checks the toolchain without replacing existing preferences.
 	const completed = vscode.workspace.getConfiguration('shortestpath.setup').get<boolean>('completed');
 	const mode = completed ? 'repair' : 'recommended';
-	const compilerFlags = vscode.workspace.getConfiguration('cph.language.cpp', null).get<string>('Args')
+	const compilerFlags = vscode.workspace.getConfiguration('judger.language.cpp', null).get<string>('Args')
 		|| vscode.workspace.getConfiguration('c-cpp-compile-run', null).get<string>('cpp-flags') || '';
 	const cppStandard = completed ? findCppStandard(compilerFlags) : 'c++20';
 	return new EnvironmentSetupRunner([
@@ -244,7 +244,7 @@ function createEnvironmentRunner(info: FirstRunSetupInfo): EnvironmentSetupRunne
 				if (!ready) { throw new Error(localize('编译环境尚未准备完成。请完成安装后重试。')); }
 			}
 		} })),
-		{ id: 'selfTest', title: localize('环境自测'), description: localize('运行 A+B 示例，检查命令行编译、CPH 样例测试与代码提示。'), async run(report) {
+		{ id: 'selfTest', title: localize('环境自测'), description: localize('运行 A+B 示例，检查命令行编译、Judger 样例测试与代码提示。'), async run(report) {
 			const result = await vscode.commands.executeCommand<ToolchainInstallResult>('shortestpath.selfTestEnvironment', { reportProgress: (message: string) => report(localizeToolchainProgress(message)) });
 			if (!result?.success) { throw new Error(result?.message || localize('环境自测失败。')); }
 		} }
@@ -324,7 +324,7 @@ async function saveState(page: SaveMessage['page'], value: Record<string, unknow
 		}
 		case 'template':
 			if (typeof value.cppTemplate !== 'string' || value.cppTemplate.length > 100_000) { throw new Error(localize('模版内容无效或过长。')); }
-			await settings.update('cph.language.cpp.Template', value.cppTemplate, vscode.ConfigurationTarget.Global);
+			await settings.update('judger.language.cpp.Template', value.cppTemplate, vscode.ConfigurationTarget.Global);
 			break;
 		case 'clangd':
 			await settings.update('editor.inlayHints.enabled', value.clangdVariableTypeHints !== false ? 'on' : 'off', vscode.ConfigurationTarget.Global);
@@ -351,7 +351,7 @@ function getFirstRunEditorState(): FirstRunEditorState {
 		fontSize: editor.get<number>('fontSize') ?? 14,
 		fontLigatures: editor.get<boolean | string>('fontLigatures') === true || editor.get<boolean | string>('fontLigatures') === 'true',
 		tabSize: editor.get<number>('tabSize') ?? 2,
-		cppTemplate: vscode.workspace.getConfiguration('cph.language.cpp', null).get<string>('Template') ?? defaultCppTemplate,
+		cppTemplate: vscode.workspace.getConfiguration('judger.language.cpp', null).get<string>('Template') ?? defaultCppTemplate,
 		colorTheme, themes: getThemeOptions(colorTheme),
 		autoDetectColorScheme: vscode.workspace.getConfiguration('window', null).get<boolean>('autoDetectColorScheme') ?? false,
 		autoSave: vscode.workspace.getConfiguration('files', null).get<string>('autoSave') ?? 'off',
@@ -371,7 +371,7 @@ function getFirstRunHtml(): string {
 		fontSizeLabel: localize('字号'), indentLabel: localize('代码缩进'), themeLabel: localize('颜色主题'),
 		autoFormatLabel: localize('自动格式化'), hintsLabel: localize('clang 类型提示'),
 		formatHint: localize('保存与粘贴时自动整理代码格式。'), typeHint: localize('在代码旁显示变量的推导类型。'),
-		templateTitle: localize('模版配置'), templateIntro: localize('CPH 新建 C++ 文件时会自动填入这份模版。'),
+		templateTitle: localize('模版配置'), templateIntro: localize('Judger 新建 C++ 文件时会自动填入这份模版。'),
 		retryPreview: localize('重试预览'),
 		workspaceTitle: localize('代码存放目录'), workspaceIntro: localize('选择一个文件夹存放代码，完成后将自动打开该目录。'),
 		workspaceFolderLabel: localize('已选目录'), workspaceEmpty: localize('尚未选择目录。'), chooseWorkspace: localize('选择目录')

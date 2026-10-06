@@ -62,3 +62,8 @@ dist
 /.workbuddy-ai
 /.workbuddy
 /promo
+/reports/
+
+# Toolchain archives are fetched by the packaging workflows; never commit them.
+/resources/oi-defaults/toolchains/*.zip
+/resources/oi-defaults/toolchains/*.tar.zst

@@ -8,9 +8,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../../platform/extensions/common/extensions.js';
 import { ApiProposalName } from '../../../../../platform/extensions/common/extensionsApiProposals.js';
-import { isProposedApiEnabled, setEnabledApiProposalsFallbackExperiment } from '../../common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled, setEnabledApiProposalsFallbackExperiment } from '../../common/extensions.js';
 
-suite('isProposedApiEnabled (extensionEnabledApiProposalsFallback experiment)', () => {
+suite('Proposed API checks', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -34,33 +34,25 @@ suite('isProposedApiEnabled (extensionEnabledApiProposalsFallback experiment)', 
 		};
 	}
 
-	test('experiment enables a declared-but-missing proposal on stable, honoring the declared value otherwise', () => {
-		const declared = desc('test.declared', ['someProposal']);
-		const missingButInExperiment = desc('test.missing', ['unrelatedProposal']);
-		const other = desc('test.other', ['unrelatedProposal']);
-
-		store.add(setEnabledApiProposalsFallbackExperiment('test.missing:someProposal', 'stable'));
-
+	test('only enables explicitly declared proposals', () => {
 		assert.deepStrictEqual(
 			{
-				declared: isProposedApiEnabled(declared, 'someProposal' as ApiProposalName),
-				missingInExperiment: isProposedApiEnabled(missingButInExperiment, 'someProposal' as ApiProposalName),
-				missingOutsideExperiment: isProposedApiEnabled(missingButInExperiment, 'otherProposal' as ApiProposalName),
-				otherExtension: isProposedApiEnabled(other, 'someProposal' as ApiProposalName),
+				declared: isProposedApiEnabled(desc('test.declared', ['fileSearchProvider']), 'fileSearchProvider'),
+				missing: isProposedApiEnabled(desc('test.missing', ['textSearchProvider']), 'fileSearchProvider'),
+				empty: isProposedApiEnabled(desc('test.empty', []), 'fileSearchProvider'),
+				undefined: isProposedApiEnabled(desc('test.undefined', undefined), 'fileSearchProvider'),
 			},
 			{
 				declared: true,
-				missingInExperiment: true,
-				missingOutsideExperiment: false,
-				otherExtension: false,
+				missing: false,
+				empty: false,
+				undefined: false,
 			}
 		);
 	});
 
-	test('experiment does not grant access to extensions that declare no proposals', () => {
-		const noProposals = desc('test.missing', undefined);
-		store.add(setEnabledApiProposalsFallbackExperiment('test.missing:someProposal', 'stable'));
-		assert.strictEqual(isProposedApiEnabled(noProposals, 'someProposal' as ApiProposalName), false);
+	test('checking a declared proposal succeeds', () => {
+		assert.doesNotThrow(() => checkProposedApiEnabled(desc('test.declared', ['fileSearchProvider']), 'fileSearchProvider'));
 	});
 
 	test('experiment has no effect on non-stable builds', () => {

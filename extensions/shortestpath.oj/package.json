@@ -20,6 +20,7 @@
 		}
 	},
 	"activationEvents": [
+		"onCommand:shortestpath.oj.getTimerForJudger",
 		"onStartupFinished",
 		"onUri",
 		"onCommand:shortestpath.oj.openIntegratedBrowser",
