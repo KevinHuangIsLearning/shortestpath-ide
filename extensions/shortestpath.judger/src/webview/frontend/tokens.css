@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 /*
  * Part of ShortestPath Judger. Licensed under GPL-3.0-or-later.
  *
@@ -11,131 +16,130 @@
  * vocabulary as the rest of the product:
  *
  *   radii   3px controls · 7px cards
- *   type    one size token, taken from the editor font size the host injects;
- *           every other size is a ratio of it, so no pixel value is frozen
+ *   type    one size token, taken from the UI font size the host injects;
+ *           every other size is a ratio of it
  *   motion  120ms ease
  *   colour  --vscode-* only, each with a two-step fallback so dark, light and
  *           high-contrast themes all keep working
  */
 :root {
-    /* Spacing — 4px rhythm. */
-    --judger-space-1: 4px;
-    --judger-space-2: 8px;
-    --judger-space-3: 12px;
-    --judger-space-4: 16px;
-    --judger-space-5: 24px;
+	/* Spacing — 4px rhythm. */
+	--judger-space-1: 4px;
+	--judger-space-2: 8px;
+	--judger-space-3: 12px;
+	--judger-space-4: 16px;
+	--judger-space-5: 24px;
 
-    /*
-     * Type. The webview host pins --vscode-font-size to a literal 13px, so a
-     * panel sized from it could never follow a setting. --vscode-editor-font-size
-     * is injected from editor.fontSize and does follow one, and it is the only
-     * type knob a webview actually receives — so the panel is sized from it.
-     */
-    --judger-font: var(--vscode-font-family);
-    --judger-font-size: var(--vscode-editor-font-size, 14px);
-    --judger-font-size-sm: 0.85em;
-    --judger-font-size-xs: 0.78em;
-    --judger-title-size: 1.1em;
-    --judger-mono: var(--vscode-editor-font-family, monospace);
-    /* Code and output are the same size as the panel text. The token stays so
-       the two can drift apart later without hunting for call sites. */
-    --judger-mono-size: var(--judger-font-size);
+	/*
+	 * Type. Match the workbench UI font size. Editor font settings must not
+	 * enlarge sidebar text and controls; window zoom and display scaling
+	 * already apply to the webview as a whole.
+	 */
+	--judger-font: var(--vscode-font-family);
+	--judger-font-size: var(--vscode-font-size, 13px);
+	--judger-font-size-sm: 0.85em;
+	--judger-font-size-xs: 0.78em;
+	--judger-title-size: 1.1em;
+	--judger-mono: var(--vscode-editor-font-family, monospace);
+	/* Code and output are the same size as the panel text. The token stays so
+		the two can drift apart later without hunting for call sites. */
+	--judger-mono-size: var(--judger-font-size);
 
-    /* Sizing. This panel lives in the side bar, so rows and controls stay
-       compact — but every box is a multiple of the type size, so the panel keeps
-       its proportions whatever size the user has chosen. The ratios are the ones
-       the old fixed values encoded: 30px, 26px and 24px against 13px. */
-    --judger-row-height: calc(var(--judger-font-size) * 2.3);
-    --judger-control-height: calc(var(--judger-font-size) * 2);
-    --judger-icon-size: calc(var(--judger-font-size) * 1.85);
+	/* Sizing. This panel lives in the side bar, so rows and controls stay
+		compact — but every box is a multiple of the type size, so the panel keeps
+		its proportions at the host UI font size. The ratios are the ones
+		the old fixed values encoded: 30px, 26px and 24px against 13px. */
+	--judger-row-height: calc(var(--judger-font-size) * 2.3);
+	--judger-control-height: calc(var(--judger-font-size) * 2);
+	--judger-icon-size: calc(var(--judger-font-size) * 1.85);
 
-    /* Radii, from the house scale. */
-    --judger-radius-control: 3px;
-    --judger-radius-card: 7px;
-    --judger-radius-pill: 999px;
+	/* Radii, from the house scale. */
+	--judger-radius-control: 3px;
+	--judger-radius-card: 7px;
+	--judger-radius-pill: 999px;
 
-    /* Surfaces. Cards sit on the side-bar background, so they need the
-       widget background to read as raised. */
-    --judger-bg: var(
-        --vscode-sideBar-background,
-        var(--vscode-editor-background)
-    );
-    --judger-surface: var(
-        --vscode-editorWidget-background,
-        rgba(127, 127, 127, 0.08)
-    );
-    /* Read-only output reads as code, so it uses the code-block background. */
-    --judger-code-bg: var(
-        --vscode-textCodeBlock-background,
-        rgba(127, 127, 127, 0.08)
-    );
-    /* Icon buttons highlight with the toolbar colour; whole rows use the list
-       colour. Both come straight from the problem panel's button rules. */
-    --judger-hover: var(
-        --vscode-toolbar-hoverBackground,
-        rgba(127, 127, 127, 0.14)
-    );
-    --judger-row-hover: var(
-        --vscode-list-hoverBackground,
-        rgba(127, 127, 127, 0.12)
-    );
+	/* Surfaces. Cards sit on the side-bar background, so they need the
+		widget background to read as raised. */
+	--judger-bg: var(
+		--vscode-sideBar-background,
+		var(--vscode-editor-background)
+	);
+	--judger-surface: var(
+		--vscode-editorWidget-background,
+		rgba(127, 127, 127, 0.08)
+	);
+	/* Read-only output reads as code, so it uses the code-block background. */
+	--judger-code-bg: var(
+		--vscode-textCodeBlock-background,
+		rgba(127, 127, 127, 0.08)
+	);
+	/* Icon buttons highlight with the toolbar colour; whole rows use the list
+		colour. Both come straight from the problem panel's button rules. */
+	--judger-hover: var(
+		--vscode-toolbar-hoverBackground,
+		rgba(127, 127, 127, 0.14)
+	);
+	--judger-row-hover: var(
+		--vscode-list-hoverBackground,
+		rgba(127, 127, 127, 0.12)
+	);
 
-    /* Lines. panel-border is the problem panel's first choice; widget-border is
-       its second. High-contrast themes publish contrastBorder instead. */
-    --judger-border: var(
-        --vscode-panel-border,
-        var(--vscode-widget-border, var(--vscode-contrastBorder, transparent))
-    );
-    --judger-border-strong: var(
-        --vscode-widget-border,
-        var(--vscode-panel-border, var(--vscode-contrastBorder, transparent))
-    );
+	/* Lines. panel-border is the problem panel's first choice; widget-border is
+		its second. High-contrast themes publish contrastBorder instead. */
+	--judger-border: var(
+		--vscode-panel-border,
+		var(--vscode-widget-border, var(--vscode-contrastBorder, transparent))
+	);
+	--judger-border-strong: var(
+		--vscode-widget-border,
+		var(--vscode-panel-border, var(--vscode-contrastBorder, transparent))
+	);
 
-    /* Text. */
-    --judger-fg: var(--vscode-foreground);
-    --judger-fg-muted: var(--vscode-descriptionForeground);
-    --judger-fg-faint: var(--vscode-disabledForeground);
-    --judger-text-link: var(--vscode-textLink-foreground, #3794ff);
+	/* Text. */
+	--judger-fg: var(--vscode-foreground);
+	--judger-fg-muted: var(--vscode-descriptionForeground);
+	--judger-fg-faint: var(--vscode-disabledForeground);
+	--judger-text-link: var(--vscode-textLink-foreground, #3794ff);
 
-    /* Buttons. A plain button is filled secondary — that is what a bare
-       `button` is in the problem panel. Only the run-all split is accent. */
-    --judger-btn-bg: var(--vscode-button-secondaryBackground, #3a3d41);
-    --judger-btn-fg: var(--vscode-button-secondaryForeground, #ffffff);
-    --judger-btn-hover: var(--vscode-button-secondaryHoverBackground, #45494e);
-    --judger-accent: var(--vscode-button-background, #0e639c);
-    --judger-accent-fg: var(--vscode-button-foreground, #ffffff);
-    --judger-accent-hover: var(--vscode-button-hoverBackground, #1177bb);
+	/* Buttons. A plain button is filled secondary — that is what a bare
+		`button` is in the problem panel. Only the run-all split is accent. */
+	--judger-btn-bg: var(--vscode-button-secondaryBackground, #3a3d41);
+	--judger-btn-fg: var(--vscode-button-secondaryForeground, #ffffff);
+	--judger-btn-hover: var(--vscode-button-secondaryHoverBackground, #45494e);
+	--judger-accent: var(--vscode-button-background, #0e639c);
+	--judger-accent-fg: var(--vscode-button-foreground, #ffffff);
+	--judger-accent-hover: var(--vscode-button-hoverBackground, #1177bb);
 
-    /* Verdict colours — the same tokens the problem panel uses for its
-       submission statuses. Text and an icon always accompany them, so the
-       meaning never depends on colour alone. */
-    --judger-pass: var(--vscode-testing-iconPassed, #73c991);
-    --judger-fail: var(--vscode-testing-iconFailed, #f14c4c);
-    --judger-busy: var(--vscode-testing-iconQueued, #cca700);
-    --judger-idle: var(--vscode-disabledForeground, #6e6e6e);
-    --judger-warn: var(--vscode-editorWarning-foreground, #cca700);
-    --judger-danger: var(--vscode-errorForeground, #f14c4c);
+	/* Verdict colours — the same tokens the problem panel uses for its
+		submission statuses. Text and an icon always accompany them, so the
+		meaning never depends on colour alone. */
+	--judger-pass: var(--vscode-testing-iconPassed, #73c991);
+	--judger-fail: var(--vscode-testing-iconFailed, #f14c4c);
+	--judger-busy: var(--vscode-testing-iconQueued, #cca700);
+	--judger-idle: var(--vscode-disabledForeground, #6e6e6e);
+	--judger-warn: var(--vscode-editorWarning-foreground, #cca700);
+	--judger-danger: var(--vscode-errorForeground, #f14c4c);
 
-    /*
-     * Verdict colours, one hue each, so a long list can be scanned without
-     * reading every label. They come from the theme's own chart and terminal
-     * families rather than from invented hex: green pass, red fail and purple
-     * runtime error are the ones the problem panel already uses, and STOP — a
-     * run the user ended — is the only one that is not a failure at all.
-     */
-    --judger-verdict-ac: var(--vscode-testing-iconPassed, #73c991);
-    --judger-verdict-pe: var(--vscode-charts-yellow, #ffd700);
-    --judger-verdict-wa: var(--judger-fail);
-    --judger-verdict-tle: var(--vscode-charts-blue, #3b8eea);
-    --judger-verdict-mle: var(--vscode-terminal-ansiCyan, #29b8db);
-    --judger-verdict-ole: var(--vscode-terminal-ansiMagenta, #bc3fbc);
-    --judger-verdict-re: var(--vscode-charts-purple, #b180d7);
-    --judger-verdict-ce: var(--vscode-charts-orange, #d18616);
-    --judger-verdict-stop: var(--judger-idle);
+	/*
+	 * Verdict colours, one hue each, so a long list can be scanned without
+	 * reading every label. They come from the theme's own chart and terminal
+	 * families rather than from invented hex: green pass, red fail and purple
+	 * runtime error are the ones the problem panel already uses, and STOP — a
+	 * run the user ended — is the only one that is not a failure at all.
+	 */
+	--judger-verdict-ac: var(--vscode-testing-iconPassed, #73c991);
+	--judger-verdict-pe: var(--vscode-charts-yellow, #ffd700);
+	--judger-verdict-wa: var(--judger-fail);
+	--judger-verdict-tle: var(--vscode-charts-blue, #3b8eea);
+	--judger-verdict-mle: var(--vscode-terminal-ansiCyan, #29b8db);
+	--judger-verdict-ole: var(--vscode-terminal-ansiMagenta, #bc3fbc);
+	--judger-verdict-re: var(--vscode-charts-purple, #b180d7);
+	--judger-verdict-ce: var(--vscode-charts-orange, #d18616);
+	--judger-verdict-stop: var(--judger-idle);
 
-    /* Focus, motion and elevation. */
-    --judger-focus: var(--vscode-focusBorder);
-    --judger-motion: 120ms;
-    --judger-ease: ease;
-    --judger-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+	/* Focus, motion and elevation. */
+	--judger-focus: var(--vscode-focusBorder);
+	--judger-motion: 120ms;
+	--judger-ease: ease;
+	--judger-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }

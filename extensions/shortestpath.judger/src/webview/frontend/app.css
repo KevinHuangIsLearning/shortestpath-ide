@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 /*
  * Part of ShortestPath Judger. Licensed under GPL-3.0-or-later.
  *
@@ -9,9 +14,8 @@
  * Everything below therefore keeps the same conventions:
  *
  *   - colours come from --vscode-* variables only, with a two-step fallback
- *   - type comes from one size token (--judger-font-size, itself the user's
- *     editor font size); every other size is a ratio of it, so no pixel value
- *     is frozen and the panel scales with the setting
+ *   - type comes from one size token (--judger-font-size, the host UI font
+ *     size); every other size is a ratio of it
  *   - radii come from the house scale: 3px controls, 7px cards
  *   - transitions are 120ms ease
  *   - a plain button is a filled secondary button; only the run-all split is
@@ -40,27 +44,27 @@
 *,
 *::before,
 *::after {
-    box-sizing: border-box;
+	box-sizing: border-box;
 }
 
 html,
 body,
 #app {
-    height: 100%;
-    margin: 0;
-    padding: 0;
+	height: 100%;
+	margin: 0;
+	padding: 0;
 }
 
 body {
-    font-family: var(--judger-font);
-    font-size: var(--judger-font-size);
-    line-height: 1.5;
-    color: var(--judger-fg);
-    background: var(--judger-bg);
-    overflow: hidden;
-    /* Panel chrome is not content; sample data re-enables selection below. */
-    user-select: none;
-    -webkit-user-select: none;
+	font-family: var(--judger-font);
+	font-size: var(--judger-font-size);
+	line-height: 1.5;
+	color: var(--judger-fg);
+	background: var(--judger-bg);
+	overflow: hidden;
+	/* Panel chrome is not content; sample data re-enables selection below. */
+	user-select: none;
+	-webkit-user-select: none;
 }
 
 h1,
@@ -68,43 +72,43 @@ h2,
 h3,
 h4,
 h5 {
-    font-weight: 500;
+	font-weight: 500;
 }
 
 a {
-    color: var(--judger-text-link);
+	color: var(--judger-text-link);
 }
 
 a:hover {
-    color: var(--vscode-textLink-activeForeground, var(--judger-text-link));
+	color: var(--vscode-textLink-activeForeground, var(--judger-text-link));
 }
 
 hr {
-    margin: 0;
-    border: 0;
-    border-top: 1px solid var(--judger-border);
+	margin: 0;
+	border: 0;
+	border-top: 1px solid var(--judger-border);
 }
 
 code {
-    font-family: var(--judger-mono);
+	font-family: var(--judger-mono);
 }
 
 pre {
-    margin: 0;
-    padding: var(--judger-space-3);
-    max-height: 320px;
-    overflow: auto;
-    border-radius: var(--judger-radius-control);
-    background: var(--judger-code-bg);
-    font-family: var(--judger-mono);
-    font-size: var(--judger-mono-size);
-    line-height: 1.5;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+	margin: 0;
+	padding: var(--judger-space-3);
+	max-height: 320px;
+	overflow: auto;
+	border-radius: var(--judger-radius-control);
+	background: var(--judger-code-bg);
+	font-family: var(--judger-mono);
+	font-size: var(--judger-mono-size);
+	line-height: 1.5;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 
 summary {
-    cursor: pointer;
+	cursor: pointer;
 }
 
 /* Sample data, output and commands must stay copyable. */
@@ -113,8 +117,8 @@ pre,
 textarea,
 input,
 code {
-    user-select: text;
-    -webkit-user-select: text;
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 /*
@@ -134,34 +138,34 @@ code {
  * component tree; they read as secondary / primary / accent / danger / warn.
  */
 .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    min-height: var(--judger-control-height);
-    padding: 0 10px;
-    border: 0;
-    border-radius: var(--judger-radius-control);
-    background: var(--judger-btn-bg);
-    color: var(--judger-btn-fg);
-    font: inherit;
-    line-height: 1;
-    text-decoration: none;
-    white-space: nowrap;
-    cursor: pointer;
-    transition:
-        background var(--judger-motion) var(--judger-ease),
-        color var(--judger-motion) var(--judger-ease);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	min-height: var(--judger-control-height);
+	padding: 0 10px;
+	border: 0;
+	border-radius: var(--judger-radius-control);
+	background: var(--judger-btn-bg);
+	color: var(--judger-btn-fg);
+	font: inherit;
+	line-height: 1;
+	text-decoration: none;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background var(--judger-motion) var(--judger-ease),
+		color var(--judger-motion) var(--judger-ease);
 }
 
 .btn:hover:not(:disabled) {
-    background: var(--judger-btn-hover);
+	background: var(--judger-btn-hover);
 }
 
 .btn:disabled,
 .btn[aria-disabled='true'] {
-    cursor: not-allowed;
-    opacity: 0.55;
+	cursor: not-allowed;
+	opacity: 0.55;
 }
 
 .btn:focus-visible,
@@ -170,61 +174,61 @@ code {
 .oj-box:focus-visible,
 .clipboard:focus-visible,
 .expectedoutput:focus-visible {
-    outline: 1px solid var(--judger-focus);
-    outline-offset: -1px;
+	outline: 1px solid var(--judger-focus);
+	outline-offset: -1px;
 }
 
 /* secondary — the default treatment, so there is nothing to add. */
 .btn-black {
-    background: var(--judger-btn-bg);
+	background: var(--judger-btn-bg);
 }
 
 /* primary — filled accent. Reserved for run-all and for the single confirm
-   action of a page. */
+	action of a page. */
 .btn-green {
-    background: var(--judger-accent);
-    color: var(--judger-accent-fg);
+	background: var(--judger-accent);
+	color: var(--judger-accent-fg);
 }
 
 .btn-green:hover:not(:disabled) {
-    background: var(--judger-accent-hover);
+	background: var(--judger-accent-hover);
 }
 
 /* accent-tinted secondary — the JSON import file picker. */
 .btn-blue {
-    color: var(--judger-text-link);
+	color: var(--judger-text-link);
 }
 
 /* danger — destructive confirmation. Kept on the secondary fill so it still
-   reads as a button; the colour carries the warning. */
+	reads as a button; the colour carries the warning. */
 .btn-red {
-    color: var(--judger-danger);
+	color: var(--judger-danger);
 }
 
 /* warn — stopping an active run. */
 .btn-orange {
-    color: var(--judger-warn);
+	color: var(--judger-warn);
 }
 
 /* armed — a second click is required. Same treatment as the problem panel's
-   armed submit button. */
+	armed submit button. */
 .btn-yellow {
-    background: var(
-        --vscode-statusBarItem-warningBackground,
-        var(--judger-warn)
-    );
-    color: var(--vscode-statusBarItem-warningForeground, #000000);
+	background: var(
+		--vscode-statusBarItem-warningBackground,
+		var(--judger-warn)
+	);
+	color: var(--vscode-statusBarItem-warningForeground, #000000);
 }
 
 .btn-yellow:hover:not(:disabled) {
-    background: var(
-        --vscode-statusBarItem-warningHoverBackground,
-        var(--vscode-statusBarItem-warningBackground, var(--judger-warn))
-    );
+	background: var(
+		--vscode-statusBarItem-warningHoverBackground,
+		var(--vscode-statusBarItem-warningBackground, var(--judger-warn))
+	);
 }
 
 .btn-block {
-    width: 100%;
+	width: 100%;
 }
 
 /*
@@ -240,24 +244,24 @@ code {
 .icon-btn,
 .page-close,
 .feedback-tooltip-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--judger-icon-size);
-    min-width: var(--judger-icon-size);
-    height: var(--judger-icon-size);
-    min-height: var(--judger-icon-size);
-    padding: 0;
-    border: 0;
-    border-radius: var(--judger-radius-control);
-    background: transparent;
-    color: var(--judger-fg-muted);
-    font: inherit;
-    line-height: 1;
-    cursor: pointer;
-    transition:
-        background var(--judger-motion) var(--judger-ease),
-        color var(--judger-motion) var(--judger-ease);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--judger-icon-size);
+	min-width: var(--judger-icon-size);
+	height: var(--judger-icon-size);
+	min-height: var(--judger-icon-size);
+	padding: 0;
+	border: 0;
+	border-radius: var(--judger-radius-control);
+	background: transparent;
+	color: var(--judger-fg-muted);
+	font: inherit;
+	line-height: 1;
+	cursor: pointer;
+	transition:
+		background var(--judger-motion) var(--judger-ease),
+		color var(--judger-motion) var(--judger-ease);
 }
 
 .case-toggle:hover,
@@ -265,177 +269,177 @@ code {
 .icon-btn:hover:not(:disabled),
 .page-close:hover,
 .feedback-tooltip-close:hover {
-    background: var(--judger-hover);
-    color: var(--judger-fg);
+	background: var(--judger-hover);
+	color: var(--judger-fg);
 }
 
 .case-metadata .btn:disabled,
 .icon-btn:disabled {
-    color: var(--judger-fg-faint);
-    cursor: not-allowed;
-    opacity: 1;
+	color: var(--judger-fg-faint);
+	cursor: not-allowed;
+	opacity: 1;
 }
 
 .icon-btn.is-active {
-    background: var(--judger-hover);
-    color: var(--judger-fg);
+	background: var(--judger-hover);
+	color: var(--judger-fg);
 }
 
 /* The run/stop glyphs keep their meaning through colour, not through a fill. */
 .time .btn-green {
-    color: var(--judger-pass);
+	color: var(--judger-pass);
 }
 
 .time .btn-orange {
-    color: var(--judger-warn);
+	color: var(--judger-warn);
 }
 
 .icon {
-    display: inline-flex;
-    align-items: center;
+	display: inline-flex;
+	align-items: center;
 }
 
 input[type='text'],
 input[type='number'],
 select,
 textarea {
-    min-width: 0;
-    border: 1px solid var(--vscode-input-border, var(--judger-border-strong));
-    border-radius: var(--judger-radius-control);
-    background: var(--vscode-input-background, var(--judger-surface));
-    color: var(--vscode-input-foreground, var(--judger-fg));
-    font-family: inherit;
-    font-size: var(--judger-font-size-sm);
+	min-width: 0;
+	border: 1px solid var(--vscode-input-border, var(--judger-border-strong));
+	border-radius: var(--judger-radius-control);
+	background: var(--vscode-input-background, var(--judger-surface));
+	color: var(--vscode-input-foreground, var(--judger-fg));
+	font-family: inherit;
+	font-size: var(--judger-font-size-sm);
 }
 
 input[type='text'],
 input[type='number'],
 select {
-    width: 100%;
-    height: var(--judger-control-height);
-    padding: 0 6px;
+	width: 100%;
+	height: var(--judger-control-height);
+	padding: 0 6px;
 }
 
 textarea {
-    display: block;
-    width: 100%;
-    min-height: 44px;
-    padding: 6px 8px;
-    font-family: var(--judger-mono);
-    font-size: var(--judger-mono-size);
-    line-height: 1.5;
-    tab-size: 4;
-    resize: vertical;
+	display: block;
+	width: 100%;
+	min-height: 44px;
+	padding: 6px 8px;
+	font-family: var(--judger-mono);
+	font-size: var(--judger-mono-size);
+	line-height: 1.5;
+	tab-size: 4;
+	resize: vertical;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-    border-color: var(--judger-focus);
-    outline: 1px solid var(--judger-focus);
-    outline-offset: -1px;
+	border-color: var(--judger-focus);
+	outline: 1px solid var(--judger-focus);
+	outline-offset: -1px;
 }
 
 input:disabled,
 select:disabled,
 textarea:disabled {
-    background: var(--judger-code-bg);
-    color: var(--judger-fg-faint);
+	background: var(--judger-code-bg);
+	color: var(--judger-fg-faint);
 }
 
 textarea[readonly] {
-    background: var(--judger-code-bg);
-    color: var(--judger-fg);
+	background: var(--judger-code-bg);
+	color: var(--judger-fg);
 }
 
 input[type='checkbox'] {
-    width: auto;
-    height: auto;
-    margin: 0;
-    accent-color: var(--vscode-checkbox-background, var(--judger-accent));
+	width: auto;
+	height: auto;
+	margin: 0;
+	accent-color: var(--vscode-checkbox-background, var(--judger-accent));
 }
 
 /* Editable sample fields read as inputs; output fields read as results. */
 .input-textarea,
 .expected-textarea {
-    background: var(--vscode-input-background, var(--judger-surface));
+	background: var(--vscode-input-background, var(--judger-surface));
 }
 
 .received-textarea,
 .stderror-textarea {
-    background: var(--judger-code-bg);
+	background: var(--judger-code-bg);
 }
 
 input::placeholder,
 textarea::placeholder {
-    color: var(--judger-fg-faint);
+	color: var(--judger-fg-faint);
 }
 
 /* The problem panel draws its busy indicator as a ring, not as a glyph. */
 .loader {
-    display: inline-block;
-    width: 0.8em;
-    height: 0.8em;
-    border: 2px solid currentColor;
-    border-right-color: transparent;
-    border-radius: 50%;
-    animation: judger-spin 0.8s linear infinite;
+	display: inline-block;
+	width: 0.8em;
+	height: 0.8em;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	animation: judger-spin 0.8s linear infinite;
 }
 
 @keyframes judger-spin {
-    to {
-        transform: rotate(360deg);
-    }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 /* ---------------------------------------------------------------- shell -- */
 
 .ui {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
 }
 
 .judger-shell {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 auto;
-    min-height: 0;
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
 }
 
 /* --------------------------------------------------------------- header -- */
 
 .judge-header {
-    position: relative;
-    flex: 0 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-1);
-    padding: var(--judger-space-2) var(--judger-space-3);
-    border-bottom: 1px solid var(--judger-border);
-    background: var(--judger-bg);
+	position: relative;
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-1);
+	padding: var(--judger-space-2) var(--judger-space-3);
+	border-bottom: 1px solid var(--judger-border);
+	background: var(--judger-bg);
 }
 
 .problem-title-row {
-    display: flex;
-    align-items: flex-start;
-    flex-wrap: nowrap;
-    gap: var(--judger-space-2);
-    min-width: 0;
+	display: flex;
+	align-items: flex-start;
+	flex-wrap: nowrap;
+	gap: var(--judger-space-2);
+	min-width: 0;
 }
 
 .problem-name {
-    display: flex;
-    flex: 1 1 auto;
-    align-items: baseline;
-    gap: var(--judger-space-2);
-    min-width: 0;
-    font-size: var(--judger-title-size);
-    font-weight: 600;
-    line-height: 1.4;
+	display: flex;
+	flex: 1 1 auto;
+	align-items: baseline;
+	gap: var(--judger-space-2);
+	min-width: 0;
+	font-size: var(--judger-title-size);
+	font-weight: 600;
+	line-height: 1.4;
 }
 
 /*
@@ -443,19 +447,19 @@ textarea::placeholder {
  * and ate the testcase list underneath it. The full text is in the tooltip.
  */
 .problem-name-text {
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .problem-name a {
-    color: inherit;
-    text-decoration: none;
+	color: inherit;
+	text-decoration: none;
 }
 
 .problem-name a:hover {
-    color: var(--judger-text-link);
+	color: var(--judger-text-link);
 }
 
 /*
@@ -465,154 +469,154 @@ textarea::placeholder {
  * not shuffle the digits.
  */
 .problem-timer {
-    flex: 0 0 auto;
-    font-family: var(--judger-mono);
-    font-size: var(--judger-font-size-sm);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--judger-fg);
-    white-space: nowrap;
+	flex: 0 0 auto;
+	font-family: var(--judger-mono);
+	font-size: var(--judger-font-size-sm);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--judger-fg);
+	white-space: nowrap;
 }
 
 .problem-actions {
-    flex: 0 1 auto;
-    min-width: 0;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--judger-space-1);
+	flex: 0 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--judger-space-1);
 }
 
 .compiling-indicator {
-    display: inline-flex;
-    align-items: center;
-    padding: 0 4px;
-    color: var(--judger-busy);
+	display: inline-flex;
+	align-items: center;
+	padding: 0 4px;
+	color: var(--judger-busy);
 }
 
 .pass-rate {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: var(--judger-font-size-sm);
-    font-variant-numeric: tabular-nums;
-    color: var(--judger-fg-muted);
-    white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: var(--judger-font-size-sm);
+	font-variant-numeric: tabular-nums;
+	color: var(--judger-fg-muted);
+	white-space: nowrap;
 }
 
 .pass-rate-label,
 .pass-rate-pending,
 .pass-rate-empty {
-    color: var(--judger-fg-faint);
+	color: var(--judger-fg-faint);
 }
 
 .pass-all {
-    color: var(--judger-pass);
+	color: var(--judger-pass);
 }
 
 .fail-all {
-    color: var(--judger-fail);
+	color: var(--judger-fail);
 }
 
 /* -------------------------------------------------------------- toolbar -- */
 
 .testcase-toolbar {
-    flex: 0 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: var(--judger-space-2) var(--judger-space-3);
-    border-bottom: 1px solid var(--judger-border);
-    background: var(--judger-bg);
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: var(--judger-space-2) var(--judger-space-3);
+	border-bottom: 1px solid var(--judger-border);
+	background: var(--judger-bg);
 }
 
 .testcase-toolbar-row {
-    display: flex;
-    align-items: center;
-    gap: var(--judger-space-2);
-    min-height: var(--judger-control-height);
+	display: flex;
+	align-items: center;
+	gap: var(--judger-space-2);
+	min-height: var(--judger-control-height);
 }
 
 .filter-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
 }
 
 .filter-caption {
-    flex: 0 0 auto;
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-fg-muted);
+	flex: 0 0 auto;
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-fg-muted);
 }
 
 .filter-select {
-    width: auto;
-    max-width: 100%;
+	width: auto;
+	max-width: 100%;
 }
 
 .filter-hidden {
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-fg-faint);
-    white-space: nowrap;
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-fg-faint);
+	white-space: nowrap;
 }
 
 .testcase-drop-hint {
-    font-size: var(--judger-font-size-xs);
-    line-height: 1.4;
-    color: var(--judger-fg-faint);
+	font-size: var(--judger-font-size-xs);
+	line-height: 1.4;
+	color: var(--judger-fg-faint);
 }
 
 .toolbar-spacer {
-    flex: 1 1 auto;
+	flex: 1 1 auto;
 }
 
 /* ---------------------------------------------------------------- body -- */
 
 .judger-body {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 auto;
-    min-height: 0;
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
 }
 
 /* The one scrolling region. Nothing else in the shell scrolls vertically. */
 .results {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-3);
-    flex: 1 1 auto;
-    min-height: 0;
-    padding: var(--judger-space-3);
-    overflow-x: hidden;
-    overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-3);
+	flex: 1 1 auto;
+	min-height: 0;
+	padding: var(--judger-space-3);
+	overflow-x: hidden;
+	overflow-y: auto;
 }
 
 /* Cards must never be squeezed by the flex column; they scroll instead. */
 .results > * {
-    flex: none;
+	flex: none;
 }
 
 .results-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--judger-space-3);
-    padding: var(--judger-space-5) var(--judger-space-3);
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-fg-muted);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--judger-space-3);
+	padding: var(--judger-space-5) var(--judger-space-3);
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-fg-muted);
 }
 
 .remote-message-banner {
-    flex: 0 0 auto;
-    padding: var(--judger-space-2) var(--judger-space-3);
-    border-bottom: 1px solid var(--judger-border);
-    background: var(--judger-code-bg);
-    font-size: var(--judger-font-size-sm);
+	flex: 0 0 auto;
+	padding: var(--judger-space-2) var(--judger-space-3);
+	border-bottom: 1px solid var(--judger-border);
+	background: var(--judger-code-bg);
+	font-size: var(--judger-font-size-sm);
 }
 
 .remote-message-banner p {
-    margin: 0;
+	margin: 0;
 }
 
 /* ---------------------------------------------------------- testcase row -- */
@@ -624,28 +628,28 @@ textarea::placeholder {
  * its connection status) so a long list stays scannable.
  */
 .case {
-    position: relative;
-    border: 1px solid var(--judger-border-strong);
-    border-radius: var(--judger-radius-card);
-    background: var(--judger-surface);
-    overflow: hidden;
+	position: relative;
+	border: 1px solid var(--judger-border-strong);
+	border-radius: var(--judger-radius-card);
+	background: var(--judger-surface);
+	overflow: hidden;
 }
 
 .case.passed {
-    box-shadow: inset 3px 0 0 var(--judger-pass);
+	box-shadow: inset 3px 0 0 var(--judger-pass);
 }
 
 .case.failed {
-    box-shadow: inset 3px 0 0 var(--judger-fail);
+	box-shadow: inset 3px 0 0 var(--judger-fail);
 }
 
 .case.running,
 .case.checking {
-    box-shadow: inset 3px 0 0 var(--judger-busy);
+	box-shadow: inset 3px 0 0 var(--judger-busy);
 }
 
 .case.skipped {
-    box-shadow: inset 3px 0 0 var(--judger-idle);
+	box-shadow: inset 3px 0 0 var(--judger-idle);
 }
 
 /*
@@ -655,80 +659,80 @@ textarea::placeholder {
  * interrupted. All the dragged row needs is to read as the one being carried.
  */
 .case.is-dragging {
-    opacity: 0.45;
+	opacity: 0.45;
 }
 
 .case-metadata {
-    display: grid;
-    grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--judger-space-2);
-    min-height: var(--judger-row-height);
-    padding: var(--judger-space-1) var(--judger-space-2) var(--judger-space-1)
-        var(--judger-space-1);
-    /* The bar is the drag handle and the expand target at once, so it reads as
-       one clickable surface rather than as a label with a chevron next to it. */
-    cursor: pointer;
-    transition: background var(--judger-motion) var(--judger-ease);
+	display: grid;
+	grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--judger-space-2);
+	min-height: var(--judger-row-height);
+	padding: var(--judger-space-1) var(--judger-space-2) var(--judger-space-1)
+		var(--judger-space-1);
+	/* The bar is the drag handle and the expand target at once, so it reads as
+		one clickable surface rather than as a label with a chevron next to it. */
+	cursor: pointer;
+	transition: background var(--judger-motion) var(--judger-ease);
 }
 
 .case-metadata:hover {
-    background: var(--judger-row-hover);
+	background: var(--judger-row-hover);
 }
 
 .case-number {
-    flex: 0 0 auto;
-    font-size: 1em;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--judger-fg);
+	flex: 0 0 auto;
+	font-size: 1em;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--judger-fg);
 }
 
 .case-title {
-    max-width: 8em;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+	max-width: 8em;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .case-status {
-    display: inline-flex;
-    flex: 1 1 120px;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--judger-space-1);
-    min-width: 0;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-fg-muted);
+	display: inline-flex;
+	flex: 1 1 120px;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--judger-space-1);
+	min-width: 0;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-fg-muted);
 }
 
 /* Same verdict colours the problem panel uses for its submission statuses. */
 .case-status-passed {
-    color: var(--judger-pass);
+	color: var(--judger-pass);
 }
 
 .case-status-failed {
-    color: var(--judger-fail);
+	color: var(--judger-fail);
 }
 
 .case-status-running,
 .case-status-checking {
-    color: var(--judger-busy);
+	color: var(--judger-busy);
 }
 
 .case-status-disabled,
 .case-status-skipped {
-    color: var(--judger-fg-faint);
+	color: var(--judger-fg-faint);
 }
 
 /* AC and RE are the two words a contestant scans the list for, so the finished
-   status carries the weight — verdict and the failure text after it alike. */
+	status carries the weight — verdict and the failure text after it alike. */
 .case-verdict,
 .case-status-passed,
 .case-status-failed {
-    font-weight: 600;
+	font-weight: 600;
 }
 
 /*
@@ -737,74 +741,74 @@ textarea::placeholder {
  * from the rule above.
  */
 .case-verdict-AC {
-    color: var(--judger-verdict-ac);
+	color: var(--judger-verdict-ac);
 }
 
 .case-verdict-PE {
-    color: var(--judger-verdict-pe);
+	color: var(--judger-verdict-pe);
 }
 
 .case-verdict-WA {
-    color: var(--judger-verdict-wa);
+	color: var(--judger-verdict-wa);
 }
 
 .case-verdict-TLE {
-    color: var(--judger-verdict-tle);
+	color: var(--judger-verdict-tle);
 }
 
 .case-verdict-MLE {
-    color: var(--judger-verdict-mle);
+	color: var(--judger-verdict-mle);
 }
 
 .case-verdict-OLE {
-    color: var(--judger-verdict-ole);
+	color: var(--judger-verdict-ole);
 }
 
 .case-verdict-FAIL,
 .case-verdict-PARTIAL,
 .case-verdict-RE {
-    color: var(--judger-verdict-re);
+	color: var(--judger-verdict-re);
 }
 
 .case-verdict-CE {
-    color: var(--judger-verdict-ce);
+	color: var(--judger-verdict-ce);
 }
 
 .case-verdict-STOP {
-    color: var(--judger-verdict-stop);
+	color: var(--judger-verdict-stop);
 }
 
 .exec-time {
-    font-family: var(--judger-mono);
-    font-size: var(--judger-font-size-sm);
-    font-variant-numeric: tabular-nums;
-    color: var(--judger-fg);
+	font-family: var(--judger-mono);
+	font-size: var(--judger-font-size-sm);
+	font-variant-numeric: tabular-nums;
+	color: var(--judger-fg);
 }
 
 .running-text {
-    font-style: italic;
-    color: var(--judger-fg-muted);
+	font-style: italic;
+	color: var(--judger-fg-muted);
 }
 
 .time {
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--judger-space-1);
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--judger-space-1);
 }
 
 /* -------------------------------------------------------------- details -- */
 
 .case-details {
-    display: none;
+	display: none;
 }
 
 .case-details.is-collapsed {
-    display: none;
+	display: none;
 }
 
 .case-details.is-expanded {
-    display: block;
+	display: block;
 }
 
 /*
@@ -813,32 +817,32 @@ textarea::placeholder {
  * card background instead of introducing a second surface colour.
  */
 .case-details-inner {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-3);
-    padding: var(--judger-space-3);
-    border-top: 1px solid var(--judger-border-strong);
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-3);
+	padding: var(--judger-space-3);
+	border-top: 1px solid var(--judger-border-strong);
 }
 
 
 
 .case-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-2);
-    min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-2);
+	min-width: 0;
 }
 
 .case-section-title {
-    margin: 0;
-    font-size: var(--judger-font-size-xs);
-    font-weight: 600;
-    color: var(--judger-fg-muted);
+	margin: 0;
+	font-size: var(--judger-font-size-xs);
+	font-weight: 600;
+	color: var(--judger-fg-muted);
 }
 
 .case-section-diagnostics {
-    padding-top: var(--judger-space-3);
-    border-top: 1px solid var(--judger-border);
+	padding-top: var(--judger-space-3);
+	border-top: 1px solid var(--judger-border);
 }
 
 /*
@@ -846,300 +850,300 @@ textarea::placeholder {
  * floated to the top right and the field clears them.
  */
 .textarea-container {
-    position: relative;
-    display: block;
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-fg-muted);
+	position: relative;
+	display: block;
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-fg-muted);
 }
 
 .textarea-container > .clipboard,
 .textarea-container > .expectedoutput {
-    float: right;
-    margin-left: var(--judger-space-2);
-    margin-bottom: 2px;
+	float: right;
+	margin-left: var(--judger-space-2);
+	margin-bottom: 2px;
 }
 
 .textarea-container > textarea,
 .textarea-container > .diff-view {
-    clear: both;
-    margin-top: 2px;
+	clear: both;
+	margin-top: 2px;
 }
 
 .textarea-container.expected-output-container.hidden {
-    display: none;
+	display: none;
 }
 
 /* The problem panel's copy button: a hairline outline, muted until hovered. */
 .clipboard,
 .expectedoutput {
-    display: inline-block;
-    padding: 4px 8px;
-    border: 1px solid var(--judger-border-strong);
-    border-radius: var(--judger-radius-control);
-    background: transparent;
-    color: var(--judger-fg-muted);
-    font-size: 0.8em;
-    line-height: 1;
-    cursor: pointer;
-    user-select: none;
-    -webkit-user-select: none;
-    transition:
-        color 0.1s,
-        border-color 0.1s;
+	display: inline-block;
+	padding: 4px 8px;
+	border: 1px solid var(--judger-border-strong);
+	border-radius: var(--judger-radius-control);
+	background: transparent;
+	color: var(--judger-fg-muted);
+	font-size: 0.8em;
+	line-height: 1;
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+	transition:
+		color 0.1s,
+		border-color 0.1s;
 }
 
 .clipboard:hover,
 .expectedoutput:hover {
-    border-color: var(--judger-focus);
-    color: var(--judger-fg);
+	border-color: var(--judger-focus);
+	color: var(--judger-fg);
 }
 
 .truncation-note {
-    display: block;
-    margin-top: 2px;
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-warn);
+	display: block;
+	margin-top: 2px;
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-warn);
 }
 
 .file-reference {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--judger-space-2);
-    min-width: 0;
-    padding: var(--judger-space-2);
-    border: 1px dashed var(--judger-border-strong);
-    border-radius: var(--judger-radius-card);
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--judger-space-2);
+	min-width: 0;
+	padding: var(--judger-space-2);
+	border: 1px dashed var(--judger-border-strong);
+	border-radius: var(--judger-radius-card);
 }
 
 .file-reference-label {
-    flex: 0 0 auto;
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-fg-muted);
+	flex: 0 0 auto;
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-fg-muted);
 }
 
 .file-reference-name {
-    flex: 0 0 auto;
-    font-family: var(--judger-mono);
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-fg);
-    overflow-wrap: anywhere;
+	flex: 0 0 auto;
+	font-family: var(--judger-mono);
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-fg);
+	overflow-wrap: anywhere;
 }
 
 .file-reference-path {
-    flex: 1 1 120px;
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-fg-faint);
+	flex: 1 1 120px;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-fg-faint);
 }
 
 .diff-view {
-    display: block;
-    max-height: 320px;
-    overflow: auto;
-    padding: var(--judger-space-3);
-    border-radius: var(--judger-radius-control);
-    background: var(--judger-code-bg);
-    font-family: var(--judger-mono);
-    font-size: var(--judger-mono-size);
-    line-height: 1.5;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+	display: block;
+	max-height: 320px;
+	overflow: auto;
+	padding: var(--judger-space-3);
+	border-radius: var(--judger-radius-control);
+	background: var(--judger-code-bg);
+	font-family: var(--judger-mono);
+	font-size: var(--judger-mono-size);
+	line-height: 1.5;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 
 .diff-token-extra {
-    padding: 0 2px;
-    border-radius: 3px;
-    background: var(--vscode-diffEditor-insertedTextBackground);
+	padding: 0 2px;
+	border-radius: 3px;
+	background: var(--vscode-diffEditor-insertedTextBackground);
 }
 
 .diff-token-missing {
-    padding: 0 2px;
-    border-radius: 3px;
-    background: var(--vscode-diffEditor-removedTextBackground);
-    text-decoration: line-through;
+	padding: 0 2px;
+	border-radius: 3px;
+	background: var(--vscode-diffEditor-removedTextBackground);
+	text-decoration: line-through;
 }
 
 /* Nested disclosure: the problem panel marks its details with a rotating
-   triangle. Written as an escape so this stylesheet stays ASCII-only, which
-   the repository's hygiene check requires outside the exempted trees. */
+	triangle. Written as an escape so this stylesheet stays ASCII-only, which
+	the repository's hygiene check requires outside the exempted trees. */
 .checker-details,
 .import-example,
 .stress-instructions,
 .usage-instructions {
-    padding: var(--judger-space-2) var(--judger-space-3);
-    border: 1px solid var(--judger-border-strong);
-    border-radius: var(--judger-radius-card);
+	padding: var(--judger-space-2) var(--judger-space-3);
+	border: 1px solid var(--judger-border-strong);
+	border-radius: var(--judger-radius-card);
 }
 
 .checker-details > summary,
 .import-example > summary,
 .stress-instructions > summary,
 .usage-instructions > summary {
-    list-style: none;
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-fg-muted);
+	list-style: none;
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-fg-muted);
 }
 
 .checker-details > summary::-webkit-details-marker,
 .import-example > summary::-webkit-details-marker,
 .stress-instructions > summary::-webkit-details-marker,
 .usage-instructions > summary::-webkit-details-marker {
-    display: none;
+	display: none;
 }
 
 .checker-details > summary::before,
 .import-example > summary::before,
 .stress-instructions > summary::before,
 .usage-instructions > summary::before {
-    display: inline-block;
-    margin-right: 6px;
-    content: '\25b8';
-    transition: transform var(--judger-motion) var(--judger-ease);
+	display: inline-block;
+	margin-right: 6px;
+	content: '\25b8';
+	transition: transform var(--judger-motion) var(--judger-ease);
 }
 
 .checker-details[open] > summary::before,
 .import-example[open] > summary::before,
 .stress-instructions[open] > summary::before,
 .usage-instructions[open] > summary::before {
-    transform: rotate(90deg);
+	transform: rotate(90deg);
 }
 
 .checker-details-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-2);
-    padding-top: var(--judger-space-2);
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-2);
+	padding-top: var(--judger-space-2);
 }
 
 .checker-details-body small {
-    color: var(--judger-fg-muted);
+	color: var(--judger-fg-muted);
 }
 
 .checker-command {
-    font-size: var(--judger-mono-size);
+	font-size: var(--judger-mono-size);
 }
 
 /* ----------------------------------------------------------- status bar -- */
 
 .judge-status {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--judger-space-2);
-    min-height: 28px;
-    padding: var(--judger-space-1) var(--judger-space-3);
-    border-top: 1px solid var(--judger-border);
-    background: var(--judger-bg);
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-fg-muted);
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--judger-space-2);
+	min-height: 28px;
+	padding: var(--judger-space-1) var(--judger-space-3);
+	border-top: 1px solid var(--judger-border);
+	background: var(--judger-bg);
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-fg-muted);
 }
 
 .task-line {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
 }
 
 .task-label {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 /* The glyph keeps codicon.css's size; only the rotation is ours. */
 .task-spinner .codicon,
 .stress-spinner .codicon {
-    animation: judger-spin 1.2s linear infinite;
+	animation: judger-spin 1.2s linear infinite;
 }
 
 .judge-status .stress-progress-track {
-    flex: 0 1 160px;
+	flex: 0 1 160px;
 }
 
 /* A chromeless toggle, like the problem panel's like button: muted until it is
-   on, at which point it turns into a verdict colour. */
+	on, at which point it turns into a verdict colour. */
 .oj-box {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    height: var(--judger-icon-size);
-    margin-left: auto;
-    padding: 0 6px;
-    border: 0;
-    border-radius: var(--judger-radius-control);
-    background: transparent;
-    color: var(--judger-fg-muted);
-    font: inherit;
-    font-size: var(--judger-font-size-xs);
-    white-space: nowrap;
-    cursor: pointer;
-    transition:
-        background var(--judger-motion) var(--judger-ease),
-        color var(--judger-motion) var(--judger-ease);
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: var(--judger-icon-size);
+	margin-left: auto;
+	padding: 0 6px;
+	border: 0;
+	border-radius: var(--judger-radius-control);
+	background: transparent;
+	color: var(--judger-fg-muted);
+	font: inherit;
+	font-size: var(--judger-font-size-xs);
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background var(--judger-motion) var(--judger-ease),
+		color var(--judger-motion) var(--judger-ease);
 }
 
 .oj-box:hover {
-    background: var(--judger-hover);
-    color: var(--judger-fg);
+	background: var(--judger-hover);
+	color: var(--judger-fg);
 }
 
 .oj-box.oj-enabled {
-    color: var(--judger-pass);
+	color: var(--judger-pass);
 }
 
 .oj-code {
-    font-family: var(--judger-mono);
+	font-family: var(--judger-mono);
 }
 
 .timeout-av-suggestion {
-    flex: 1 0 100%;
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-1);
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-warn);
+	flex: 1 0 100%;
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-1);
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-warn);
 }
 
 /* The title shares its line with the dismiss button; the description runs
-   underneath, so a long one cannot push the button onto a line of its own. */
+	underneath, so a long one cannot push the button onto a line of its own. */
 .timeout-av-head {
-    display: flex;
-    align-items: center;
-    gap: var(--judger-space-2);
+	display: flex;
+	align-items: center;
+	gap: var(--judger-space-2);
 }
 
 .timeout-av-suggestion h5 {
-    flex: 1 1 auto;
-    min-width: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin: 0;
-    font-size: var(--judger-font-size-xs);
+	flex: 1 1 auto;
+	min-width: 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin: 0;
+	font-size: var(--judger-font-size-xs);
 }
 
 .timeout-av-suggestion p {
-    margin: 0;
-    color: var(--judger-fg-muted);
+	margin: 0;
+	color: var(--judger-fg-muted);
 }
 
 .stress-progress-track {
-    height: 4px;
-    overflow: hidden;
-    border-radius: var(--judger-radius-pill);
-    background: var(--judger-border);
+	height: 4px;
+	overflow: hidden;
+	border-radius: var(--judger-radius-pill);
+	background: var(--judger-border);
 }
 
 .stress-progress-bar {
-    height: 100%;
-    background: var(--vscode-progressBar-background, var(--judger-accent));
-    transition: width var(--judger-motion) linear;
+	height: 100%;
+	background: var(--vscode-progressBar-background, var(--judger-accent));
+	transition: width var(--judger-motion) linear;
 }
 
 /* ----------------------------------------------------------- action bar -- */
@@ -1151,38 +1155,38 @@ textarea::placeholder {
  * the only accent fill on screen.
  */
 .actions {
-    flex: 0 0 auto;
-    order: 2;
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-2);
-    padding: var(--judger-space-2) var(--judger-space-3) var(--judger-space-3);
-    border-top: 1px solid var(--judger-border);
-    background: var(--judger-bg);
+	flex: 0 0 auto;
+	order: 2;
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-2);
+	padding: var(--judger-space-2) var(--judger-space-3) var(--judger-space-3);
+	border-top: 1px solid var(--judger-border);
+	background: var(--judger-bg);
 }
 
 /* Keep Submit and Stress equal on the same row, including confirmation. */
 .actions-secondary-row {
-    order: 1;
-    display: flex;
-    align-items: stretch;
-    flex-wrap: nowrap;
-    gap: var(--judger-space-2);
+	order: 1;
+	display: flex;
+	align-items: stretch;
+	flex-wrap: nowrap;
+	gap: var(--judger-space-2);
 }
 
 .actions-main-row {
-    order: 2;
-    display: flex;
-    align-items: center;
-    flex-wrap: nowrap;
-    gap: var(--judger-space-2);
+	order: 2;
+	display: flex;
+	align-items: center;
+	flex-wrap: nowrap;
+	gap: var(--judger-space-2);
 }
 
 .split-btn {
-    display: inline-flex;
-    align-items: stretch;
-    flex: 1 1 auto;
-    min-width: 0;
+	display: inline-flex;
+	align-items: stretch;
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 /*
@@ -1191,104 +1195,104 @@ textarea::placeholder {
  */
 .split-btn .main-btn,
 .split-btn .chevron-btn {
-    background: var(--judger-accent);
-    color: var(--judger-accent-fg);
-    border-radius: 0;
+	background: var(--judger-accent);
+	color: var(--judger-accent-fg);
+	border-radius: 0;
 }
 
 .split-btn .main-btn:hover:not(:disabled),
 .split-btn .chevron-btn:hover:not(:disabled) {
-    background: var(--judger-accent-hover);
+	background: var(--judger-accent-hover);
 }
 
 .split-btn .main-btn {
-    flex: 1 1 auto;
-    min-width: 0;
-    border-radius: var(--judger-radius-control) 0 0 var(--judger-radius-control);
-    font-weight: 600;
+	flex: 1 1 auto;
+	min-width: 0;
+	border-radius: var(--judger-radius-control) 0 0 var(--judger-radius-control);
+	font-weight: 600;
 }
 
 .split-btn .chevron-btn {
-    padding: 0 6px;
-    border-left: 1px solid
-        color-mix(in srgb, var(--judger-accent-fg) 22%, transparent);
-    border-radius: 0 var(--judger-radius-control) var(--judger-radius-control) 0;
+	padding: 0 6px;
+	border-left: 1px solid
+		color-mix(in srgb, var(--judger-accent-fg) 22%, transparent);
+	border-radius: 0 var(--judger-radius-control) var(--judger-radius-control) 0;
 }
 
 .split-btn .action-text {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .actions-secondary-row > .btn {
-    flex: 1 1 0;
-    min-width: 0;
-    overflow: hidden;
-    font-weight: normal;
+	flex: 1 1 0;
+	min-width: 0;
+	overflow: hidden;
+	font-weight: normal;
 }
 
 .actions-secondary-row .action-text,
 .actions-secondary-row .submit-waiting-copy {
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .actions-secondary-row .icon,
 .actions-secondary-row .codicon {
-    flex-shrink: 0;
+	flex-shrink: 0;
 }
 
 .submit-waiting-copy {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
 }
 
 /* Waiting is progress, not a disabled state: the bar stays legible and simply
-   recedes into the recessed surface colour. */
+	recedes into the recessed surface colour. */
 .submit-action.is-waiting {
-    background: var(--judger-code-bg);
-    color: var(--judger-fg-muted);
-    opacity: 1;
+	background: var(--judger-code-bg);
+	color: var(--judger-fg-muted);
+	opacity: 1;
 }
 
 /* Indeterminate strip along the bottom of a submit button while the browser
-   submission form is being prepared. The host has not reported success yet. */
+	submission form is being prepared. The host has not reported success yet. */
 .submit-progress {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 2px;
-    overflow: hidden;
-    background: var(--judger-border);
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 2px;
+	overflow: hidden;
+	background: var(--judger-border);
 }
 
 .submit-progress::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 40%;
-    background: var(--judger-accent);
-    animation: judger-indeterminate 1.2s ease-in-out infinite;
+	content: '';
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 40%;
+	background: var(--judger-accent);
+	animation: judger-indeterminate 1.2s ease-in-out infinite;
 }
 
 @keyframes judger-indeterminate {
-    from {
-        left: -40%;
-    }
-    to {
-        left: 100%;
-    }
+	from {
+		left: -40%;
+	}
+	to {
+		left: 100%;
+	}
 }
 
 .stop-all-btn {
-    flex: 1 1 0;
-    min-width: 0;
+	flex: 1 1 0;
+	min-width: 0;
 }
 
 /*
@@ -1297,7 +1301,7 @@ textarea::placeholder {
  * Run-all below has the same job, hence the same flex on .split-btn.
  */
 .actions-secondary-row > .stress-open-button:only-child {
-    flex: 1 1 0;
+	flex: 1 1 0;
 }
 
 /* ---------------------------------------------------------------- menus -- */
@@ -1307,34 +1311,34 @@ textarea::placeholder {
  * card's "⋯" open the same surface. Each menu only adds its own anchoring.
  */
 .menu {
-    z-index: 15;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 190px;
-    max-width: calc(100% - var(--judger-space-4));
-    padding: var(--judger-space-1);
-    border: 1px solid var(--vscode-menu-border, var(--judger-border-strong));
-    border-radius: var(--judger-radius-card);
-    background: var(--vscode-menu-background, var(--judger-surface));
-    box-shadow: var(--judger-shadow);
+	z-index: 15;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 190px;
+	max-width: calc(100% - var(--judger-space-4));
+	padding: var(--judger-space-1);
+	border: 1px solid var(--vscode-menu-border, var(--judger-border-strong));
+	border-radius: var(--judger-radius-card);
+	background: var(--vscode-menu-background, var(--judger-surface));
+	box-shadow: var(--judger-shadow);
 }
 
 /* Menu rows follow the IDE's own menu colours rather than the button fill. */
 .menu .btn {
-    justify-content: flex-start;
-    min-height: var(--judger-control-height);
-    background: transparent;
-    color: var(--vscode-menu-foreground, var(--judger-fg));
-    text-align: left;
+	justify-content: flex-start;
+	min-height: var(--judger-control-height);
+	background: transparent;
+	color: var(--vscode-menu-foreground, var(--judger-fg));
+	text-align: left;
 }
 
 .menu .btn:hover:not(:disabled) {
-    background: var(
-        --vscode-menu-selectionBackground,
-        var(--judger-row-hover)
-    );
-    color: var(--vscode-menu-selectionForeground, var(--judger-fg));
+	background: var(
+		--vscode-menu-selectionBackground,
+		var(--judger-row-hover)
+	);
+	color: var(--vscode-menu-selectionForeground, var(--judger-fg));
 }
 
 /*
@@ -1344,14 +1348,14 @@ textarea::placeholder {
  */
 .menu .btn-red,
 .menu .btn-red:hover:not(:disabled) {
-    color: var(--judger-danger);
+	color: var(--judger-danger);
 }
 
 /* The header menu hangs off the header's bottom-right corner. */
 .aux-menu {
-    position: absolute;
-    top: calc(100% - var(--judger-space-1));
-    right: var(--judger-space-2);
+	position: absolute;
+	top: calc(100% - var(--judger-space-1));
+	right: var(--judger-space-2);
 }
 
 /*
@@ -1360,88 +1364,88 @@ textarea::placeholder {
  * component caps the height at the room left above or below the button.
  */
 .case-menu {
-    position: fixed;
-    min-width: 0;
-    max-width: calc(100vw - 16px);
-    box-sizing: border-box;
-    overflow-y: auto;
+	position: fixed;
+	min-width: 0;
+	max-width: calc(100vw - 16px);
+	box-sizing: border-box;
+	overflow-y: auto;
 }
 
 .case-menu .btn {
-    white-space: normal;
-    overflow-wrap: anywhere;
-    flex-shrink: 0;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	flex-shrink: 0;
 }
 
 .case-actions {
-    display: inline-flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: var(--judger-space-1);
-    grid-column: 4;
-    grid-row: 1;
+	display: inline-flex;
+	flex-wrap: nowrap;
+	align-items: center;
+	gap: var(--judger-space-1);
+	grid-column: 4;
+	grid-row: 1;
 }
 
 .feedback-tooltip {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--judger-space-2);
-    margin-bottom: var(--judger-space-1);
-    padding: var(--judger-space-2);
-    border: 1px solid
-        var(--vscode-editorHoverWidget-border, var(--judger-border-strong));
-    border-radius: var(--judger-radius-control);
-    background: var(
-        --vscode-editorHoverWidget-background,
-        var(--judger-surface)
-    );
-    color: var(--vscode-editorHoverWidget-foreground, var(--judger-fg-muted));
-    font-size: var(--judger-font-size-xs);
-    line-height: 1.5;
+	display: flex;
+	align-items: flex-start;
+	gap: var(--judger-space-2);
+	margin-bottom: var(--judger-space-1);
+	padding: var(--judger-space-2);
+	border: 1px solid
+		var(--vscode-editorHoverWidget-border, var(--judger-border-strong));
+	border-radius: var(--judger-radius-control);
+	background: var(
+		--vscode-editorHoverWidget-background,
+		var(--judger-surface)
+	);
+	color: var(--vscode-editorHoverWidget-foreground, var(--judger-fg-muted));
+	font-size: var(--judger-font-size-xs);
+	line-height: 1.5;
 }
 
 .feedback-tooltip-close {
-    width: 18px;
-    min-width: 18px;
-    height: 18px;
-    min-height: 18px;
+	width: 18px;
+	min-width: 18px;
+	height: 18px;
+	min-height: 18px;
 }
 
 /* -------------------------------------------------------------- overlays -- */
 
 /* Same shape and entry motion as the problem panel's operation notice. */
 .notification {
-    position: absolute;
-    left: 50%;
-    bottom: var(--judger-space-5);
-    z-index: 30;
-    max-width: calc(100% - var(--judger-space-5));
-    padding: 9px 14px;
-    border: 1px solid
-        var(--vscode-notifications-border, var(--judger-border-strong));
-    border-radius: var(--judger-radius-card);
-    background: var(
-        --vscode-notifications-background,
-        var(--judger-surface)
-    );
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
-    color: var(--vscode-notifications-foreground, var(--judger-fg));
-    font-size: var(--judger-font-size-sm);
-    line-height: 1.5;
-    transform: translateX(-50%);
-    animation: judger-notice-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    pointer-events: none;
+	position: absolute;
+	left: 50%;
+	bottom: var(--judger-space-5);
+	z-index: 30;
+	max-width: calc(100% - var(--judger-space-5));
+	padding: 9px 14px;
+	border: 1px solid
+		var(--vscode-notifications-border, var(--judger-border-strong));
+	border-radius: var(--judger-radius-card);
+	background: var(
+		--vscode-notifications-background,
+		var(--judger-surface)
+	);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+	color: var(--vscode-notifications-foreground, var(--judger-fg));
+	font-size: var(--judger-font-size-sm);
+	line-height: 1.5;
+	transform: translateX(-50%);
+	animation: judger-notice-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	pointer-events: none;
 }
 
 @keyframes judger-notice-enter {
-    from {
-        opacity: 0;
-        transform: translate(-50%, 8px) scale(0.97);
-    }
-    to {
-        opacity: 1;
-        transform: translate(-50%, 0) scale(1);
-    }
+	from {
+		opacity: 0;
+		transform: translate(-50%, 8px) scale(0.97);
+	}
+	to {
+		opacity: 1;
+		transform: translate(-50%, 0) scale(1);
+	}
 }
 
 /* ---------------------------------------------------------- page/dialog -- */
@@ -1451,311 +1455,311 @@ textarea::placeholder {
  * position:fixed, so it can never escape the webview frame.
  */
 .page {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    display: flex;
-    flex-direction: column;
-    background: var(--judger-surface);
-    color: var(--judger-fg);
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	display: flex;
+	flex-direction: column;
+	background: var(--judger-surface);
+	color: var(--judger-fg);
 }
 
 .page-header {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: var(--judger-space-2);
-    padding: var(--judger-space-3);
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: var(--judger-space-2);
+	padding: var(--judger-space-3);
 }
 
 .page-header h2 {
-    flex: 1 1 auto;
-    min-width: 0;
-    margin: 0;
-    font-size: var(--judger-title-size);
-    font-weight: 600;
-    overflow-wrap: anywhere;
+	flex: 1 1 auto;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--judger-title-size);
+	font-weight: 600;
+	overflow-wrap: anywhere;
 }
 
 /* The rule under the header is the separator; it must never be squeezed. */
 .page > hr {
-    flex: 0 0 auto;
+	flex: 0 0 auto;
 }
 
 .page-body {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    padding: var(--judger-space-3);
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding: var(--judger-space-3);
 }
 
 .page-footer {
-    flex: 0 0 auto;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--judger-space-2);
-    padding: var(--judger-space-2) var(--judger-space-3);
-    border-top: 1px solid var(--judger-border);
+	flex: 0 0 auto;
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--judger-space-2);
+	padding: var(--judger-space-2) var(--judger-space-3);
+	border-top: 1px solid var(--judger-border);
 }
 
 /* ------------------------------------------------------------- settings -- */
 
 .settings-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-5);
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-5);
 }
 
 .settings-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-2);
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-2);
 }
 
 /* Group headings are quiet, like the Setup pages' section headings. */
 .settings-group > h3,
 .settings-subgroup > h4 {
-    margin: 0;
-    font-size: var(--judger-font-size-xs);
-    font-weight: 600;
-    color: var(--judger-fg-muted);
+	margin: 0;
+	font-size: var(--judger-font-size-xs);
+	font-weight: 600;
+	color: var(--judger-fg-muted);
 }
 
 .settings-subgroup {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-2);
-    padding-top: var(--judger-space-3);
-    border-top: 1px solid var(--judger-border);
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-2);
+	padding-top: var(--judger-space-3);
+	border-top: 1px solid var(--judger-border);
 }
 
 .settings-field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-1);
-    min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-1);
+	min-width: 0;
 }
 
 /* Only the caption is bold; the control keeps the normal weight. */
 .settings-field > span {
-    font-weight: 600;
+	font-weight: 600;
 }
 
 .settings-inline {
-    display: flex;
-    align-items: center;
-    gap: var(--judger-space-2);
+	display: flex;
+	align-items: center;
+	gap: var(--judger-space-2);
 }
 
 .settings-inline > input {
-    flex: 1 1 auto;
+	flex: 1 1 auto;
 }
 
 .settings-actions,
 .settings-footer {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--judger-space-2);
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--judger-space-2);
 }
 
 .field-error {
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-danger);
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-danger);
 }
 
 .usage-instructions {
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-fg-muted);
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-fg-muted);
 }
 
 .usage-instructions ul {
-    margin: var(--judger-space-2) 0 0;
-    padding-left: 20px;
+	margin: var(--judger-space-2) 0 0;
+	padding-left: 20px;
 }
 
 .usage-example {
-    margin-top: var(--judger-space-2);
-    max-height: 160px;
+	margin-top: var(--judger-space-2);
+	max-height: 160px;
 }
 
 /* --------------------------------------------------------------- import -- */
 
 .import-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-3);
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-3);
 }
 
 .import-description {
-    margin: 0;
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-fg-muted);
+	margin: 0;
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-fg-muted);
 }
 
 .import-example-json {
-    margin-top: var(--judger-space-2);
-    min-height: 140px;
+	margin-top: var(--judger-space-2);
+	min-height: 140px;
 }
 
 .import-file-picker {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--judger-space-2);
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--judger-space-2);
 }
 
 .import-file-name {
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-fg-muted);
-    overflow-wrap: anywhere;
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-fg-muted);
+	overflow-wrap: anywhere;
 }
 
 .import-error {
-    margin: 0;
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-danger);
+	margin: 0;
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-danger);
 }
 
 .import-submit {
-    align-self: stretch;
+	align-self: stretch;
 }
 
 /* --------------------------------------------------------------- stress -- */
 
 .stress-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-3);
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-3);
 }
 
 .stress-hint {
-    margin: 0;
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-fg-muted);
+	margin: 0;
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-fg-muted);
 }
 
 .stress-instructions {
-    font-size: var(--judger-font-size-sm);
+	font-size: var(--judger-font-size-sm);
 }
 
 .stress-instructions ul {
-    margin: var(--judger-space-2) 0 0;
-    padding-left: 20px;
-    color: var(--judger-fg-muted);
+	margin: var(--judger-space-2) 0 0;
+	padding-left: 20px;
+	color: var(--judger-fg-muted);
 }
 
 .stress-example-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--judger-space-2);
-    margin-top: var(--judger-space-2);
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--judger-space-2);
+	margin-top: var(--judger-space-2);
 }
 
 .stress-example-title {
-    margin: var(--judger-space-2) 0 0;
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-fg-muted);
+	margin: var(--judger-space-2) 0 0;
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-fg-muted);
 }
 
 .stress-example {
-    margin-top: var(--judger-space-1);
-    max-height: 200px;
+	margin-top: var(--judger-space-1);
+	max-height: 200px;
 }
 
 .stress-file-picker {
-    display: flex;
-    align-items: center;
-    gap: var(--judger-space-2);
+	display: flex;
+	align-items: center;
+	gap: var(--judger-space-2);
 }
 
 .stress-file-picker > input {
-    flex: 1 1 auto;
+	flex: 1 1 auto;
 }
 
 .stress-actions {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--judger-space-2);
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--judger-space-2);
 }
 
 .stress-actions label {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-fg-muted);
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-fg-muted);
 }
 
 .stress-actions input[type='number'] {
-    width: 88px;
+	width: 88px;
 }
 
 .stress-status {
-    display: flex;
-    align-items: center;
-    gap: var(--judger-space-2);
-    font-size: var(--judger-font-size-sm);
-    color: var(--judger-fg-muted);
+	display: flex;
+	align-items: center;
+	gap: var(--judger-space-2);
+	font-size: var(--judger-font-size-sm);
+	color: var(--judger-fg-muted);
 }
 
 /* A counterexample is the one thing on this page that must shout. */
 .stress-counterexample {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-2);
-    padding: var(--judger-space-3);
-    border: 1px solid var(--judger-danger);
-    border-radius: var(--judger-radius-card);
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-2);
+	padding: var(--judger-space-3);
+	border: 1px solid var(--judger-danger);
+	border-radius: var(--judger-radius-card);
 }
 
 .stress-counterexample .stress-status {
-    margin: 0;
-    color: var(--judger-danger);
+	margin: 0;
+	color: var(--judger-danger);
 }
 
 .stress-counterexample-field {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    font-size: var(--judger-font-size-xs);
-    color: var(--judger-fg-muted);
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-size: var(--judger-font-size-xs);
+	color: var(--judger-fg-muted);
 }
 
 /* ----------------------------------------------------------------- info -- */
 
 .info-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-2);
-    font-size: var(--judger-font-size-sm);
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-2);
+	font-size: var(--judger-font-size-sm);
 }
 
 .info-body h2 {
-    margin: 0;
-    font-size: var(--judger-title-size);
-    font-weight: 600;
+	margin: 0;
+	font-size: var(--judger-title-size);
+	font-weight: 600;
 }
 
 .info-body h3 {
-    margin: 0;
-    font-size: var(--judger-font-size-xs);
-    font-weight: 600;
-    color: var(--judger-fg-muted);
+	margin: 0;
+	font-size: var(--judger-font-size-xs);
+	font-weight: 600;
+	color: var(--judger-fg-muted);
 }
 
 .info-body p {
-    margin: 0;
-    color: var(--judger-fg-muted);
+	margin: 0;
+	color: var(--judger-fg-muted);
 }
 
 .info-body pre {
-    max-height: 220px;
+	max-height: 220px;
 }
 
 .debug-textarea {
-    height: 200px;
-    font-size: var(--judger-mono-size);
+	height: 200px;
+	font-size: var(--judger-mono-size);
 }
 
 /* ------------------------------------------------------------ companion -- */
@@ -1766,283 +1770,283 @@ textarea::placeholder {
  * without a magic offset.
  */
 .judger-companion {
-    position: relative;
-    order: 1;
-    flex: 0 0 auto;
-    height: 0;
-    z-index: 4;
-    pointer-events: none;
+	position: relative;
+	order: 1;
+	flex: 0 0 auto;
+	height: 0;
+	z-index: 4;
+	pointer-events: none;
 }
 
 .cat-emoji {
-    position: absolute;
-    bottom: 0;
-    font-size: 22px;
-    line-height: 1;
-    user-select: none;
-    -webkit-user-select: none;
-    pointer-events: auto;
+	position: absolute;
+	bottom: 0;
+	font-size: 22px;
+	line-height: 1;
+	user-select: none;
+	-webkit-user-select: none;
+	pointer-events: auto;
 }
 
 .mouse-emoji {
-    position: absolute;
-    bottom: 0;
-    font-size: 16px;
-    line-height: 1;
-    animation: judger-mouse-idle 1s ease-in-out infinite;
+	position: absolute;
+	bottom: 0;
+	font-size: 16px;
+	line-height: 1;
+	animation: judger-mouse-idle 1s ease-in-out infinite;
 }
 
 .floating-heart {
-    position: absolute;
-    bottom: 20px;
-    font-size: 14px;
-    line-height: 1;
-    animation: judger-float-up 1.5s ease-out forwards;
+	position: absolute;
+	bottom: 20px;
+	font-size: 14px;
+	line-height: 1;
+	animation: judger-float-up 1.5s ease-out forwards;
 }
 
 .cat-flip {
-    display: inline-block;
+	display: inline-block;
 }
 
 .cat-bounce {
-    display: inline-block;
+	display: inline-block;
 }
 
 .cat-bounce.bounce-walk {
-    animation: judger-cat-walk 0.5s ease-in-out infinite;
+	animation: judger-cat-walk 0.5s ease-in-out infinite;
 }
 
 @keyframes judger-cat-walk {
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-4px);
-    }
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-4px);
+	}
 }
 
 @keyframes judger-mouse-idle {
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-2px);
-    }
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-2px);
+	}
 }
 
 @keyframes judger-float-up {
-    0% {
-        opacity: 1;
-        transform: translateY(0);
-    }
-    100% {
-        opacity: 0;
-        transform: translateY(-32px);
-    }
+	0% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	100% {
+		opacity: 0;
+		transform: translateY(-32px);
+	}
 }
 
 /* Keep the last testcase clear of the cat's walking lane. */
 .ui.cat-companion-active .results {
-    padding-bottom: 38px;
+	padding-bottom: 38px;
 }
 
 /* ------------------------------------------------------------- fallback -- */
 
 .fallback {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .p10 {
-    padding: var(--judger-space-4);
+	padding: var(--judger-space-4);
 }
 
 .text-center {
-    text-align: center;
+	text-align: center;
 }
 
 .fallback .text-center {
-    display: flex;
-    flex-direction: column;
-    gap: var(--judger-space-2);
-    width: 100%;
-    max-width: 280px;
+	display: flex;
+	flex-direction: column;
+	gap: var(--judger-space-2);
+	width: 100%;
+	max-width: 280px;
 }
 
 /* ------------------------------------------------------------ utilities -- */
 
 .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
 }
 
 /* ------------------------------------------------------ reduced motion -- */
 
 @media (prefers-reduced-motion: reduce) {
-    :root {
-        --judger-motion: 0ms;
-    }
+	:root {
+		--judger-motion: 0ms;
+	}
 
-    .notification,
-    .loader,
-    .submit-progress::after,
-    .cat-emoji,
-    .mouse-emoji,
-    .floating-heart,
-    .cat-bounce {
-        animation: none !important;
-        transition: none !important;
-    }
+	.notification,
+	.loader,
+	.submit-progress::after,
+	.cat-emoji,
+	.mouse-emoji,
+	.floating-heart,
+	.cat-bounce {
+		animation: none !important;
+		transition: none !important;
+	}
 }
 
 /* -------------------------------------------------------- narrow panel -- */
 
 @media (max-width: 320px) {
-    .testcase-toolbar-row {
-        flex-wrap: wrap;
-    }
+	.testcase-toolbar-row {
+		flex-wrap: wrap;
+	}
 
-    .filter-caption {
-        display: none;
-    }
+	.filter-caption {
+		display: none;
+	}
 
-    .case-metadata {
-        gap: var(--judger-space-1);
-    }
+	.case-metadata {
+		gap: var(--judger-space-1);
+	}
 
-    .case-status {
-        grid-column: 2 / -1;
-        grid-row: 2;
-    }
+	.case-status {
+		grid-column: 2 / -1;
+		grid-row: 2;
+	}
 
-    .actions-main-row,
-    .actions-secondary-row {
-        gap: var(--judger-space-1);
-    }
+	.actions-main-row,
+	.actions-secondary-row {
+		gap: var(--judger-space-1);
+	}
 
-    .split-btn {
-        flex: 1 1 100%;
-    }
+	.split-btn {
+		flex: 1 1 100%;
+	}
 
-    .judge-status {
-        gap: var(--judger-space-1);
-    }
+	.judge-status {
+		gap: var(--judger-space-1);
+	}
 }
 
 .mark-accepted-btn {
-    min-height: 24px;
-    min-width: 32px;
-    padding: 0 6px;
-    font-size: var(--judger-font-size-xs);
-    font-weight: normal;
+	min-height: 24px;
+	min-width: 32px;
+	padding: 0 6px;
+	font-size: var(--judger-font-size-xs);
+	font-weight: normal;
 }
 
 .problem-actions .pass-rate {
-    min-width: 0;
-    flex-wrap: wrap;
-    white-space: normal;
+	min-width: 0;
+	flex-wrap: wrap;
+	white-space: normal;
 }
 
 .problem-header-controls {
-    display: inline-flex;
-    flex: 0 0 auto;
-    gap: var(--judger-space-1);
+	display: inline-flex;
+	flex: 0 0 auto;
+	gap: var(--judger-space-1);
 }
 
 .problem-status-row {
-    display: flex;
-    align-items: center;
-    margin-top: var(--judger-space-1);
-    min-width: 0;
+	display: flex;
+	align-items: center;
+	margin-top: var(--judger-space-1);
+	min-width: 0;
 }
 
 .case-metadata > .time,
 .case-menu-button {
-    flex: 0 0 auto;
+	flex: 0 0 auto;
 }
 
 /* AC stays at the start; the statistics own the opposite edge. */
 .problem-status-row > .problem-actions {
-    flex: 1 1 auto;
-    width: 100%;
+	flex: 1 1 auto;
+	width: 100%;
 }
 
 .problem-status-row .pass-rate {
-    margin-left: auto;
-    justify-content: flex-end;
-    text-align: right;
+	margin-left: auto;
+	justify-content: flex-end;
+	text-align: right;
 }
 
 .problem-accepted-indicator {
-    color: var(--judger-pass);
-    font-size: var(--judger-font-size-xs);
+	color: var(--judger-pass);
+	font-size: var(--judger-font-size-xs);
 }
 
 .testcase-toolbar {
-    position: relative;
+	position: relative;
 }
 
 .testcase-add-menu {
-    position: absolute;
-    top: calc(var(--judger-control-height) + var(--judger-space-2));
-    right: var(--judger-space-3);
+	position: absolute;
+	top: calc(var(--judger-control-height) + var(--judger-space-2));
+	right: var(--judger-space-3);
 }
 
 .testcase-drop-hint-row {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--judger-space-1);
+	display: flex;
+	align-items: flex-start;
+	gap: var(--judger-space-1);
 }
 
 .testcase-drop-hint-row .testcase-drop-hint {
-    flex: 1 1 auto;
-    min-width: 0;
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .testcase-drop-hint-row > .btn {
-    flex: 0 0 auto;
-    min-height: 20px;
-    padding: 0 3px;
+	flex: 0 0 auto;
+	min-height: 20px;
+	padding: 0 3px;
 }
 
 .output-diff-preview-line {
-    display: grid;
-    grid-template-columns: 2em minmax(0, 1fr) minmax(0, 1fr);
-    gap: var(--judger-space-1);
-    font-family: var(--judger-mono);
-    font-size: var(--judger-font-size-xs);
+	display: grid;
+	grid-template-columns: 2em minmax(0, 1fr) minmax(0, 1fr);
+	gap: var(--judger-space-1);
+	font-family: var(--judger-mono);
+	font-size: var(--judger-font-size-xs);
 }
 
 .output-diff-preview-line pre {
-    margin: 0;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    max-height: 4em;
-    overflow: auto;
+	margin: 0;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	max-height: 4em;
+	overflow: auto;
 }
 
 .output-diff-preview-line:not(.diff-match) pre:first-of-type {
-    color: var(--judger-fail);
+	color: var(--judger-fail);
 }
 
 .output-diff-preview-line:not(.diff-match) pre:last-of-type {
-    color: var(--judger-text-link);
+	color: var(--judger-text-link);
 }
 
 /* Confirmation keeps its warning fill while the pointer stays on Submit. */
 .btn.btn-yellow,
 .btn.btn-yellow:hover:not(:disabled) {
-    background: var(--vscode-statusBarItem-warningBackground, var(--judger-warn));
-    color: var(--vscode-statusBarItem-warningForeground, #000000);
+	background: var(--vscode-statusBarItem-warningBackground, var(--judger-warn));
+	color: var(--vscode-statusBarItem-warningForeground, #000000);
 }
