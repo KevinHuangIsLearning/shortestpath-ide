@@ -3,12 +3,15 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
+import { EditorExtensions, IEditorCommandsContext, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -56,13 +59,20 @@ registerAction2(class extends Action2 {
 				original: 'New Tab',
 			},
 			f1: true,
+			icon: Codicon.add,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: -1,
+				when: ContextKeyExpr.and(ContextKeyExpr.not('shortestpath.browsing'), ContextKeyExpr.not('shortestpath.page')),
+			},
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
+	run(accessor: ServicesAccessor, _resource?: URI, context?: IEditorCommandsContext) {
 		const editorService = accessor.get(IEditorService);
 		const instantiationService = accessor.get(IInstantiationService);
-		return editorService.openEditor(instantiationService.createInstance(ShortestPathNewTabInput));
+		return editorService.openEditor(instantiationService.createInstance(ShortestPathNewTabInput), { pinned: true }, context?.groupId);
 	}
 });
 
