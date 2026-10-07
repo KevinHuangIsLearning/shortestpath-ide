@@ -15,6 +15,31 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 suite('ShortestPath standalone page surface', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('navigation button backgrounds have equal gutters to the window and standalone content', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.shortestpath-dual-mode'));
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.style.cssText = 'position:relative;width:600px;height:400px';
+		const navigation = append(workbench, $('.workbench-navigation'));
+		navigation.style.cssText = 'width:48px;height:400px';
+		const buttons = ['shortestpath-mode-switch', 'shortestpath-navigation-actions'].map(className => {
+			const group = append(navigation, $(`.${className}`));
+			const button = append(group, $('button'));
+			append(button, $('span.codicon.codicon-settings-gear'));
+			return button;
+		});
+		for (const className of ['shortestpath-browser-space', 'shortestpath-page-space']) {
+			const content = append(workbench, $(`.${className}`));
+			content.style.left = '48px';
+			const left = workbench.getBoundingClientRect().left;
+			const right = content.getBoundingClientRect().left;
+			for (const button of buttons) {
+				const bounds = button.getBoundingClientRect();
+				assert.deepStrictEqual({ left: bounds.left - left, right: right - bounds.right, width: bounds.width }, { left: 8, right: 8, width: 36 });
+			}
+			content.remove();
+		}
+	});
+
 	test('browsing preserves modal settings headers, controls and modal webviews', () => {
 		const workbench = append(mainWindow.document.body, $('.monaco-workbench.shortestpath-dual-mode.shortestpath-browsing'));
 		store.add(toDisposable(() => workbench.remove()));

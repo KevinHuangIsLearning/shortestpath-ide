@@ -29,7 +29,6 @@ import { OpenIntegratedBrowserAction, QuickOpenBrowserAction } from '../../../br
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { canImportBrowserProblem, BrowserProblemImportFeature } from '../../../browserView/electron-browser/features/browserProblemImportFeature.js';
 import { BrowserEditor } from '../../../browserView/electron-browser/browserEditor.js';
 import { BrowserWelcomeFeature } from '../../../browserView/electron-browser/features/browserWelcomeFeature.js';
@@ -233,21 +232,35 @@ suite('ShortestPath browser routing', () => {
 		});
 	});
 
-	test('first browsing use opens the OJ and later empty sessions keep the blank start page', async () => {
-		const first = setup();
-		first.service.mode = 'browse';
-		await first.service.ensureBlankTab();
-		assert.deepStrictEqual(first.navigations, [shortestPathHome]);
-		assert.strictEqual(first.browserInputs.length, 1);
-		assert.strictEqual(first.instantiation.get(IStorageService).getBoolean('shortestpath.browser.started', StorageScope.PROFILE), true);
-
-		const returning = setup();
-		returning.instantiation.get(IStorageService).store('shortestpath.browser.started', true, StorageScope.PROFILE, StorageTarget.MACHINE);
-		returning.service.mode = 'browse';
-		await returning.service.ensureBlankTab();
-		assert.deepStrictEqual(returning.navigations, []);
-		assert.strictEqual(returning.browserInputs.length, 1);
+	test('entering browsing opens the OJ in its only blank tab on every entry', async () => {
+		const { service, navigations, browserInputs, browserGroup } = setup();
+		await service.switchMode('browse');
+		assert.deepStrictEqual(navigations, [shortestPathHome]);
+		assert.strictEqual(browserInputs.length, 1);
+		const old = browserInputs[0];
+		browserInputs.length = 0;
+		browserGroup.count = 0;
+		old.dispose();
+		await service.ensureBlankTab();
+		assert.strictEqual(navigations.length, 1);
+		service.mode = 'solve';
+		await service.switchMode('browse');
+		assert.strictEqual(navigations[navigations.length - 1], shortestPathHome);
+		assert.strictEqual(browserInputs.length, 1);
 	});
+
+	for (const urls of [['https://example.com/A'], ['', '']]) {
+		test(`entering browsing preserves existing tabs: ${JSON.stringify(urls)}`, async () => {
+			const { service, navigations, browserInputs } = setup();
+			service.mode = 'browse';
+			for (const url of urls) { await service.openBrowser(url, true); }
+			const before = [...navigations];
+			service.mode = 'solve';
+			await service.switchMode('browse');
+			assert.deepStrictEqual(navigations, before);
+			assert.strictEqual(browserInputs.length, urls.length);
+		});
+	}
 
 	test('closing all browsing tabs replaces them with exactly one blank tab', async () => {
 		const { service, browserInputs, browserGroup, known, navigations } = setup();

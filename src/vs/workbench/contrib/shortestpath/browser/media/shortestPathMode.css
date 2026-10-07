@@ -19,7 +19,8 @@
 	display: flex;
 	flex-direction: column;
 	box-sizing: border-box;
-	padding: var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size40, 4px);
+	/* The adjacent workspace already contributes a 4px leading gutter. */
+	padding: var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size40, 4px) var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size80, 8px);
 	color: var(--vscode-titleBar-activeForeground);
 }
 
