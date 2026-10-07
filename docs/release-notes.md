@@ -4,19 +4,17 @@
 
 ## v0.4.6 更新 / What's New
 
-- 修复 Windows 绿色版 C++20 自检中 `bits/error_constants.h` 缺失的问题，受管 GCC 使用短路径并保留该路径寻找头文件和编译工具。
-- 自动修复已有受管工具链配置，保留用户、工作区和文件夹各自的编译选项；设置界面保存后也保留必要参数，自定义系统编译器配置保持不变。
+- 修复 Windows 绿色版环境自检和 C++20 编译时找不到标准库头文件的问题。
+- 自动修复已有绿色版的编译配置，保留自定义编译选项。
 - 工作区直接受信任，不再进入受限模式。
 - 浏览界面双击顶部标签栏空白处会打开新的空白浏览器标签页，支持浏览器分组；做题界面的新建文件行为保持不变。
-- 完善工具链路径及配置迁移回归测试，并验证 C++20 编译、Judger 样例判题、错误答案识别和 clangd 系统头文件检查。
 
 ### English
 
-- Fixed missing `bits/error_constants.h` during the Windows portable C++20 self-test by using a short managed GCC path and preserving that prefix when locating headers and compiler tools.
-- Repairs existing managed toolchain settings while preserving compiler options at user, workspace, and folder scopes. Saving settings retains required flags, and custom system compiler settings are preserved.
+- Fixed missing standard-library headers during environment checks and C++20 compilation in the Windows portable edition.
+- Automatically repairs existing portable compiler settings while preserving custom compiler options.
 - Workspaces are trusted automatically and no longer enter Restricted Mode.
 - Double-clicking empty space in the browsing tab bar opens a new blank browser tab, including in split browser groups. The solving tab bar keeps its New File behavior.
-- Expanded regression coverage for toolchain paths and configuration migration; verified C++20 compilation, Judger samples and wrong-answer detection, and clangd system-header checks.
 
 ## v0.4.5 更新 / What's New
 
@@ -60,14 +58,14 @@ The browsing and solving spaces got a tidy-up, with smoother tabs, imports, and 
 
 ## v0.4.3 更新 / What's New
 
-- 修复 Judger 初始化顺序错误，恢复题目样例加载与本地评测，并加入冷启动回归测试。
+- 修复启动后题目样例无法加载、本地评测无法使用的问题。
 - 内置浏览器的 ShortestPath 导题入口改用网站的“开始做题”流程，支持页面导航与按钮状态变化。
 - 将题目评价移至题面顶部浮层，改善投票后的焦点、浮层边界和悬停交互。
 - 题解代码高亮、字体与编辑器主题保持一致，改进浏览器标签标题宽度及拥挤时的滚动显示。
 
 ### English
 
-- Fixed Judger initialization order to restore sample loading and local judging, with a cold-start regression test.
+- Fixed problem samples failing to load and local judging being unavailable after startup.
 - Integrated browser imports on ShortestPath now use the website's Start Solving flow and follow page navigation and button state changes.
 - Moved problem ratings into a header popover and improved focus, viewport positioning, and hover behavior after voting.
 - Editorial code highlighting and fonts follow the editor theme. Improved browser tab title sizing and scrolling when tabs are crowded.
@@ -78,7 +76,7 @@ The browsing and solving spaces got a tidy-up, with smoother tabs, imports, and 
 - 题目快照移入 IDE 私有缓存，只保留最近 30 题；保留代码关联并迁移旧缓存，不删除代码或 Judger 测试文件。
 - 完善连接恢复、题目评价、历史题面和报告展示。点赞使用题目快照，支持投票及修改，下次获取题目时同步远端状态。
 - 改进首次配置和环境自检、C++ 模板及代码片段编辑、字体和格式预览，并兼容新版 Judger。
-- 修复本地开发与安装包的中文翻译加载，保留扩展宿主所需的 Chat、MCP 和 Agent 服务。
+- 修复部分界面中文翻译未正常显示的问题。
 
 ### English
 
@@ -86,7 +84,7 @@ The browsing and solving spaces got a tidy-up, with smoother tabs, imports, and 
 - Moved problem snapshots to a private IDE cache retaining the latest 30 problems. Source bindings survive eviction; migration preserves source and Judger testcase files.
 - Improved connection recovery, ratings, statement history, and reports. Likes use the imported snapshot, support voting and changes, and refresh on the next problem fetch.
 - Improved first-run setup, environment checks, C++ templates, snippet editing, font and formatting previews, with support for the current Judger backend.
-- Fixed Chinese translation loading in local development and packaged builds while preserving Chat, MCP, and Agent services required by the extension host.
+- Fixed missing Chinese translations in parts of the interface.
 
 The English version follows the Chinese version.
 

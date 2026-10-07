@@ -2,5 +2,5 @@
 	"version": "0.4.6",
 	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.6",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "修复 Windows 绿色版 C++20 自检缺少 bits/error_constants.h，自动修正受管工具链路径与编译参数，保留自定义配置。工作区直接受信任，不再进入受限模式；浏览界面双击顶部标签栏空白处会打开新的空白浏览器标签页。\n\nFixed missing bits/error_constants.h during the Windows portable C++20 self-test. Managed compiler paths and flags are repaired while preserving custom settings. Workspaces are trusted automatically, and double-clicking empty space in the browsing tab bar opens a new blank browser tab."
+	"releaseNote": "修复 Windows 绿色版环境自检和 C++20 编译时找不到标准库头文件的问题，自动修复已有编译配置并保留自定义选项。工作区直接受信任，不再进入受限模式；浏览界面双击顶部标签栏空白处会打开新的空白浏览器标签页。\n\nFixed missing standard-library headers during environment checks and C++20 compilation in the Windows portable edition. Existing compiler settings are repaired automatically while preserving custom options. Workspaces are trusted automatically, and double-clicking empty space in the browsing tab bar opens a new blank browser tab."
 }
