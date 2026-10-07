@@ -14,13 +14,13 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo, IWorkspaceTrustManagementService, WorkspaceTrustUriResponse } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { Memento } from '../../../../common/memento.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
-import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from '../../common/workspaceTrust.js';
+import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WorkspaceTrustRequestService, WORKSPACE_TRUST_STORAGE_KEY } from '../../common/workspaceTrust.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -50,11 +50,11 @@ suite('Workspace Trust', () => {
 	});
 
 	suite('Enablement', () => {
-		test('workspace trust enabled', async () => {
+		test('workspace trust remains disabled when an existing user setting enables it', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
 			const testObject = store.add(instantiationService.createInstance(WorkspaceTrustEnablementService));
 
-			assert.strictEqual(testObject.isWorkspaceTrustEnabled(), true);
+			assert.strictEqual(testObject.isWorkspaceTrustEnabled(), false);
 		});
 
 		test('workspace trust disabled (user setting)', async () => {
@@ -88,6 +88,31 @@ suite('Workspace Trust', () => {
 			instantiationService.stub(IWorkspaceContextService, workspaceService);
 
 			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		});
+
+		test('ShortestPath trusts workspaces and external files without prompting despite an enabled user setting', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+			instantiationService.stub(IWorkspaceTrustEnablementService, store.add(instantiationService.createInstance(WorkspaceTrustEnablementService)));
+			workspaceService.setWorkspace(new Workspace('folder-workspace', [toWorkspaceFolder(URI.parse('file:///Folder'))]));
+			const testObject = await initializeTestObject();
+			await testObject.setWorkspaceTrust(false);
+			const file = URI.parse('file:///OtherFolder/file.cpp');
+			assert.deepStrictEqual({ trusted: testObject.isWorkspaceTrusted(), fileTrust: await testObject.getUriTrustInfo(file) }, {
+				trusted: true, fileTrust: { trusted: true, uri: file }
+			});
+
+			instantiationService.stub(IWorkspaceTrustManagementService, testObject);
+			const requests = store.add(instantiationService.createInstance(WorkspaceTrustRequestService));
+			let prompts = 0;
+			store.add(requests.onDidInitiateWorkspaceTrustRequest(() => prompts++));
+			store.add(requests.onDidInitiateResourcesTrustRequest(() => prompts++));
+			store.add(requests.onDidInitiateOpenFilesTrustRequest(() => prompts++));
+			assert.deepStrictEqual({
+				workspace: await requests.requestWorkspaceTrust(),
+				resource: await requests.requestResourcesTrust({ uri: file }),
+				files: await requests.requestOpenFilesTrust([file]),
+				prompts
+			}, { workspace: true, resource: true, files: WorkspaceTrustUriResponse.Open, prompts: 0 });
 		});
 
 		test('empty workspace - trusted', async () => {

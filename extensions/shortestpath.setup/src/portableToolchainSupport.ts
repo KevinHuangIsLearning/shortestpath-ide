@@ -12,10 +12,17 @@ import { createZstdDecompress } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import * as tar from 'tar';
 
+export { withCompilerPathFlags } from './compilerRuntime';
+
 type RecoveryMessages = Record<'message' | 'detail' | 'relocate' | 'copy' | 'cancel', string>;
 type ExtractionOptions = {
 	readonly link?: (source: string, target: string) => Promise<void>;
 	readonly onHardlinkError?: (error: Error) => Promise<string | undefined>;
+};
+type CompilerPathFileSystem = {
+	existsSync(filename: string): boolean;
+	realpathSync(filename: string): string;
+	symlinkSync(source: string, target: string, type: 'junction'): void;
 };
 
 class RelocationRequest extends Error {
@@ -228,11 +235,8 @@ export function getRecoveryMessages(locale: string, defaults?: RecoveryMessages)
 }
 
 
-/** Keep the GCC installation path free of spaces on its own volume. */
-export function getSpaceSafeCompilerPath(compiler: string, toolchainRoot: string, fileSystem: Pick<typeof fs, 'existsSync' | 'realpathSync' | 'symlinkSync'> = fs): string {
-	if (!/\s/.test(compiler)) {
-		return compiler;
-	}
+/** Keep managed GCC prefixes short and free of spaces on their own volume. */
+export function getSafeCompilerPath(compiler: string, toolchainRoot: string, fileSystem: CompilerPathFileSystem = fs): string {
 	const managedRoot = /^(.*)\\User\\(?:profiles\\[^\\]+\\)?globalStorage\\shortestpath\.shortestpath-setup\\toolchains$/i.exec(toolchainRoot)?.[1];
 	if (!managedRoot) {
 		return compiler;
@@ -256,3 +260,6 @@ export function getSpaceSafeCompilerPath(compiler: string, toolchainRoot: string
 		return compiler;
 	}
 }
+
+// Existing portable packages load this name from their main process.
+export { getSafeCompilerPath as getSpaceSafeCompilerPath };

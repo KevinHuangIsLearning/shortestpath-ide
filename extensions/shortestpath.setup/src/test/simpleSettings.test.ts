@@ -166,8 +166,9 @@ test('font preview applies current tokens literally and rejects old responses af
 	assert.deepStrictEqual(messages.map(message => message.requestId), [1, 2]);
 });
 
-function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () => [[{ text: 'int', style: 'color:blue' }]]) {
+function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () => [[{ text: 'int', style: 'color:blue' }]], compilerCommands: Record<string, string> = {}) {
 	const updates: string[] = [];
+	const savedFlags: Record<string, string> = {};
 	const commands: string[] = [];
 	const messages: Array<Record<string, unknown>> = [];
 	let receive!: (message: Record<string, unknown>) => Promise<void>;
@@ -188,7 +189,10 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 		ViewColumn: { Active: 1 }, ConfigurationTarget: { Global: 1 }, env: { language: 'en' }, extensions: { all: [] },
 		window: { createWebviewPanel: () => panel, onDidChangeActiveColorTheme(handler: () => void) { onTheme = handler; return listener(); } },
 		workspace: {
-			getConfiguration: () => ({ get: () => undefined, async update(key: string) { updates.push(key); } }),
+			getConfiguration: () => ({ get: (key: string) => compilerCommands[key], async update(key: string, value: string | number | boolean) {
+				updates.push(key);
+				if ((key === 'judger.language.cpp.Args' || key === 'c-cpp-compile-run.cpp-flags') && typeof value === 'string') { savedFlags[key] = value; }
+			} }),
 			onDidChangeConfiguration(handler: typeof onConfiguration) { onConfiguration = handler; return listener(); }
 		},
 		commands: { async executeCommand(command: string) { commands.push(command); return command === '_shortestpath.cppPreviewTokens' ? tokens() : undefined; } }
@@ -201,12 +205,25 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 			if (id === 'vscode') { return vscode; }
 			if (id === './bundledFont') { return { withBundledCodeFont: (html: string) => html }; }
 			if (id === './systemFonts') { return { getSystemFonts: async () => ({ fonts: [] }) }; }
+			if (id === './compilerRuntime') { return require('../compilerRuntime'); }
 			return { localize: (text: string) => text, localizeWebviewHtml: (html: string) => html, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) };
 		}
 	});
 	exports.open!({ subscriptions: [], globalState: { get: () => undefined } });
-	return { receive, onTheme, onConfiguration, onDispose, commands, updates, messages, disposedListeners: () => disposedListeners };
+	return { receive, onTheme, onConfiguration, onDispose, commands, updates, savedFlags, messages, disposedListeners: () => disposedListeners };
 }
+
+test('saving custom compiler options retains junction flags for each configured compiler', async () => {
+	const alias = 'C:\\.shortestpath-toolchain-0123456789ab\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\winlibs\\mingw64-ucrt-15\\bin\\g++.exe';
+	for (const compileRun of [alias, 'C:\\Custom\\clang++.exe']) {
+		const host = createSettingsHost(undefined, { 'judger.language.cpp.Command': alias, 'c-cpp-compile-run.cpp-compiler': compileRun });
+		await host.receive({ type: 'save', value: { cppStandard: 'c++23', compilerFlags: '-O0 -DLOCAL' } });
+		assert.deepEqual(host.savedFlags, {
+			'judger.language.cpp.Args': '-std=c++23 -O0 -DLOCAL -no-canonical-prefixes',
+			'c-cpp-compile-run.cpp-flags': `-std=c++23 -O0 -DLOCAL${compileRun === alias ? ' -no-canonical-prefixes' : ''}`
+		});
+	}
+});
 
 test('settings preview uses IDE tokens, refreshes on theme changes and leaves removed preferences untouched', async () => {
 	const host = createSettingsHost();

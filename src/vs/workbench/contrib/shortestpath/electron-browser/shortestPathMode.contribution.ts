@@ -5,7 +5,7 @@
 
 import '../browser/media/shortestPathMode.css';
 import '../browser/problemEditorActions.js';
-import { $, addDisposableListener, append } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -389,6 +389,15 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	protected createBrowserPart(container: HTMLElement): void {
 		const part = this.browserPart = this._register(this.editorGroups.createEmbeddedEditorPart(container));
 		this._register(part.enforcePartOptions({ showTabs: 'multiple', enablePreview: false, closeEmptyGroups: true }));
+		// Native editor tabs create an untitled file on an empty-strip double-click.
+		// Route this gesture before that handler runs in the browsing surface.
+		this._register(addDisposableListener(container, EventType.DBLCLICK, event => {
+			if (this.mode !== 'browse' || !isHTMLElement(event.target) || !event.target.classList.contains('tabs-container')) {
+				return;
+			}
+			EventHelper.stop(event, true);
+			void this.openBrowser('', true).catch(onUnexpectedError);
+		}, true));
 		const track = (group: IEditorGroup) => {
 			const store = new DisposableStore();
 			this.browserGroupStores.set(group.id, store);

@@ -2,6 +2,22 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
+## v0.4.6 更新 / What's New
+
+- 修复 Windows 绿色版 C++20 自检中 `bits/error_constants.h` 缺失的问题，受管 GCC 使用短路径并保留该路径寻找头文件和编译工具。
+- 自动修复已有受管工具链配置，保留用户、工作区和文件夹各自的编译选项；设置界面保存后也保留必要参数，自定义系统编译器配置保持不变。
+- 工作区直接受信任，不再进入受限模式。
+- 浏览界面双击顶部标签栏空白处会打开新的空白浏览器标签页，支持浏览器分组；做题界面的新建文件行为保持不变。
+- 完善工具链路径及配置迁移回归测试，并验证 C++20 编译、Judger 样例判题、错误答案识别和 clangd 系统头文件检查。
+
+### English
+
+- Fixed missing `bits/error_constants.h` during the Windows portable C++20 self-test by using a short managed GCC path and preserving that prefix when locating headers and compiler tools.
+- Repairs existing managed toolchain settings while preserving compiler options at user, workspace, and folder scopes. Saving settings retains required flags, and custom system compiler settings are preserved.
+- Workspaces are trusted automatically and no longer enter Restricted Mode.
+- Double-clicking empty space in the browsing tab bar opens a new blank browser tab, including in split browser groups. The solving tab bar keeps its New File behavior.
+- Expanded regression coverage for toolchain paths and configuration migration; verified C++20 compilation, Judger samples and wrong-answer detection, and clangd system-header checks.
+
 ## v0.4.5 更新 / What's New
 
 浏览和做题的小窝收拾好啦，这次重点是标签页、导题和界面细节喵～🐾

@@ -72,18 +72,15 @@ export class WorkspaceTrustEnablementService extends Disposable implements IWork
 	_serviceBrand: undefined;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IConfigurationService _configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService _environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
 
 	isWorkspaceTrustEnabled(): boolean {
-		if (this.environmentService.disableWorkspaceTrust) {
-			return false;
-		}
-
-		return !!this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
+		// ShortestPath opens every workspace with full functionality.
+		return false;
 	}
 }
 

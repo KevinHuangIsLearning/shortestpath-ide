@@ -9,6 +9,26 @@ import * as path from 'node:path';
 import { test } from 'node:test';
 import { compilerFallbackFlags, runToolchainCommand, runToolchainSelfTest, selfTestSamples, type ToolchainCommand } from '../toolchainSelfTest';
 
+test('GCC include discovery and the C++20 self-test retain a managed junction prefix', async () => {
+	const compiler = 'C:\\.shortestpath-toolchain-0123456789ab\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\winlibs\\mingw64-ucrt-15\\bin\\g++.exe';
+	const discovery: string[][] = [];
+	await compilerFallbackFlags(compiler, async (_executable, args, report) => {
+		discovery.push([...args]);
+		if (args.includes('-dumpmachine')) { return 'x86_64-w64-mingw32\n'; }
+		report('#include <...> search starts here:\n C:/short/include\nEnd of search list.\n');
+		return '';
+	});
+	let compilation: readonly string[] = [];
+	await runToolchainSelfTest(compiler, 'clangd', ['-std=c++20'], () => {}, async () => {}, async (_executable, args, _report, input) => {
+		if (args.includes('-o')) { compilation = args; }
+		return !args.length ? selfTestSamples.find(sample => sample.input === input)!.output : '';
+	});
+	assert.deepEqual({ discovery, compilation: compilation.slice(0, 7) }, {
+		discovery: [['-no-canonical-prefixes', '-E', '-x', 'c++', '-v', '-'], ['-dumpmachine']],
+		compilation: ['-std=c++20', '-O2', '-g', '-Wall', '-Wextra', '-DDEBUG', '-no-canonical-prefixes']
+	});
+});
+
 test('extracts C++ system headers including paths with spaces and frameworks', async () => {
 	const flags = await compilerFallbackFlags('g++', async (_executable, args, report) => {
 		if (args[0] === '-dumpmachine') { return 'x86_64-w64-mingw32\n'; }

@@ -5,6 +5,18 @@
 
 import * as path from 'node:path';
 
+/** GCC must retain the junction prefix when locating its headers and tools. */
+export function getCompilerPathFlags(compiler: string): string[] {
+	return /^[a-z]:\/\.shortestpath-toolchain-[a-f0-9]{12}\/User\/(?:profiles\/[^/]+\/)?globalStorage\/shortestpath\.shortestpath-setup\/toolchains\/winlibs\/mingw64-ucrt-15\/bin\/g\+\+\.exe$/i.test(compiler.replaceAll('\\', '/'))
+		? ['-no-canonical-prefixes'] : [];
+}
+
+/** Preserve custom compiler options and add the path option only once. */
+export function withCompilerPathFlags(flags: string, compiler: string): string {
+	const additions = getCompilerPathFlags(compiler).filter(flag => !flags.split(/\s+/).some(value => value.replace(/^["']|["']$/g, '') === flag));
+	return additions.length ? `${flags}${flags && !/\s$/.test(flags) ? ' ' : ''}${additions.join(' ')}` : flags;
+}
+
 /** MinGW executables find their shared runtime DLLs through the child PATH. */
 export function withCompilerRuntime(environment: NodeJS.ProcessEnv, compiler: string, platform: NodeJS.Platform = process.platform): NodeJS.ProcessEnv {
 	const result = { ...environment };

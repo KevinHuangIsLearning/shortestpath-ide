@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import type { SnippetEntry } from '../snippetsView';
 
 async function createHost(write: (source: string) => Promise<void> = async () => { }) {
+	const snippetsHome = path.resolve('/profile/independent-snippets');
 	const commands = new Map<string, () => Promise<void>>();
 	const messages: Array<Record<string, any>> = [];
 	const tokenRequests: string[] = [];
@@ -31,10 +32,10 @@ async function createHost(write: (source: string) => Promise<void> = async () =>
 		workspace: {
 			getConfiguration() { return { get: () => 4 }; },
 			onDidChangeConfiguration(handler: typeof onConfiguration) { onConfiguration = handler; return listener(); },
-			fs: { async stat(uri: { fsPath: string }) { assert.equal(uri.fsPath, '/profile/independent-snippets/cpp.json'); return {}; }, async readFile() { return Buffer.from('{"A":{"prefix":"a","body":["int main() {}"],"include":["**/*.cpp"],"exclude":["**/test.cpp"]}}'); }, async writeFile(_uri: unknown, bytes: Buffer) { await write(bytes.toString()); } }
+			fs: { async stat(uri: { fsPath: string }) { assert.equal(uri.fsPath, path.join(snippetsHome, 'cpp.json')); return {}; }, async readFile() { return Buffer.from('{"A":{"prefix":"a","body":["int main() {}"],"include":["**/*.cpp"],"exclude":["**/test.cpp"]}}'); }, async writeFile(_uri: unknown, bytes: Buffer) { await write(bytes.toString()); } }
 		},
 		commands: { registerCommand(id: string, run: () => Promise<void>) { commands.set(id, run); return { dispose() { } }; }, async executeCommand(command: string, source: string) {
-			if (command === '_shortestpath.snippetsHome') { return '/profile/independent-snippets'; }
+			if (command === '_shortestpath.snippetsHome') { return snippetsHome; }
 			assert.equal(command, '_shortestpath.cppPreviewTokens'); tokenRequests.push(source); return [[{ text: source, style: 'color:#abc' }]];
 		} }
 	};
@@ -50,6 +51,7 @@ async function createHost(write: (source: string) => Promise<void> = async () =>
 			if (id === './bundledSnippets') { return require('../bundledSnippets'); }
 			if (id === './fontSelection') { return require('../fontSelection'); }
 			if (id === './firstRunPreview') { return require('../firstRunPreview'); }
+			if (id === './compilerRuntime') { return require('../compilerRuntime'); }
 			return require(id);
 		}
 	});

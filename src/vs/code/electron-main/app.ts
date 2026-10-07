@@ -207,7 +207,8 @@ interface IShortestPathPortableAsset {
 }
 
 interface IShortestPathPortableSupport {
-	getSpaceSafeCompilerPath(compiler: string, toolchainRoot: string): string;
+	getSafeCompilerPath(compiler: string, toolchainRoot: string): string;
+	withCompilerPathFlags(flags: string, compiler: string): string;
 	getRelocationRoot(error: unknown): string | undefined;
 	getRoot(defaultRoot: string): string;
 	saveRoot(defaultRoot: string, root: string): Promise<void>;
@@ -993,7 +994,8 @@ export class CodeApplication extends Disposable {
 
 	private async applyShortestPathWindowsSetup(request: IShortestPathSetupRequest): Promise<void> {
 		const toolchainRoot = this.getShortestPathToolchainRoot();
-		const compiler = this.getShortestPathPortableSupport().getSpaceSafeCompilerPath(join(toolchainRoot, 'winlibs', 'mingw64-ucrt-15', 'bin', 'g++.exe'), toolchainRoot);
+		const portableSupport = this.getShortestPathPortableSupport();
+		const compiler = portableSupport.getSafeCompilerPath(join(toolchainRoot, 'winlibs', 'mingw64-ucrt-15', 'bin', 'g++.exe'), toolchainRoot);
 		const clangd = join(toolchainRoot, 'clangd', 'clangd_22.1.6', 'bin', 'clangd.exe');
 		const existingFileExcludes = this.configurationService.getValue<Record<string, boolean>>('files.exclude') ?? {};
 		const fileExcludes: Record<string, boolean> = { ...existingFileExcludes };
@@ -1017,9 +1019,15 @@ export class CodeApplication extends Disposable {
 			'clangd.arguments': ['--background-index', `--query-driver=${compiler}`]
 		};
 		if (request.mode === 'recommended' || preservedCompilerFlags !== undefined) {
-			const compilerFlags = preservedCompilerFlags ?? `-std=${request.cppStandard} -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG -static`;
+			const compilerFlags = portableSupport.withCompilerPathFlags(preservedCompilerFlags ?? `-std=${request.cppStandard} -O2 -g -Wall -Wextra -D_GLIBCXX_DEBUG -static`, compiler);
 			settings['cph.language.cpp.Args'] = compilerFlags;
 			settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
+		} else {
+			for (const key of ['cph.language.cpp.Args', 'c-cpp-compile-run.cpp-flags']) {
+				const flags = this.configurationService.inspect<string>(key).defaultValue ?? '';
+				const updatedFlags = portableSupport.withCompilerPathFlags(flags, compiler);
+				if (updatedFlags !== flags) { settings[key] = updatedFlags; }
+			}
 		}
 
 		for (const [key, value] of Object.entries(settings)) {

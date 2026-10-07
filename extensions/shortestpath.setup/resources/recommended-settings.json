@@ -1,4 +1,5 @@
 {
+	"security.workspace.trust.enabled": false,
 	"editor.fontLigatures": true,
 	"editor.cursorSmoothCaretAnimation": "on",
 	"editor.smoothScrolling": true,

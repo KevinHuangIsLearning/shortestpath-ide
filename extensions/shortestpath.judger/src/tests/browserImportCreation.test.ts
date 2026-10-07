@@ -3,7 +3,8 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import fs from 'fs';
-jest.mock('vscode', () => ({ window: { showQuickPick: jest.fn(), showInputBox: jest.fn(), showSaveDialog: jest.fn(), showErrorMessage: jest.fn(), showTextDocument: jest.fn(async () => ({})) }, ViewColumn: { One: 1 }, Uri: { file: (value: string) => ({ toString: () => `file://${value}` }) }, workspace: { workspaceFolders: [{ uri: { fsPath: '/workspace' } }], openTextDocument: jest.fn(async () => ({ getText: () => '' })) }, commands: { executeCommand: jest.fn() } }), { virtual: true });
+import path from 'path';
+jest.mock('vscode', () => ({ window: { showQuickPick: jest.fn(), showInputBox: jest.fn(), showSaveDialog: jest.fn(), showErrorMessage: jest.fn(), showTextDocument: jest.fn(async () => ({})) }, ViewColumn: { One: 1 }, Uri: { file: (value: string) => ({ toString: () => `file://${value}` }) }, workspace: { workspaceFolders: [{ uri: { fsPath: require('path').resolve('/workspace') } }], openTextDocument: jest.fn(async () => ({ getText: () => '' })) }, commands: { executeCommand: jest.fn() } }), { virtual: true });
 jest.mock('../extension', () => ({ getJudgeViewProvider: () => ({ extensionToJudgeViewMessage: jest.fn() }) }));
 jest.mock('../toolProcess', () => ({}));
 jest.mock('../preferences', () => ({ getDefaultLangPref: jest.fn(() => 'cpp'), getCppTemplate: () => null, getDefaultLanguageTemplateFileLocation: () => '/template.cpp', getMenuChoices: () => ['cpp'], getVjudgeOjNames: () => null, getVjudgeOpenInBrowser: jest.fn(() => false), getVjudgeBrowserSplitRatio: () => 65, getVjudgeUrlSuffix: () => '#original', getOjMapping: jest.fn(() => null), includeProblemIndex: () => true, getShortestPathFixedTemplate: jest.fn(() => true), getFileNameTemplate: jest.fn(() => '{name}.{ext}'), getFileNameTemplateOverrides: jest.fn(() => null), useShortCodeForcesName: () => false, wordRegex: () => /\w+/g, getDefaultProblemSource: jest.fn(() => 'none'), doTemplateFileVariableReplacement: () => false }));
@@ -50,8 +51,8 @@ test('fixing the missing template allows a clean retry with template contents', 
 	const problem = { name: 'A', url: 'https://example.com/A', tests: [] } as unknown as Problem;
 	await expect(handleNewProblem(problem, undefined, undefined, true)).rejects.toThrow('Template file does not exist');
 	ready = true;
-	expect(await handleNewProblem(problem, undefined, undefined, true)).toEqual({ created: true, sourcePath: '/workspace/A.cpp' });
-	expect(write.mock.calls).toEqual([['/workspace/A.cpp', 'template contents', { flag: 'wx' }]]);
+	expect(await handleNewProblem(problem, undefined, undefined, true)).toEqual({ created: true, sourcePath: path.resolve('/workspace/A.cpp') });
+	expect(write.mock.calls).toEqual([[path.resolve('/workspace/A.cpp'), 'template contents', { flag: 'wx' }]]);
 });
 
 
@@ -69,13 +70,13 @@ describe('ShortestPath OJ optional configured source paths', () => {
 
 	test('fixed naming remains enabled by default', async () => {
 		(getShortestPathFixedTemplate as jest.Mock).mockReturnValue(true);
-		expect(await handleNewProblem(importedProblem())).toEqual({ created: true, sourcePath: '/workspace/dsu/A_字母互换.cpp' });
+		expect(await handleNewProblem(importedProblem())).toEqual({ created: true, sourcePath: path.resolve('/workspace/dsu/A_字母互换.cpp') });
 	});
 
 	test('global filename template controls both directory and filename', async () => {
 		(getFileNameTemplate as jest.Mock).mockReturnValueOnce('solutions/{group}/{name}.{ext}');
 		const result = await handleNewProblem(importedProblem());
-		expect(result).toEqual({ created: true, sourcePath: '/workspace/solutions/dsu/字母互换.cpp' });
+		expect(result).toEqual({ created: true, sourcePath: path.resolve('/workspace/solutions/dsu/字母互换.cpp') });
 		expect(fs.writeFileSync).toHaveBeenCalledWith(result.sourcePath, 'template contents', { flag: 'wx' });
 	});
 
@@ -84,24 +85,24 @@ describe('ShortestPath OJ optional configured source paths', () => {
 		(getFileNameTemplateOverrides as jest.Mock).mockReturnValueOnce({ ShortestPath: 'custom/{contestId}/{problemId}.{ext}' });
 		try {
 			const result = await handleNewProblem(importedProblem(), undefined, 'a'.repeat(64));
-			expect(result).toEqual({ created: true, sourcePath: '/workspace/custom/dsu/A.cpp' });
+			expect(result).toEqual({ created: true, sourcePath: path.resolve('/workspace/custom/dsu/A.cpp') });
 		} finally { (getOjMapping as jest.Mock).mockReturnValue(null); }
 	});
 
 	test('ShortestPath special-evaluation imports outside fixed URL patterns do not gain a suffix', async () => {
 		(getFileNameTemplate as jest.Mock).mockReturnValueOnce('solutions/{group}/{name}.{ext}');
 		const problem = { ...importedProblem(), name: 'A', url: 'https://shortestpath.cn/problem/dsu/template/A', tests: [] };
-		expect(await handleNewProblem(problem, undefined, 'a'.repeat(64))).toEqual({ created: true, sourcePath: '/workspace/solutions/dsu/A.cpp' });
+		expect(await handleNewProblem(problem, undefined, 'a'.repeat(64))).toEqual({ created: true, sourcePath: path.resolve('/workspace/solutions/dsu/A.cpp') });
 	});
 
 	test('other OJ imports retain context isolation and template directories', async () => {
 		(getFileNameTemplate as jest.Mock).mockReturnValueOnce('custom/{name}.{ext}');
 		const problem = { ...importedProblem(), name: 'A', url: 'https://example.com/A', shortestPath: false };
-		expect(await handleNewProblem(problem, undefined, 'a'.repeat(64))).toEqual({ created: true, sourcePath: `/workspace/custom/A_${'a'.repeat(24)}.cpp` });
+		expect(await handleNewProblem(problem, undefined, 'a'.repeat(64))).toEqual({ created: true, sourcePath: path.resolve(`/workspace/custom/A_${'a'.repeat(24)}.cpp`) });
 	});
 
 	test('re-import keeps the bound solution when naming settings change', async () => {
-		const previous = '/workspace/dsu/A_字母互换.cpp';
+		const previous = path.resolve('/workspace/dsu/A_字母互换.cpp');
 		jest.spyOn(fs, 'existsSync').mockImplementation(file => String(file) === previous);
 		(getFileNameTemplate as jest.Mock).mockReturnValueOnce('new/{name}.{ext}');
 		const result = await handleNewProblem(importedProblem(), previous);
@@ -126,7 +127,7 @@ describe('browser import filenames without naming templates', () => {
 
 	test('asks for a name, appends the selected extension, then creates the file', async () => {
 		(vscode.window.showInputBox as jest.Mock).mockResolvedValue('solution');
-		expect(await handleNewProblem(problem(), undefined, undefined, true, true)).toEqual({ created: true, sourcePath: '/workspace/solution.cpp' });
+		expect(await handleNewProblem(problem(), undefined, undefined, true, true)).toEqual({ created: true, sourcePath: path.resolve('/workspace/solution.cpp') });
 		expect(vscode.window.showInputBox).toHaveBeenCalledTimes(1);
 	});
 
@@ -167,7 +168,7 @@ test('other OJ imports pair the selected problem page after creating and opening
 	await handleNewProblem(problem);
 	const commands = (vscode.commands.executeCommand as jest.Mock).mock.calls;
 	expect(commands).toEqual([
-		['workbench.action.browser.open', { url: 'https://example.com/A', openInEditor: true, sourceEditor: 'file:///workspace/A.cpp', sourceEditorRatio: 65 }],
+		['workbench.action.browser.open', { url: 'https://example.com/A', openInEditor: true, sourceEditor: 'file://' + path.resolve('/workspace/A.cpp'), sourceEditorRatio: 65 }],
 		['shortestpath.oj.showProblemForCph', 'https://example.com/A'],
 	]);
 	const execute = vscode.commands.executeCommand as jest.Mock;
@@ -192,18 +193,18 @@ describe('browser imports from URLs without an OJ mapping', () => {
 	});
 
 	test('uses the page URL and saves at the chosen directory and name despite a global template', async () => {
-		(vscode.window.showSaveDialog as jest.Mock).mockResolvedValue({ fsPath: '/chosen/nested/solution' });
+		(vscode.window.showSaveDialog as jest.Mock).mockResolvedValue({ fsPath: path.resolve('/chosen/nested/solution') });
 		const result = await handleNewProblem(problem(), undefined, 'a'.repeat(64), true, true, 'https://mirror.example/A');
-		expect(result).toEqual({ created: true, sourcePath: '/chosen/nested/solution.cpp' });
+		expect(result).toEqual({ created: true, sourcePath: path.resolve('/chosen/nested/solution.cpp') });
 		const options = (vscode.window.showSaveDialog as jest.Mock).mock.calls[0][0];
-		expect([options.title, options.defaultUri.toString(), options.filters]).toEqual(['Import Problem', 'file:///workspace/A.cpp', { CPP: ['cpp'] }]);
+		expect([options.title, options.defaultUri.toString(), options.filters]).toEqual(['Import Problem', 'file://' + path.resolve('/workspace/A.cpp'), { CPP: ['cpp'] }]);
 		expect(fs.writeFileSync).toHaveBeenCalledWith(result.sourcePath, 'template contents', { flag: 'wx' });
 		expect(vscode.window.showInputBox).not.toHaveBeenCalled();
 	});
 
 	test('a mapped page keeps automatic naming even if the parser returns an unmapped URL', async () => {
 		const result = await handleNewProblem({ ...problem(), url: 'https://mirror.example/A' }, undefined, undefined, true, true, 'https://example.com/A');
-		expect(result).toEqual({ created: true, sourcePath: '/workspace/solutions/A.cpp' });
+		expect(result).toEqual({ created: true, sourcePath: path.resolve('/workspace/solutions/A.cpp') });
 		expect(vscode.window.showSaveDialog).not.toHaveBeenCalled();
 	});
 
@@ -216,25 +217,25 @@ describe('browser imports from URLs without an OJ mapping', () => {
 	});
 
 	test('native replacement confirmation replaces source and imports metadata', async () => {
-		(vscode.window.showSaveDialog as jest.Mock).mockResolvedValue({ fsPath: '/chosen/existing.cpp' });
-		jest.spyOn(fs, 'existsSync').mockImplementation(file => ['/template.cpp', '/chosen/existing.cpp'].includes(String(file)));
-		expect(await handleNewProblem(problem(), undefined, undefined, true, true, 'https://mirror.example/A')).toEqual({ created: true, sourcePath: '/chosen/existing.cpp' });
-		expect(fs.writeFileSync).toHaveBeenCalledWith('/chosen/existing.cpp', 'template contents', { flag: 'w' });
-		expect(saveProblem).toHaveBeenCalledWith('/chosen/existing.cpp', expect.objectContaining({ srcPath: '/chosen/existing.cpp' }));
+		(vscode.window.showSaveDialog as jest.Mock).mockResolvedValue({ fsPath: path.resolve('/chosen/existing.cpp') });
+		jest.spyOn(fs, 'existsSync').mockImplementation(file => ['/template.cpp', path.resolve('/chosen/existing.cpp')].includes(String(file)));
+		expect(await handleNewProblem(problem(), undefined, undefined, true, true, 'https://mirror.example/A')).toEqual({ created: true, sourcePath: path.resolve('/chosen/existing.cpp') });
+		expect(fs.writeFileSync).toHaveBeenCalledWith(path.resolve('/chosen/existing.cpp'), 'template contents', { flag: 'w' });
+		expect(saveProblem).toHaveBeenCalledWith(path.resolve('/chosen/existing.cpp'), expect.objectContaining({ srcPath: path.resolve('/chosen/existing.cpp') }));
 		expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
 	});
 
 	test('a missing template does not truncate an existing replacement target', async () => {
-		(vscode.window.showSaveDialog as jest.Mock).mockResolvedValue({ fsPath: '/chosen/existing.cpp' });
-		jest.spyOn(fs, 'existsSync').mockImplementation(file => String(file) === '/chosen/existing.cpp');
+		(vscode.window.showSaveDialog as jest.Mock).mockResolvedValue({ fsPath: path.resolve('/chosen/existing.cpp') });
+		jest.spyOn(fs, 'existsSync').mockImplementation(file => String(file) === path.resolve('/chosen/existing.cpp'));
 		await expect(handleNewProblem(problem(), undefined, undefined, true, true, 'https://mirror.example/A')).rejects.toThrow('Template file does not exist');
 		expect(fs.writeFileSync).not.toHaveBeenCalled();
 		expect(saveProblem).not.toHaveBeenCalled();
 	});
 
-	test.each(['/chosen/solution.py', '/chosen/CON.cpp', '/chosen/existing'])('rejects invalid or unconfirmed existing target %s without changing files or metadata', async fsPath => {
+	test.each([path.resolve('/chosen/solution.py'), path.resolve('/chosen/CON.cpp'), path.resolve('/chosen/existing')])('rejects invalid or unconfirmed existing target %s without changing files or metadata', async fsPath => {
 		(vscode.window.showSaveDialog as jest.Mock).mockResolvedValue({ fsPath });
-		jest.spyOn(fs, 'existsSync').mockImplementation(file => ['/template.cpp', '/chosen/existing.cpp'].includes(String(file)));
+		jest.spyOn(fs, 'existsSync').mockImplementation(file => ['/template.cpp', path.resolve('/chosen/existing.cpp')].includes(String(file)));
 		expect(await handleNewProblem(problem(), undefined, undefined, true, true, 'https://mirror.example/A')).toEqual({ created: false });
 		expect(fs.writeFileSync).not.toHaveBeenCalled();
 		expect(saveProblem).not.toHaveBeenCalled();

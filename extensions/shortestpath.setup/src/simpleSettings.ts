@@ -11,6 +11,7 @@ import { getCppSnippetsHtml, type SnippetEntry, type SnippetsState } from './sni
 import { defaultCppTemplate, type PreviewToken } from './firstRunPreview';
 import { installBundledCppSnippets } from './bundledSnippets';
 import { withBundledCodeFont } from './bundledFont';
+import { withCompilerPathFlags } from './compilerRuntime';
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 
@@ -695,9 +696,9 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('editor.fontSize', typeof value.fontSize === 'number' && value.fontSize > 0 ? value.fontSize : 14, vscode.ConfigurationTarget.Global),
 		settings.update('editor.formatOnSave', value.autoFormat === true, vscode.ConfigurationTarget.Global),
 		settings.update('editor.formatOnPaste', value.autoFormat === true, vscode.ConfigurationTarget.Global),
-		settings.update('judger.language.cpp.Args', compilerFlags, vscode.ConfigurationTarget.Global),
+		settings.update('judger.language.cpp.Args', withCompilerPathFlags(compilerFlags, settings.get<string>('judger.language.cpp.Command') ?? ''), vscode.ConfigurationTarget.Global),
 		...(typeof value.cppTemplate === 'string' ? [settings.update('judger.language.cpp.Template', value.cppTemplate, vscode.ConfigurationTarget.Global)] : []),
-		settings.update('c-cpp-compile-run.cpp-flags', compilerFlags, vscode.ConfigurationTarget.Global),
+		settings.update('c-cpp-compile-run.cpp-flags', withCompilerPathFlags(compilerFlags, settings.get<string>('c-cpp-compile-run.cpp-compiler') ?? ''), vscode.ConfigurationTarget.Global),
 		settings.update('editor.inlayHints.enabled', value.clangdVariableTypeHints !== false ? 'on' : 'off', vscode.ConfigurationTarget.Global),
 		settings.update('errorLens.enabled', value.errorLensEnabled === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.executableCleanupEnabled', value.executableCleanupEnabled !== false, vscode.ConfigurationTarget.Global),

@@ -427,23 +427,29 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	}
 	const cppStandard = firstRunSelection?.cppStandard ?? 'c++20';
 	if (compiler) {
-		if (process.platform === 'win32' && vscode.env.isAppPortable) {
-			compiler = getSpaceSafePortableCompilerPath(context, compiler);
+		if (process.platform === 'win32' && preset.portableToolchain) {
+			compiler = getSafePortableCompilerPath(context, compiler);
 		}
 		settings['judger.language.cpp.Command'] = compiler;
 		settings['c-cpp-compile-run.output-location'] = '.';
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
 		if (firstRunSelection?.mode !== 'repair' || preservedCompilerFlags !== undefined) {
-			const compilerFlags = preservedCompilerFlags ?? [
+			const compilerFlags = portableToolchain.withCompilerPathFlags(preservedCompilerFlags ?? [
 				`-std=${cppStandard}`,
 				'-O2',
 				'-g',
 				'-Wall',
 				'-Wextra',
 				'-DDEBUG',
-			].join(' ');
+			].join(' '), compiler);
 			settings['judger.language.cpp.Args'] = compilerFlags;
 			settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
+		} else {
+			for (const key of ['judger.language.cpp.Args', 'c-cpp-compile-run.cpp-flags']) {
+				const flags = configuration.inspect<string>(key)?.defaultValue ?? '';
+				const updatedFlags = portableToolchain.withCompilerPathFlags(flags, compiler);
+				if (updatedFlags !== flags) { settings[key] = updatedFlags; }
+			}
 		}
 		if (firstRunSelection?.workspaceFolder) {
 			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard);
@@ -459,6 +465,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	const compilerReady = !!compiler && (!path.isAbsolute(compiler) || fs.existsSync(compiler));
 	const clangdReady = !!clangd && (!path.isAbsolute(clangd) || fs.existsSync(clangd));
 	await updateGlobalSettings(settings);
+	await rebasePortableToolchain(context);
 	if (compiler) { configureCompilerRuntime(context, compiler); }
 	if (firstRunSelection) {
 		const firstRunConfiguration = vscode.workspace.getConfiguration('shortestpath.setup');
@@ -505,25 +512,24 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 	const installedCompiler = preset.compilerCandidates[0];
 	const clangd = preset.clangdCandidates[0];
 	const compilerExists = fs.existsSync(installedCompiler);
-	const compiler = compilerExists ? getSpaceSafePortableCompilerPath(context, installedCompiler) : installedCompiler;
+	const compiler = compilerExists ? getSafePortableCompilerPath(context, installedCompiler) : installedCompiler;
 	const clangdExists = fs.existsSync(clangd);
 	const configuration = vscode.workspace.getConfiguration(undefined, null);
 	const settings: Record<string, unknown> = {};
 
 	if (compilerExists) {
-		for (const key of ['judger.language.cpp.Command', 'c-cpp-compile-run.cpp-compiler']) {
-			const value = configuration.inspect<string>(key)?.globalValue;
-			if (value && rebaseManagedToolchainPath(value, compiler, clangd) === compiler && value !== compiler) {
-				settings[key] = compiler;
-			}
-		}
-
-		const argumentsValue = configuration.inspect<string[]>('clangd.arguments')?.globalValue;
-		if (argumentsValue) {
-			const rebasedArguments = argumentsValue.map(argument => rebaseManagedQueryDriver(argument, compiler));
-			if (rebasedArguments.some((argument, index) => argument !== argumentsValue[index])) {
-				settings['clangd.arguments'] = rebasedArguments;
-			}
+		const globalSettings = rebasedToolchainSettings(configuration, 'globalValue', compiler, clangd);
+		await rebaseFallbackFlags(configuration, 'globalValue', globalSettings, compiler, clangd);
+		Object.assign(settings, globalSettings);
+		const workspaceSettings = rebasedToolchainSettings(configuration, 'workspaceValue', compiler, clangd);
+		await rebaseFallbackFlags(configuration, 'workspaceValue', workspaceSettings, compiler, clangd);
+		await updateScopedSettings(configuration, workspaceSettings, vscode.ConfigurationTarget.Workspace);
+		for (const folder of vscode.workspace.workspaceFolders ?? []) {
+			if (folder.uri.scheme !== 'file') { continue; }
+			const folderConfiguration = vscode.workspace.getConfiguration(undefined, folder.uri);
+			const folderSettings = rebasedToolchainSettings(folderConfiguration, 'workspaceFolderValue', compiler, clangd);
+			await rebaseFallbackFlags(folderConfiguration, 'workspaceFolderValue', folderSettings, compiler, clangd);
+			await updateScopedSettings(folderConfiguration, folderSettings, vscode.ConfigurationTarget.WorkspaceFolder);
 		}
 	}
 
@@ -534,13 +540,6 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 		}
 	}
 
-	if (compilerExists && (settings['judger.language.cpp.Command'] || settings['c-cpp-compile-run.cpp-compiler']) && configuration.inspect<string[]>('clangd.fallbackFlags')?.globalValue) {
-		try {
-			settings['clangd.fallbackFlags'] = await compilerFallbackFlags(compiler, runToolchainCommand, findCppStandard(configuration.get<string>('judger.language.cpp.Args') ?? ''));
-		} catch (error) {
-			void vscode.window.showWarningMessage(localizeFormat('无法更新代码提示配置：{0}', localize(error instanceof Error ? error.message : String(error))));
-		}
-	}
 	await updateGlobalSettings(settings);
 	await enableBundledConptyWhenUnset();
 	if (!compilerExists) {
@@ -563,12 +562,53 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 	}
 }
 
+type ConfigurationValueKey = 'globalValue' | 'workspaceValue' | 'workspaceFolderValue';
+
+function rebasedToolchainSettings(configuration: vscode.WorkspaceConfiguration, valueKey: ConfigurationValueKey, compiler: string, clangd: string): Record<string, string | string[]> {
+	const settings: Record<string, string | string[]> = {};
+	for (const [commandKey, flagsKey] of [['judger.language.cpp.Command', 'judger.language.cpp.Args'], ['c-cpp-compile-run.cpp-compiler', 'c-cpp-compile-run.cpp-flags']]) {
+		const command = configuration.inspect<string>(commandKey)?.[valueKey];
+		const inspectedFlags = configuration.inspect<string>(flagsKey);
+		const scopedFlags = inspectedFlags?.[valueKey];
+		if (!command && (valueKey === 'globalValue' || scopedFlags === undefined)) { continue; }
+		const effectiveCommand = command ?? configuration.get<string>(commandKey);
+		if (!effectiveCommand || rebaseManagedToolchainPath(effectiveCommand, compiler, clangd) !== compiler) { continue; }
+		if (command && command !== compiler) { settings[commandKey] = compiler; }
+		const flags = scopedFlags ?? (valueKey === 'globalValue' ? inspectedFlags?.defaultValue : configuration.get<string>(flagsKey)) ?? '';
+		const updatedFlags = portableToolchain.withCompilerPathFlags(flags, compiler);
+		if (updatedFlags !== flags) { settings[flagsKey] = updatedFlags; }
+	}
+	const argumentsValue = configuration.inspect<string[]>('clangd.arguments')?.[valueKey];
+	if (argumentsValue) {
+		const rebasedArguments = argumentsValue.map(argument => rebaseManagedQueryDriver(argument, compiler));
+		if (rebasedArguments.some((argument, index) => argument !== argumentsValue[index])) { settings['clangd.arguments'] = rebasedArguments; }
+	}
+	return settings;
+}
+
+async function rebaseFallbackFlags(configuration: vscode.WorkspaceConfiguration, valueKey: ConfigurationValueKey, settings: Record<string, string | string[]>, compiler: string, clangd: string): Promise<void> {
+	if (!Object.keys(settings).length) { return; }
+	const selectedCompiler = valueKey === 'globalValue'
+		? configuration.inspect<string>('judger.language.cpp.Command')?.globalValue ?? configuration.inspect<string>('c-cpp-compile-run.cpp-compiler')?.globalValue
+		: configuration.get<string>('judger.language.cpp.Command') ?? configuration.get<string>('c-cpp-compile-run.cpp-compiler');
+	if (!selectedCompiler || rebaseManagedToolchainPath(selectedCompiler, compiler, clangd) !== compiler) { return; }
+	const fallback = configuration.inspect<string[]>('clangd.fallbackFlags')?.[valueKey] ?? (valueKey === 'globalValue' ? undefined : configuration.get<string[]>('clangd.fallbackFlags'));
+	if (!fallback) { return; }
+	try {
+		const flags = configuration.inspect<string>('judger.language.cpp.Args');
+		const compilerFlags = flags?.[valueKey] ?? (valueKey === 'globalValue' ? flags?.defaultValue : configuration.get<string>('judger.language.cpp.Args')) ?? '';
+		settings['clangd.fallbackFlags'] = await compilerFallbackFlags(compiler, runToolchainCommand, findCppStandard(compilerFlags));
+	} catch (error) {
+		void vscode.window.showWarningMessage(localizeFormat('无法更新代码提示配置：{0}', localize(error instanceof Error ? error.message : String(error))));
+	}
+}
+
 /**
- * Some MinGW distributions pass their derived libexec path to ld without
- * quoting it. Run through a no-space drive-root junction instead.
+ * MinGW derives header paths that can exceed MAX_PATH and passes unquoted
+ * tool paths to ld. Use a short drive-root junction for managed compilers.
  */
-function getSpaceSafePortableCompilerPath(context: vscode.ExtensionContext, compiler: string): string {
-	return portableToolchain.getSpaceSafeCompilerPath(compiler, getToolchainRoot(context));
+function getSafePortableCompilerPath(context: vscode.ExtensionContext, compiler: string): string {
+	return portableToolchain.getSafeCompilerPath(compiler, getToolchainRoot(context));
 }
 
 async function enableBundledConptyWhenUnset(): Promise<void> {
@@ -799,8 +839,12 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 }
 
 async function updateGlobalSettings(settings: Record<string, unknown>): Promise<void> {
+	await updateScopedSettings(vscode.workspace.getConfiguration(undefined, null), settings, vscode.ConfigurationTarget.Global);
+}
+
+async function updateScopedSettings(configuration: vscode.WorkspaceConfiguration, settings: Record<string, unknown>, target: vscode.ConfigurationTarget): Promise<void> {
 	for (const [key, value] of Object.entries(settings)) {
-		await vscode.workspace.getConfiguration(undefined, null).update(key, value, vscode.ConfigurationTarget.Global);
+		await configuration.update(key, value, target);
 	}
 }
 

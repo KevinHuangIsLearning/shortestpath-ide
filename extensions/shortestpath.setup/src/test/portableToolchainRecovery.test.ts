@@ -152,18 +152,41 @@ test('saved AppData location survives reload and invalid pointers fall back to t
 	}
 });
 
-test('existing managed compiler paths with spaces use an alias on their own volume', () => {
-	const root = 'C:\\My Tools\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains';
-	const compiler = path.win32.join(root, 'winlibs', 'mingw64-ucrt-15', 'bin', 'g++.exe');
-	const links: string[][] = [];
-	const alias = portableToolchain.getSpaceSafeCompilerPath(compiler, root, {
-		existsSync: () => false,
-		realpathSync: Object.assign(() => { throw new Error('unexpected realpath'); }, { native: () => { throw new Error('unexpected realpath'); } }),
-		symlinkSync: (source, target) => { links.push([String(source), String(target)]); }
+for (const managedRoot of [
+	'C:\\My Tools',
+	'C:\\Users\\Tester\\Downloads\\ShortestPath-IDE-Windows-x64\\data\\user-data',
+	'D:\\IDE\\data\\user-data'
+]) {
+	test(`managed GCC paths use a short alias on their own volume: ${managedRoot}`, () => {
+		const root = path.win32.join(managedRoot, 'User', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
+		const compiler = path.win32.join(root, 'winlibs', 'mingw64-ucrt-15', 'bin', 'g++.exe');
+		const links: string[][] = [];
+		const alias = portableToolchain.getSafeCompilerPath(compiler, root, {
+			existsSync: () => false,
+			realpathSync: () => { throw new Error('unexpected realpath'); },
+			symlinkSync: (source, target) => { links.push([source, target]); }
+		});
+		assert.equal(links.length, 1);
+		assert.equal(links[0][0], managedRoot);
+		assert.match(links[0][1], /^[CD]:\\\.shortestpath-toolchain-[a-f0-9]{12}$/);
+		assert.equal(/\s/.test(alias), false);
+		assert.match(alias, /\\User\\globalStorage\\shortestpath\.shortestpath-setup\\toolchains\\winlibs\\mingw64-ucrt-15\\bin\\g\+\+\.exe$/);
 	});
-	assert.equal(links.length, 1);
-	assert.equal(links[0][0], 'C:\\My Tools');
-	assert.match(links[0][1], /^C:\\\.shortestpath-toolchain-[a-f0-9]{12}$/);
-	assert.equal(/\s/.test(alias), false);
-	assert.match(alias, /\\User\\globalStorage\\shortestpath\.shortestpath-setup\\toolchains\\winlibs\\mingw64-ucrt-15\\bin\\g\+\+\.exe$/);
+}
+
+test('reuses a matching compiler junction and leaves conflicting aliases or other compilers alone', () => {
+	const managedRoot = 'C:\\IDE\\data\\user-data';
+	const root = path.win32.join(managedRoot, 'User', 'profiles', 'abc', 'globalStorage', 'shortestpath.shortestpath-setup', 'toolchains');
+	const compiler = path.win32.join(root, 'winlibs', 'mingw64-ucrt-15', 'bin', 'g++.exe');
+	const filesystem = (target: string) => ({
+		existsSync: () => true,
+		realpathSync: () => target,
+		symlinkSync: () => { assert.fail('must not overwrite an existing alias'); }
+	});
+	assert.match(portableToolchain.getSafeCompilerPath(compiler, root, filesystem(managedRoot)), /^C:\\\.shortestpath-toolchain-[a-f0-9]{12}\\User\\profiles\\abc\\/);
+	assert.deepEqual([
+		portableToolchain.getSafeCompilerPath(compiler, root, filesystem('C:\\Other')),
+		portableToolchain.getSafeCompilerPath('D:\\Custom\\g++.exe', root, filesystem(managedRoot)),
+		portableToolchain.getSafeCompilerPath('/usr/bin/g++', '/tmp/toolchains', filesystem(managedRoot))
+	], [compiler, 'D:\\Custom\\g++.exe', '/usr/bin/g++']);
 });

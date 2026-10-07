@@ -7,6 +7,7 @@ import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { getCompilerPathFlags } from './compilerRuntime';
 
 export type ToolchainCommand = (executable: string, args: readonly string[], report: (message: string) => void, input?: string) => Promise<string>;
 
@@ -26,7 +27,7 @@ export const runToolchainCommand: ToolchainCommand = (executable, args, report, 
 /** Use explicit includes so an ordinary file works without a project .clangd. */
 export async function compilerFallbackFlags(compiler: string, run: ToolchainCommand = runToolchainCommand, cppStandard = 'c++20'): Promise<string[]> {
 	let output = '';
-	await run(compiler, ['-E', '-x', 'c++', '-v', '-'], message => { output += message; });
+	await run(compiler, [...getCompilerPathFlags(compiler), '-E', '-x', 'c++', '-v', '-'], message => { output += message; });
 	const search = output.match(/#include <\.\.\.> search starts here:\s*([\s\S]*?)End of search list\./)?.[1];
 	const paths = search?.split(/\r?\n/).map(line => line.trim()).filter(Boolean) ?? [];
 	if (!paths.length) {
@@ -70,7 +71,7 @@ export async function runToolchainSelfTest(compiler: string, clangd: string, fal
 		await run(compiler, ['--version'], report);
 		await run(clangd, ['--version'], report);
 		report('编译 C++20 测试程序…');
-		await run(compiler, ['-std=c++20', '-O2', '-g', '-Wall', '-Wextra', '-DDEBUG', file, '-o', executable], report);
+		await run(compiler, ['-std=c++20', '-O2', '-g', '-Wall', '-Wextra', '-DDEBUG', ...getCompilerPathFlags(compiler), file, '-o', executable], report);
 		report('检查命令行 A+B 样例结果…');
 		for (const sample of selfTestSamples) {
 			const output = await run(executable, [], report, sample.input);

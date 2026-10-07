@@ -1,6 +1,6 @@
 {
-	"version": "0.4.5",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.5",
+	"version": "0.4.6",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.6",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "浏览和做题的小窝收拾好啦喵～🐾 统一原生标签栏，修复页面切换、错误页和设置弹窗；导题搬到右上角，支持选择解析器和输入文件名。恢复 New Tab 快捷入口，收紧标签栏和左侧栏，进入浏览时只有一个 New Tab 就打开 ShortestPath OJ 喵。\n\nTidied up browsing and solving tabs, fixed browser routing, error pages, and settings dialogs, and moved problem import to the toolbar with parser and filename selection. Restored start-page shortcuts and compacted navigation. Purr!"
+	"releaseNote": "修复 Windows 绿色版 C++20 自检缺少 bits/error_constants.h，自动修正受管工具链路径与编译参数，保留自定义配置。工作区直接受信任，不再进入受限模式；浏览界面双击顶部标签栏空白处会打开新的空白浏览器标签页。\n\nFixed missing bits/error_constants.h during the Windows portable C++20 self-test. Managed compiler paths and flags are repaired while preserving custom settings. Workspaces are trusted automatically, and double-clicking empty space in the browsing tab bar opens a new blank browser tab."
 }
