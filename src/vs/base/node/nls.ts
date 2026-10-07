@@ -5,6 +5,7 @@
 
 import { join } from '../common/path.js';
 import { promises } from 'fs';
+import { createHash } from 'crypto';
 import { mark } from '../common/performance.js';
 import { ILanguagePacks, INLSConfiguration } from '../../nls.js';
 import { Promises } from './pfs.js';
@@ -20,6 +21,9 @@ export interface IResolveNLSConfigurationContext {
 	 * Precomputed identity of the commit and NLS tables, supplied by packaged products.
 	 */
 	readonly nlsMetadataHash?: string;
+
+	/** Built-in extensions to consult before the first language pack index is created. */
+	readonly builtInExtensionsPath?: string;
 
 	/**
 	 * Path to the user data directory. Used as a cache for
@@ -44,7 +48,7 @@ export interface IResolveNLSConfigurationContext {
 	readonly osLocale: string;
 }
 
-export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPath, commit, nlsMetadataPath, nlsMetadataHash }: IResolveNLSConfigurationContext): Promise<INLSConfiguration> {
+export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPath, commit, nlsMetadataPath, nlsMetadataHash, builtInExtensionsPath }: IResolveNLSConfigurationContext): Promise<INLSConfiguration> {
 	mark('code/willGenerateNls');
 
 	if (
@@ -58,9 +62,9 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 	}
 
 	try {
-		const languagePacks = await getLanguagePackConfigurations(userDataPath);
-		if (!languagePacks) {
-			return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
+		let languagePacks = await getLanguagePackConfigurations(userDataPath) ?? {};
+		if (builtInExtensionsPath && !resolveLanguagePackLanguage(languagePacks, userLocale)) {
+			languagePacks = { ...await getBuiltInLanguagePackConfigurations(builtInExtensionsPath), ...languagePacks };
 		}
 
 		const resolvedLanguage = resolveLanguagePackLanguage(languagePacks, userLocale);
@@ -163,6 +167,47 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 	}
 
 	return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
+}
+
+/** Read bundled language packs without requiring extension management to have started. */
+async function getBuiltInLanguagePackConfigurations(extensionsPath: string): Promise<ILanguagePacks> {
+	const languagePacks: ILanguagePacks = {};
+	let entries;
+	try {
+		entries = await promises.readdir(extensionsPath, { withFileTypes: true });
+	} catch {
+		return languagePacks;
+	}
+
+	await Promise.all(entries.filter(entry => entry.isDirectory()).map(async entry => {
+		try {
+			const extensionPath = join(extensionsPath, entry.name);
+			const manifestContent = await promises.readFile(join(extensionPath, 'package.json'), 'utf8');
+			const manifest: {
+				publisher: string; name: string; version: string;
+				contributes?: { localizations?: { languageId: string; languageName?: string; localizedLanguageName?: string; translations: { id: string; path: string }[] }[] };
+			} = JSON.parse(manifestContent);
+			for (const localization of manifest.contributes?.localizations ?? []) {
+				const translations: Record<string, string> = {};
+				for (const translation of localization.translations) {
+					translations[translation.id] = join(extensionPath, translation.path);
+				}
+				if (!translations['vscode']) {
+					continue;
+				}
+				const coreTranslations = await promises.readFile(translations['vscode']);
+				languagePacks[localization.languageId] = {
+					hash: createHash('sha256').update(manifestContent).update(coreTranslations).digest('hex'),
+					label: localization.localizedLanguageName ?? localization.languageName,
+					extensions: [{ extensionIdentifier: { id: `${manifest.publisher}.${manifest.name}` }, version: manifest.version }],
+					translations
+				};
+			}
+		} catch {
+			// An absent or invalid bundled language pack must not prevent startup.
+		}
+	}));
+	return languagePacks;
 }
 
 /**

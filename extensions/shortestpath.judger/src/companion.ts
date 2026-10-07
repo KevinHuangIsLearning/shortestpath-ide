@@ -377,7 +377,7 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
 };
 
 /** Handle the `problem` sent by Competitive Companion, such as showing the webview, opening an editor, managing layout etc. */
-export const handleNewProblem = async (problem: Problem, preferredSourcePath?: string): Promise<ProblemCreationResult> => {
+export const handleNewProblem = async (problem: Problem, preferredSourcePath?: string, silent = false): Promise<ProblemCreationResult> => {
     globalThis.reporter.sendTelemetryEvent(telmetry.GET_PROBLEM_FROM_COMPANION);
     // If webview may be focused, close it, to prevent layout bug.
     if (vscode.window.activeTextEditor == undefined) {
@@ -388,6 +388,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     }
     const folder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     if (folder === undefined) {
+        if (silent) { throw new Error(localize('judger.companion.openFolder', 'Please open a folder first.')); }
         vscode.window.showInformationMessage(
             localize('judger.companion.openFolder', 'Please open a folder first.'),
         );
@@ -402,6 +403,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         const choices = userChoices.filter((x) => allChoices.has(x));
         const selected = await vscode.window.showQuickPick(choices);
         if (!selected) {
+            if (silent) { return { created: false }; }
             vscode.window.showInformationMessage(
                 localize(
                     'judger.companion.aborted',
@@ -475,6 +477,16 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         }
     }
 
+    const problemFileName = getProblemFileName(problem, extn);
+    const srcPath = getPreferredSourcePath(folder, preferredSourcePath) ?? path.join(folder, problemFileName);
+    // Validate before creating files or changing the browser layout, so retry remains safe.
+    if (silent && defaultLanguage && !existsSync(srcPath)) {
+        const templateLocation = getDefaultLanguageTemplateFileLocation();
+        if (templateLocation !== null && !existsSync(templateLocation)) {
+            throw new Error(localize('judger.companion.templateMissing', 'Template file does not exist: {0}', templateLocation));
+        }
+    }
+
     const displayTarget = getProblemDisplayTarget(
         getVjudgeOpenInBrowser(),
         getProblemSourceForUrl(
@@ -508,8 +520,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         );
     }
 
-    const problemFileName = getProblemFileName(problem, extn);
-    const srcPath = getPreferredSourcePath(folder, preferredSourcePath) ?? path.join(folder, problemFileName);
+
 
     // Add fields absent in competitive companion.
     problem.srcPath = srcPath;
@@ -520,14 +531,14 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     }));
 
     if (!existsSync(srcPath)) {
-        mkdirSync(path.dirname(srcPath), { recursive: true });
-        writeFileSync(srcPath, '');
+        let sourceContents = '';
 
         if (defaultLanguage) {
             const templateLocation = getDefaultLanguageTemplateFileLocation();
             if (templateLocation !== null) {
                 const templateExists = existsSync(templateLocation);
                 if (!templateExists) {
+                    if (silent) { throw new Error(localize('judger.companion.templateMissing', 'Template file does not exist: {0}', templateLocation)); }
                     vscode.window.showErrorMessage(
                         localize(
                             'judger.companion.templateMissing',
@@ -567,10 +578,12 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
 
                         templateContents = renderProblemTemplate(templateContents, templateVariables);
                     }
-                    writeFileSync(srcPath, templateContents);
+                    sourceContents = templateContents;
                 }
             }
         }
+        mkdirSync(path.dirname(srcPath), { recursive: true });
+        writeFileSync(srcPath, sourceContents);
     }
 
     saveProblem(srcPath, problem);

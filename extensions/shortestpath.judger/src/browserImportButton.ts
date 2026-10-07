@@ -4,41 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import localize from './i18n';
+import fs from 'fs';
+import path from 'path';
+import { mountImportControl } from './browserImportControl';
+import type { BrowserImportResult } from './browserImport';
 
 const worldName = 'shortestpath-import-button';
 const bindingName = '__shortestpathImportProblem';
 const elementId = 'shortestpath-import-button';
 
 /** A shadow root protects IDE controls from the page's styles; only the top frame gets a button. */
-export function browserImportButtonScript(label: string, title: string): string {
+export function browserImportButtonScript(label: string, title: string, runtime = '', initiallyCollapsed = false): string {
+	const labels = {
+		add: label, choose: title,
+		search: localize('judger.browserImport.search', 'Search parsers by name or domain'),
+		empty: localize('judger.browserImport.noParsers', 'No matching parsers.'),
+		importing: localize('judger.browserImport.importing', 'Importing…'),
+		success: localize('judger.browserImport.success', 'Imported {0} problem(s).'),
+		cancelled: localize('judger.browserImport.cancelled', 'Import cancelled.'),
+		matched: localize('judger.browserImport.matched', 'Matched'),
+		collapse: localize('judger.browserImport.collapse', 'Collapse import controls'),
+		expand: localize('judger.browserImport.expand', 'Expand import controls'),
+		drag: localize('judger.browserImport.drag', 'Drag to move; use arrow keys to adjust'),
+		close: localize('judger.browserImport.closePicker', 'Close parser picker'),
+	};
 	return `(() => {
-		if (window !== window.top || !/^https?:$/.test(location.protocol)) return;
-		if (window.__shortestpathImportButtonCleanup) return;
-		const mount = () => {
-			if (document.getElementById(${JSON.stringify(elementId)})) return;
-			const host = document.createElement('div'); host.id = ${JSON.stringify(elementId)};
-			host.style.cssText = 'all:initial!important;position:fixed!important;right:24px!important;bottom:24px!important;z-index:2147483647!important;display:block!important';
-			const root = host.attachShadow({mode:'closed'});
-			const button = document.createElement('button'); button.type = 'button';
-			button.textContent = ${JSON.stringify(label)}; button.title = ${JSON.stringify(title)};
-			button.setAttribute('aria-label', ${JSON.stringify(title)});
-			button.style.cssText = 'all:initial;display:block;box-sizing:border-box;padding:12px 18px;border:1px solid #ffffff40;border-radius:24px;background:#237b4b;color:white;box-shadow:0 4px 18px #0004;font:600 14px/20px system-ui;cursor:pointer';
-			button.addEventListener('click', event => { if (event.isTrusted && !button.disabled) window[${JSON.stringify(bindingName)}]('import'); });
-			window.__shortestpathImportButtonBusy = busy => { button.disabled = busy; button.style.opacity = busy ? '.6' : '1'; button.style.cursor = busy ? 'wait' : 'pointer'; };
-			root.append(button); document.documentElement.append(host);
-		};
-		window.__shortestpathImportButtonCleanup = () => {
-			document.removeEventListener('DOMContentLoaded', mount);
-			document.getElementById(${JSON.stringify(elementId)})?.remove();
-			delete window.__shortestpathImportButtonBusy; delete window.__shortestpathImportButtonCleanup;
-		};
-		if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, {once:true}); else mount();
+		if (window !== window.top || !/^https?:$/.test(location.protocol) || window.__shortestpathImportButtonCleanup) return;
+		${runtime};
+		(${mountImportControl.toString()})(${JSON.stringify(labels)}, ${JSON.stringify(initiallyCollapsed)} || window.__shortestpathImportButtonInitiallyCollapsed === true);
 	})()`;
 }
 
 type Message = { id?: number; sessionId?: string; method?: string; params?: any; result?: any; error?: { message: string } };
 
-export async function attachBrowserImportButton(tab: vscode.BrowserTab, importCurrent: () => Promise<unknown>): Promise<vscode.Disposable> {
+type ImportButtonHandle = vscode.Disposable & { collapse(): Promise<void> };
+
+export async function attachBrowserImportButton(tab: vscode.BrowserTab, importCurrent: (parserId: string, expectedUrl: string) => Promise<BrowserImportResult>, runtime = '', initiallyCollapsed = false): Promise<ImportButtonHandle> {
 	const session = await tab.startCDPSession();
 	let disposed = false, nextId = 0, sid: string | undefined, identifier: string | undefined, mainFrame: string | undefined;
 	const contexts = new Set<number>();
@@ -52,6 +53,8 @@ export async function attachBrowserImportButton(tab: vscode.BrowserTab, importCu
 		void Promise.resolve(session.sendMessage({ id, method, params, ...(sessionId ? { sessionId } : {}) })).catch(error => { const request = pending.get(id); if (request) { clearTimeout(timer); pending.delete(id); reject(error); } });
 	});
 	let busy = false;
+	let collapseRequested = initiallyCollapsed;
+	const collapseExpression = 'window.__shortestpathImportButtonInitiallyCollapsed = true; window.__shortestpathImportButtonCollapse?.()';
 	const listener = session.onDidReceiveMessage(raw => {
 		const event = raw as Message;
 		if (event.id !== undefined) {
@@ -63,12 +66,31 @@ export async function attachBrowserImportButton(tab: vscode.BrowserTab, importCu
 		if (event.method === 'Runtime.executionContextsCleared') { contexts.clear(); }
 		if (event.method === 'Runtime.executionContextDestroyed') { contexts.delete(event.params?.executionContextId); }
 		const context = event.params?.context;
-		if (event.method === 'Runtime.executionContextCreated' && context?.name === worldName && context.auxData?.frameId === mainFrame) { contexts.add(context.id); }
-		if (event.method !== 'Runtime.bindingCalled' || event.params?.name !== bindingName || event.params.payload !== 'import' || !contexts.has(event.params.executionContextId) || busy || disposed) { return; }
+		if (event.method === 'Runtime.executionContextCreated' && context?.name === worldName && context.auxData?.frameId === mainFrame) {
+			contexts.add(context.id);
+			if (collapseRequested) { void send('Runtime.evaluate', { expression: collapseExpression, contextId: context.id }).catch(() => {}); }
+		}
+		if (event.method !== 'Runtime.bindingCalled' || event.params?.name !== bindingName || !contexts.has(event.params.executionContextId) || busy || disposed) { return; }
+		let request: { action?: string; parserId?: string; url?: string };
+		try { request = JSON.parse(event.params.payload); } catch { return; }
+		if (request.action !== 'import' || typeof request.parserId !== 'string' || typeof request.url !== 'string') { return; }
 		busy = true;
 		const contextId = event.params.executionContextId;
 		const update = (value: boolean) => send('Runtime.evaluate', { expression: `window.__shortestpathImportButtonBusy?.(${value})`, contextId }).catch(() => {});
-		void (async () => { try { await update(true); await importCurrent(); } finally { busy = false; if (!disposed) { await update(false); } } })().catch(error => globalThis.logger?.warn('Browser import button', String(error)));
+		const report = (result: BrowserImportResult) => send('Runtime.evaluate', { expression: `window.__shortestpathImportButtonResult?.(${JSON.stringify(result)})`, contextId }).catch(() => {});
+		void (async () => {
+			try {
+				await update(true);
+				const current = await send('Runtime.evaluate', { expression: 'location.href', contextId });
+				if (current.result?.value !== request.url) { return; }
+				await report(await importCurrent(request.parserId!, request.url!));
+			} catch (error) {
+				await report({ count: 0, error: localize('judger.browserImport.error', 'Could not import this page: {0}', String(error)) });
+			} finally {
+				busy = false;
+				if (!disposed) { await update(false); }
+			}
+		})();
 	});
 	const closed = session.onDidClose(() => { disposed = true; rejectPending(); listener.dispose(); closed.dispose(); });
 	const dispose = async () => {
@@ -89,18 +111,41 @@ export async function attachBrowserImportButton(tab: vscode.BrowserTab, importCu
 		await send('Page.enable');
 		await send('Runtime.enable');
 		await send('Runtime.addBinding', { name: bindingName, executionContextName: worldName });
-		const source = browserImportButtonScript(localize('judger.browserImport.button', '+ Import problem'), localize('judger.browserImport.buttonTitle', 'Import this page with Competitive Companion'));
+		const source = browserImportButtonScript(localize('judger.browserImport.button', '+ Add problem'), localize('judger.browserImport.chooseParser', 'Choose Parser…'), runtime, initiallyCollapsed);
 		identifier = (await send('Page.addScriptToEvaluateOnNewDocument', { source, worldName, runImmediately: true })).identifier;
-		return { dispose: () => { void dispose().catch(error => globalThis.logger?.warn('Browser button cleanup', String(error))); } };
+		return { collapse: async () => {
+			if (disposed) { return; }
+			const updateSource = !collapseRequested;
+			collapseRequested = true;
+			if (updateSource) {
+				const oldIdentifier = identifier;
+				const collapsedSource = browserImportButtonScript(localize('judger.browserImport.button', '+ Add problem'), localize('judger.browserImport.chooseParser', 'Choose Parser…'), runtime, true);
+				identifier = (await send('Page.addScriptToEvaluateOnNewDocument', { source: collapsedSource, worldName })).identifier;
+				if (oldIdentifier) { await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: oldIdentifier }); }
+			}
+			await Promise.all([...contexts].map(contextId => send('Runtime.evaluate', { expression: collapseExpression, contextId }).catch(() => {})));
+		}, dispose: () => { void dispose().catch(error => globalThis.logger?.warn('Browser button cleanup', String(error))); } };
 	} catch (error) { await dispose(); throw error; }
 }
 
 export function registerBrowserImportButtons(context: vscode.ExtensionContext): void {
-	const attached = new Map<string, Promise<vscode.Disposable>>();
+	const attached = new Map<string, Promise<ImportButtonHandle>>();
 	let disposed = false;
+	let importsInProgress = 0;
 	const attach = (tab: vscode.BrowserTab) => {
 		if (disposed || attached.has(tab.id)) { return; }
-		const task = attachBrowserImportButton(tab, () => Promise.resolve(vscode.commands.executeCommand('judger.importBrowserProblem', tab.id)));
+		const initiallyCollapsed = importsInProgress > 0;
+		const task = fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.runtime.txt'), 'utf8').then(runtime => attachBrowserImportButton(tab, async (parserId, expectedUrl) => {
+			const before = new Map((vscode.window.browserTabs ?? []).map(browser => [browser.id, browser.url]));
+			importsInProgress++;
+			try {
+				const result = await vscode.commands.executeCommand<BrowserImportResult>('judger.importBrowserProblem', tab.id, parserId, expectedUrl);
+				if (result.count > 0) {
+					await Promise.all((vscode.window.browserTabs ?? []).filter(browser => browser.id === tab.id || before.get(browser.id) !== browser.url).map(browser => attached.get(browser.id)?.then(handle => handle.collapse().catch(error => globalThis.logger?.warn('Browser button collapse', String(error))), () => {})));
+				}
+				return result;
+			} finally { importsInProgress--; }
+		}, runtime, initiallyCollapsed));
 		attached.set(tab.id, task);
 		void task.catch(error => { if (attached.get(tab.id) === task) { attached.delete(tab.id); } globalThis.logger?.warn('Browser button unavailable', String(error)); });
 	};

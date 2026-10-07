@@ -30,13 +30,26 @@ describe('browser submission templates', () => {
 		expect(() => submissionUrl('javascript:alert(1)', {})).toThrow();
 		expect(() => submissionUrl('https://example.com/{missing}', {})).toThrow();
 	});
+	test('default VJudge script rejects an unavailable personal-account method', async () => {
+		let filled = false;
+		const context = {
+			document: {
+				getElementById: () => ({ click: () => { } }),
+				querySelector: (selector: string) => selector === '#submitModal .CodeMirror'
+					? { CodeMirror: { setValue: () => { filled = true; } } }
+					: selector === '#submitModal #submitter-type1' ? { disabled: true } : undefined,
+			}
+		};
+		await expect(vm.runInNewContext(`(async () => { ${replaceSubmissionPlaceholders(vjudgeSubmitScript, { code: 'source' }, true)} })()`, context)).rejects.toThrow('personal-account submission is unavailable');
+		expect(filled).toBe(false);
+	});
 	test('default script opens form, selects personal account, preserves exact code without submitting', async () => {
 		const code = 'quotes "\' ` ${globalThis.hacked = true}\n{problemId}\n</script>\\n';
 		const actions: string[] = [];
 		let filled = '';
-		const context = { document: { getElementById: (id: string) => id === 'btn-submit' ? { click: () => actions.push('open') } : undefined, querySelector: (selector: string) => selector === 'label[for="submitter-type1"]' ? { click: () => actions.push('personal') } : selector === '.CodeMirror' ? { CodeMirror: { setValue: (value: string) => { filled = value; } } } : undefined } };
+		const context = { document: { getElementById: (id: string) => id === 'btn-submit' ? { click: () => actions.push('open') } : undefined, querySelector: (selector: string) => selector === '#submitModal label[for="submitter-type1"]' ? { click: () => actions.push('personal') } : selector === '#submitModal #submitter-type1' ? { disabled: false } : selector === '#submitModal .CodeMirror' ? { CodeMirror: { save: () => actions.push('save'), setValue: (value: string) => { filled = value; } } } : undefined } };
 		await vm.runInNewContext(`(async () => { ${replaceSubmissionPlaceholders(vjudgeSubmitScript, { code, problemId: 'A' }, true)} })()`, context);
-		expect(actions).toEqual(['open', 'personal']);
+		expect(actions).toEqual(['open', 'personal', 'save']);
 		expect(filled).toBe(code);
 		expect((context as { hacked?: boolean }).hacked).toBeUndefined();
 	});

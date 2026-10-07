@@ -15,7 +15,7 @@ const esbuild = require('esbuild');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const result = await esbuild.build({
 	entryPoints: [path.join(root, 'scripts/companion/entry.ts')],
-	metafile: true, write: false, bundle: true, format: 'esm', minify: true,
+	metafile: true, write: false, bundle: true, format: 'esm', minify: true, keepNames: true,
 	nodePaths: [path.join(dependencyRoot, 'node_modules')],
 	alias: { upstream: path.join(upstream, 'src') },
 	banner: { js: `/* Competitive Companion 2.65.0, MIT, Jasper van Merle. Upstream ${commit}. See LICENSE and NOTICE.md. */` },
@@ -29,7 +29,9 @@ const result = await esbuild.build({
 		}));
 	} }],
 });
-fs.writeFileSync(path.join(root, 'static/competitive-companion/parsers.bundle.txt'), '(async () => {\n' + result.outputFiles[0].text.replace(/\/\*![\s\S]*?\*\//g, (comment: string) => comment.replace(/[ \t]+$/gm, '')) + '\nreturn await globalThis.ShortestPathCompanionParse();\n})()');
+const runtime = result.outputFiles[0].text.replace(/\/\*![\s\S]*?\*\//g, (comment: string) => comment.replace(/[ \t]+$/gm, ''));
+fs.writeFileSync(path.join(root, 'static/competitive-companion/parsers.runtime.txt'), '(() => {\n' + runtime + '\n})()');
+fs.writeFileSync(path.join(root, 'static/competitive-companion/parsers.bundle.txt'), '(async () => {\n' + runtime + '\nreturn await globalThis.ShortestPathCompanionParse(globalThis.__shortestpathParserId);\n})()');
 fs.copyFileSync(path.join(upstream, 'LICENSE'), path.join(root, 'static/competitive-companion/LICENSE'));
 for (const file of ['package.json', 'package-lock.json']) {
 	const source = path.join(dependencyRoot, file);

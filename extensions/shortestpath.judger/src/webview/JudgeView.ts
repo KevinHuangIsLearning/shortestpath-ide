@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import { stageDroppedTestcases } from '../droppedTestcases';
 import { importTestcases, importTestcasesWithPicker } from '../importTestcases';
-import { fillBrowserSubmission, getBrowserSubmission } from '../browserSubmission';
+import { fillBrowserSubmission, getBrowserSubmission, logSubmission } from '../browserSubmission';
 import * as vscode from 'vscode';
 import localize from '../i18n';
 import { storeSubmitProblem, submitKattisProblem } from '../companion';
@@ -351,6 +351,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                     }
 
                     case 'submitBrowser': {
+                        logSubmission(`Webview submitBrowser received; currentProblem=${!!this.currentProblem}`);
                         try {
                             if (this.currentProblem) { await fillBrowserSubmission(this.currentProblem); }
                         } finally {
@@ -360,6 +361,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                     }
 
                     case 'submitWithChoice': {
+                        logSubmission(`Webview submitWithChoice received; currentProblem=${!!this.currentProblem}`);
                         try {
                             let method = getDefaultSubmitMethod();
                             if (method === 'ask') {

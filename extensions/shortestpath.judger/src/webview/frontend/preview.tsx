@@ -16,6 +16,12 @@ import { filterCounts, StatusFilter, Summary } from './selectors';
 
 const FIXTURE_TRANSLATIONS: Record<string, string> = {
     timeSpent: 'Time spent on this problem',
+    completionStatus: 'Completion status',
+    partialAccepted: 'Partial AC',
+    markAccepted: 'Mark AC',
+    markPartialAccepted: 'Mark Partial AC',
+    cancelAccepted: 'Cancel AC',
+    cancelPartialAccepted: 'Cancel Partial AC',
     compiling: 'Compiling',
     emptyTestcases: 'No runnable testcase',
     passedRate: 'passed',

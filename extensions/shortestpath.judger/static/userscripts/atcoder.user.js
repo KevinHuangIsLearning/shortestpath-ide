@@ -25,16 +25,13 @@ const selectLanguage = async selector => {
 	select.value = Judger.languageValue;
 	select.dispatchEvent(new Event('change', { bubbles: true }));
 };
-const toggle = await wait('.editor-buttons > button:nth-child(3)');
-if (toggle.getAttribute('aria-pressed') !== 'true') toggle.click();
-const editor = await wait('#plain-textarea');
-const deadline = Date.now() + 25000;
-while (editor.style.display === 'none' && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
-if (editor.style.display === 'none') throw new Error('Plain text editor unavailable');
+// contest.js stores the initialized Ace instance on its backing textarea.
+// Set both editors so the site's saved plain/Ace preference remains consistent.
+const editor = await wait('#plain-textarea', element => !!window.jQuery?.(element).data('editor'));
+window.jQuery(editor).data('editor').setValue(Judger.code, -1);
 fill(editor, Judger.code);
-toggle.click();
-await selectLanguage('#select-lang > div > select');
-if (Judger.autoSubmit === 'true') {
+await selectLanguage('#select-lang select.current');
+const submit = async () => {
 	const challenge = document.querySelector('.cf-challenge');
 	if (challenge) {
 		const deadline = Date.now() + 25000;
@@ -42,4 +39,9 @@ if (Judger.autoSubmit === 'true') {
 		if (!challenge.querySelector('div > input')?.value) throw new Error('Complete the browser challenge, then submit manually.');
 	}
 	(await wait('#submit')).click();
+};
+if (Judger.confirmBeforeSubmit === 'true') {
+	Judger.registerSubmit(submit);
+} else if (Judger.autoSubmit === 'true') {
+	await submit();
 }

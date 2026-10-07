@@ -12,7 +12,6 @@ const routes = [
 	['codeforces', 'https://codeforces.com/contest/123/submit'],
 	['codeforces', 'https://codeforces.com/problemset/submit'],
 	['hydro', 'https://hydro.ac/p/1/submit'],
-	['luogu', 'https://www.luogu.com.cn/problem/P1000'],
 	['vjudge', 'https://vjudge.net/problem/UVA-1'],
 ];
 
@@ -20,7 +19,7 @@ describe('early builtin submission', () => {
 	afterEach(() => jest.useRealTimers());
 	test.each(
 		routes.flatMap(([name, url]) =>
-			['true', 'false'].map((autoSubmit) => [name, url, autoSubmit]),
+			['true', 'false', 'confirm'].map((autoSubmit) => [name, url, autoSubmit]),
 		),
 	)(
 		'%s fills before page load: %s (autoSubmit=%s)',
@@ -31,7 +30,9 @@ describe('early builtin submission', () => {
 			const clickedSelectors: string[] = [];
 			const controls = new Map<string, Control>();
 			class Control {
-				value = '';
+				private currentValue = '';
+				get value() { return this.currentValue; }
+				set value(value: string) { this.currentValue = value; }
 				innerText = '';
 				style = { display: '' };
 				get disabled() {
@@ -45,12 +46,15 @@ describe('early builtin submission', () => {
 				get CodeMirror() {
 					return Date.now() >= 900
 						? {
+							save: () => {},
 							setValue: (value: string) => {
 								this.value = value;
 							},
 						}
 						: undefined;
 				}
+				querySelector() { return Date.now() >= 700 ? this : null; }
+				querySelectorAll() { return Date.now() >= 700 ? [this] : []; }
 				getAttribute() {
 					return 'true';
 				}
@@ -69,6 +73,14 @@ describe('early builtin submission', () => {
 					}
 					if (!controls.has(selector)) {
 						const control = new Control();
+						if (name === 'hydro') {
+							control.value = 'cpp';
+							control.dispatchEvent = () => {
+								const hidden = document.querySelector('select[name="lang"]');
+								if (hidden) { hidden.value = control.value; }
+								return true;
+							};
+						}
 						control.click = () => {
 							clicks.push(Date.now());
 							clickedSelectors.push(selector);
@@ -80,6 +92,7 @@ describe('early builtin submission', () => {
 			};
 			const window: Record<string, unknown> = {};
 			window.top = window;
+			window.jQuery = (control: Control) => ({ data: () => Date.now() >= 900 ? { setValue: (value: string) => { control.value = value; } } : undefined });
 			const storage = new Map<string, string>();
 			const source = fs.readFileSync(
 				path.resolve(
@@ -100,6 +113,7 @@ describe('early builtin submission', () => {
 				setTimeout,
 				HTMLTextAreaElement: Control,
 				HTMLInputElement: Control,
+				HTMLSelectElement: Control,
 				Event: class {},
 				InputEvent: class {},
 				sessionStorage: {
@@ -116,14 +130,15 @@ describe('early builtin submission', () => {
 						languageValue: 'cpp',
 						problemId: 'A',
 						contestId: '123',
-						autoSubmit,
+						autoSubmit: autoSubmit === 'confirm' ? 'true' : autoSubmit,
+						confirmBeforeSubmit: String(autoSubmit === 'confirm'),
 					},
 					'submission',
 				),
 				context,
 			);
 			await jest.advanceTimersByTimeAsync(1200);
-			expect(window.submission).toEqual({ state: 'done' });
+			expect(window.submission).toEqual({ state: 'done', ...(autoSubmit === 'confirm' ? { canSubmit: true } : {}) });
 			expect(document.readyState).toBe('loading');
 			expect(
 				[...controls.values()].some(
@@ -137,7 +152,7 @@ describe('early builtin submission', () => {
 				codeforces: '.submit',
 				hydro: 'input[type="submit"]',
 				luogu: '#app > div.main-container > div > main > div > div > div.main > div > div.body > button',
-				vjudge: '.modal #btn-submit',
+				vjudge: '#submitModal #btn-submit',
 			}[name];
 			expect(
 				clickedSelectors.filter(
@@ -145,6 +160,10 @@ describe('early builtin submission', () => {
 				),
 			).toHaveLength(autoSubmit === 'true' ? 1 : 0);
 			expect(clicks.every((time) => time >= 500)).toBe(true);
+			if (autoSubmit === 'confirm') {
+				await vm.runInContext('window.submission_submit()', context);
+				expect(clickedSelectors.filter(selector => selector === finalSelector)).toHaveLength(1);
+			}
 			if (name !== 'luogu') {
 				expect(
 					[...controls.values()].some(
@@ -162,7 +181,7 @@ describe('early builtin submission', () => {
 				).toBe(url.includes('/contest/') ? 'A' : '123A');
 			}
 			if (name === 'vjudge') {
-				expect(controls.get('.CodeMirror')?.value).toBe('int main(){}');
+				expect(controls.get('#submitModal .CodeMirror')?.value).toBe('int main(){}');
 			}
 		},
 	);

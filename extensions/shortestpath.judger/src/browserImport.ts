@@ -21,7 +21,7 @@ type CDPResult = {
 type CDPMessage = { id?: number; sessionId?: string; result?: CDPResult; error?: { message: string } };
 
 /** Parse the current document in a separate JS world, and always detach on completion or failure. */
-export async function parseBrowserProblems(tab: vscode.BrowserTab, expression: string): Promise<Problem[]> {
+export async function parseBrowserProblems(tab: vscode.BrowserTab, expression: string, expectedUrl?: string): Promise<Problem[]> {
 	const session = await tab.startCDPSession();
 	let nextId = 0;
 	let closed = false;
@@ -58,7 +58,8 @@ export async function parseBrowserProblems(tab: vscode.BrowserTab, expression: s
 		if (!frames.frameTree) { throw new Error(localize('judger.browserImport.noPage', 'No browser page was found.')); }
 		const world = await send('Page.createIsolatedWorld', { frameId: frames.frameTree.frame.id, worldName: 'shortestpath-companion' }, sid);
 		if (world.executionContextId === undefined) { throw new Error(localize('judger.browserImport.noPage', 'No browser page was found.')); }
-		const parsed = await send('Runtime.evaluate', { expression, contextId: world.executionContextId, awaitPromise: true, returnByValue: true }, sid);
+		const checkedExpression = expectedUrl ? `(async () => { const expected = ${JSON.stringify(expectedUrl)}; if (location.href !== expected) throw new Error(${JSON.stringify(localize('judger.browserImport.pageChanged', 'The page changed during import. Please retry.'))}); const result = await (${expression}); if (location.href !== expected) throw new Error(${JSON.stringify(localize('judger.browserImport.pageChanged', 'The page changed during import. Please retry.'))}); return result; })()` : expression;
+		const parsed = await send('Runtime.evaluate', { expression: checkedExpression, contextId: world.executionContextId, awaitPromise: true, returnByValue: true }, sid);
 		if (!Array.isArray(parsed.result?.value) || parsed.result.value.length === 0) {
 			throw new Error(localize('judger.browserImport.empty', 'Competitive Companion did not return any problems.'));
 		}
@@ -69,21 +70,28 @@ export async function parseBrowserProblems(tab: vscode.BrowserTab, expression: s
 	}
 }
 
+export type BrowserImportResult = { count: number; error?: string; cancelled?: boolean };
+
 export function registerBrowserImport(context: vscode.ExtensionContext, importProblem: (problem: Problem) => Promise<{ created: boolean }>): void {
 	const running = new Set<string>();
-	context.subscriptions.push(vscode.commands.registerCommand('judger.importBrowserProblem', async (tabId?: string) => {
+	context.subscriptions.push(vscode.commands.registerCommand('judger.importBrowserProblem', async (tabId?: string, parserId?: string, expectedUrl?: string): Promise<BrowserImportResult> => {
 		const tab = tabId ? vscode.window.browserTabs?.find(candidate => candidate.id === tabId) : vscode.window.activeBrowserTab;
-		if (!tab) { vscode.window.showInformationMessage(localize('judger.browserImport.open', 'Open a problem in the integrated browser first.')); return; }
-		if (!vscode.workspace.workspaceFolders?.length) { vscode.window.showInformationMessage(localize('judger.companion.openFolder', 'Please open a folder first.')); return; }
-		if (running.has(tab.id)) { return; }
+		if (!tab) { return { count: 0, error: localize('judger.browserImport.open', 'Open a problem in the integrated browser first.') }; }
+		if (!vscode.workspace.workspaceFolders?.length) { return { count: 0, error: localize('judger.companion.openFolder', 'Please open a folder first.') }; }
+		if (running.has(tab.id)) { return { count: 0, cancelled: true }; }
 		running.add(tab.id);
+		let count = 0;
 		try {
-			await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: localize('judger.browserImport.progress', 'Importing with Competitive Companion…') }, async () => {
-				const expression = await fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.bundle.txt'), 'utf8');
-				const problems = await parseBrowserProblems(tab, expression);
-				for (const problem of problems) { if (!(await importProblem(problem)).created) { break; } }
-			});
-		} catch (error) { vscode.window.showErrorMessage(localize('judger.browserImport.error', 'Could not import this page: {0}', String(error))); }
+			const bundle = await fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.bundle.txt'), 'utf8');
+			const expression = `(async () => { globalThis.__shortestpathParserId = ${JSON.stringify(parserId ?? null)}; return await (${bundle}); })()`;
+			const problems = await parseBrowserProblems(tab, expression, expectedUrl);
+			for (const problem of problems) {
+				if (expectedUrl && tab.url !== expectedUrl) { throw new Error(localize('judger.browserImport.pageChanged', 'The page changed during import. Please retry.')); }
+				if (!(await importProblem(problem)).created) { return { count, cancelled: true }; }
+				count++;
+			}
+			return { count };
+		} catch (error) { return { count, error: localize('judger.browserImport.error', 'Could not import this page: {0}', String(error)) }; }
 		finally { running.delete(tab.id); }
 	}));
 	registerBrowserImportButtons(context);

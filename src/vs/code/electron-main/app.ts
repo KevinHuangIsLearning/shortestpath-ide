@@ -21,7 +21,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { FileAccess, Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { dirname, join, posix } from '../../base/common/path.js';
 import { mark } from '../../base/common/performance.js';
-import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, locale, OS } from '../../base/common/platform.js';
 import { assertType } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
 import { generateUuid } from '../../base/common/uuid.js';
@@ -975,7 +975,7 @@ export class CodeApplication extends Disposable {
 			});
 			validatedIpcMain.handle(localeChannel, async event => {
 				if (event.sender !== onboardingWindow.webContents) { throw new Error('Unexpected sender for ShortestPath onboarding locale.'); }
-				return this.environmentMainService.args.locale ?? 'zh-cn';
+				return locale ?? 'en';
 			});
 			validatedIpcMain.handle(workspaceChannel, async event => {
 				if (event.sender !== onboardingWindow.webContents) { throw new Error('Unexpected sender for ShortestPath workspace selection.'); }
@@ -1103,7 +1103,7 @@ export class CodeApplication extends Disposable {
 				toolchainRoot,
 				source,
 				stage,
-				locale: this.environmentMainService.args.locale ?? 'zh-cn'
+				locale: locale ?? 'en'
 			});
 		} catch (error) {
 			return Promise.resolve({ success: false, message: `Unable to load ${presetName} installer: ${toErrorMessage(error)}` });
@@ -1144,7 +1144,7 @@ export class CodeApplication extends Disposable {
 
 	private async chooseShortestPathHardlinkRecovery(): Promise<string | undefined> {
 		const support = this.getShortestPathPortableSupport();
-		const messages = support.getRecoveryMessages(this.environmentMainService.args.locale ?? 'zh-cn', {
+		const messages = support.getRecoveryMessages(locale ?? 'en', {
 			message: localize('shortestpath.hardlink.message', "Unable to create the hard links required by the compiler toolchain at this location."),
 			detail: localize('shortestpath.hardlink.detail', "Install in AppData: Automatically install the toolchain under %LOCALAPPDATA%\\ShortestPath-Toolchains; the IDE stays in place. Copy Both Files: Stay here and store hard links as separate files, using more disk space."),
 			relocate: localize('shortestpath.hardlink.relocate', "Install in AppData"),

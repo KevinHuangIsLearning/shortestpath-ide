@@ -19,9 +19,14 @@ export const vjudgeSubmitScript = `const waitFor = async (find) => {
 	throw new Error('VJudge submission form unavailable. Check that you are signed in.');
 };
 (await waitFor(() => document.getElementById('btn-submit'))).click();
-(await waitFor(() => document.querySelector('label[for="submitter-type1"]'))).click();
-const editor = await waitFor(() => document.querySelector('.CodeMirror')?.CodeMirror);
-editor.setValue({code});`;
+const editor = await waitFor(() => document.querySelector('#submitModal .CodeMirror')?.CodeMirror);
+const personal = document.querySelector('#submitModal #submitter-type1');
+if (!personal || personal.disabled) {
+	throw new Error('VJudge personal-account submission is unavailable for this problem.');
+}
+(document.querySelector('#submitModal label[for="submitter-type1"]')).click();
+editor.setValue({code});
+editor.save();`;
 
 /** Replace once: inserted code or identifiers must never be interpreted as more placeholders. */
 export function replaceSubmissionPlaceholders(template: string, values: SubmissionValues, javascript = false): string {

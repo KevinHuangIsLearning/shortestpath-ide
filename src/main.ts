@@ -141,7 +141,7 @@ perf.mark('code/didRegisterListeners');
  */
 let nlsConfigurationPromise: Promise<INLSConfiguration> | undefined = undefined;
 
-// Use the most preferred OS language for language recommendation.
+// Use the most preferred OS language as the default UI language and for language recommendation.
 // The API might return an empty array on Linux, such as when
 // the 'C' locale is the user's only configured locale.
 // No matter the OS, if the array is empty, default back to 'en'.
@@ -149,7 +149,7 @@ let nlsConfigurationPromise: Promise<INLSConfiguration> | undefined = undefined;
 perf.mark('code/willGetPreferredSystemLanguages');
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
 perf.mark('code/didGetPreferredSystemLanguages');
-const userLocale = resolveUserLocale(args['locale'], argvConfig.locale, 'zh-cn');
+const userLocale = resolveUserLocale(args['locale'], argvConfig.locale, osLocale);
 const nlsMetadataPath = process.env['VSCODE_DEV'] && fs.existsSync(path.join(import.meta.dirname, '..', 'out-build', 'nls.keys.json'))
 	? path.join(import.meta.dirname, '..', 'out-build')
 	: import.meta.dirname;
@@ -160,6 +160,7 @@ if (userLocale) {
 		commit: product.commit,
 		nlsMetadataHash: product.nlsMetadataHash,
 		userDataPath,
+		builtInExtensionsPath: path.join(import.meta.dirname, '..', 'extensions'),
 		nlsMetadataPath
 	});
 }
@@ -751,6 +752,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 			commit: product.commit,
 			nlsMetadataHash: product.nlsMetadataHash,
 			userDataPath,
+			builtInExtensionsPath: path.join(import.meta.dirname, '..', 'extensions'),
 			nlsMetadataPath
 		});
 	} finally {

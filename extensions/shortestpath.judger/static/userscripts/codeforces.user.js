@@ -34,4 +34,11 @@ if (/^\/(contest|gym)\//.test(location.pathname)) {
 	fill(await wait('input[name="submittedProblemCode"]'), Judger.contestId + Judger.problemId);
 }
 await selectLanguage('select[name="programTypeId"]');
-if (Judger.autoSubmit === 'true') (await wait('.submit')).click();
+const submit = async () => {
+	(await wait('.submit')).click();
+};
+if (Judger.confirmBeforeSubmit === 'true') {
+	Judger.registerSubmit(submit);
+} else if (Judger.autoSubmit === 'true') {
+	await submit();
+}

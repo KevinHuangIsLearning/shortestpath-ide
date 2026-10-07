@@ -13,12 +13,6 @@ const wait = async (selector, ready = element => !element.disabled) => {
 	}
 	throw new Error('Submission control unavailable: ' + selector + '. Check login and complete any challenge.');
 };
-const fill = (element, value) => {
-	const setter = Object.getOwnPropertyDescriptor(element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value')?.set;
-	if (setter) setter.call(element, value); else element.value = value;
-	element.dispatchEvent(new Event('input', { bubbles: true }));
-	element.dispatchEvent(new Event('change', { bubbles: true }));
-};
 const selectLanguage = async selector => {
 	if (!Judger.languageValue) return;
 	const select = await wait(selector, element => !element.disabled && Array.from(element.options).some(option => option.value === Judger.languageValue));
@@ -26,9 +20,19 @@ const selectLanguage = async selector => {
 	select.dispatchEvent(new Event('change', { bubbles: true }));
 };
 (await wait('#btn-submit')).click();
-const editor = await wait('#submit-solution');
-fill(editor, Judger.code);
-const mirror = (await wait('.CodeMirror', element => !!element.CodeMirror)).CodeMirror;
+const mirror = (await wait('#submitModal .CodeMirror', element => !!element.CodeMirror)).CodeMirror;
+const method = document.querySelector('#submitModal input[name="submitterType"]:checked');
+if (method?.value === '2') {
+	throw new Error('VJudge is set to archive an existing submission. Choose a code submission method, then submit manually.');
+}
 mirror.setValue(Judger.code);
-await selectLanguage('select[name="language"]');
-if (Judger.autoSubmit === 'true') (await wait('.modal #btn-submit')).click();
+mirror.save();
+await selectLanguage('#submitModal select[name="language"]');
+const submit = async () => {
+	(await wait('#submitModal #btn-submit')).click();
+};
+if (Judger.confirmBeforeSubmit === 'true') {
+	Judger.registerSubmit(submit);
+} else if (Judger.autoSubmit === 'true') {
+	await submit();
+}

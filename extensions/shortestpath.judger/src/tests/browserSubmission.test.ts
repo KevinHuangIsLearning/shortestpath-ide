@@ -2,14 +2,15 @@
  *  Copyright (c) 2026 ShortestPath IDE contributors.
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-jest.mock('vscode', () => ({ workspace: { isTrusted: true }, window: { openBrowserTab: jest.fn() } }), { virtual: true });
+jest.mock('vscode', () => ({ workspace: { isTrusted: true }, window: { openBrowserTab: jest.fn(), showInformationMessage: jest.fn() } }), { virtual: true });
 jest.mock('../preferences', () => ({}));
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, text: string) => text }));
 import * as vscode from 'vscode';
+import vm from 'vm';
 import { executeSubmissionScript } from '../browserSubmission';
 
 type Message = { id: number; method: string; sessionId?: string; params: Record<string, unknown> };
-function mockBrowser(failScript = false, navigateDuringStatus = false, delayedRun = false) {
+function mockBrowser(failScript = false, navigateDuringStatus = false, delayedRun = false, pageLogs = false, readyToSubmit = false) {
 	const began = Date.now();
 	const listeners = new Set<(message: unknown) => void>();
 	const closeListeners = new Set<() => void>();
@@ -19,6 +20,13 @@ function mockBrowser(failScript = false, navigateDuringStatus = false, delayedRu
 		onDidClose: (listener: () => void) => { closeListeners.add(listener); return { dispose: () => closeListeners.delete(listener) }; },
 		sendMessage: jest.fn(async (message: Message) => {
 			sent.push(message);
+			if (pageLogs && message.method === 'Page.navigate') {
+				for (const listener of [...listeners]) {
+					listener({ method: 'Runtime.consoleAPICalled', sessionId: 'attached', params: { args: [{ value: '[Judger submission] Luogu: hash set to #submit' }] } });
+					listener({ method: 'Runtime.consoleAPICalled', sessionId: 'other', params: { args: [{ value: '[Judger submission] wrong page' }] } });
+					listener({ method: 'Runtime.consoleAPICalled', sessionId: 'attached', params: { args: [{ value: 'unrelated page console content' }] } });
+				}
+			}
 			if (navigateDuringStatus && message.method === 'Runtime.evaluate' && String(message.params.expression).startsWith('window[')) {
 				navigateDuringStatus = false;
 				for (const listener of [...listeners]) { listener({ id: message.id, sessionId: message.sessionId, error: { message: 'Execution context was destroyed.' } }); }
@@ -32,7 +40,7 @@ function mockBrowser(failScript = false, navigateDuringStatus = false, delayedRu
 			}
 			if (message.method === 'Target.getTargets') { result = { targetInfos: [{ type: 'page', targetId: 'page' }] }; }
 			if (message.method === 'Target.attachToTarget') { result = { sessionId: 'attached' }; }
-			if (message.method === 'Runtime.evaluate') { result = failScript && message.params.awaitPromise ? { exceptionDetails: { exception: { description: 'Script error' } } } : { result: { value: String(message.params.expression).startsWith('window[') ? { state: delayedRun && Date.now() - began < 25000 ? 'waiting' : delayedRun && Date.now() - began < 50000 ? 'running' : 'done' } : true } }; }
+			if (message.method === 'Runtime.evaluate') { result = failScript && message.params.awaitPromise ? { exceptionDetails: { exception: { description: 'Script error' } } } : { result: { value: String(message.params.expression).startsWith('window[') ? { state: delayedRun && Date.now() - began < 25000 ? 'waiting' : delayedRun && Date.now() - began < 50000 ? 'running' : 'done', ...(readyToSubmit ? { canSubmit: true } : {}) } : true } }; }
 			for (const listener of [...listeners]) { listener({ id: message.id, sessionId: message.sessionId, result }); }
 		}),
 		close: jest.fn(async () => { }),
@@ -135,4 +143,99 @@ test('custom idle scripts retain separate load and execution time budgets', asyn
 		expect(browser.session.close).toHaveBeenCalledTimes(1);
 		expect(browser.listeners.size + browser.closeListeners.size).toBe(0);
 	} finally { jest.useRealTimers(); }
+});
+
+
+test('submission traces record stages and only forward diagnostic console messages from the attached page', async () => {
+	const previousLogger = globalThis.logger;
+	const messages: string[] = [];
+	globalThis.logger = { info: (message: string) => messages.push(message) } as typeof globalThis.logger;
+	try {
+		const browser = mockBrowser(false, false, false, true);
+		await executeSubmissionScript({ urlTemplate: 'https://example.com/submit?private=value', script: '// ==UserScript==\n// @name logged\n// @match https://example.com/*\n// @grant none\n// ==/UserScript==\n' }, { code: 'private source code' });
+		expect(messages).toEqual(expect.arrayContaining([
+			'[Submission] Opening https://example.com/submit',
+			'[Submission] Luogu: hash set to #submit',
+			'[Submission] Userscript state: done',
+			'[Submission] Script completed',
+		]));
+		expect(messages.join('\n')).not.toMatch(/private|wrong page|unrelated/);
+		expect(browser.listeners.size + browser.closeListeners.size).toBe(0);
+	} finally { globalThis.logger = previousLogger; }
+});
+
+
+test.each(['none', 'GM_getValue'])('enables Page on the attached session before registering and navigating a userscript (grant=%s)', async grant => {
+	globalThis.extensionContext = { globalState: { get: () => ({}) } } as unknown as vscode.ExtensionContext;
+	const browser = mockBrowser();
+	await executeSubmissionScript({ urlTemplate: 'https://example.com/submit', script: '// ==UserScript==\n// @name injection\n// @match https://example.com/*\n// @run-at document-start\n// @grant ' + grant + '\n// ==/UserScript==\n' }, {});
+	const relevant = browser.sent.filter(message => ['Page.enable', 'Page.addScriptToEvaluateOnNewDocument', 'Page.navigate'].includes(message.method));
+	expect(relevant.map(message => [message.method, message.sessionId])).toEqual([
+		['Page.enable', 'attached'],
+		['Page.addScriptToEvaluateOnNewDocument', 'attached'],
+		['Page.navigate', 'attached'],
+	]);
+});
+
+
+test.each(['OK', undefined])('only submits a filled userscript form after OK (answer=%s)', async answer => {
+	const browser = mockBrowser(false, false, false, false, true);
+	(vscode.window.showInformationMessage as jest.Mock).mockClear().mockResolvedValue(answer);
+	await executeSubmissionScript({ urlTemplate: 'https://example.com/submit', script: '// ==UserScript==\n// @name confirm\n// @match https://example.com/*\n// @grant none\n// ==/UserScript==\n' }, {});
+	const finalActions = browser.sent.filter(message => message.params.awaitPromise);
+	expect([finalActions.length, (vscode.window.showInformationMessage as jest.Mock).mock.calls]).toEqual([
+		answer === 'OK' ? 1 : 0, [['Confirm submission?', { modal: true }, 'OK']],
+	]);
+	expect(browser.session.close).toHaveBeenCalledTimes(1);
+});
+
+test.each(['OK', undefined])('legacy VJudge only clicks final submit after confirmation (answer=%s)', async answer => {
+	const { vjudgeSubmitScript } = await import('../submissionTemplates');
+	const browser = mockBrowser();
+	(vscode.window.showInformationMessage as jest.Mock).mockClear().mockResolvedValue(answer);
+	await executeSubmissionScript({ urlTemplate: 'https://vjudge.net/problem/UVA-1', script: vjudgeSubmitScript }, { code: 'int main(){}', confirmBeforeSubmit: 'true' });
+	const finalActions = browser.sent.filter(message => message.params.awaitPromise);
+	expect(finalActions).toHaveLength(answer === 'OK' ? 2 : 1);
+	expect(String(finalActions[0].params.expression)).toContain("#submitModal #btn-submit");
+	if (answer === 'OK') { expect(String(finalActions[1].params.expression)).toContain('const action = window['); }
+});
+
+
+test.each([false, true])('a replaced document cannot submit after confirmation (legacy=%s)', async legacy => {
+	const { vjudgeSubmitScript } = await import('../submissionTemplates');
+	const browser = mockBrowser(false, false, false, false, !legacy);
+	let actionExpression = '';
+	const send = browser.session.sendMessage.getMockImplementation()!;
+	browser.session.sendMessage.mockImplementation(async message => {
+		if (String(message.params.expression).includes('const action = window[')) {
+			actionExpression = String(message.params.expression);
+			for (const listener of [...browser.listeners]) {
+				listener({ id: message.id, sessionId: message.sessionId, result: { exceptionDetails: { exception: { description: 'The submission page changed. Fill the form again.' } } } });
+			}
+		} else { await send(message); }
+	});
+	(vscode.window.showInformationMessage as jest.Mock).mockResolvedValue('OK');
+	await expect(executeSubmissionScript({ urlTemplate: 'https://example.com/submit', script: legacy ? vjudgeSubmitScript : '// ==UserScript==\n// @name replaced\n// @match https://example.com/*\n// @grant none\n// ==/UserScript==\n' }, { confirmBeforeSubmit: 'true', code: 'source' })).rejects.toThrow('page changed');
+	await expect(vm.runInNewContext(actionExpression, { window: {} })).rejects.toThrow('page changed');
+	expect(browser.session.close).toHaveBeenCalledTimes(1);
+	expect(browser.listeners.size + browser.closeListeners.size).toBe(0);
+});
+
+test('closing the browser during confirmation prevents the final action', async () => {
+	const browser = mockBrowser(false, false, false, false, true);
+	let confirm: (answer: string) => void = () => { };
+	let shown: () => void = () => { };
+	const promptShown = new Promise<void>(resolve => { shown = resolve; });
+	(vscode.window.showInformationMessage as jest.Mock).mockImplementation(() => {
+		shown();
+		return new Promise<string>(resolve => { confirm = resolve; });
+	});
+	const execution = executeSubmissionScript({ urlTemplate: 'https://example.com/submit', script: '// ==UserScript==\n// @name closed\n// @match https://example.com/*\n// @grant none\n// ==/UserScript==\n' }, {});
+	const assertion = expect(execution).rejects.toThrow('browser was closed');
+	await promptShown;
+	for (const listener of browser.closeListeners) { listener(); }
+	confirm('OK');
+	await assertion;
+	expect(browser.sent.filter(message => message.params.awaitPromise)).toHaveLength(0);
+	expect(browser.listeners.size + browser.closeListeners.size).toBe(0);
 });

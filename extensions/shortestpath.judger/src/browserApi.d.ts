@@ -7,6 +7,7 @@ declare module 'vscode' {
     }
     interface BrowserTab {
         readonly id: string;
+        readonly url: string;
         startCDPSession(): Thenable<BrowserCDPSession>;
     }
 	namespace window {

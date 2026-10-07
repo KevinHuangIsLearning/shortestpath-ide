@@ -5,9 +5,9 @@
 
 /**
  * Language tags are case insensitive, but the ESM loader is case sensitive.
- * Normalize them while preserving the command-line, persisted, default priority.
+ * Normalize them while preserving the command-line, persisted, system priority.
  */
-export function resolveUserLocale(commandLineLocale: string | undefined, configuredLocale: unknown, defaultLocale: string): string {
+export function resolveUserLocale(commandLineLocale: string | undefined, configuredLocale: unknown, systemLocale: string): string {
 	if (commandLineLocale) {
 		return commandLineLocale.toLowerCase();
 	}
@@ -16,5 +16,5 @@ export function resolveUserLocale(commandLineLocale: string | undefined, configu
 		return configuredLocale.toLowerCase();
 	}
 
-	return defaultLocale.toLowerCase();
+	return systemLocale.toLowerCase();
 }

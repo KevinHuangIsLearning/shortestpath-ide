@@ -2,11 +2,20 @@
 
 # Todos
 
-- [ ] 添加做题 Dashboard，显示做题热力图，展示出做的题目的 source oj, from，**make a plan before do it, and you should let me comfirm. 如果有不清楚的细节，向我询问**。
 
-方案：[Dashboard 实施方案（待确认）](reports/dashboard-plan-2026-10-04.md)。已确认按 AC 日期统计、部分 AC 单列，同时展示原 OJ、导入平台和比赛/题单。确认方案后实施。
+- [ ] 【暂时搁置】添加做题 Dashboard，显示做题热力图，展示出做的题目的 source oj, from，**make a plan before do it, and you should let me comfirm. 如果有不清楚的细节，向我询问**。方案：[Dashboard 实施方案（待确认）](reports/dashboard-plan-2026-10-04.md)。已确认按 AC 日期统计、部分 AC 单列，同时展示原 OJ、导入平台和比赛/题单。确认方案后实施。
 
 # Solved
+
+## 20261006
+
+- [x] 更改内置浏览器“添加题目”的样式，导入题目不应该发送通知，这会导致浏览器“因通知而暂停”。只有在有对应 Parser 的时候展示按钮，也允许用户在没有对应 Parser 的情况下手动选择 Parser，支持搜索。先出方案。 已加入拖动与位置边界限制；折叠为单个半透明按钮，导入后及自动打开题目网页时自动收起。
+
+实现与验证记录：[内置浏览器导入控件改造报告](reports/browser-import-controls-2026-10-06.md)。
+
+- [x] 默认第一次打开不是中文，而是英文。已改为跟随用户语言设置，未设置时跟随系统首选语言。
+
+实现与验证记录：[首次启动语言修复报告](reports/first-launch-language-2026-10-06.md)。
 
 ## 20261004
 

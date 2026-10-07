@@ -69,3 +69,35 @@ describe('submission userscripts', () => {
     expect(window.ran).toBe(true);
     expect(window.timing).toEqual({ state: 'done' });
 });
+
+
+test.each(['waiting', 'running', 'done', 'error'])('a new document handles saved %s state without losing or repeating work', async state => {
+	const storage = new Map([['navigation', JSON.stringify({ state })]]);
+	const window: Record<string, unknown> = {};
+	window.top = window;
+	const context = vm.createContext({
+		window, URL, document: { readyState: 'complete' }, location: { href: 'https://example.com/submit' },
+		sessionStorage: { getItem: (key: string) => storage.get(key), setItem: (key: string, value: string) => storage.set(key, value) },
+	});
+	const bootstrap = userScriptBootstrap(parseUserScript(header + 'window.executions = (window.executions || 0) + 1;'), {}, 'navigation');
+	vm.runInContext(bootstrap, context);
+	vm.runInContext(bootstrap, context);
+	await new Promise(resolve => setImmediate(resolve));
+	const resume = state === 'waiting' || state === 'running';
+	expect({ executions: window.executions ?? 0, status: window.navigation }).toEqual({
+		executions: resume ? 1 : 0, status: { state: resume ? 'done' : state },
+	});
+});
+
+
+test('registering submission completes filling without executing the final action', async () => {
+	const window: Record<string, unknown> = {};
+	window.top = window;
+	const context = vm.createContext({ window, URL, location: { href: 'https://example.com/submit' }, document: { readyState: 'complete' }, sessionStorage: { getItem: () => null, setItem: () => {} } });
+	const source = parseUserScript(header + 'window.filled = true; Judger.registerSubmit(async () => { window.submitted = true; });');
+	vm.runInContext(userScriptBootstrap(source, {}, 'confirmation'), context);
+	await new Promise(resolve => setImmediate(resolve));
+	expect({ filled: window.filled, submitted: window.submitted, state: window.confirmation }).toEqual({ filled: true, submitted: undefined, state: { state: 'done', canSubmit: true } });
+	await vm.runInContext('window.confirmation_submit()', context);
+	expect(window.submitted).toBe(true);
+});

@@ -13,12 +13,19 @@ suite('UserLocale', () => {
 		assert.strictEqual(resolveUserLocale('DE', 'en', 'zh-cn'), 'de');
 	});
 
-	test('persisted locale wins over the product default', () => {
+	test('persisted locale wins over the system language', () => {
 		assert.strictEqual(resolveUserLocale(undefined, 'EN', 'zh-cn'), 'en');
 	});
 
-	test('uses the product default when no locale is persisted', () => {
-		assert.strictEqual(resolveUserLocale(undefined, undefined, 'ZH-CN'), 'zh-cn');
+	test('first launch follows the system language', () => {
+		assert.deepStrictEqual(
+			['ZH-CN', 'ZH-TW', 'EN-US', 'DE'].map(systemLocale => resolveUserLocale(undefined, undefined, systemLocale)),
+			['zh-cn', 'zh-tw', 'en-us', 'de']
+		);
+	});
+
+	test('empty overrides follow the system language', () => {
+		assert.strictEqual(resolveUserLocale('', '', 'EN-US'), 'en-us');
 	});
 
 	test('ignores malformed persisted locale values', () => {

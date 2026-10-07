@@ -181,17 +181,22 @@ const includes = ${JSON.stringify(
 const excludes = ${JSON.stringify(
 		script.excludes.map((pattern) => glob(pattern).source),
 	)};
-if (window.top !== window || !['https:', 'http:'].includes(page.protocol) || !(matches || includes.some(pattern => new RegExp(pattern).test(location.href))) || excludes.some(pattern => new RegExp(pattern).test(location.href))) return;
+if (window.top !== window || !['https:', 'http:'].includes(page.protocol) || !(matches || includes.some(pattern => new RegExp(pattern).test(location.href))) || excludes.some(pattern => new RegExp(pattern).test(location.href))) { console.info('[Judger submission] Bootstrap skipped: frame, protocol or URL rules did not match'); return; }
+console.info('[Judger submission] Bootstrap matched; run-at=' + metadata.runAt + '; readyState=' + document.readyState);
 const key = ${JSON.stringify(stateKey)};
 if (window[key]) return;
 const previous = sessionStorage.getItem(key);
-if (previous) { window[key] = JSON.parse(previous); return; }
+if (previous) {
+ const saved = JSON.parse(previous);
+ if (saved.state === 'done' || saved.state === 'error') { window[key] = saved; console.info('[Judger submission] Bootstrap restored prior state: ' + saved.state); return; }
+ console.info('[Judger submission] Bootstrap restarting unfinished state: ' + saved.state);
+}
 window[key] = { state: 'waiting' };
 const run = async () => {
  window[key] = { state: 'running' };
  sessionStorage.setItem(key, JSON.stringify(window[key]));
  try {
- const Judger = Object.freeze(${JSON.stringify(values)});
+ const Judger = Object.freeze({ ...${JSON.stringify(values)}, registerSubmit: action => { window[key + '_submit'] = action; } });
  const unsafeWindow = window;
  const resources = ${JSON.stringify(assets.resources)};
  const GM_getResourceText = name => resources[name]?.text;
@@ -223,7 +228,7 @@ const run = async () => {
  const GM = { getResourceText: async name => GM_getResourceText(name), getResourceUrl: async name => GM_getResourceURL(name), xmlHttpRequest: GM_xmlhttpRequest, addStyle: async css => GM_addStyle(css), getValue: async (name, fallback) => GM_getValue(name, fallback), setValue: async (name, value) => GM_setValue(name, value), deleteValue: async name => GM_deleteValue(name), listValues: async () => GM_listValues(), setClipboard: GM_setClipboard, notification: async text => GM_notification(text) };
  await (async () => {\n${assets.requirements}\n${script.source}\n})();
  await Promise.all(jobs);
- window[key] = { state: 'done' };
+ window[key] = { state: 'done', ...(typeof window[key + '_submit'] === 'function' ? { canSubmit: true } : {}) };
  sessionStorage.setItem(key, JSON.stringify(window[key]));
  } catch (error) { window[key] = { state: 'error', message: String(error) }; sessionStorage.setItem(key, JSON.stringify(window[key])); }
 };

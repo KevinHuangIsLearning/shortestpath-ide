@@ -88,6 +88,93 @@ suite('NLS configuration', () => {
 		return { ...configuration.languagePack, messages };
 	}
 
+	async function writeBundledLanguagePack(languageId: string, translatedMessage: string): Promise<string> {
+		const extensionsPath = join(testDir, 'extensions');
+		const extensionPath = join(extensionsPath, `test-language-pack-${languageId}`);
+		await promises.mkdir(extensionPath, { recursive: true });
+		await Promise.all([
+			promises.writeFile(join(extensionPath, 'package.json'), JSON.stringify({
+				publisher: 'test', name: `language-pack-${languageId}`, version: '1.0.0',
+				contributes: { localizations: [{ languageId, translations: [{ id: 'vscode', path: './main.i18n.json' }] }] }
+			})),
+			promises.writeFile(join(extensionPath, 'main.i18n.json'), JSON.stringify({ contents: { 'vs/base/test': { first: translatedMessage } } }))
+		]);
+		return extensionsPath;
+	}
+
+	test('first launch loads the bundled language pack without a user index', async () => {
+		await promises.unlink(join(userDataPath, 'languagepacks.json'));
+		const builtInExtensionsPath = await writeBundledLanguagePack('zh-cn', '第一');
+		const metadata = await writeMetadata('desktop', [['vs/base/test', ['first', 'missing']]], ['First', 'Fallback']);
+		const result = await resolveNLSConfiguration({ userLocale: 'zh-cn', osLocale: 'zh-cn', userDataPath, commit, builtInExtensionsPath, ...metadata });
+		assert.ok(result.languagePack);
+		assert.deepStrictEqual({
+			language: result.resolvedLanguage,
+			messages: JSON.parse(await promises.readFile(result.languagePack.messagesFile, 'utf8')),
+			translations: JSON.parse(await promises.readFile(result.languagePack.translationsConfigFile, 'utf8'))
+		}, {
+			language: 'zh-cn',
+			messages: ['第一', 'Fallback'],
+			translations: { vscode: join(builtInExtensionsPath, 'test-language-pack-zh-cn', 'main.i18n.json') }
+		});
+	});
+
+	test('uses a bundled language absent from an existing index', async () => {
+		const builtInExtensionsPath = await writeBundledLanguagePack('zh-cn', '第一');
+		const metadata = await writeMetadata('desktop', [['vs/base/test', ['first']]], ['First']);
+		const result = await resolveNLSConfiguration({ userLocale: 'zh-cn', osLocale: 'zh-cn', userDataPath, commit, builtInExtensionsPath, ...metadata });
+		assert.strictEqual(result.resolvedLanguage, 'zh-cn');
+	});
+
+	test('reuses bundled caches and refreshes them when translations change at the same version', async () => {
+		await promises.unlink(join(userDataPath, 'languagepacks.json'));
+		const builtInExtensionsPath = await writeBundledLanguagePack('zh-cn', '第一');
+		const metadata = await writeMetadata('desktop', [['vs/base/test', ['first']]], ['First']);
+		const context = { userLocale: 'zh-cn', osLocale: 'zh-cn', userDataPath, commit, builtInExtensionsPath, ...metadata };
+		const original = await resolveNLSConfiguration(context);
+		assert.ok(original.languagePack);
+		await promises.writeFile(original.languagePack.messagesFile, JSON.stringify(['Cached translation']));
+		const cached = await resolveNLSConfiguration(context);
+		assert.ok(cached.languagePack);
+		await writeBundledLanguagePack('zh-cn', '新版翻译');
+		const updated = await resolveNLSConfiguration(context);
+		assert.ok(updated.languagePack);
+		assert.deepStrictEqual({
+			reusedCache: original.languagePack.messagesFile === cached.languagePack.messagesFile,
+			updatedCache: original.languagePack.messagesFile !== updated.languagePack.messagesFile,
+			messages: await Promise.all([cached, updated].map(async result => JSON.parse(await promises.readFile(result.languagePack!.messagesFile, 'utf8'))))
+		}, {
+			reusedCache: true,
+			updatedCache: true,
+			messages: [['Cached translation'], ['新版翻译']]
+		});
+	});
+
+	test('prefers an installed language pack over a bundled one', async () => {
+		const builtInExtensionsPath = await writeBundledLanguagePack('de', 'Bundled');
+		const metadata = await writeMetadata('desktop', [['vs/base/test', ['first']]], ['First']);
+		const result = await resolveNLSConfiguration({ userLocale: 'de-DE', osLocale: 'de', userDataPath, commit, builtInExtensionsPath, ...metadata });
+		assert.ok(result.languagePack);
+		assert.deepStrictEqual(JSON.parse(await promises.readFile(result.languagePack.messagesFile, 'utf8')), ['Erste']);
+	});
+
+	test('falls back to English when bundled language packs are unavailable', async () => {
+		await promises.unlink(join(userDataPath, 'languagepacks.json'));
+		const metadata = await writeMetadata('desktop', [['vs/base/test', ['first']]], ['First']);
+		const builtInExtensionsPath = await writeBundledLanguagePack('zh-cn', '第一');
+		await promises.writeFile(join(builtInExtensionsPath, 'test-language-pack-zh-cn', 'package.json'), 'invalid');
+		const results = await Promise.all([
+			builtInExtensionsPath, join(testDir, 'missing-extensions')
+		].map(builtInExtensionsPath => resolveNLSConfiguration({ userLocale: 'zh-cn', osLocale: 'zh-cn', userDataPath, commit, builtInExtensionsPath, ...metadata })));
+		assert.deepStrictEqual(results.map(result => [result.userLocale, result.resolvedLanguage]), [['zh-cn', 'en'], ['zh-cn', 'en']]);
+	});
+
+	test('an explicit English locale does not load the bundled Chinese pack', async () => {
+		const builtInExtensionsPath = await writeBundledLanguagePack('zh-cn', '第一');
+		const result = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'zh-cn', userDataPath, commit, builtInExtensionsPath, nlsMetadataPath: join(testDir, 'missing') });
+		assert.deepStrictEqual([result.userLocale, result.resolvedLanguage, result.languagePack], ['en', 'en', undefined]);
+	});
+
 	test('switches between server and server-web tables at the same commit', async () => {
 		const serverMetadata = await writeMetadata('server', [
 			['vs/workbench/api/common/extHostLogService', ['remote']]
