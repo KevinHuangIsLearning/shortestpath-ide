@@ -36,6 +36,7 @@ import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/c
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorsOrder } from '../../../common/editor.js';
 import { BrowserEditorInput } from '../../browserView/common/browserEditorInput.js';
+import { BrowserSourceEditorInput } from '../../browserView/common/browserSourceEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
@@ -124,7 +125,13 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		}));
 		this._register(this.browsers.registerOpenHandler({
 			shouldOpenEditor: (input, owner, options) => {
-				if (this.mode === 'solve' || owner.type !== 'user' || options.auxiliaryWindow) { return true; }
+				const fromProblem = options.parentViewId && this.editors.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).some(({ editor }) =>
+					editor instanceof BrowserSourceEditorInput && (editor.secondary as BrowserEditorInput).id === options.parentViewId);
+				if (fromProblem) {
+					void this.switchMode('browse').then(() => this.showBrowser(input, false)).catch(onUnexpectedError);
+					return false;
+				}
+				if (this.mode === 'solve' || owner.type !== 'user') { return true; }
 				void this.showBrowser(input, !!options.background || !!options.preserveFocus).catch(onUnexpectedError);
 				return false;
 			}

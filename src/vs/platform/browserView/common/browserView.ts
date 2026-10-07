@@ -316,6 +316,31 @@ export function isBrowserViewAssociatedResourceNavigation(associatedResource: UR
 	);
 }
 
+/** Keeps a problem page pinned after its initial server redirects have settled. */
+export class BrowserViewNavigationPolicy {
+	private resource: URI | undefined;
+	private started = false;
+	private finished = false;
+	private readonly remote: boolean;
+
+	constructor(resource: URI | undefined) {
+		this.resource = resource;
+		this.remote = resource?.scheme === 'http' || resource?.scheme === 'https';
+	}
+
+	allows(url: string, redirect = false): boolean {
+		if (!this.resource) { return true; }
+		if (this.remote && ((!this.started && !redirect) || (this.started && !this.finished && redirect))) {
+			this.resource = URI.parse(url);
+			this.started = true;
+			return true;
+		}
+		return isBrowserViewAssociatedResourceNavigation(this.resource, url);
+	}
+
+	finishInitialLoad(): void { if (this.started) { this.finished = true; } }
+}
+
 /** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */
 export interface IBrowserViewStorageKeys {
 	readonly history?: string;

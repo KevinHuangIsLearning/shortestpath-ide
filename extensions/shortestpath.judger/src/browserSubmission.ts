@@ -49,7 +49,8 @@ export async function executeSubmissionScript(template: SubmissionTemplate, valu
 	logSubmission(`Opening ${submissionPage(url)}`);
 	if (!vscode.window.openBrowserTab) { throw new Error(localize('judger.browserSubmit.unavailable', 'The integrated browser API is unavailable.')); }
 	// Attach before navigating so script execution cannot race the initial page load.
-	const tab = await vscode.window.openBrowserTab('about:blank', { modal: true, preserveFocus: false });
+	await vscode.commands.executeCommand('shortestpath.mode.browse');
+	const tab = await vscode.window.openBrowserTab('about:blank', { preserveFocus: false });
 	logSubmission('Browser tab opened; attaching CDP');
 	const session = await tab.startCDPSession();
 	let nextId = 0;
@@ -230,7 +231,6 @@ export function getBrowserSubmission(url: string) {
 
 let submitting = false;
 export async function fillBrowserSubmission(problem: Problem): Promise<void> {
-	submissionOutput?.show(true);
 	logSubmission(`Fill requested for ${submissionPage(problem.url)}`);
 	if (submitting) { logSubmission('Ignored: another submission is still running'); return; }
 	submitting = true;

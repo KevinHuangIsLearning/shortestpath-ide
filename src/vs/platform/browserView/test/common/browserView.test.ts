@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, BrowserViewNavigationPolicy, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -109,4 +109,32 @@ suite('BrowserView', () => {
 			},
 		});
 	});
+	test('problem navigation allows initial canonical redirects, then sends other pages outside the pair', () => {
+		const policy = new BrowserViewNavigationPolicy(URI.parse('http://example.com/problem'));
+		assert.strictEqual(policy.allows('http://example.com/problem'), true);
+		assert.strictEqual(policy.allows('https://example.com/problem/', true), true);
+		assert.strictEqual(policy.allows('https://example.com/editorial'), false);
+		policy.finishInitialLoad();
+		assert.deepStrictEqual([
+			policy.allows('https://example.com/problem/#statement'),
+			policy.allows('https://example.com/editorial', true),
+			policy.allows('https://example.com/editorial'),
+		], [true, false, false]);
+		const restored = new BrowserViewNavigationPolicy(URI.parse('http://example.com/problem'));
+		restored.finishInitialLoad(); // An initial blank document must not lock the problem page.
+		assert.strictEqual(restored.allows('https://example.com/problem/'), true);
+		restored.finishInitialLoad();
+		assert.strictEqual(restored.allows('https://example.com/editorial'), false);
+	});
+
+	test('local HTML stays pinned and unassociated browser tabs remain unrestricted', () => {
+		const local = new BrowserViewNavigationPolicy(URI.file('/workspace/index.html'));
+		const regular = new BrowserViewNavigationPolicy(undefined);
+		assert.deepStrictEqual([
+			local.allows(URI.file('/workspace/index.html').toString()),
+			local.allows('https://example.com/', true),
+			regular.allows('https://example.com/'),
+		], [true, false, true]);
+	});
+
 });

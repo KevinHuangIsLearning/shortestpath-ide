@@ -6,12 +6,14 @@
 import './media/browser.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { $, Dimension, IDomPosition } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, IConstructorSignature, BrandedService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
+import { BrowserSourceEditorInput } from '../common/browserSourceEditorInput.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -546,6 +548,10 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		if (this.group.windowId !== mainWindow.vscodeWindowId) {
+			// allow-any-unicode-next-line
+			throw new Error(localize('browser.mainWindowOnly', "集成浏览器只能在主窗口中打开。"));
+		}
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
 			return;
@@ -644,7 +650,9 @@ export class BrowserEditor extends EditorPane {
 	 * Close this editor tab (i.e. the editor input owning the current page).
 	 */
 	closeTab(): void {
-		this.group?.closeEditor(this.input);
+		const input = this.input;
+		const owner = this.group?.editors.find(editor => editor instanceof BrowserSourceEditorInput && editor.secondary === input);
+		void this.group?.closeEditor(owner ?? input);
 	}
 
 	override layout(dimension?: Dimension, _position?: IDomPosition): void {

@@ -18,6 +18,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { RunSourceAction } from '../../../../contrib/shortestpath/browser/problemEditorActions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { BrowserSourceEditorInput } from '../../../../contrib/browserView/common/browserSourceEditorInput.js';
 import { WebviewSourceEditorInput } from '../../../../contrib/webviewPanel/browser/webviewSourceEditorInput.js';
 import { WebviewInput } from '../../../../contrib/webviewPanel/browser/webviewEditorInput.js';
 import { TestEditorGroupView, TestFileEditorInput, workbenchInstantiationService } from '../../workbenchTestServices.js';
@@ -86,6 +87,27 @@ suite('WebviewSourceEditorInput', () => {
 		assert.strictEqual(renamed.secondary, companion);
 		assert.strictEqual(renamed.resource?.path, '/renamed.cpp');
 		assert.strictEqual(renamed.viewStateResource?.path, '/renamed.cpp');
+	});
+
+	test('browser pair keeps its companion and ratio through saving and renaming the source', async () => {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(ITextEditorService, { resolveTextEditor: async (input: IUntypedEditorInput) => store.add(new TestFileEditorInput((input as { resource: URI }).resource, 'test.source')) });
+		const source = store.add(new SourceInput());
+		const browser = store.add(new SourceInput(URI.parse('vscode-browser:/test')));
+		const input = store.add(instantiation.createInstance(BrowserSourceEditorInput, browser, source, 65));
+		source.change();
+		assert.strictEqual(input.isDirty(), true);
+		assert.strictEqual(await input.save(1), input);
+		source.nextSaveAs = { resource: URI.file('/saved.cpp') };
+		const saved = store.add(await input.saveAs(1) as BrowserSourceEditorInput);
+		const moved = store.add((await input.rename(1, URI.file('/moved.cpp')))!.editor as BrowserSourceEditorInput);
+		assert.deepStrictEqual([saved, moved].map(pair => ({
+			browserPair: pair instanceof BrowserSourceEditorInput, companion: pair.secondary === browser,
+			path: pair.resource?.path, ratio: pair.initialSplitRatio, reveal: pair.revealOnPrimaryOpen,
+		})), [
+			{ browserPair: true, companion: true, path: '/saved.cpp', ratio: 0.65, reveal: true },
+			{ browserPair: true, companion: true, path: '/moved.cpp', ratio: 0.65, reveal: true },
+		]);
 	});
 
 	test('extension disposal preserves an unsaved source in a native tab', async () => {

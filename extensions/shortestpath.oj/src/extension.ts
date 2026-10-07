@@ -76,6 +76,7 @@ let persistPendingSubmissionAttempts: () => Promise<void> = async () => {};
 async function openUrl(url: string): Promise<void> {
 	const commands = await vscode.commands.getCommands();
 	if (commands.includes('shortestpath.browser.open')) {
+		await vscode.commands.executeCommand('shortestpath.mode.browse');
 		await vscode.commands.executeCommand('shortestpath.browser.open', url);
 		return;
 	}
@@ -771,6 +772,7 @@ class ShortestPathOjProblemPanel {
 		const problemRef = state.problem.ref;
 		const value = message as {
 			command?: unknown;
+			url?: unknown;
 			hintId?: unknown;
 			target?: unknown;
 			liked?: unknown;
@@ -806,6 +808,9 @@ class ShortestPathOjProblemPanel {
 					if (typeof value.input === 'string' && typeof value.output === 'string' && (value.command === 'localTestAdd' || typeof value.id === 'number' && Number.isSafeInteger(value.id))) {
 						await this.localTestRequest({ action: value.command === 'localTestAdd' ? 'add' : 'update', input: value.input, output: value.output, id: typeof value.id === 'number' ? value.id : undefined });
 					}
+					return;
+				case 'openUrl':
+					if (typeof value.url === 'string' && /^https?:\/\//i.test(value.url)) { await openUrl(value.url); }
 					return;
 				case 'openWebsite': await openUrl(state.problem.url); return;
 				case 'retryConnection': this.actions.retryConnection(); return;
@@ -2141,7 +2146,7 @@ async function submitProblem(
 		const content = problem.publicContent;
 		const sourceUrl = content && 'source_url' in content ? content.source_url : undefined;
 		if (typeof sourceUrl === 'string' && /^https?:\/\//.test(sourceUrl)) {
-			await vscode.env.openExternal(vscode.Uri.parse(sourceUrl));
+			await openUrl(sourceUrl);
 		}
 		return;
 	}

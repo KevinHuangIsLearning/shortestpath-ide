@@ -3,7 +3,12 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ITextEditorService } from '../../../../services/textfile/common/textEditorService.js';
+import { BrowserNewTabPlacementSettingId, BrowserViewWorkbenchService } from '../../../browserView/electron-browser/browserViewWorkbenchService.js';
+import { BrowserSourceEditorInput } from '../../../browserView/common/browserSourceEditorInput.js';
 import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -13,15 +18,15 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IEditorOptions, IResourceEditorInputIdentifier } from '../../../../../platform/editor/common/editor.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, IQuickPickDidAcceptEvent, IQuickInputHideEvent, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IEditorGroupsService, IEmbeddedEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, IQuickPickItemButtonEvent, IQuickPickDidAcceptEvent, IQuickInputHideEvent, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IEditorGroup, IEditorReplacement, IEditorGroupsService, IEditorPart, IEmbeddedEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IUntypedEditorInput, EditorsOrder } from '../../../../common/editor.js';
-import { IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { canOpenEditorsInNewWindow, EditorInputCapabilities, IUntypedEditorInput, EditorsOrder } from '../../../../common/editor.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { workbenchInstantiationService, TestEditorGroupView } from '../../../../test/browser/workbenchTestServices.js';
-import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
+import { workbenchInstantiationService, TestFileEditorInput, TestEditorGroupView } from '../../../../test/browser/workbenchTestServices.js';
+import { BrowserEditorInput, IBrowserEditorInputData } from '../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { IWebviewWorkbenchService } from '../../../webviewPanel/browser/webviewWorkbenchService.js';
 import { ShortestPathModeService } from '../../electron-browser/shortestPathMode.contribution.js';
@@ -355,6 +360,219 @@ suite('ShortestPath browser routing', () => {
 			{ scheme: 'vscode-browser', options: { viewState: { url: 'https://example.com/A' } }, group: SIDE_GROUP },
 			{ scheme: 'vscode-browser', options: { viewState: { url: 'https://example.com/B' } }, group: SIDE_GROUP },
 		]);
+	});
+
+
+	test('problem browser replaces the dirty source tab and reuses it without changing group layout', async () => {
+		const { service, opened, instantiation, preferredCalls } = setup();
+		service.mode = 'browse';
+		const browser = await service.openBrowser('https://example.com/A');
+		const source = store.add(new TestFileEditorInput(URI.file('/A.cpp'), 'test.source'));
+		source.setDirty();
+		const inputs: EditorInput[] = [source];
+		let replacements = 0;
+		const group = new class extends TestEditorGroupView {
+			override editors = inputs;
+			override async replaceEditors(entries: IEditorReplacement[]) {
+				assert.strictEqual(entries[0].editor, source);
+				assert.strictEqual(entries[0].forceReplaceDirty, true);
+				inputs.splice(0, 1, store.add(entries[0].replacement as EditorInput));
+				replacements++;
+			}
+		}(7);
+		const mainPart = new class extends mock<IEditorPart>() { override activeGroup = group; };
+		instantiation.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override groups = [group];
+			override mainPart = mainPart;
+			override getGroup() { return group; }
+		});
+		instantiation.stub(ITextEditorService, 'createTextEditor', () => source);
+		instantiation.stub(IEditorService, 'findEditors', () => [{ editor: source, groupId: 7 }]);
+		instantiation.stub(IBrowserViewWorkbenchService, 'getOrCreateLazy', () => browser);
+		const action = new OpenIntegratedBrowserAction();
+		await instantiation.invokeFunction(accessor => action.run(accessor, { url: 'https://example.com/A', sourceEditor: source.resource.toString(), sourceEditorRatio: 65 }));
+		await instantiation.invokeFunction(accessor => action.run(accessor, { sourceEditor: source.resource.toString() }));
+		const input = inputs[0] as BrowserSourceEditorInput;
+		assert.deepStrictEqual({
+			paired: input instanceof BrowserSourceEditorInput, source: input.primary === source,
+			browser: input.secondary === browser, dirty: input.isDirty(), ratio: input.initialSplitRatio,
+			replacements, placementCalls: preferredCalls(), opened: opened.map(entry => entry.input === input),
+		}, { paired: true, source: true, browser: true, dirty: true, ratio: 0.65, replacements: 1, placementCalls: 2, opened: [true, true] });
+	});
+
+
+	test('importing a dirty source in an auxiliary window moves the native source before pairing in main', async () => {
+		const { instantiation, opened } = setup();
+		const source = store.add(new TestFileEditorInput(URI.file('/aux.cpp'), 'test.source'));
+		source.setDirty();
+		const mainInputs: EditorInput[] = [];
+		const mainGroup = new class extends TestEditorGroupView {
+			override editors = mainInputs;
+			override async replaceEditors(entries: IEditorReplacement[]) {
+				assert.strictEqual(entries[0].editor, source);
+				mainInputs.splice(0, 1, store.add(entries[0].replacement as EditorInput));
+			}
+		}(1);
+		let moved = false;
+		const auxiliaryGroup = new class extends TestEditorGroupView {
+			override editors = [source];
+			override moveEditor(input: EditorInput, target: IEditorGroup) {
+				assert.deepStrictEqual([input === source, target === mainGroup], [true, true]);
+				mainInputs.push(input);
+				moved = true;
+				return true;
+			}
+		}(2);
+		instantiation.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override groups = [mainGroup, auxiliaryGroup];
+			override mainPart = new class extends mock<IEditorPart>() { override activeGroup = mainGroup; };
+			override getGroup() { return auxiliaryGroup; }
+		});
+		instantiation.stub(ITextEditorService, 'createTextEditor', () => source);
+		instantiation.stub(IEditorService, 'findEditors', () => [{ editor: source, groupId: 2 }]);
+		instantiation.stub(IBrowserViewWorkbenchService, 'getPreferredGroup', async () => mainGroup);
+		instantiation.stub(IBrowserViewWorkbenchService, 'getOrCreateLazy', (data: IBrowserEditorInputData) => store.add(instantiation.createInstance(BrowserEditorInput, data, async () => { throw new Error('No model needed'); })));
+		await instantiation.invokeFunction(accessor => new OpenIntegratedBrowserAction().run(accessor, { sourceEditor: source.resource.toString(), url: 'https://example.com/problem' }));
+		const pair = mainInputs[0] as BrowserSourceEditorInput;
+		assert.deepStrictEqual({ moved, source: pair.primary === source, dirty: pair.isDirty(), target: opened.at(-1)?.group === mainGroup,
+			pinned: (pair.secondary as BrowserEditorInput).associatedResource?.toString() },
+			{ moved: true, source: true, dirty: true, target: true, pinned: 'https://example.com/problem' });
+	});
+
+	test('links and popups from a problem pair switch to browsing and leave the source pair intact', async () => {
+		const { service, instantiation, opened, handler } = setup();
+		service.mode = 'solve';
+		const parent = await service.openBrowser('https://example.com/problem');
+		const source = store.add(new TestFileEditorInput(URI.file('/A.cpp'), 'test.source'));
+		source.setDirty();
+		const pair = store.add(instantiation.createInstance(BrowserSourceEditorInput, parent, source, 50));
+		opened.splice(0, opened.length, { input: pair, options: undefined, group: undefined });
+		const child = store.add(instantiation.createInstance(BrowserEditorInput, { id: 'editorial', url: 'https://example.com/editorial' }, async () => { throw new Error('No model needed'); }));
+		// Reuse the resolved mock model from the parent to exercise the native browser-part path.
+		child.model = parent.model!;
+		const handled = handler().shouldOpenEditor(child, { type: 'user' }, { parentViewId: parent.id, auxiliaryWindow: { x: 0, y: 0, width: 600, height: 400 } });
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		assert.deepStrictEqual({ handled, mode: service.mode, owns: service.ownsBrowserTab(child), active: service.activeBrowser === child,
+			sourcePair: opened.some(entry => entry.input === pair), dirty: pair.isDirty() },
+			{ handled: false, mode: 'browse', owns: true, active: true, sourcePair: true, dirty: true });
+	});
+
+	test('native browser pane rejects auxiliary windows before resolving or attaching a view', async () => {
+		const { instantiation } = setup();
+		const browser = store.add(instantiation.createInstance(BrowserEditorInput, { id: 'aux-reject' }, async () => { throw new Error('Must not resolve'); }));
+		const pane = Object.assign(Object.create(BrowserEditor.prototype), { group: { windowId: -999 } }) as BrowserEditor;
+		await assert.rejects(pane.setInput(browser, undefined, { newInGroup: true }, CancellationToken.None), /主窗口/);
+	});
+
+	test('browser tabs and source pairs cannot be moved or copied into another window', () => {
+		const { instantiation } = setup();
+		const browser = store.add(instantiation.createInstance(BrowserEditorInput, { id: 'no-window' }, async () => { throw new Error('No model needed'); }));
+		const source = store.add(new TestFileEditorInput(URI.file('/A.cpp'), 'test.source'));
+		const pair = store.add(instantiation.createInstance(BrowserSourceEditorInput, browser, source, 50));
+		assert.deepStrictEqual({
+			browser: browser.hasCapability(EditorInputCapabilities.NoNewWindow),
+			pair: pair.hasCapability(EditorInputCapabilities.NoNewWindow),
+			mixedGroup: canOpenEditorsInNewWindow([source, pair]),
+			source: canOpenEditorsInNewWindow([source]),
+		}, { browser: true, pair: true, mixedGroup: false, source: true });
+	});
+
+	test('browser placement redirects legacy and explicit auxiliary windows to the main window', async () => {
+		const mainGroup = new TestEditorGroupView(1);
+		const auxiliaryGroup = new TestEditorGroupView(2);
+		const mainPart = { windowId: 1, activeGroup: mainGroup, groups: [mainGroup] };
+		const configuration = new TestConfigurationService();
+		let activeGroup = mainGroup;
+		const controller = Object.assign(Object.create(BrowserViewWorkbenchService.prototype), {
+			configurationService: configuration,
+			editorGroupsService: {
+				mainPart,
+				get activeGroup() { return activeGroup; },
+				getGroup: (id: number) => id === mainGroup.id ? mainGroup : auxiliaryGroup,
+				getPart: (group: TestEditorGroupView) => group === mainGroup ? mainPart : { windowId: 2 },
+			},
+		}) as BrowserViewWorkbenchService;
+		configuration.setUserConfiguration(BrowserNewTabPlacementSettingId, 'window');
+		assert.strictEqual(await controller.getPreferredGroup(), mainGroup);
+		configuration.setUserConfiguration(BrowserNewTabPlacementSettingId, 'activeGroup');
+		assert.deepStrictEqual(await Promise.all([
+			controller.getPreferredGroup(AUX_WINDOW_GROUP),
+			controller.getPreferredGroup(auxiliaryGroup),
+			controller.getPreferredGroup(auxiliaryGroup.id),
+			controller.getPreferredGroup(mainGroup),
+		]), [mainGroup, mainGroup, mainGroup, mainGroup]);
+		activeGroup = auxiliaryGroup;
+		assert.strictEqual(await controller.getPreferredGroup(ACTIVE_GROUP), mainGroup);
+	});
+
+	test('forced browser disposal restores the same dirty source as a native tab', () => {
+		const { instantiation } = setup();
+		const inputs: EditorInput[] = [];
+		const group = new class extends TestEditorGroupView {
+			override editors = inputs;
+			override async replaceEditors(entries: IEditorReplacement[]) {
+				assert.strictEqual(entries[0].forceReplaceDirty, true);
+				inputs.splice(0, 1, entries[0].replacement as EditorInput);
+			}
+		}(7);
+		const controller = Object.assign(Object.create(BrowserViewWorkbenchService.prototype), {
+			instantiationService: instantiation, editorGroupsService: { groups: [group] },
+			_known: new Map(), _onDidChangeBrowserViews: { fire() { } },
+		}) as BrowserViewWorkbenchService;
+		const browser = store.add(controller.getOrCreateLazy({ id: 'forced-close', url: 'https://example.com/A' }));
+		const source = store.add(new TestFileEditorInput(URI.file('/A.cpp'), 'test.source'));
+		source.setDirty();
+		const pair = store.add(instantiation.createInstance(BrowserSourceEditorInput, browser, source, 50));
+		inputs.push(pair);
+		assert.strictEqual(controller['_findEditorGroupForView'](browser.id), 7);
+		browser.dispose(true);
+		assert.strictEqual(controller['_findEditorGroupForView'](browser.id), undefined);
+		assert.deepStrictEqual({ restored: inputs[0] === source, dirty: source.isDirty(), sourceDisposed: source.isDisposed(), pairDisposed: pair.isDisposed() },
+			{ restored: true, dirty: true, sourceDisposed: false, pairDisposed: true });
+	});
+
+	test('browser picker reveals and closes the owning pair through the native dirty-close path', async () => {
+		const { instantiation, opened, known } = setup();
+		const browser = store.add(instantiation.createInstance(BrowserEditorInput, { id: 'paired', url: 'https://example.com/A' }, async () => { throw new Error('No model needed'); }));
+		known.set(browser.id, browser);
+		const source = store.add(new TestFileEditorInput(URI.file('/A.cpp'), 'test.source'));
+		source.setDirty();
+		const pair = store.add(instantiation.createInstance(BrowserSourceEditorInput, browser, source, 50));
+		let closeRequested: EditorInput | undefined;
+		const group = new class extends TestEditorGroupView {
+			override editors = [pair];
+			override async closeEditor(editor: EditorInput) { closeRequested = editor; return false; }
+		}(7);
+		instantiation.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override getGroups() { return [group]; }
+			override getGroup() { return group; }
+		});
+		instantiation.stub(IEditorService, 'getEditors', () => [{ editor: pair, groupId: 7 }]);
+		type TabItem = IQuickPickItem & { editor: BrowserEditorInput; groupId: number };
+		let accept: Parameters<Event<IQuickPickDidAcceptEvent>>[0] = () => { };
+		let close: Parameters<Event<IQuickPickItemButtonEvent<TabItem>>>[0] = () => { };
+		const hidden = store.add(new Emitter<IQuickInputHideEvent>());
+		const picker = new class extends mock<IQuickPick<TabItem, { useSeparators: true }>>() {
+			override items: readonly (TabItem | IQuickPickSeparator)[] = [];
+			override selectedItems: readonly TabItem[] = [];
+			override activeItems: readonly TabItem[] = [];
+			override readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<TabItem>> = listener => { close = listener; return Disposable.None; };
+			override readonly onDidTriggerButton = Event.None;
+			override readonly onDidAccept: Event<IQuickPickDidAcceptEvent> = listener => { accept = listener; return Disposable.None; };
+			override readonly onDidHide = hidden.event;
+			override show() { }
+			override hide() { hidden.fire({ reason: QuickInputHideReason.Other }); }
+			override dispose() { }
+		};
+		instantiation.stub(IQuickInputService, 'createQuickPick', () => picker);
+		instantiation.invokeFunction(accessor => new QuickOpenBrowserAction().run(accessor));
+		const item = picker.items.find((entry): entry is TabItem => entry.type !== 'separator' && entry.editor === browser)!;
+		picker.selectedItems = [item];
+		await accept({ inBackground: false });
+		await close({ item, button: item.buttons![0] });
+		picker.hide();
+		assert.deepStrictEqual({ group: item.groupId, openedPair: opened[0]?.input === pair, closedPair: closeRequested === pair, dirty: source.isDirty(), browserDisposed: browser.isDisposed() },
+			{ group: 7, openedPair: true, closedPair: true, dirty: true, browserDisposed: false });
 	});
 
 });

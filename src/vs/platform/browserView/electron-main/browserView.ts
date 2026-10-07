@@ -7,7 +7,7 @@ import { screen, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, BrowserViewNavigationPolicy, matchesBrowserViewAudience, IBrowserViewHost } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -46,6 +46,7 @@ export class BrowserView extends Disposable {
 
 	private _currentHistoryHandle: IBrowserHistoryItemHandle | undefined;
 	private _explicitNavigationPending = false;
+	private readonly _navigationPolicy: BrowserViewNavigationPolicy;
 	/**
 	 * Active index in the webContents navigation history list.
 	 * Used to tell whether a navigation appended a new entry or replaced the current one in place.
@@ -137,6 +138,7 @@ export class BrowserView extends Disposable {
 	) {
 		super();
 		this._owner = owner;
+		this._navigationPolicy = new BrowserViewNavigationPolicy(associatedResource);
 
 		const webPreferences: Electron.WebPreferences = {
 			...options?.webPreferences,
@@ -338,7 +340,7 @@ export class BrowserView extends Disposable {
 			}
 		});
 		webContents.on('will-redirect', event => {
-			if (this._redirectPinnedNavigation(event.url)) {
+			if (event.isMainFrame && this._redirectPinnedNavigation(event.url, true)) {
 				event.preventDefault();
 			}
 		});
@@ -400,7 +402,10 @@ export class BrowserView extends Disposable {
 				});
 			}
 		});
-		webContents.on('did-finish-load', () => fireLoadingEvent(false));
+		webContents.on('did-finish-load', () => {
+			this._navigationPolicy.finishInitialLoad();
+			fireLoadingEvent(false);
+		});
 
 		this.session.trust.installCertErrorHandler(webContents);
 
@@ -756,8 +761,8 @@ export class BrowserView extends Disposable {
 		await this._view.webContents.loadURL(url);
 	}
 
-	private _redirectPinnedNavigation(url: string): boolean {
-		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url)) {
+	private _redirectPinnedNavigation(url: string, redirect = false): boolean {
+		if (this._navigationPolicy.allows(url, redirect)) {
 			return false;
 		}
 

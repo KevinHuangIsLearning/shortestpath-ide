@@ -23,7 +23,7 @@ import { MergeEditorInput } from '../../contrib/mergeEditor/browser/mergeEditorI
 import { MultiDiffEditorInput } from '../../contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { NotebookEditorInput } from '../../contrib/notebook/common/notebookEditorInput.js';
 import { TerminalEditorInput } from '../../contrib/terminal/browser/terminalEditorInput.js';
-import { WebviewSourceEditorInput } from '../../contrib/webviewPanel/browser/webviewSourceEditorInput.js';
+import { SourceEditorInput } from '../../common/editor/sourceEditorInput.js';
 import { WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { GroupDirection, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../services/editor/common/editorGroupsService.js';
@@ -126,7 +126,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			};
 		}
 
-		if (editor instanceof WebviewSourceEditorInput && editor.primary.resource) {
+		if (editor instanceof SourceEditorInput && editor.primary.resource) {
 			return { kind: TabInputKind.TextInput, uri: editor.primary.resource };
 		}
 

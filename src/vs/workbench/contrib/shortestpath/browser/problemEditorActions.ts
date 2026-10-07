@@ -12,7 +12,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { SideBySideEditor } from '../../../browser/parts/editor/sideBySideEditor.js';
 import { IEditorCommandsContext, SideBySideEditor as Side } from '../../../common/editor.js';
-import { WebviewSourceEditorInput } from '../../webviewPanel/browser/webviewSourceEditorInput.js';
+import { SourceEditorInput } from '../../../common/editor/sourceEditorInput.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 
@@ -38,7 +38,7 @@ export class RunSourceAction extends Action2 {
 	override async run(accessor: ServicesAccessor, _resource?: URI, context?: IEditorCommandsContext): Promise<void> {
 		const pane = getEditorPane(accessor, context);
 		const commandService = accessor.get(ICommandService);
-		if (pane instanceof SideBySideEditor && pane.input instanceof WebviewSourceEditorInput) {
+		if (pane instanceof SideBySideEditor && pane.input instanceof SourceEditorInput) {
 			pane.setOptions({ target: Side.PRIMARY });
 		}
 		pane?.focus();
@@ -56,14 +56,14 @@ export class ToggleProblemAreaAction extends Action2 {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.webviewSource')
+				when: ContextKeyExpr.or(ContextKeyExpr.equals('activeEditor', 'workbench.editor.webviewSource'), ContextKeyExpr.equals('activeEditor', 'workbench.editor.browserSource'))
 			}
 		});
 	}
 
 	override run(accessor: ServicesAccessor, _resource?: URI, context?: IEditorCommandsContext): void {
 		const pane = getEditorPane(accessor, context);
-		if (pane instanceof SideBySideEditor && pane.input instanceof WebviewSourceEditorInput) {
+		if (pane instanceof SideBySideEditor && pane.input instanceof SourceEditorInput) {
 			pane.setSecondaryVisible(!pane.isSecondaryVisible);
 		}
 	}

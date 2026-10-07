@@ -2,7 +2,7 @@
  *  Copyright (c) 2026 ShortestPath IDE contributors.
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-jest.mock('vscode', () => ({ workspace: { isTrusted: true }, window: { openBrowserTab: jest.fn(), showInformationMessage: jest.fn() } }), { virtual: true });
+jest.mock('vscode', () => ({ commands: { executeCommand: jest.fn() }, workspace: { isTrusted: true }, window: { openBrowserTab: jest.fn(), showInformationMessage: jest.fn() } }), { virtual: true });
 jest.mock('../preferences', () => ({}));
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, text: string) => text }));
 import * as vscode from 'vscode';
@@ -53,7 +53,8 @@ describe('integrated browser script execution', () => {
 	test('attaches before navigation and evaluates on attached target; releases listeners', async () => {
 		const browser = mockBrowser();
 		await executeSubmissionScript({ urlTemplate: 'https://example.com/{problemId}', script: 'fill({code})' }, { problemId: 'A', code: 'a`b\n' });
-		expect(vscode.window.openBrowserTab).toHaveBeenCalledWith('about:blank', { modal: true, preserveFocus: false });
+		expect(vscode.commands.executeCommand).toHaveBeenCalledWith('shortestpath.mode.browse');
+		expect(vscode.window.openBrowserTab).toHaveBeenCalledWith('about:blank', { preserveFocus: false });
 		expect(browser.sent.map(message => message.method)).toEqual(['Target.getTargets', 'Target.attachToTarget', 'Page.navigate', 'Runtime.evaluate', 'Runtime.evaluate']);
 		expect(browser.sent.slice(2).every(message => message.sessionId === 'attached')).toBe(true);
 		expect(browser.sent[4].params.expression).toContain('fill("a`b\\n")');

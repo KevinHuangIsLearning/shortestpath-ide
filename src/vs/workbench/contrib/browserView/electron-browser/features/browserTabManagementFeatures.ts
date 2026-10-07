@@ -20,6 +20,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ITextEditorService } from '../../../../services/textfile/common/textEditorService.js';
+import { BrowserSourceEditorInput, findBrowserEditorOwner } from '../../common/browserSourceEditorInput.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -102,12 +104,12 @@ class BrowserTabQuickPick extends Disposable {
 		this._quickPick.buttons = [closeAllButtonItem];
 
 		this._register(this._quickPick.onDidTriggerItemButton(async ({ item }) => {
-			item.editor?.dispose(true);
+			if (item.editor) { await this._closeBrowserTab(item.editor); }
 		}));
 
 		this._register(this._quickPick.onDidTriggerButton(async () => {
 			for (const editor of this._browserViewService.getContextualBrowserViews().values()) {
-				editor.dispose(true);
+				await this._closeBrowserTab(editor);
 			}
 		}));
 
@@ -128,18 +130,29 @@ class BrowserTabQuickPick extends Disposable {
 				this._quickPick.hide();
 				await this._modeService.showBrowser(selected.editor);
 			} else {
-				await this._editorService.openEditor(selected.editor, await this._browserViewService.getPreferredGroup(selected.groupId));
+				const owner = findBrowserEditorOwner(this._editorService, selected.editor);
+				await this._editorService.openEditor(owner?.editor ?? selected.editor, owner?.groupId ?? await this._browserViewService.getPreferredGroup(selected.groupId));
 			}
 		}));
 
 		this._register(this._quickPick.onDidHide(() => this.dispose()));
 	}
 
+	private async _closeBrowserTab(browser: BrowserEditorInput): Promise<void> {
+		const owner = findBrowserEditorOwner(this._editorService, browser);
+		if (owner?.editor instanceof BrowserSourceEditorInput) {
+			await this._editorGroupsService.getGroup(owner.groupId)?.closeEditor(owner.editor);
+		} else {
+			browser.dispose(true);
+		}
+	}
+
 	show(): void {
 		this._buildItems();
 
 		// Pre-select the currently active browser editor
-		const activeEditor = this._editorService.activeEditor;
+		const activeInput = this._editorService.activeEditor;
+		const activeEditor = activeInput instanceof BrowserSourceEditorInput ? activeInput.secondary : activeInput;
 		if (activeEditor instanceof BrowserEditorInput) {
 			const activePick = (this._quickPick.items as readonly (IBrowserQuickPickItem | IQuickPickSeparator)[])
 				.find((item): item is IBrowserQuickPickItem => item.type !== 'separator' && item.editor === activeEditor);
@@ -161,7 +174,7 @@ class BrowserTabQuickPick extends Disposable {
 		const groups = this._editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE);
 
 		const groupsWithBrowserEditors = groups
-			.map(group => ({ group, browserEditors: group.editors.filter((e): e is BrowserEditorInput => e instanceof BrowserEditorInput) }))
+			.map(group => ({ group, browserEditors: group.editors.map(e => e instanceof BrowserSourceEditorInput ? e.secondary : e).filter((e): e is BrowserEditorInput => e instanceof BrowserEditorInput) }))
 			.filter(({ browserEditors }) => browserEditors.length > 0);
 
 		// Track which view IDs appear in at least one editor group
@@ -270,6 +283,9 @@ interface IOpenBrowserOptions {
 	openToSide?: boolean;
 	/** Keep problem display in editor groups even when opened from browsing mode. */
 	openInEditor?: boolean;
+	/** Pair this problem page with a native source document in one editor tab. */
+	sourceEditor?: string;
+	sourceEditorRatio?: number;
 
 	/**
 	 * If set, the first existing tab with a URL matching this glob pattern will be reused / focused instead of opening a new tab.
@@ -293,13 +309,53 @@ export class OpenIntegratedBrowserAction extends Action2 {
 	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
 		const modeService = accessor.get(IShortestPathModeService);
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
-		if (modeService.mode === 'browse' && !options.openToSide && !options.openInEditor) {
+		if (modeService.mode === 'browse' && !options.openToSide && !options.openInEditor && !options.sourceEditor) {
 			await modeService.openBrowser(options.url);
 			return;
 		}
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
+
+		if (options.sourceEditor) {
+			const sourceUri = URI.parse(options.sourceEditor);
+			const groupsService = accessor.get(IEditorGroupsService);
+			const instantiationService = accessor.get(IInstantiationService);
+			const textEditorService = accessor.get(ITextEditorService);
+			const source = textEditorService.createTextEditor({ resource: sourceUri });
+			const existingPair = groupsService.groups.flatMap(group => group.editors
+				.filter((input): input is BrowserSourceEditorInput => input instanceof BrowserSourceEditorInput && input.primary.matches(source))
+				.map(pair => ({ pair, group })))[0];
+			const existing = existingPair ?? editorService.findEditors(sourceUri).filter(entry => entry.editor === source)
+				.map(entry => ({ pair: undefined, group: groupsService.getGroup(entry.groupId) }))[0];
+			const originalGroup = existing?.group;
+			const preferred = await browserViewService.getPreferredGroup(originalGroup ?? groupsService.mainPart.activeGroup);
+			const group = typeof preferred === 'number' ? groupsService.getGroup(preferred) : preferred ?? groupsService.mainPart.activeGroup;
+			if (!group) { return; }
+			const pair = existingPair?.pair;
+			const oldBrowser = pair?.secondary as BrowserEditorInput | undefined;
+			const samePage = !options.url || oldBrowser?.associatedResource?.toString() === options.url;
+			if (pair && originalGroup === group && samePage) {
+				await editorService.openEditor(pair, { pinned: true }, group);
+				return;
+			}
+			// Move the native source first; browsers cannot move across windows.
+			if (originalGroup && originalGroup !== group) {
+				if (pair) {
+					await originalGroup.replaceEditors([{ editor: pair, replacement: source, options: { pinned: true }, forceReplaceDirty: true }]);
+				}
+				if (!originalGroup.moveEditor(source, group)) { return; }
+			}
+			const browser = browserViewService.getOrCreateLazy({ id: generateUuid(), url: options.url, associatedResource: options.url ? URI.parse(options.url) : undefined });
+			const input = instantiationService.createInstance(BrowserSourceEditorInput, browser, source, options.sourceEditorRatio ?? (pair ? pair.initialSplitRatio * 100 : undefined));
+			if (originalGroup) {
+				await group.replaceEditors([{ editor: originalGroup === group && pair ? pair : source, replacement: input, options: { pinned: true }, forceReplaceDirty: true }]);
+			}
+			oldBrowser?.dispose(true);
+			await editorService.openEditor(input, { pinned: true }, group);
+			logBrowserOpen(telemetryService, 'commandWithUrl');
+			return;
+		}
 
 		const resource = BrowserViewUri.forId(generateUuid());
 		const group = await browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
@@ -907,7 +963,10 @@ class BrowserTabUrlSuggestions extends BrowserEditorContribution {
 	private async _switchToTab(source: BrowserEditorInput, target: BrowserEditorInput): Promise<void> {
 		if (source === target) {
 			if (this._modeService.ownsBrowserTab(target)) { await this._modeService.showBrowser(target); }
-			else { await this._editorService.openEditor(target); }
+			else {
+				const owner = findBrowserEditorOwner(this._editorService, target);
+				await this._editorService.openEditor(owner?.editor ?? target, owner?.groupId);
+			}
 			return;
 		}
 		const sourceGroup = this._editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(g => g.contains(source));
@@ -915,7 +974,10 @@ class BrowserTabUrlSuggestions extends BrowserEditorContribution {
 			await sourceGroup.closeEditor(source, { preserveFocus: true });
 		}
 		if (this._modeService.ownsBrowserTab(target)) { await this._modeService.showBrowser(target); }
-		else { await this._editorService.openEditor(target); }
+		else {
+			const owner = findBrowserEditorOwner(this._editorService, target);
+			await this._editorService.openEditor(owner?.editor ?? target, owner?.groupId);
+		}
 	}
 }
 
@@ -951,11 +1013,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[BrowserNewTabPlacementSettingId]: {
 			type: 'string',
-			enum: ['activeGroup', 'sideGroup', 'window'],
+			enum: ['activeGroup', 'sideGroup'],
 			enumDescriptions: [
 				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.activeGroup' }, "New browser tabs open in the currently active editor group."),
-				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.sideGroup' }, "New browser tabs open in a dedicated editor group to the side that is reused for subsequent tabs. The group is locked so other editors are not opened into it."),
-				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.window' }, "New browser tabs open in a dedicated window that is reused for subsequent tabs. The window is locked so other editors are not opened into it.")
+				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.sideGroup' }, "New browser tabs open in a dedicated editor group to the side that is reused for subsequent tabs. The group is locked so other editors are not opened into it.")
 			],
 			default: 'activeGroup',
 			markdownDescription: localize(

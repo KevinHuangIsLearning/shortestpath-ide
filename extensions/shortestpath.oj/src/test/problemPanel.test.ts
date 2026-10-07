@@ -42,8 +42,9 @@ test('statement sections and samples are independently collapsible without rewri
 function createPanel() {
 	const compiled = source();
 	const posted: object[] = [];
+	const opened: string[] = [];
 	const context = vm.createContext({
-		console, setTimeout, clearTimeout,
+		console, setTimeout, clearTimeout, openUrl: async (url: string) => { opened.push(url); },
 		hintAnswerCache: new Map(), hintAnswerCacheKey: (ref: string, id: string) => `${ref}/${id}`,
 		shortestpathOjProtocol_1: protocol,
 		localization_1: { localize: (text: string) => text },
@@ -62,7 +63,7 @@ function createPanel() {
 	panel.panel = { webview: { postMessage: (message: object) => posted.push(structuredClone(message)) } };
 	panel.render = () => { };
 	panel.showOperationToast = () => { };
-	return { panel, posted };
+	return { panel, posted, opened };
 }
 
 test('contest submission bypasses the connection gate without starting a bridge operation', async () => {
@@ -78,12 +79,12 @@ test('contest submission bypasses the connection gate without starting a bridge 
 	});
 });
 
-test('contest submission opens the original OJ in the default browser without invoking the bridge', async () => {
+test('contest submission routes the original OJ through the browsing opener without invoking the bridge', async () => {
 	const compiled = source();
 	const start = compiled.indexOf('async function submitProblem(');
 	const end = compiled.indexOf('\nasync function ', start + 1);
 	const opened: string[] = [];
-	const context = vm.createContext({ vscode: {
+	const context = vm.createContext({ openUrl: async (url: string) => { opened.push(url); }, vscode: {
 		Uri: { parse: (url: string) => url },
 		env: { openExternal: async (url: string) => { opened.push(url); return true; } },
 	} });
@@ -105,6 +106,47 @@ test('contest submission opens the original OJ in the default browser without in
 	problem.publicContent = undefined;
 	await context.submit(problem, {}, {}, new Map());
 	assert.deepEqual(opened, sources);
+});
+
+test('statement website and HTTPS link messages use the browsing opener; unsafe links are ignored', async () => {
+	const { panel, opened } = createPanel();
+	await panel.handleMessage({ command: 'openWebsite' });
+	await panel.handleMessage({ command: 'openUrl', url: 'https://shortestpath.cn/editorial/1' });
+	await panel.handleMessage({ command: 'openUrl', url: 'command:workbench.action.quit' });
+	await panel.handleMessage({ command: 'openUrl', url: 42 });
+	assert.deepEqual(opened, [panel.state.problem.url, 'https://shortestpath.cn/editorial/1']);
+});
+
+test('webview HTTP links prevent the default external opener and forward literal URLs', () => {
+	const compiled = fs.readFileSync(path.resolve(__dirname, '../problemView.js'), 'utf8');
+	const start = compiled.indexOf("document.addEventListener('click', event => {");
+	const prefix = compiled.slice(compiled.indexOf('{', start) + 1, compiled.indexOf('const summary', start));
+	let href = 'https://shortestpath.cn/editorial/1?x=2&y=3';
+	let prevented = 0;
+	const messages: object[] = [];
+	class Element {
+		closest() { return { getAttribute: () => href }; }
+	}
+	const context = vm.createContext({ Element, vscode: { postMessage: (message: object) => messages.push(structuredClone(message)) } });
+	vm.runInContext(`globalThis.click = event => { ${prefix} };`, context);
+	context.click({ target: new Element(), preventDefault: () => { prevented++; } });
+	href = '#sample';
+	context.click({ target: new Element(), preventDefault: () => { prevented++; } });
+	assert.deepEqual({ prevented, messages }, { prevented: 1, messages: [{ command: 'openUrl', url: 'https://shortestpath.cn/editorial/1?x=2&y=3' }] });
+});
+
+test('website opener switches to browsing before opening the integrated URL', async () => {
+	const compiled = source();
+	const start = compiled.indexOf('async function openUrl(');
+	const calls: unknown[][] = [];
+	const context = vm.createContext({ vscode: { commands: {
+		getCommands: async () => ['shortestpath.browser.open'],
+		executeCommand: async (...args: unknown[]) => { calls.push(args); },
+	} } });
+	const body = compiled.slice(start, compiled.indexOf('\n}', start) + 2);
+	vm.runInContext(`${body}; globalThis.open = openUrl;`, context);
+	await context.open('https://shortestpath.cn/problem/1');
+	assert.deepEqual(calls, [['shortestpath.mode.browse'], ['shortestpath.browser.open', 'https://shortestpath.cn/problem/1']]);
 });
 
 test('inline hints fetch accepted answers once and remain available offline without opening a modal', async () => {

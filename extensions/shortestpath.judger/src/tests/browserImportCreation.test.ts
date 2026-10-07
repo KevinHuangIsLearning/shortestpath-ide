@@ -6,14 +6,14 @@ import fs from 'fs';
 jest.mock('vscode', () => ({ window: { showQuickPick: jest.fn(), showInputBox: jest.fn(), showSaveDialog: jest.fn(), showErrorMessage: jest.fn(), showTextDocument: jest.fn(async () => ({})) }, ViewColumn: { One: 1 }, Uri: { file: (value: string) => ({ toString: () => `file://${value}` }) }, workspace: { workspaceFolders: [{ uri: { fsPath: '/workspace' } }], openTextDocument: jest.fn(async () => ({ getText: () => '' })) }, commands: { executeCommand: jest.fn() } }), { virtual: true });
 jest.mock('../extension', () => ({ getJudgeViewProvider: () => ({ extensionToJudgeViewMessage: jest.fn() }) }));
 jest.mock('../toolProcess', () => ({}));
-jest.mock('../preferences', () => ({ getDefaultLangPref: jest.fn(() => 'cpp'), getCppTemplate: () => null, getDefaultLanguageTemplateFileLocation: () => '/template.cpp', getMenuChoices: () => ['cpp'], getVjudgeOjNames: () => null, getVjudgeOpenInBrowser: () => false, getOjMapping: jest.fn(() => null), includeProblemIndex: () => true, getShortestPathFixedTemplate: jest.fn(() => true), getFileNameTemplate: jest.fn(() => '{name}.{ext}'), getFileNameTemplateOverrides: jest.fn(() => null), useShortCodeForcesName: () => false, wordRegex: () => /\w+/g, getDefaultProblemSource: () => 'none', doTemplateFileVariableReplacement: () => false }));
+jest.mock('../preferences', () => ({ getDefaultLangPref: jest.fn(() => 'cpp'), getCppTemplate: () => null, getDefaultLanguageTemplateFileLocation: () => '/template.cpp', getMenuChoices: () => ['cpp'], getVjudgeOjNames: () => null, getVjudgeOpenInBrowser: jest.fn(() => false), getVjudgeBrowserSplitRatio: () => 65, getVjudgeUrlSuffix: () => '#original', getOjMapping: jest.fn(() => null), includeProblemIndex: () => true, getShortestPathFixedTemplate: jest.fn(() => true), getFileNameTemplate: jest.fn(() => '{name}.{ext}'), getFileNameTemplateOverrides: jest.fn(() => null), useShortCodeForcesName: () => false, wordRegex: () => /\w+/g, getDefaultProblemSource: jest.fn(() => 'none'), doTemplateFileVariableReplacement: () => false }));
 jest.mock('../submit', () => ({}));
 jest.mock('../utils', () => ({ randomId: () => 1, isCodeforcesUrl: () => false, isLuoguUrl: () => false, isAtCoderUrl: () => false }));
 jest.mock('../parser', () => ({ saveProblem: jest.fn(), getProblem: () => null }));
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, text: string) => text }));
 import { handleNewProblem } from '../companion';
 import { saveProblem } from '../parser';
-import { getDefaultLangPref, getShortestPathFixedTemplate, getFileNameTemplate, getFileNameTemplateOverrides, getOjMapping } from '../preferences';
+import { getDefaultLangPref, getShortestPathFixedTemplate, getFileNameTemplate, getFileNameTemplateOverrides, getOjMapping, getVjudgeOpenInBrowser, getDefaultProblemSource } from '../preferences';
 import { Problem } from '../types';
 import * as vscode from 'vscode';
 
@@ -153,6 +153,26 @@ describe('browser import filenames without naming templates', () => {
 		expect(result.created).toBe(true);
 		expect(vscode.window.showInputBox).not.toHaveBeenCalled();
 	});
+});
+
+
+test('other OJ imports pair the selected problem page after creating and opening the source', async () => {
+	jest.spyOn(fs, 'existsSync').mockImplementation(file => String(file) === '/template.cpp');
+	jest.spyOn(fs, 'mkdirSync').mockReturnValue(undefined);
+	jest.spyOn(fs, 'readFileSync').mockReturnValue(Buffer.from('template contents'));
+	const write = jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
+	(getVjudgeOpenInBrowser as jest.Mock).mockReturnValueOnce(true).mockReturnValueOnce(true);
+	(getDefaultProblemSource as jest.Mock).mockReturnValueOnce('original');
+	const problem = { name: 'A', url: 'https://example.com/A', tests: [] } as unknown as Problem;
+	await handleNewProblem(problem);
+	const commands = (vscode.commands.executeCommand as jest.Mock).mock.calls;
+	expect(commands).toEqual([
+		['workbench.action.browser.open', { url: 'https://example.com/A', openInEditor: true, sourceEditor: 'file:///workspace/A.cpp', sourceEditorRatio: 65 }],
+		['shortestpath.oj.showProblemForCph', 'https://example.com/A'],
+	]);
+	const execute = vscode.commands.executeCommand as jest.Mock;
+	expect(write.mock.invocationCallOrder[0]).toBeLessThan(execute.mock.invocationCallOrder[0]);
+	expect((vscode.window.showTextDocument as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(execute.mock.invocationCallOrder[0]);
 });
 
 

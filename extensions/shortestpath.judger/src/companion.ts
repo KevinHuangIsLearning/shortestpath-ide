@@ -556,29 +556,6 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         problem.url,
         vjudgeUrlToOpen,
     );
-    if (displayTarget) {
-        const suffix =
-            displayTarget.source === 'vjudge' ? getVjudgeUrlSuffix() : '';
-        const targetUrl = appendVjudgeUrlSuffix(displayTarget.url, suffix);
-        const ratio = getVjudgeBrowserSplitRatio();
-        const left = ratio / 100;
-        const right = (100 - ratio) / 100;
-        await vscode.commands.executeCommand('vscode.setEditorLayout', {
-            orientation: 0,
-            groups: [{ size: left }, { size: right }],
-        });
-        await vscode.commands.executeCommand(
-            'workbench.action.focusSecondEditorGroup',
-        );
-        await vscode.commands.executeCommand(
-            'workbench.action.browser.open',
-            { url: targetUrl, openInEditor: true },
-        );
-        await vscode.commands.executeCommand(
-            'workbench.action.focusFirstEditorGroup',
-        );
-    }
-
     // Add fields absent in competitive companion.
     problem.srcPath = srcPath;
     problem.tests = problem.tests.map((testcase, index) => ({
@@ -668,6 +645,16 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
             new vscode.Range(start, start),
             vscode.TextEditorRevealType.InCenter,
         );
+    }
+
+    if (displayTarget) {
+        const suffix = displayTarget.source === 'vjudge' ? getVjudgeUrlSuffix() : '';
+        await vscode.commands.executeCommand('workbench.action.browser.open', {
+            url: appendVjudgeUrlSuffix(displayTarget.url, suffix),
+            openInEditor: true,
+            sourceEditor: vscode.Uri.file(srcPath).toString(),
+            sourceEditorRatio: getVjudgeBrowserSplitRatio(),
+        });
     }
 
     getJudgeViewProvider().extensionToJudgeViewMessage({

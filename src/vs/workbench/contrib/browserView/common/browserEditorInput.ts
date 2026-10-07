@@ -223,7 +223,7 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.ForceReveal | EditorInputCapabilities.Readonly | (this._initialData.requiresModal ? EditorInputCapabilities.RequiresModal : 0);
+		return EditorInputCapabilities.NoNewWindow | EditorInputCapabilities.ForceReveal | EditorInputCapabilities.Readonly | (this._initialData.requiresModal ? EditorInputCapabilities.RequiresModal : 0);
 	}
 
 	override get resource(): URI {

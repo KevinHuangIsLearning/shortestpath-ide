@@ -8,7 +8,9 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
+import { SideBySideEditor } from '../../../browser/parts/editor/sideBySideEditor.js';
 import { BrowserEditor } from './browserEditor.js';
+import { BrowserSourceEditorInput, BrowserSourceEditorInputSerializer } from '../common/browserSourceEditorInput.js';
 import { BrowserEditorInput, BrowserEditorSerializer } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
@@ -61,6 +63,20 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	BrowserEditorInput.ID,
 	BrowserEditorSerializer
+);
+
+class BrowserSourceEditor extends SideBySideEditor {
+	static override readonly ID = 'workbench.editor.browserSource';
+	override getId(): string { return BrowserSourceEditor.ID; }
+}
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(BrowserSourceEditor, BrowserSourceEditor.ID, localize('browser.source.label', "Problem Editor")),
+	[new SyncDescriptor(BrowserSourceEditorInput)]
+);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
+	BrowserSourceEditorInput.ID,
+	BrowserSourceEditorInputSerializer
 );
 
 class BrowserEditorResolverContribution implements IWorkbenchContribution {

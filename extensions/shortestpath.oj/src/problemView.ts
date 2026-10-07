@@ -478,6 +478,13 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 	/* ---- Submission collapse/expand animation ---- */
 	document.addEventListener('click', event => {
 		const target = event.target;
+		const link = target instanceof Element ? target.closest<HTMLAnchorElement>('a[href]') : null;
+		const href = link?.getAttribute('href');
+		if (href && /^https?:\/\//i.test(href)) {
+			event.preventDefault();
+			vscode.postMessage({ command: 'openUrl', url: href });
+			return;
+		}
 		const summary = target instanceof Element ? target.closest<HTMLElement>('.submission > summary') : null;
 		if (!summary) {
 			return;

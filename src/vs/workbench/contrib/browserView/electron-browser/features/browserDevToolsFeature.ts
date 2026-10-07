@@ -15,6 +15,19 @@ import { BrowserViewCommandId } from '../../../../../platform/browserView/common
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditor, BrowserEditorContribution, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, BrowserActionGroup } from '../browserEditor.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	properties: {
+		'workbench.browser.showDeveloperTools': {
+			type: 'boolean',
+			default: false,
+			// allow-any-unicode-next-line
+			description: localize('browser.showDeveloperTools', "显示内置浏览器的开发人员工具入口。"),
+		}
+	}
+});
 
 const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 
@@ -53,10 +66,11 @@ class ToggleDevToolsAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.developerTools,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.has('config.workbench.browser.showDeveloperTools'), BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
+				when: ContextKeyExpr.has('config.workbench.browser.showDeveloperTools'),
 				group: BrowserActionGroup.Tools,
 				order: 2,
 			},
