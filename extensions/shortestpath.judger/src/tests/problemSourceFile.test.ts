@@ -24,6 +24,12 @@ describe('CPH problem source templates', () => {
 		expect(initializeProblemSourceFile(file, 'new template')).toBe(false);
 		expect(readFileSync(file, 'utf8')).toBe('user solution');
 	});
+	test('explicit replacement writes the new template over an existing source', () => {
+		const file = path.join(directory, 'A.cpp');
+		writeFileSync(file, 'old source');
+		expect(initializeProblemSourceFile(file, 'new template', true)).toBe(true);
+		expect(readFileSync(file, 'utf8')).toBe('new template');
+	});
 	test.each([null, ''])('missing or deliberately empty templates create an empty new file (%p)', template => {
 		const file = path.join(directory, 'A.cpp');
 		expect(initializeProblemSourceFile(file, template)).toBe(true);

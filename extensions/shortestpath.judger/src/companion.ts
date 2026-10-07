@@ -230,6 +230,7 @@ function appendShortestPathTest(preferredSourcePath: string | undefined, value: 
 }
 
 interface OjInfo {
+    mapped: boolean;
     oj: string;
     ojName: string;
     contestId: string;
@@ -239,7 +240,7 @@ interface OjInfo {
 
 /** Detect OJ metadata from a problem URL. All detection is driven by judger.general.ojMapping configuration. */
 const detectOj = (urlStr: string): OjInfo => {
-    const result: OjInfo = { oj: '', ojName: '', contestId: '', problemId: '' };
+    const result: OjInfo = { mapped: false, oj: '', ojName: '', contestId: '', problemId: '' };
     try {
         const url = new URL(urlStr);
         const hostname = url.hostname;
@@ -251,6 +252,7 @@ const detectOj = (urlStr: string): OjInfo => {
             if (!entry) continue;
             if (!hostname.includes(pattern) && !pattern.includes(hostname))
                 continue;
+            result.mapped = true;
             result.oj = entry.oj || '';
             result.ojName = entry.ojName || '';
             result.problemSource =
@@ -375,7 +377,7 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
 };
 
 /** Handle the `problem` sent by Competitive Companion, such as showing the webview, opening an editor, managing layout etc. */
-export const handleNewProblem = async (problem: Problem, preferredSourcePath?: string, contextHash?: string, silent = false, promptForFileName = false): Promise<ProblemCreationResult> => {
+export const handleNewProblem = async (problem: Problem, preferredSourcePath?: string, contextHash?: string, silent = false, promptForFileName = false, browserSourceUrl?: string): Promise<ProblemCreationResult> => {
     globalThis.reporter.sendTelemetryEvent(telmetry.GET_PROBLEM_FROM_COMPANION);
     // If webview may be focused, close it, to prevent layout bug.
     if (vscode.window.activeTextEditor == undefined) {
@@ -479,7 +481,28 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     const previousSourcePath = getPreferredSourcePath(folder, preferredSourcePath);
     const useFixedPath = Boolean(fixedProblemPath) && getShortestPathFixedTemplate();
     let srcPath: string;
-    if (fixedProblemPath && useFixedPath) {
+    let replaceSource = false;
+    if (promptForFileName && !previousSourcePath && !detectOj(browserSourceUrl ?? receivedProblemUrl).mapped) {
+        const suggested = path.basename(getProblemFileName({ ...problem }, extn));
+        const selected = await vscode.window.showSaveDialog({
+            title: localize('judger.browserImport.fileNameTitle', 'Import Problem'),
+            defaultUri: vscode.Uri.file(path.join(folder, suggested)),
+            filters: { [extn.toUpperCase()]: [extn] },
+        });
+        if (!selected) { return { created: false }; }
+        const invalid = validateBrowserImportFileName(path.basename(selected.fsPath), extn);
+        if (invalid) {
+            vscode.window.showErrorMessage(invalid);
+            return { created: false };
+        }
+        srcPath = path.join(path.dirname(selected.fsPath), normalizeBrowserImportFileName(path.basename(selected.fsPath), extn));
+        // Only the exact dialog target has received the native overwrite confirmation.
+        replaceSource = existsSync(srcPath) && srcPath === selected.fsPath;
+        if (existsSync(srcPath) && !replaceSource) {
+            vscode.window.showErrorMessage(localize('judger.browserImport.fileExists', 'A file with this name already exists.'));
+            return { created: false };
+        }
+    } else if (fixedProblemPath && useFixedPath) {
         srcPath = path.join(folder, fixedProblemPath);
     } else {
         let titleFileName: string;
@@ -516,7 +539,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
 
     const cppTemplate = extn === 'cpp' ? getCppTemplate() : null;
     // Validate before creating files or changing the browser layout, so retry remains safe.
-    if (silent && defaultLanguage && previousSource === undefined && cppTemplate === null && !existsSync(srcPath)) {
+    if (silent && defaultLanguage && previousSource === undefined && cppTemplate === null && (replaceSource || !existsSync(srcPath))) {
         const templateLocation = getDefaultLanguageTemplateFileLocation();
         if (templateLocation !== null && !existsSync(templateLocation)) {
             throw new Error(localize('judger.companion.templateMissing', 'Template file does not exist: {0}', templateLocation));
@@ -566,7 +589,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     }));
     problem = preserveIntegratedTests(problem, getProblem(srcPath) ?? (previousSourcePath ? getProblem(previousSourcePath) : null));
 
-    if (!existsSync(srcPath)) {
+    if (replaceSource || !existsSync(srcPath)) {
         let sourceContents = previousSource ?? cppTemplate ?? '';
 
         if (defaultLanguage && previousSource === undefined) {
@@ -618,7 +641,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
                 }
             }
         }
-        initializeProblemSourceFile(srcPath, sourceContents);
+        initializeProblemSourceFile(srcPath, sourceContents, replaceSource);
     }
 
     saveProblem(srcPath, problem);

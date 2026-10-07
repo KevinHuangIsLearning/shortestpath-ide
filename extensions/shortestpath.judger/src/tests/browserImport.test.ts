@@ -106,7 +106,7 @@ test('other OJs still parse and import Companion tasks', async () => {
 	jest.spyOn(fs.promises, 'readFile').mockResolvedValue('parse()');
 	const importProblem = jest.fn(async () => ({ created: true }));
 	await runImportCommand(testBrowser, importProblem, true);
-	expect(importProblem.mock.calls).toEqual([[tasks[0]]]);
+	expect(importProblem.mock.calls).toEqual([[tasks[0], testBrowser.tab.url]]);
 });
 
 test.each(['invalid', 'script', 'closed'])('rejects %s results and always releases the CDP session', async mode => {
@@ -173,7 +173,7 @@ test.each([true, false])('native import %s matched parser chooses automatic or m
 	expect(await register(importer)()).toEqual({ count: 1 });
 	expect(vscode.window.showQuickPick).toHaveBeenCalledTimes(matched ? 0 : 1);
 	expect(f.sent.find(message => message.method === 'Runtime.evaluate' && String(message.params.expression).includes('__shortestpathParserId'))?.params.expression).toContain('__shortestpathParserId = "ExampleParser"');
-	expect(importer).toHaveBeenCalledWith(tasks[0]);
+	expect(importer).toHaveBeenCalledWith(tasks[0], f.tab.url);
 });
 
 test('manual parser picker cancellation releases the import lock without importing', async () => {

@@ -84,7 +84,7 @@ export async function startShortestPathBrowserProblem(tab: vscode.BrowserTab): P
 
 export type BrowserImportResult = { count: number; error?: string; cancelled?: boolean };
 
-export function registerBrowserImport(context: vscode.ExtensionContext, importProblem: (problem: Problem) => Promise<{ created: boolean }>): void {
+export function registerBrowserImport(context: vscode.ExtensionContext, importProblem: (problem: Problem, sourceUrl: string) => Promise<{ created: boolean }>): void {
 	registerBrowserImportCleanup(context);
 	const running = new Set<string>();
 	context.subscriptions.push(vscode.commands.registerCommand('judger.importBrowserProblem', async (tabId?: string, parserId?: string, expectedUrl?: string): Promise<BrowserImportResult> => {
@@ -119,7 +119,7 @@ export function registerBrowserImport(context: vscode.ExtensionContext, importPr
 			const problems = await parseBrowserProblems(tab, expression, sourceUrl);
 			for (const problem of problems) {
 				if (tab.url !== sourceUrl) { throw new Error(localize('judger.browserImport.pageChanged', 'The page changed during import. Please retry.')); }
-				if (!(await importProblem(problem)).created) { return { count, cancelled: true }; }
+				if (!(await importProblem(problem, sourceUrl)).created) { return { count, cancelled: true }; }
 				count++;
 			}
 			return { count };

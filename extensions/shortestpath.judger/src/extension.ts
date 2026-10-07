@@ -55,7 +55,7 @@ const registerCommands = (context: vscode.ExtensionContext) => {
     globalThis.logger.log('Registering commands');
     registerBrowserSubmission(context);
     context.subscriptions.push(vscode.commands.registerCommand('judger.selfTestEnvironment', runEnvironmentSelfTest));
-    registerBrowserImport(context, problem => handleNewProblem(problem, undefined, undefined, true, true));
+    registerBrowserImport(context, (problem, sourceUrl) => handleNewProblem(problem, undefined, undefined, true, true, sourceUrl));
     context.subscriptions.push(vscode.commands.registerCommand('judger.getProblemDirectory', (srcPath: string) => getProblemDirectory(srcPath)));
     // Keep existing user keybindings and external callers working after the ID change.
     for (const command of ['runTestCases', 'submitToCodeForces', 'submitToKattis', 'compileWithoutRunning', 'runSubmitScript', 'getSubmitScriptAliases', 'getSubmitScriptDefaults', 'judgeView.focus']) {
