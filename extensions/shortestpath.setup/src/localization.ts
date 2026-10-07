@@ -56,6 +56,7 @@ const english: Readonly<Record<string, string>> = {
 	'类型提示': 'Type Hints',
 	'颜色主题': 'Color Theme',
 	'字号': 'Font Size',
+	'将 ->、!=、<= 等符号组合显示为连字，需要字体支持。': 'Display symbol combinations such as ->, !=, and <= as ligatures. Requires font support.',
 	"正在保存…": "Saving\u2026",
 	'无法读取编译器的目标平台。': 'Cannot read the compiler target platform.',
 	'无法更新代码提示配置：{0}': 'Could not update code completion settings: {0}',
@@ -605,6 +606,9 @@ const english: Readonly<Record<string, string>> = {
 	,'立即重新启动设置': 'Restart Setup Now'
 	,'未能读取系统字体。请检查系统字体服务后重新打开此页面。': 'Could not read system fonts. Check the system font service, then reopen this page.'
 	,'系统等宽字体': 'System Monospaced Fonts'
+	,'内置及系统等宽字体': 'Bundled and System Monospaced Fonts'
+	,'可选择内置 Fira Code 或检测到的系统等宽字体。': 'Choose the bundled Fira Code or a detected system monospaced font.'
+	,'未发现系统等宽字体，可使用内置 Fira Code。': 'No system monospaced fonts were found. The bundled Fira Code is available.'
 	,'系统字体': 'System Fonts'
 	,'未发现可用的系统字体，无法选择代码字体。': 'No system fonts are available, so a code font cannot be selected.'
 	,'未发现可用的系统等宽字体，无法选择代码字体。': 'No system monospaced fonts are available, so a code font cannot be selected.'

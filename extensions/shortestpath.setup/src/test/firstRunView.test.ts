@@ -41,7 +41,7 @@ test('checklist renders host progress, gates finishing, and preserves external l
 	assert.doesNotMatch(html, /cppStandard|type:'skip'|pageLabels/);
 	assert.match(html, /script-src 'unsafe-inline'/);
 	const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1]; assert.ok(script);
-	const elements = new Map(['title', 'intro', 'finish', 'start', 'next', 'back', 'nextTemplate', 'backEditor', 'nextWorkspace', 'backTemplate', 'chooseWorkspace', 'workspaceTitle', 'workspaceIntro', 'workspaceFolderLabel', 'workspaceFolder', 'workspaceEmpty', 'workspaceError', 'workspacePage', 'workspaceLabel', 'progress', 'notice', 'steps', 'compilePage', 'editorPage', 'templatePage', 'compileLabel', 'editorLabel', 'templateLabel', 'editorTitle', 'editorIntro', 'templateTitle', 'templateIntro', 'cppTemplate', 'templateSaved', 'templatePreview', 'templatePreviewStatus', 'retryTemplatePreview', 'fontSize', 'fontSizeLabel', 'tabSize', 'indentLabel', 'themeLabel', 'colorTheme', 'autoFormatLabel', 'autoFormat', 'hintsLabel', 'clangdVariableTypeHints', 'formatHint', 'typeHint', 'preview', 'previewStatus', 'retryPreview', 'saved'].map(id => [id, new Element()]));
+	const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));
 	const messages: unknown[] = [];
 	let update!: (event: { data: Record<string, unknown> }) => void;
 	vm.runInNewContext(script, { acquireVsCodeApi: () => ({ postMessage: (message: unknown) => messages.push(message) }), document: { getElementById: (id: string) => elements.get(id), createElement: () => new Element() }, window: { addEventListener: (_event: string, handler: typeof update) => { update = handler; } } });
@@ -118,13 +118,13 @@ test('checklist renders host progress, gates finishing, and preserves external l
 	assert.equal(elements.get('workspaceFolder')!.textContent, '/code/<script>external</script>');
 	finish.onclick!(); assert.equal((messages.at(-1) as { type: string }).type, 'complete');
 	assert.deepEqual((messages.at(-1) as { value: FirstRunEditorState }).value, edited);
-	assert.equal(elements.get('fontSize')!.disabled, true);
+	assert.deepEqual(['fontFamily', 'fontLigatures', 'fontSize'].map(id => elements.get(id)!.disabled), [true, true, true]);
 	assert.equal(elements.get('back')!.disabled, true);
 	update({ data: { type: 'folderOpenRequested' } });
 	assert.equal(finish.disabled, false);
 	finish.onclick!();
 	update({ data: { type: 'completeError', message: 'save failed' } });
-	assert.equal(elements.get('fontSize')!.disabled, false);
+	assert.deepEqual(['fontFamily', 'fontLigatures', 'fontSize'].map(id => elements.get(id)!.disabled), [false, false, false]);
 	assert.equal(elements.get('back')!.disabled, false);
 	assert.equal(elements.get('workspaceError')!.hidden, false);
 	assert.equal(finish.disabled, false);
@@ -145,4 +145,48 @@ test('platform differences are confined to preparation items', () => {
 	assert.doesNotMatch(gettingStarted, /默认使用 C\+\+20，无需选择代码目录/);
 	assert.match(gettingStarted, /environmentRunner\?\.snapshot.ready/);
 	assert.doesNotMatch(gettingStarted, /configureLocale|pickWorkspaceFolder|type: 'skip'/);
+});
+
+test('font choices and ligatures save immediately, style both previews, and survive font detection', async () => {
+	const state: EnvironmentSetupState = { running: false, ready: true, steps: [] };
+	const editor: FirstRunEditorState = { fontFamily: 'Fira Code', fontSize: 14, tabSize: 2, cppTemplate: 'int main() {}', fontLigatures: true, colorTheme: 'dark', autoDetectColorScheme: false, themes: [], autoSave: 'off', autoFormat: false, clangdVariableTypeHints: false };
+	const ui = { fontLabel: 'Code Font', fontLigaturesLabel: 'Enable Font Ligatures', fontLigaturesHint: 'Requires font support.', fontLoading: 'Loading fonts', fontDetectionError: 'Detection failed' };
+	const html = firstRunView(state, ui, editor, 'editor');
+	const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));
+	const messages: Array<{ type: string; page?: string; value?: FirstRunEditorState }> = [];
+	let update!: (event: { data: Record<string, unknown> }) => void;
+	const context = {
+		font: '', measureText(text: string) { return { width: this.font.includes('Arial') ? (text.startsWith('i') ? 50 : 100) : 100 }; }
+	};
+	const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1]; assert.ok(script);
+	vm.runInNewContext(script, {
+		acquireVsCodeApi: () => ({ postMessage: (message: typeof messages[number]) => messages.push(JSON.parse(JSON.stringify(message))) }),
+		document: { getElementById: (id: string) => elements.get(id), createElement: (tag: string) => tag === 'canvas' ? { getContext: () => context } : new Element() },
+		window: { addEventListener: (_event: string, handler: typeof update) => { update = handler; } }
+	});
+	const family = elements.get('fontFamily')!, ligatures = elements.get('fontLigatures')!;
+	const snapshot = () => ({ value: family.value, fonts: family.children.map(child => child.value), checked: ligatures.checked, styles: ['preview', 'templatePreview', 'cppTemplate'].map(id => [elements.get(id)!.style.fontFamily, elements.get(id)!.style.fontVariantLigatures]) });
+	assert.deepEqual(snapshot(), { value: 'Fira Code', fonts: ['Fira Code'], checked: true, styles: Array(3).fill(['Fira Code', 'normal']) });
+	assert.equal(messages.filter(message => message.type === 'systemFonts').length, 1);
+	assert.deepEqual(['fontLabel', 'fontLigaturesLabel', 'fontLigaturesHint'].map(id => elements.get(id)!.textContent), [ui.fontLabel, ui.fontLigaturesLabel, ui.fontLigaturesHint]);
+	const receiveFonts = async (value: { fonts: string[]; error?: string }) => {
+		update({ data: { type: 'systemFonts', value } });
+		await new Promise<void>(resolve => setImmediate(resolve));
+	};
+	await receiveFonts({ fonts: ['Menlo', 'Arial', 'Fira Code'] });
+	assert.deepEqual(family.children.map(child => child.value), ['Fira Code', 'Menlo']);
+	assert.ok(family.children.every(child => child.attributes.has('data-i18n-ignore')));
+	family.value = 'Menlo'; family.onchange!();
+	ligatures.checked = false; ligatures.onchange!();
+	const saved = messages.at(-1)!;
+	assert.deepEqual({ type: saved.type, page: saved.page, family: saved.value?.fontFamily, ligatures: saved.value?.fontLigatures, styles: snapshot().styles }, {
+		type: 'save', page: 'font', family: '"Menlo"', ligatures: false, styles: Array(3).fill(['"Menlo"', 'none'])
+	});
+	await receiveFonts({ fonts: [], error: 'Font service unavailable' });
+	assert.deepEqual({ value: family.value, fonts: snapshot().fonts, status: elements.get('fontStatus')!.textContent }, { value: 'Menlo', fonts: ['Fira Code', 'Menlo'], status: 'Font service unavailable' });
+	update({ data: { type: 'firstRunPage', value: 'template', state: { ...editor, fontFamily: '"Menlo", monospace', fontLigatures: false } } });
+	assert.equal(family.value, 'Menlo');
+	assert.equal(messages.filter(message => message.type === 'systemFonts').length, 1);
+	update({ data: { type: 'completeError', message: 'retry' } });
+	assert.equal(family.disabled, false);
 });

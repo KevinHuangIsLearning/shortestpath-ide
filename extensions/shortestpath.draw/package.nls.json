@@ -1,0 +1,5 @@
+{
+	"displayName": "ShortestPath Sketchpad",
+	"description": "An offline Excalidraw sketchpad for working through programming problems.",
+	"command.open": "Open Sketchpad"
+}

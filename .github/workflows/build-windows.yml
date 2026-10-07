@@ -119,17 +119,16 @@ jobs:
             }
           }
 
-      - name: Build Inno Setup installers
+      - name: Build Inno Setup user installer
         shell: pwsh
-        run: npm run gulp -- vscode-win32-x64-system-setup vscode-win32-x64-user-setup
+        run: npm run gulp -- vscode-win32-x64-user-setup
 
-      - name: Stage Inno Setup installers
+      - name: Stage Inno Setup user installer
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $artifactRoot = Join-Path $env:GITHUB_WORKSPACE '.build\artifacts\inno-setup'
           $installers = @(
-            @{ Source = '.build\win32-x64\system-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-x64-Setup.exe' },
             @{ Source = '.build\win32-x64\user-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-x64-User-Setup.exe' }
           )
           New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
@@ -172,7 +171,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload Inno Setup installers
+      - name: Upload Inno Setup user installer
         uses: actions/upload-artifact@v7
         with:
           name: ShortestPath-IDE-windows-x64-inno

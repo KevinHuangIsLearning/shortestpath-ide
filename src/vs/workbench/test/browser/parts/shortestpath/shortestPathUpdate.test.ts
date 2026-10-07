@@ -136,8 +136,9 @@ suite('ShortestPath update check', () => {
 			fastDownloadType: 'windowsUserSetup',
 		});
 		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', 'system'), {
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-Setup.exe',
+			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-User-Setup.exe',
 			allowsMinimumVersionLock: true,
+			fastDownloadType: 'windowsUserSetup',
 		});
 		assert.deepStrictEqual(getShortestPathUpdateTarget('win32', undefined), {
 			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64.zip',
@@ -160,7 +161,7 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(getShortestPathFastDownloadUrl(fastDownloadUrls, getShortestPathUpdateTarget('darwin', undefined)), fastDownloadUrls.macosArm64);
 		assert.strictEqual(getShortestPathFastDownloadUrl(fastDownloadUrls, getShortestPathUpdateTarget('win32', 'user')), fastDownloadUrls.windowsUserSetup);
 		assert.strictEqual(getShortestPathFastDownloadUrl(fastDownloadUrls, getShortestPathUpdateTarget('win32', undefined)), fastDownloadUrls.windowsPortable);
-		assert.strictEqual(getShortestPathFastDownloadUrl(fastDownloadUrls, getShortestPathUpdateTarget('win32', 'system')), undefined);
+		assert.strictEqual(getShortestPathFastDownloadUrl(fastDownloadUrls, getShortestPathUpdateTarget('win32', 'system')), fastDownloadUrls.windowsUserSetup);
 	});
 
 	test('accepts only installer modes written by supported installers', () => {

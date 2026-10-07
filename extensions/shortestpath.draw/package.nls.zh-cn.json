@@ -1,0 +1,5 @@
+{
+	"displayName": "ShortestPath 草稿",
+	"description": "离线 Excalidraw 草稿板，用于推演编程题思路。",
+	"command.open": "打开草稿"
+}

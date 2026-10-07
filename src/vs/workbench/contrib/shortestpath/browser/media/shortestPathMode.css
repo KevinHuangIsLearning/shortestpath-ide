@@ -324,6 +324,10 @@
 	color: #c4a7ff;
 }
 
+.shortestpath-mode-draw[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #ff9bc2;
+}
+
 .shortestpath-mode-settings[aria-pressed="true"] .shortestpath-mode-icon {
 	color: #73b8ff;
 }
@@ -341,6 +345,11 @@
 .monaco-workbench.vs .shortestpath-mode-snippets[aria-pressed="true"] .shortestpath-mode-icon,
 .monaco-workbench.hc-light .shortestpath-mode-snippets[aria-pressed="true"] .shortestpath-mode-icon {
 	color: #7650b8;
+}
+
+.monaco-workbench.vs .shortestpath-mode-draw[aria-pressed="true"] .shortestpath-mode-icon,
+.monaco-workbench.hc-light .shortestpath-mode-draw[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #b63773;
 }
 
 .monaco-workbench.vs .shortestpath-mode-settings[aria-pressed="true"] .shortestpath-mode-icon,
@@ -363,6 +372,12 @@
 .shortestpath-mode-switch .shortestpath-mode-snippets[aria-pressed="true"],
 .shortestpath-mode-switch .shortestpath-mode-snippets:focus-visible {
 	background: var(--vscode-shortestpath-snippetsModeBackground);
+	color: var(--vscode-shortestpath-activeModeForeground);
+}
+
+.shortestpath-mode-switch .shortestpath-mode-draw[aria-pressed="true"],
+.shortestpath-mode-switch .shortestpath-mode-draw:focus-visible {
+	background: var(--vscode-shortestpath-drawModeBackground);
 	color: var(--vscode-shortestpath-activeModeForeground);
 }
 
@@ -426,6 +441,12 @@
 
 .monaco-workbench.shortestpath-page-mode .webview-overlay-content:not(.shortestpath-page-webview):not(.webview-overlay-modal) {
 	visibility: hidden !important;
+}
+
+/* Standalone pages keep the full workspace perimeter even in compact layouts.
+ * The overlay directly hosts and clips the iframe, outside the page surface. */
+.monaco-workbench.shortestpath-dual-mode .webview-overlay-content.shortestpath-page-webview {
+	border-radius: var(--vscode-cornerRadius-large, 12px) !important;
 }
 
 .shortestpath-page-space {

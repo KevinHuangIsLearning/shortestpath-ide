@@ -6,11 +6,12 @@
 import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as os from 'node:os';
 import * as vm from 'node:vm';
 import * as ts from 'typescript';
 import { test } from 'node:test';
 
-function createHost(format?: (source: string, tabSize: number) => Promise<string>) {
+function createHost(format?: (source: string, tabSize: number) => Promise<string>, storedState = new Map<string, unknown>(), portableDataPath?: string) {
 	const commands = new Map<string, () => void>();
 	const setupSelections: object[] = [];
 	const root = path.resolve(__dirname, '../..');
@@ -20,7 +21,7 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 	const openedFolders: Array<{ fsPath: string; completed: unknown; options: unknown }> = [];
 	let dialogCalls = 0;
 	const settings = new Map<string, unknown>();
-	const globalState = new Map<string, unknown>();
+	const globalState = storedState;
 	const scheduled: Array<() => void> = [];
 	const panels: ReturnType<typeof createPanel>[] = [];
 	let held: { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void } | undefined;
@@ -80,14 +81,16 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 	const source = fs.readFileSync(path.join(root, 'src/gettingStarted.ts'), 'utf8') + '\nexport const testApi = { openGettingStarted, maybeAutoOpenGettingStarted, registerGettingStarted };';
 	const exports: { testApi?: { openGettingStarted: (context: unknown) => void; maybeAutoOpenGettingStarted: (context: unknown) => Promise<void>; registerGettingStarted: (context: unknown) => void } } = {};
 	vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
-		exports, process, console, setTimeout: (callback: () => void) => scheduled.push(callback),
+		exports, process: { platform: process.platform, env: { ...process.env, VSCODE_PORTABLE: portableDataPath } }, console, setTimeout: (callback: () => void) => scheduled.push(callback),
 		require(id: string): unknown {
 			if (id === 'vscode') { return vscode; }
+			if (id === './bundledFont') { return { withBundledCodeFont: (html: string) => html }; }
 			if (id === './environmentSetup') { return require('../environmentSetup'); }
 			if (id === './firstRunEditorSession') { return require('../firstRunEditorSession'); }
 			if (id === './firstRunPreview') { return require('../firstRunPreview'); }
 			if (id === './editorPreview') { return { EditorPreview: class { async render(_tabSize: number, _hints: boolean, _format: boolean, source: string) { return { source: format ? await format(source, _tabSize) : source }; } dispose() {} } }; }
 			if (id === './firstRunView') { return { firstRunView: (...args: unknown[]) => JSON.stringify(args) }; }
+			if (id === './rememberedCodeFolder') { return require('../rememberedCodeFolder'); }
 			if (id === './systemFonts') { return { async getSystemFonts() { fontReads++; return fonts; } }; }
 			if (id === './localization') { return { localize: (text: string) => text, localizeToolchainProgress: (text: string) => text, localizeWebviewHtml: (html: string) => html, localizeFormat: (text: string, ...args: string[]) => text.replace(/\{(\d+)\}/g, (_match, index) => args[Number(index)]) }; }
 			if (id === './simpleSettings') { return { getThemeOptions: () => [], findCppStandard: (flags: string) => flags.includes('c++23') ? 'c++23' : 'c++20', isCppStandard: () => true }; }
@@ -281,7 +284,7 @@ test('directory selection survives cancellation, navigation, and reopening', asy
 test('missing or invalid directory blocks completion and exposes selection errors', async () => {
 	const host = createHost();
 	host.setPicker(async () => undefined);
-	const panel = await readyEditor(host);
+	const panel = await readyEditor(host, false);
 	await panel.receive({ type: 'complete', value: { ...editor, workspaceFolder: host.root } });
 	assert.equal(host.openedFolders.length, 0);
 	assert.notEqual(host.settings.get('shortestpath.setup.completed'), true);
@@ -393,4 +396,91 @@ test('choosing a different directory clears the previous pending open request', 
 	await panel.receive({ type: 'chooseWorkspace' });
 	assert.equal(panel.messages.at(-1)?.workspaceFolder, otherFolder);
 	assert.equal(host.globalState.get('shortestpath.gettingStarted.codeFolder'), undefined);
+});
+
+test('the guide defaults to Fira Code, loads system fonts on demand, and persists font choices', async () => {
+	const host = createHost(); host.open();
+	const panel = host.panels[0];
+	assert.equal(JSON.parse(panel.webview.html)[2].fontFamily, 'Fira Code');
+	assert.equal(host.fontReads(), 0);
+	await panel.receive({ type: 'systemFonts' });
+	assert.deepEqual(JSON.parse(JSON.stringify(panel.messages.at(-1))), { type: 'systemFonts', value: { fonts: ['Menlo'] } });
+	await panel.receive({ type: 'startEnvironment' });
+	await panel.receive({ type: 'nextEditor' });
+	await panel.receive({ type: 'save', page: 'font', value: { ...editor, fontFamily: '"Fira Code"', fontLigatures: true }, requestId: 1 });
+	await panel.receive({ type: 'nextTemplate' });
+	assert.deepEqual([host.settings.get('editor.fontFamily'), host.settings.get('editor.fontLigatures'), host.settings.get('editor.fontSize')], ['"Fira Code"', true, 18]);
+});
+
+test('a chosen directory survives restarting before completion and reopening setup after completion', async () => {
+	const host = createHost();
+	await readyEditor(host, false);
+	const remembered = host.globalState.get('shortestpath.gettingStarted.rememberedCodeFolder');
+	assert.equal(JSON.parse(JSON.stringify(remembered)).path, host.root);
+	const restarted = createHost(undefined, host.globalState);
+	const panel = await readyEditor(restarted, false);
+	assert.equal(JSON.parse(panel.webview.html)[5], host.root);
+	restarted.setWorkspace(host.root);
+	await panel.receive({ type: 'complete', value: editor });
+	assert.equal(restarted.globalState.get('shortestpath.gettingStarted.codeFolder'), undefined);
+	restarted.open(); // The settings entry uses the same command after setup is complete.
+	assert.equal(JSON.parse(restarted.panels[1].webview.html)[5], host.root);
+	const reinstalled = createHost(undefined, restarted.globalState);
+	reinstalled.settings.set('shortestpath.setup.completed', true);
+	reinstalled.open();
+	assert.equal(JSON.parse(reinstalled.panels[0].webview.html)[5], host.root);
+});
+
+test('invalid remembered directories stay remembered and a single current local folder is used when available', () => {
+	const storage = new Map<string, unknown>([['shortestpath.gettingStarted.rememberedCodeFolder', { path: path.join(os.tmpdir(), 'shortestpath-missing-folder', 'code') }]]);
+	const empty = createHost(undefined, storage); empty.open();
+	assert.equal(JSON.parse(empty.panels[0].webview.html)[5], null);
+	const current = createHost(undefined, storage); current.setWorkspace(current.root); current.open();
+	assert.equal(JSON.parse(current.panels[0].webview.html)[5], current.root);
+	assert.equal(storage.size, 1);
+	const file = createHost(undefined, new Map([['shortestpath.gettingStarted.rememberedCodeFolder', { path: path.join(current.root, 'package.json') }]]));
+	file.open();
+	assert.equal(JSON.parse(file.panels[0].webview.html)[5], null);
+});
+
+test('portable directory memory and an unfinished folder switch follow a moved portable data folder', async t => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shortestpath-directory-memory-'));
+	t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+	const oldRoot = path.join(root, 'old'), newRoot = path.join(root, 'new');
+	const data = path.join(oldRoot, 'data'), code = path.join(oldRoot, 'code');
+	fs.mkdirSync(data, { recursive: true }); fs.mkdirSync(code);
+	const first = createHost(undefined, new Map(), data);
+	first.setPicker(async () => [first.uri(code)]);
+	const panel = await readyEditor(first, false);
+	await panel.receive({ type: 'complete', value: editor });
+	assert.equal(first.globalState.get('shortestpath.gettingStarted.codeFolder'), code);
+	fs.renameSync(oldRoot, newRoot);
+	const movedCode = path.join(newRoot, 'code');
+	const moved = createHost(undefined, first.globalState, path.join(newRoot, 'data'));
+	moved.setWorkspace(movedCode);
+	await moved.autoOpen();
+	assert.deepEqual([moved.settings.get('shortestpath.setup.completed'), moved.globalState.get('shortestpath.gettingStarted.codeFolder')], [true, undefined]);
+	moved.open();
+	assert.equal(JSON.parse(moved.panels[0].webview.html)[5], movedCode);
+});
+
+test('remembered directories take priority over the currently open folder and cancelled picks retain the memory', async () => {
+	const host = createHost(undefined, new Map([['shortestpath.gettingStarted.rememberedCodeFolder', { path: path.resolve(__dirname, '../../../..') }]]));
+	host.setWorkspace(host.root); host.setPicker(async () => undefined);
+	const panel = await readyEditor(host);
+	assert.equal(panel.messages.at(-1)?.workspaceFolder, path.resolve(__dirname, '../../../..'));
+	assert.equal((host.globalState.get('shortestpath.gettingStarted.rememberedCodeFolder') as { path: string }).path, path.resolve(__dirname, '../../../..'));
+});
+
+test('choosing the current fallback folder clears an unavailable pending folder switch', async () => {
+	const missing = path.join(os.tmpdir(), 'shortestpath-missing-folder', 'old');
+	const host = createHost(undefined, new Map<string, unknown>([
+		['shortestpath.gettingStarted.codeFolder', missing],
+		['shortestpath.gettingStarted.rememberedCodeFolder', { path: missing }]
+	]));
+	await readyEditor(host);
+	assert.deepEqual([
+		host.globalState.get('shortestpath.gettingStarted.codeFolder'),
+		(host.globalState.get('shortestpath.gettingStarted.rememberedCodeFolder') as { path: string }).path
+	], [undefined, host.root]);
 });

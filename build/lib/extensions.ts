@@ -51,6 +51,7 @@ export const prebuiltOIDistributionExtensions = new Set([
 	'adpyke.codesnap',
 	'danielpinto8zz6.c-cpp-compile-run',
 	'shortestpath.judger',
+	'shortestpath.draw',
 	'usernamehw.errorlens',
 	'jeff-hykin.better-cpp-syntax',
 	'llvm-vs-code-extensions.vscode-clangd',

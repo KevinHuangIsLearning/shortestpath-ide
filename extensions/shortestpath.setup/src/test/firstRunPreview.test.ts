@@ -52,3 +52,11 @@ test('first-run defaults match the requested editor, submission, compiler and te
 	assert.equal(defaultCppTemplate, '#include <bits/stdc++.h>\nusing namespace std;\nusing i64 = long long;\n\nvoid solve() {\n\n}\n\nint main() {\n  cin.tie(0)->sync_with_stdio(0);\n  int T = 1;\n  cin >> T;\n  while (T--) solve();\n}\n');
 	assert.equal(recommended['judger.language.cpp.Template'], defaultCppTemplate);
 });
+
+test('preview demonstrates common C++ ligatures and keeps equally styled operator tokens together', () => {
+	const source = editorPreviewSource(2);
+	assert.ok(['->', '>=', '<=', '!=', '&&', '||', '==', '<<', '>>'].every(operator => source.includes(operator)));
+	const tokens = [{ text: 'x ', style: '' }, { text: '!', style: 'operator' }, { text: '=', style: 'operator' }, { text: ' 0', style: '' }];
+	assert.deepEqual(previewLineSegments(tokens, []), [{ text: 'x ', style: '' }, { text: '!=', style: 'operator' }, { text: ' 0', style: '' }]);
+	assert.deepEqual(tokens.map(token => token.text), ['x ', '!', '=', ' 0']);
+});

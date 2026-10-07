@@ -6,9 +6,11 @@
 import * as vscode from 'vscode';
 import { localize, localizeFormat, localizeWebviewHtml } from './localization';
 import { getSystemFonts } from './systemFonts';
+import { codeFontDetectionScript } from './fontSelection';
 import { getCppSnippetsHtml, type SnippetEntry, type SnippetsState } from './snippetsView';
 import { defaultCppTemplate, type PreviewToken } from './firstRunPreview';
 import { installBundledCppSnippets } from './bundledSnippets';
+import { withBundledCodeFont } from './bundledFont';
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 
@@ -277,13 +279,13 @@ async function openCppSnippets(context: vscode.ExtensionContext): Promise<void> 
 	disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
 		if (event.affectsConfiguration('editor')) { void refreshHighlight(); }
 	}));
-	panel.webview.html = localizeWebviewHtml(getCppSnippetsHtml(state, {
+	panel.webview.html = withBundledCodeFont(localizeWebviewHtml(getCppSnippetsHtml(state, {
 		title: localize('代码模板'), list: localize('模板列表'), add: localize('新建模板'), delete: localize('删除模板'),
 		unnamed: localize('未命名模板'), newSnippet: localize('新模板'), prefixUnset: localize('尚未设置触发前缀'), prefixLabel: localize('触发：'),
 		name: localize('模板名称'), description: localize('说明（可选）'), prefix: localize('触发前缀'), body: localize('模板内容'),
 		intro: localize('更改会自动保存。输入触发前缀，可在 C++ 文件中展开模板。'), empty: localize('还没有模板。点击左侧 ＋ 新建一个。'),
 		saving: localize('正在保存…'), saved: localize('已自动保存')
-	}));
+	})), panel.webview, context.extensionUri);
 }
 
 type AutoFormatState = {
@@ -479,7 +481,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 	);
 	context.subscriptions.push(panel);
 	settingsPanel = panel;
-	panel.webview.html = localizeWebviewHtml(getHtml(getState(), isBuyMeACoffeeVisible(context)));
+	panel.webview.html = withBundledCodeFont(localizeWebviewHtml(getHtml(getState(), isBuyMeACoffeeVisible(context))), panel.webview, context.extensionUri);
 	void getSystemFonts().then(async result => {
 		if (isDisposed) {
 			return;
@@ -763,7 +765,7 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 <div class="settings-content" id="settingsContent" role="region" aria-labelledby="categoryTitle">
 <h2 id="categoryTitle">编辑器</h2>
 <section class="card" data-category="editor"><h3>字体</h3>
-<div class="row"><div><label for="fontFamily">代码字体</label><div class="hint">仅可从检测到的系统等宽字体中选择，不支持手动输入。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" disabled aria-describedby="fontLoadStatus"><option>正在读取系统字体…</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div><pre id="fontPreview" class="font-preview" data-i18n-ignore>${previewText}</pre><div id="fontPreviewStatus" class="hint" role="status"></div></div></div>
+<div class="row"><div><label for="fontFamily">代码字体</label><div class="hint">可选择内置 Fira Code 或检测到的系统等宽字体。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" aria-describedby="fontLoadStatus"><option value="Fira Code">Fira Code</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div><pre id="fontPreview" class="font-preview" data-i18n-ignore>${previewText}</pre><div id="fontPreviewStatus" class="hint" role="status"></div></div></div>
 <div class="row"><div><label for="fontLigatures">启用字体连字</label><div id="fontLigaturesStatus" class="hint" role="status"></div></div><label class="toggle"><input id="fontLigatures" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="fontSize">字体大小</label></div><input id="fontSize" type="number" min="1" step="1"></div>
 </section>
@@ -810,19 +812,10 @@ let fontLoadError = '';
 let fontLoadComplete = false;
 let fontDetectionInProgress = false;
 let fontDetectionGeneration = 0;
-let selectedFont = 'monospace';
-let preferCodeFont = true;
+let selectedFont = 'Fira Code';
 let selectedCategory = 'editor';
 const normalizeFont = font => font.trim().replace(/^['"]|['"]$/g, '');
-const serializeFont = font => font === 'monospace' ? font : JSON.stringify(font);
-function codeFontPriority(font) {
-  const family = font.toLowerCase();
-  if (family === 'fira code') return 0;
-  if (family.startsWith('fira code ')) return 1;
-  if (family === 'dejavu sans mono') return 2;
-  if (family.startsWith('dejavu')) return 3;
-  return 4;
-}
+${codeFontDetectionScript}
 function selectCategory(category) {
   selectedCategory = category;
   document.querySelectorAll('section.card[data-category]').forEach(card => { card.hidden = card.dataset.category !== selectedCategory; });
@@ -864,7 +857,6 @@ function applyFontPreview(message) {
 }
 
 function addOptions(select, fonts, label) { const group = document.createElement('optgroup'); group.label = label; fonts.forEach(font => { const option = document.createElement('option'); option.value = font; option.textContent = font; option.style.fontFamily = serializeFont(font); group.append(option); }); select.append(group); }
-function isMonospaceFont(font, context) { context.font = '16px ' + serializeFont(font); return Math.abs(context.measureText('iiiiiiiiii').width - context.measureText('WWWWWWWWWW').width) < 0.01; }
 async function supportsLigatures(font) {
   const stack = serializeFont(font);
   const size = 48;
@@ -919,22 +911,6 @@ async function updateLigatureSupport() {
   setPreview();
   status.textContent = '当前字体不支持连字，无法启用。';
 }
-async function getMonospaceFonts(fonts) {
-  const context = document.createElement('canvas').getContext('2d');
-  if (!context) return [];
-  const result = [];
-  const batchSize = 40;
-  for (let index = 0; index < fonts.length; index += batchSize) {
-    fonts.slice(index, index + batchSize).forEach(font => { if (isMonospaceFont(font, context)) result.push(font); });
-    if (index + batchSize < fonts.length) {
-      await new Promise(resolve => {
-        const schedule = globalThis.requestAnimationFrame ?? (callback => setTimeout(callback, 0));
-        schedule(resolve);
-      });
-    }
-  }
-  return result;
-}
 function fontSelect(font, fonts, label) {
   const select = document.createElement('select');
   addOptions(select, fonts, label);
@@ -957,30 +933,25 @@ function renderFonts() {
   const status = byId('fontLoadStatus');
   const isLoading = !fontLoadComplete && !fontLoadError;
   byId('fontControl').setAttribute('aria-busy', String(isLoading));
+  const fonts = ['Fira Code', ...monospaceSystemFonts.filter(font => font.toLowerCase() !== 'fira code')];
+  const primarySelect = fontSelect(selectedFont, fonts, '内置及系统等宽字体');
+  const primaryValue = primarySelect.value;
+  [...primarySelect.children].forEach(child => primary.append(child));
+  primary.value = primaryValue;
+  primary.disabled = false;
+  primary.style.fontFamily = serializeFont(selectedFont);
   if (!fontLoadComplete) {
-    const loadingOption = document.createElement('option');
-    loadingOption.textContent = fontDetectionInProgress ? '正在检测系统等宽字体…' : '正在读取系统字体…';
-    primary.append(loadingOption);
-    primary.disabled = true;
     status.textContent = fontDetectionInProgress
       ? '正在检测 ' + systemFonts.length + ' 个系统字体中的等宽字体，请稍候。'
       : '正在读取系统字体，请稍候。';
     void updateLigatureSupport();
     return;
   }
-  const primarySelect = fontSelect(selectedFont, monospaceSystemFonts, '系统等宽字体');
-  const primaryValue = primarySelect.value;
-  [...primarySelect.children].forEach(child => primary.append(child));
-  primary.value = primaryValue;
-  primary.disabled = !monospaceSystemFonts.length;
-  primary.style.fontFamily = serializeFont(selectedFont);
   status.textContent = fontLoadError
     ? fontLoadError
-    : !systemFonts.length
-      ? '未发现可用的系统字体，无法选择代码字体。'
-      : !monospaceSystemFonts.length
-        ? '未发现可用的系统等宽字体，无法选择代码字体。'
-        : '已检测到 ' + monospaceSystemFonts.length + ' 个系统等宽字体。';
+    : !monospaceSystemFonts.length
+      ? '未发现系统等宽字体，可使用内置 Fira Code。'
+      : '已检测到 ' + monospaceSystemFonts.length + ' 个系统等宽字体。';
   void updateLigatureSupport();
 }
 async function applySystemFonts(result) {
@@ -997,19 +968,10 @@ async function applySystemFonts(result) {
   }
   fontDetectionInProgress = true;
   renderFonts();
-  let fontChanged = false;
   try {
     const detectedFonts = await getMonospaceFonts(systemFonts);
     if (generation !== fontDetectionGeneration) return;
     monospaceSystemFonts = detectedFonts.sort((left, right) => codeFontPriority(left) - codeFontPriority(right) || left.localeCompare(right));
-    fontChanged = preferCodeFont && monospaceSystemFonts.includes(selectedFont);
-    const preferred = monospaceSystemFonts.find(font => codeFontPriority(font) < 4);
-    if (preferred && (preferCodeFont || !monospaceSystemFonts.includes(selectedFont))) {
-      fontChanged = fontChanged || selectedFont !== preferred;
-      selectedFont = preferred;
-      preferCodeFont = false;
-      setPreview();
-    }
   } catch {
     if (generation !== fontDetectionGeneration) return;
     fontLoadError = '检测系统等宽字体时出现错误。';
@@ -1018,18 +980,12 @@ async function applySystemFonts(result) {
       fontDetectionInProgress = false;
       fontLoadComplete = true;
       renderFonts();
-      if (fontChanged) {
-        const font = selectedFont;
-        await updateLigatureSupport();
-        if (generation === fontDetectionGeneration && font === selectedFont) save(0);
-      }
     }
   }
 }
 function apply(state) {
   const fonts = (state.fontFamily || '').split(',').map(normalizeFont).filter(Boolean);
-  selectedFont = fonts[0] || 'monospace';
-  preferCodeFont = fonts.length !== 1 || selectedFont === 'monospace';
+  selectedFont = fonts[0] || 'Fira Code';
   byId('fontLigatures').checked = !!state.fontLigatures;
   byId('fontSize').value = state.fontSize;
 	byId('autoFormat').checked = !!state.autoFormat;
@@ -1060,7 +1016,7 @@ document.querySelectorAll('input:not(#fontFamily):not(#useExtensionMarketplace),
   control.addEventListener('change', () => save(0));
 });
 byId('useExtensionMarketplace').addEventListener('change', () => vscode.postMessage({ type: 'toggleExtensionMarketplace', enabled: byId('useExtensionMarketplace').checked }));
-byId('fontFamily').addEventListener('change', async () => { selectedFont = byId('fontFamily').value; preferCodeFont = false; setPreview(); await updateLigatureSupport(); save(0); });
+byId('fontFamily').addEventListener('change', async () => { selectedFont = byId('fontFamily').value; setPreview(); await updateLigatureSupport(); save(0); });
 byId('fontLigatures').addEventListener('change', () => setPreview());
 byId('fontSize').addEventListener('input', () => setPreview());
 byId('cppStandard').addEventListener('change', () => { const flags = byId('compilerFlags'); const standard = byId('cppStandard').value; const withoutStandard = flags.value.replace(/(^|\\s)-std=(?:gnu\\+\\+|c\\+\\+)\\d+\\b/g, ' ').replace(/\\s+/g, ' ').trim(); flags.value = '-std=' + standard + (withoutStandard ? ' ' + withoutStandard : ''); save(0); });

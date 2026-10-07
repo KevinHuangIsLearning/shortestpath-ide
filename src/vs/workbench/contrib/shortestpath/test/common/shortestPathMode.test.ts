@@ -5,10 +5,23 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isRestorableBrowserUrl, parseBrowserState } from '../../common/shortestPathMode.js';
+import { getShortestPathPageMode, isRestorableBrowserUrl, isShortestPathPageMode, parseBrowserState, shortestPathPageCommands } from '../../common/shortestPathMode.js';
 
 suite('ShortestPath browser workspace session', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+	test('restores the sketchpad mode and keeps its companion in editor groups', () => {
+		assert.deepStrictEqual({
+			modes: ['browse', 'solve', 'snippets', 'draw', 'settings', undefined].map(isShortestPathPageMode),
+			command: shortestPathPageCommands.draw,
+			pages: [
+				getShortestPathPageMode('shortestpath.shortestpath-draw', 'shortestpath.draw'),
+				getShortestPathPageMode('shortestpath.shortestpath-draw', 'shortestpath.draw.companion'),
+				getShortestPathPageMode('another.extension', 'shortestpath.draw'),
+				getShortestPathPageMode('shortestpath.shortestpath-setup', 'shortestpath.cppSnippets'),
+				getShortestPathPageMode('shortestpath.shortestpath-setup', 'shortestpath.settings'),
+			],
+		}, { modes: [false, false, true, true, true, false], command: 'shortestpath.draw.open', pages: ['draw', undefined, undefined, 'snippets', 'settings'] });
+	});
 	test('restores the selected ordinary page after removing authentication and recovery pages', () => {
 		assert.deepStrictEqual(parseBrowserState(JSON.stringify({ urls: ['https://shortestpath.cn/login', 'https://shortestpath.cn/topics', 'https://shortestpath.cn/ide/connect?token=secret', 'https://shortestpath.cn/problem/dsu/found/A'], active: 3 })), {
 			urls: ['https://shortestpath.cn/topics', 'https://shortestpath.cn/problem/dsu/found/A'], active: 1

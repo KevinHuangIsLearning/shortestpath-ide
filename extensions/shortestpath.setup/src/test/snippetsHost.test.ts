@@ -43,10 +43,12 @@ async function createHost(write: (source: string) => Promise<void> = async () =>
 		exports, Buffer, console,
 		require(id: string): unknown {
 			if (id === 'vscode') { return vscode; }
+			if (id === './bundledFont') { return { withBundledCodeFont: (html: string) => html }; }
 			if (id === './localization') { return { localize: (value: string) => value, localizeWebviewHtml: (value: string) => value, localizeFormat: (value: string, ...args: string[]) => value.replace(/\{(\d+)\}/g, (_match, index) => args[Number(index)]) }; }
 			if (id === './systemFonts') { return {}; }
 			if (id === './snippetsView') { return require('../snippetsView'); }
 			if (id === './bundledSnippets') { return require('../bundledSnippets'); }
+			if (id === './fontSelection') { return require('../fontSelection'); }
 			if (id === './firstRunPreview') { return require('../firstRunPreview'); }
 			return require(id);
 		}

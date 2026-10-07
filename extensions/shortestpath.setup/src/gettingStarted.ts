@@ -13,10 +13,14 @@ import { firstRunView, type FirstRunEditorState } from './firstRunView';
 import { defaultCppTemplate } from './firstRunPreview';
 import { EditorPreview } from './editorPreview';
 import { findCppStandard, getThemeOptions } from './simpleSettings';
+import { withBundledCodeFont } from './bundledFont';
+import { getSystemFonts } from './systemFonts';
+import { codeFolderLocation, codeFolderCandidates, existingCodeFolder, type CodeFolderLocation } from './rememberedCodeFolder';
 
 const GETTING_STARTED_VERSION = 'shortestpath.gettingStarted.version';
 const GETTING_STARTED_FIRST_RUN_MIGRATION = 'shortestpath.gettingStarted.firstRunMigration.v1';
 const FIRST_RUN_CODE_FOLDER = 'shortestpath.gettingStarted.codeFolder';
+const REMEMBERED_CODE_FOLDER = 'shortestpath.gettingStarted.rememberedCodeFolder';
 let activePanel: vscode.WebviewPanel | undefined;
 let environmentRunner: EnvironmentSetupRunner | undefined;
 let firstRunEditorSession = new FirstRunEditorSession();
@@ -33,6 +37,7 @@ type FirstRunSetupInfo = { stages: Array<{ id: string; title: string; text: stri
 type FirstRunMessage =
 	| { type: 'startEnvironment' }
 	| { type: 'environmentState' }
+	| { type: 'systemFonts' }
 	| { type: 'nextEditor' }
 	| { type: 'nextTemplate' }
 	| { type: 'nextWorkspace' }
@@ -99,11 +104,14 @@ async function maybeAutoOpenGettingStarted(context: vscode.ExtensionContext): Pr
 		await context.globalState.update(GETTING_STARTED_VERSION, undefined);
 		await context.globalState.update(GETTING_STARTED_FIRST_RUN_MIGRATION, true);
 	}
-	const pendingFolder = context.globalState.get<string>(FIRST_RUN_CODE_FOLDER);
-	if (pendingFolder && path.isAbsolute(pendingFolder)) {
+	const pendingPath = context.globalState.get<string>(FIRST_RUN_CODE_FOLDER);
+	const location = context.globalState.get<CodeFolderLocation>(REMEMBERED_CODE_FOLDER);
+	const pendingFolder = typeof pendingPath === 'string' && path.isAbsolute(pendingPath)
+		? existingCodeFolder(location?.path === pendingPath ? codeFolderCandidates(location, process.env.VSCODE_PORTABLE) : [pendingPath]) : undefined;
+	if (pendingFolder) {
 		const folders = vscode.workspace.workspaceFolders;
 		if (folders?.length === 1 && folders[0].uri.toString() === vscode.Uri.file(pendingFolder).toString()) {
-			await markFirstRunComplete(context);
+			await markFirstRunComplete(context, pendingFolder);
 			return;
 		}
 		firstRunEditorSession.workspaceFolder = pendingFolder;
@@ -122,6 +130,12 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 		activePanel.reveal(vscode.ViewColumn.Active);
 		return;
 	}
+	if (!firstRunEditorSession.workspaceFolder) {
+		const remembered = codeFolderCandidates(context.globalState.get<CodeFolderLocation>(REMEMBERED_CODE_FOLDER), process.env.VSCODE_PORTABLE);
+		const current = vscode.workspace.workspaceFolders;
+		firstRunEditorSession.workspaceFolder = existingCodeFolder(remembered)
+			?? (current?.length === 1 && current[0].uri.scheme === 'file' ? existingCodeFolder([current[0].uri.fsPath]) : undefined);
+	}
 	let isDisposed = false;
 	const panel = vscode.window.createWebviewPanel('shortestpath.gettingStarted', localize('初始配置'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
 	const editorPreview = new EditorPreview();
@@ -130,7 +144,7 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 	if (!environmentRunner) {
 		environmentRunner = createEnvironmentRunner(loadFirstRunSetupInfo(context));
 	}
-	panel.webview.html = localizeWebviewHtml(getFirstRunHtml());
+	panel.webview.html = withBundledCodeFont(localizeWebviewHtml(getFirstRunHtml()), panel.webview, context.extensionUri);
 	// Keep the configuration steps focused on the editor tab.
 	void Promise.all([
 		vscode.commands.executeCommand('workbench.action.closeSidebar'),
@@ -139,6 +153,10 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 	panel.webview.onDidReceiveMessage(async (message: SaveMessage | FirstRunMessage) => {
 		if (message.type === 'environmentState') {
 			await panel.webview.postMessage({ type: 'environmentState', value: environmentRunner?.snapshot });
+		}
+		if (message.type === 'systemFonts') {
+			const fonts = await getSystemFonts();
+			if (!isDisposed) { await panel.webview.postMessage({ type: 'systemFonts', value: { ...fonts, error: fonts.error ? localize(fonts.error) : undefined } }); }
 		}
 		if (message.type === 'startEnvironment') {
 			await environmentRunner?.run();
@@ -165,7 +183,9 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 				const folder = result?.[0];
 				if (folder) {
 					if (folder.scheme !== 'file' || !path.isAbsolute(folder.fsPath) || !(await fs.promises.stat(folder.fsPath)).isDirectory()) { throw new Error(localize('请选择有效的本地目录。')); }
-					if (folder.fsPath !== session.workspaceFolder) { await context.globalState.update(FIRST_RUN_CODE_FOLDER, undefined); }
+					await rememberCodeFolder(context, folder.fsPath);
+					const pendingFolder = context.globalState.get<string>(FIRST_RUN_CODE_FOLDER);
+					if (pendingFolder && folder.fsPath !== pendingFolder) { await context.globalState.update(FIRST_RUN_CODE_FOLDER, undefined); }
 					session.workspaceFolder = folder.fsPath;
 				}
 			} catch (error) {
@@ -276,12 +296,13 @@ async function finishFirstRun(context: vscode.ExtensionContext, panel: vscode.We
 			// The native window can veto switching folders (for example, cancelled
 			// unsaved-file confirmation). Confirm completion in the target workspace
 			// on activation, and keep this guide available if the switch is cancelled.
+			await rememberCodeFolder(context, workspaceFolder);
 			await context.globalState.update(FIRST_RUN_CODE_FOLDER, workspaceFolder);
 			await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(workspaceFolder), { forceReuseWindow: true });
 			if (activePanel) { await activePanel.webview.postMessage({ type: 'folderOpenRequested' }); }
 			return;
 		}
-		await markFirstRunComplete(context);
+		await markFirstRunComplete(context, workspaceFolder);
 		if (activePanel) { activePanel.dispose(); } else { panel.dispose(); }
 		environmentRunner = undefined;
 		firstRunEditorSession = new FirstRunEditorSession();
@@ -289,7 +310,12 @@ async function finishFirstRun(context: vscode.ExtensionContext, panel: vscode.We
 	if (!completed) { void vscode.window.showWarningMessage(localize('编译环境尚未准备完成。请完成安装后重试。')); }
 }
 
-async function markFirstRunComplete(context: vscode.ExtensionContext): Promise<void> {
+async function rememberCodeFolder(context: vscode.ExtensionContext, folder: string): Promise<void> {
+	await context.globalState.update(REMEMBERED_CODE_FOLDER, codeFolderLocation(folder, process.env.VSCODE_PORTABLE));
+}
+
+async function markFirstRunComplete(context: vscode.ExtensionContext, workspaceFolder: string): Promise<void> {
+	await rememberCodeFolder(context, workspaceFolder);
 	await context.globalState.update(FIRST_RUN_CODE_FOLDER, undefined);
 	await context.globalState.update(GETTING_STARTED_VERSION, currentExtensionVersion());
 	await context.globalState.update('shortestpath.setupComplete', true);
@@ -347,7 +373,7 @@ function getFirstRunEditorState(): FirstRunEditorState {
 	const colorTheme = vscode.workspace.getConfiguration('workbench', null).get<string>('colorTheme') ?? 'One Monokai';
 	const inlayHintsEnabled = editor.get<boolean | string>('inlayHints.enabled') ?? 'on';
 	return {
-		fontFamily: editor.get<string>('fontFamily') ?? '',
+		fontFamily: editor.get<string>('fontFamily') || 'Fira Code',
 		fontSize: editor.get<number>('fontSize') ?? 14,
 		fontLigatures: editor.get<boolean | string>('fontLigatures') === true || editor.get<boolean | string>('fontLigatures') === 'true',
 		tabSize: editor.get<number>('tabSize') ?? 2,
@@ -368,6 +394,9 @@ function getFirstRunHtml(): string {
 		ready: localize('环境已就绪，自测通过。'), failed: localize('配置未完成。请展开失败步骤查看日志，然后重试。'),
 		waiting: localize('完成环境检查后继续。'),
 		editorTitle: localize('编辑配置'), editorIntro: localize('按你的习惯调整编辑体验。'),
+		fontLabel: localize('代码字体'), fontLigaturesLabel: localize('启用字体连字'),
+		fontLigaturesHint: localize('将 ->、!=、<= 等符号组合显示为连字，需要字体支持。'),
+		fontLoading: localize('正在读取系统字体，请稍候。'), fontDetectionError: localize('检测系统等宽字体时出现错误。'),
 		fontSizeLabel: localize('字号'), indentLabel: localize('代码缩进'), themeLabel: localize('颜色主题'),
 		autoFormatLabel: localize('自动格式化'), hintsLabel: localize('clang 类型提示'),
 		formatHint: localize('保存与粘贴时自动整理代码格式。'), typeHint: localize('在代码旁显示变量的推导类型。'),

@@ -37,6 +37,17 @@ suite('FontMeasurements', () => {
 		maxDigitWidth: 8,
 	};
 
+	test('invalidates cached fallback measurements after a web font loads', () => {
+		const fontMeasurements = store.add(new FontMeasurementsImpl());
+		let changeCount = 0;
+		store.add(fontMeasurements.onDidChange(() => changeCount++));
+		fontMeasurements.restoreFontInfo(mainWindow, [restoredFontInfo]);
+		mainWindow.document.fonts.dispatchEvent(new Event('loadingdone'));
+		assert.deepStrictEqual({
+			cachedFonts: fontMeasurements.serializeFontInfo(mainWindow), changeCount
+		}, { cachedFonts: [], changeCount: 1 });
+	});
+
 	test('preserves restored untrusted font information through eviction', () => {
 		const clock = sinon.useFakeTimers();
 		const fontMeasurements = store.add(new FontMeasurementsImpl());

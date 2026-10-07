@@ -6,6 +6,7 @@
 import type { FirstRunPage } from './firstRunEditorSession';
 import type { EnvironmentSetupState } from './environmentSetup';
 import { previewLineSegments } from './firstRunPreview';
+import { codeFontDetectionScript } from './fontSelection';
 
 export type FirstRunEditorState = {
 	fontFamily: string;
@@ -33,6 +34,8 @@ footer{justify-content:space-between;margin-top:24px}button:hover:not(:disabled)
 <nav aria-label="${ui.setupSteps}"><span id="compileLabel"></span><span id="editorLabel"></span><span id="templateLabel"></span><span id="workspaceLabel"></span></nav>
 <section id="compilePage"><h1 id="title"></h1><p id="intro"></p><ol id="steps" aria-label="${ui.title}"></ol><progress id="progress" hidden></progress><p id="notice" role="status" aria-live="polite"></p><footer><button id="start"></button><button id="next" disabled></button></footer></section>
 <section id="editorPage" hidden><h1 id="editorTitle"></h1><p id="editorIntro"></p><div class="settings">
+<div class="setting"><div><label id="fontLabel" for="fontFamily"></label><div id="fontStatus" class="description" role="status" aria-live="polite"></div></div><select id="fontFamily"></select></div>
+<div class="setting"><div><label id="fontLigaturesLabel" for="fontLigatures"></label><div id="fontLigaturesHint" class="description"></div></div><input id="fontLigatures" type="checkbox"></div>
 <div class="setting"><label id="fontSizeLabel" for="fontSize"></label><input id="fontSize" type="number" min="6" max="40" step="1"></div>
 <div class="setting"><label id="indentLabel" for="tabSize"></label><select id="tabSize"><option value="2">2</option><option value="4">4</option><option value="8">8</option></select></div>
 <div class="setting"><label id="themeLabel" for="colorTheme"></label><select id="colorTheme"></select></div>
@@ -56,9 +59,13 @@ let choosingWorkspace = initial.choosingWorkspace;
 let previewId = 0;
 let templateEditing = false;
 let templateResult;
+let fontsRequested = false;
+let systemCodeFonts = [];
+let fontDetectionGeneration = 0;
+${codeFontDetectionScript}
 const splitTokens = ${previewLineSegments.toString()};
 const rows = new Map();
-for (const [id, key] of Object.entries({title:'title',intro:'intro',next:'next',nextTemplate:'next',nextWorkspace:'next',workspaceTitle:'workspaceTitle',workspaceIntro:'workspaceIntro',workspaceFolderLabel:'workspaceFolderLabel',workspaceEmpty:'workspaceEmpty',chooseWorkspace:'chooseWorkspace',backTemplate:'back',editorTitle:'editorTitle',editorIntro:'editorIntro',templateTitle:'templateTitle',templateIntro:'templateIntro',finish:'finish',back:'back',backEditor:'back',fontSizeLabel:'fontSizeLabel',indentLabel:'indentLabel',themeLabel:'themeLabel',autoFormatLabel:'autoFormatLabel',hintsLabel:'hintsLabel',formatHint:'formatHint',typeHint:'typeHint',retryPreview:'retryPreview',retryTemplatePreview:'retryPreview'})) { byId(id).textContent = ui[key]; }
+for (const [id, key] of Object.entries({title:'title',intro:'intro',next:'next',nextTemplate:'next',nextWorkspace:'next',workspaceTitle:'workspaceTitle',workspaceIntro:'workspaceIntro',workspaceFolderLabel:'workspaceFolderLabel',workspaceEmpty:'workspaceEmpty',chooseWorkspace:'chooseWorkspace',backTemplate:'back',editorTitle:'editorTitle',editorIntro:'editorIntro',templateTitle:'templateTitle',templateIntro:'templateIntro',finish:'finish',back:'back',backEditor:'back',fontLabel:'fontLabel',fontLigaturesLabel:'fontLigaturesLabel',fontLigaturesHint:'fontLigaturesHint',fontSizeLabel:'fontSizeLabel',indentLabel:'indentLabel',themeLabel:'themeLabel',autoFormatLabel:'autoFormatLabel',hintsLabel:'hintsLabel',formatHint:'formatHint',typeHint:'typeHint',retryPreview:'retryPreview',retryTemplatePreview:'retryPreview'})) { byId(id).textContent = ui[key]; }
 byId('compileLabel').textContent = '1 · ' + ui.title;
 byId('editorLabel').textContent = '2 · ' + ui.editorTitle;
 byId('templateLabel').textContent = '3 · ' + ui.templateTitle;
@@ -78,7 +85,10 @@ function showPage(value) {
   renderWorkspace();
   ++previewId;
   if (page === 'template' && templateResult) renderPreview(templateResult);
-  if (page === 'editor' || page === 'template') requestPreview();
+  if (page === 'editor' || page === 'template') {
+    if (!fontsRequested) { fontsRequested = true; status('fontStatus',ui.fontLoading); vscode.postMessage({type:'systemFonts'}); }
+    requestPreview();
+  }
 }
 function render(value) {
   state = value;
@@ -124,6 +134,25 @@ function option(select, value, label, external = false) {
   if (external) element.setAttribute('data-i18n-ignore','');
   select.append(element);
 }
+function renderFonts() {
+  const select = byId('fontFamily'); select.replaceChildren();
+  const current = (editor.fontFamily || 'Fira Code').split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+  const fonts = [...new Set(['Fira Code', current, ...systemCodeFonts])];
+  for (const font of fonts) option(select, font, font, true);
+  select.value = current;
+}
+async function applySystemFonts(value) {
+  const generation = ++fontDetectionGeneration;
+  try {
+    const fonts = await getMonospaceFonts(value.fonts);
+    if (generation !== fontDetectionGeneration) return;
+    systemCodeFonts = fonts.filter(font => font.toLowerCase() !== 'fira code').sort((left,right) => codeFontPriority(left)-codeFontPriority(right) || left.localeCompare(right));
+    renderFonts();
+    status('fontStatus',value.error);
+  } catch {
+    if (generation === fontDetectionGeneration) status('fontStatus',ui.fontDetectionError);
+  }
+}
 function previewStyle() {
   for (const id of ['preview','templatePreview','cppTemplate']) {
     byId(id).style.fontFamily = editor.fontFamily;
@@ -156,6 +185,8 @@ function renderPreview(value) {
 }
 function renderEditor(value) {
   editor = value;
+  renderFonts();
+  byId('fontLigatures').checked = editor.fontLigatures;
   byId('fontSize').value = editor.fontSize;
   byId('tabSize').value = editor.tabSize;
   byId('cppTemplate').value = editor.cppTemplate;
@@ -170,6 +201,8 @@ function renderEditor(value) {
 function save(section, value) {
   vscode.postMessage({type:'save',page:section,value,requestId:++saveId});
 }
+byId('fontFamily').onchange = () => { editor.fontFamily = serializeFont(byId('fontFamily').value); previewStyle(); save('font',editor); };
+byId('fontLigatures').onchange = () => { editor.fontLigatures = byId('fontLigatures').checked; previewStyle(); save('font',editor); };
 byId('fontSize').onchange = () => { editor.fontSize = Math.min(40,Math.max(6,Number(byId('fontSize').value)||14)); byId('fontSize').value=editor.fontSize; previewStyle(); save('font',editor); };
 byId('tabSize').onchange = () => { editor.tabSize = Number(byId('tabSize').value); save('indent',editor); requestPreview(); };
 byId('colorTheme').onchange = () => { editor.colorTheme = byId('colorTheme').value; save('theme',editor); requestPreview(); };
@@ -196,12 +229,13 @@ byId('backTemplate').onclick = () => { if(!completing&&!choosingWorkspace) vscod
 byId('chooseWorkspace').onclick = () => { if(!completing&&!choosingWorkspace&&page==='workspace') { choosingWorkspace = true; renderWorkspace(); vscode.postMessage({type:'chooseWorkspace'}); } };
 function lockEditor(value) {
   completing = value;
-  for (const id of ['fontSize','tabSize','colorTheme','autoFormat','clangdVariableTypeHints','cppTemplate','nextTemplate','back','backEditor','nextWorkspace','backTemplate','finish']) byId(id).disabled = completing || (id === 'finish' && !state.ready);
+  for (const id of ['fontFamily','fontLigatures','fontSize','tabSize','colorTheme','autoFormat','clangdVariableTypeHints','cppTemplate','nextTemplate','back','backEditor','nextWorkspace','backTemplate','finish']) byId(id).disabled = completing || (id === 'finish' && !state.ready);
   renderWorkspace();
 }
 byId('finish').onclick = () => { if(!completing&&!choosingWorkspace&&page==='workspace'&&workspaceFolder&&state.ready&&!state.running) { lockEditor(true); vscode.postMessage({type:'complete',value:editor}); } };
 window.addEventListener('message',event => {
   const message = event.data;
+  if (message.type==='systemFonts') void applySystemFonts(message.value);
   if (message.type==='environmentState') render(message.value);
   if (message.type==='firstRunPage') { renderEditor(message.state); workspaceFolder = message.workspaceFolder; showPage(message.value); }
   if (message.type==='saveResult'&&message.requestId===saveId) status(page === 'template' ? 'templateSaved' : 'saved',message.success?'':message.message);

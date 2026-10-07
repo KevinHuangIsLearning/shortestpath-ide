@@ -6,7 +6,7 @@
 export const defaultCppTemplate = '#include <bits/stdc++.h>\nusing namespace std;\nusing i64 = long long;\n\nvoid solve() {\n\n}\n\nint main() {\n  cin.tie(0)->sync_with_stdio(0);\n  int T = 1;\n  cin >> T;\n  while (T--) solve();\n}\n';
 
 export function editorPreviewSource(tabSize: number): string {
-	const source = '#include <bits/stdc++.h>\nusing namespace std;\n\nint main(){\n  vector<pair<string,int>> scores={{"Alice", 85},{"Bob",92}};\n  auto total=0LL;\n  for(const auto& [name,score]:scores){\n    auto passed=score>=60; total+=score;\n    if(passed){cout<<name<<": "<<score<<\'\\n\';}else{cout<<name<<": FAIL"<<\'\\n\';}\n  }\n  auto average=static_cast<double>(total)/scores.size();\n  cout<<fixed<<setprecision(2)<<average<<\'\\n\';\n  return 0;\n}\n';
+	const source = '#include <bits/stdc++.h>\nusing namespace std;\n\nint main(){\n  vector<pair<string,int>> scores={{"Alice", 85},{"Bob",92}};\n  auto valid=[](int score) -> bool {\n    return score>=0 && score<=100 && score!=60;\n  };\n  auto total=0LL;\n  for(const auto& [name,score]:scores){\n    auto passed=valid(score) && (score>=60 || score==100); total+=score;\n    if(passed){cout<<name<<": "<<score<<\'\\n\';}else{cout<<name<<": FAIL"<<\'\\n\';}\n  }\n  auto average=static_cast<double>(total)/scores.size();\n  cout<<fixed<<setprecision(2)<<average<<\'\\n\';\n  return 0;\n}\n';
 	return source.replace(/^( +)/gm, indent => ' '.repeat(indent.length / 2 * tabSize));
 }
 
@@ -24,7 +24,14 @@ export function previewLineSegments(tokens: PreviewToken[], hints: PreviewHint[]
 	const sorted = hints.slice().sort((a, b) => a.character - b.character);
 	let offset = 0;
 	let index = 0;
+	// Grammar tokens can split an operator; keep equal styles together so the font can shape ligatures.
+	const merged: PreviewToken[] = [];
 	for (const token of tokens) {
+		const previous = merged.at(-1);
+		if (previous && previous.style === token.style) { previous.text += token.text; }
+		else { merged.push({ ...token }); }
+	}
+	for (const token of merged) {
 		let start = 0;
 		while (index < sorted.length && sorted[index].character <= offset + token.text.length) {
 			const hint = sorted[index++];

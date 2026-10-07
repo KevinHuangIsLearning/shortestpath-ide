@@ -13,7 +13,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { getNLSLanguage, localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { BrowserViewStorageScope, IBrowserViewService, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -40,7 +40,7 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../browserVi
 import { BrowserOverlayManager } from '../../browserView/electron-browser/overlayManager.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
-import { IShortestPathModeService, isRestorableBrowserUrl, parseBrowserState, shortestPathHome, ShortestPathMode } from '../common/shortestPathMode.js';
+import { getShortestPathPageMode, IShortestPathModeService, isRestorableBrowserUrl, isShortestPathPageMode, parseBrowserState, shortestPathHome, shortestPathPageCommands, ShortestPathMode, ShortestPathPageMode } from '../common/shortestPathMode.js';
 import { createNavigationHoverDelegate } from '../browser/shortestPathNavigationHover.js';
 import { ShortestPathBrowserOverlay } from '../browser/shortestPathBrowserOverlay.js';
 import { shouldRevealSolveEditor } from '../browser/shortestPathEditorMode.js';
@@ -49,10 +49,14 @@ const browsingContext = new RawContextKey<boolean>('shortestpath.browsing', fals
 const pageContext = new RawContextKey<boolean>('shortestpath.page', false);
 const modeKey = 'shortestpath.mode';
 const tabsKey = 'shortestpath.browser.tabs';
+const drawLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? "草稿" : localize('sp.draw', "Sketchpad");
+const drawTitle = localize2('sp.switchDraw', "Open Sketchpad");
+if (getNLSLanguage()?.toLowerCase().startsWith('zh')) { drawTitle.value = "打开草稿"; }
 
 registerColor('shortestpath.browseModeBackground', 'toolbar.hoverBackground', localize('sp.browseBackground', "浏览模式选中和聚焦时的背景色。"));
 registerColor('shortestpath.solveModeBackground', 'toolbar.hoverBackground', localize('sp.solveBackground', "做题模式选中和聚焦时的背景色。"));
 registerColor('shortestpath.snippetsModeBackground', 'toolbar.hoverBackground', localize('sp.snippetsBackground', "代码片段选中和聚焦时的背景色。"));
+registerColor('shortestpath.drawModeBackground', 'toolbar.hoverBackground', getNLSLanguage()?.toLowerCase().startsWith('zh') ? "草稿选中和聚焦时的背景色。" : localize('sp.drawBackground', "Background of the sketchpad button when selected or focused."));
 registerColor('shortestpath.settingsModeBackground', 'toolbar.hoverBackground', localize('sp.settingsBackground', "设置选中和聚焦时的背景色。"));
 registerColor('shortestpath.activeModeForeground', 'titleBar.activeForeground', localize('sp.modeForeground', "工作模式选中和聚焦时的文字颜色。"));
 
@@ -66,9 +70,9 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 	private readonly tabs = new Map<string, BrowserEditorInput>();
 	private readonly tabStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly tabUi = this._register(new DisposableStore());
-	private readonly pages = new Map<'snippets' | 'settings', WebviewInput>();
-	private readonly pageStores = this._register(new DisposableMap<'snippets' | 'settings', DisposableStore>());
-	private readonly pendingPages = new Map<'snippets' | 'settings', Promise<void>>();
+	private readonly pages = new Map<ShortestPathPageMode, WebviewInput>();
+	private readonly pageStores = this._register(new DisposableMap<ShortestPathPageMode, DisposableStore>());
+	private readonly pendingPages = new Map<ShortestPathPageMode, Promise<void>>();
 	private readonly overlay = this._register(new BrowserOverlayManager(mainWindow));
 	private readonly ready: Promise<void>;
 	private surface!: HTMLElement;
@@ -84,6 +88,7 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 	private browseButton!: HTMLButtonElement;
 	private solveButton!: HTMLButtonElement;
 	private snippetsButton!: HTMLButtonElement;
+	private drawButton!: HTMLButtonElement;
 	private settingsButton!: HTMLButtonElement;
 	private pageSurface!: HTMLElement;
 	private resultBadge!: HTMLElement;
@@ -120,7 +125,7 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		this.ready = lifecycle.when(LifecyclePhase.Restored).then(() => this.create());
 		this._register(webviews.registerOpenHandler({
 			onDidChange: this.changeActive.event,
-			getActiveWebview: () => this.mode === 'snippets' || this.mode === 'settings' ? this.pages.get(this.mode) : undefined,
+			getActiveWebview: () => isShortestPathPageMode(this.mode) ? this.pages.get(this.mode) : undefined,
 			getViewState: input => {
 				for (const [mode, page] of this.pages) {
 					if (input === page) { return { visible: this.mode === mode, active: this.mode === mode }; }
@@ -162,6 +167,8 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		this.resultBadge.hidden = true;
 		this.snippetsButton = this.button(this.switcher, localize('sp.snippets', "代码片段"), () => this.switchMode('snippets'), 'snippets');
 		this.snippetsButton.classList.add('shortestpath-mode-snippets');
+		this.drawButton = this.button(this.switcher, drawLabel, () => this.switchMode('draw'), 'pencil');
+		this.drawButton.classList.add('shortestpath-mode-draw');
 		this.navigationActions = append(this.layoutService.mainWindowNavigationContainer!, $('.shortestpath-navigation-actions'));
 		this.settingsButton = this.button(this.navigationActions, localize('sp.settings', "设置"), () => this.switchMode('settings'), 'settings-gear');
 		this.settingsButton.classList.add('shortestpath-mode-settings');
@@ -224,7 +231,7 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		this.renderTabs();
 		const initialMode = this.storage.get(modeKey, StorageScope.PROFILE);
 		const configured = this.configuration.getValue<boolean>('shortestpath.setup.completed');
-		if (initialMode === 'snippets' || initialMode === 'settings') {
+		if (isShortestPathPageMode(initialMode)) {
 			this.applyMode('solve');
 			void this.ready.then(() => this.switchMode(initialMode)).catch(onUnexpectedError);
 		} else if (configured && initialMode !== 'solve') {
@@ -235,7 +242,7 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 
 	private button(parent: HTMLElement, label: string, run: () => PromiseLike<unknown> | void, icon?: string, store: DisposableStore = this._store): HTMLButtonElement {
 		const button = append(parent, $('button', { type: 'button', 'aria-label': label })) as HTMLButtonElement;
-		if ((parent === this.switcher || parent === this.navigationActions) && (icon === 'globe' || icon === 'code' || icon === 'snippets' || icon === 'settings-gear')) {
+		if ((parent === this.switcher || parent === this.navigationActions) && (icon === 'globe' || icon === 'code' || icon === 'snippets' || icon === 'pencil' || icon === 'settings-gear')) {
 			const svg = button.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'svg');
 			svg.classList.add('shortestpath-mode-icon');
 			svg.setAttribute('viewBox', '0 0 24 24');
@@ -246,6 +253,8 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 				? 'M6 4h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3ZM3 9h18M7 6.5h.01M10 6.5h.01'
 				: icon === 'snippets'
 					? 'M8 3h11a2 2 0 0 1 2 2v12M5 7h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2ZM8 11l-3 3 3 3M13 11l3 3-3 3'
+					: icon === 'pencil'
+						? 'M4 20l4.5-1 12-12a2.1 2.1 0 0 0-3-3l-12 12L4 20ZM15.5 6.5l3 3M5.5 16.5l3 3M12 20h8'
 					: icon === 'settings-gear'
 						? 'M9.5 2h5l.6 2.4 2.1 1.2 2.4-.7 2.5 4.3-1.8 1.6v2.4l1.8 1.6-2.5 4.3-2.4-.7-2.1 1.2-.6 2.4h-5l-.6-2.4-2.1-1.2-2.4.7-2.5-4.3 1.8-1.6v-2.4L1.9 9.2l2.5-4.3 2.4.7 2.1-1.2L9.5 2ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0'
 						: 'M6 4h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3ZM9 9l-3 3 3 3M15 9l3 3-3 3');
@@ -269,12 +278,12 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		if (mode === 'browse') {
 			if (!this.activeBrowser) { await this.openBrowser(); }
 			else { await this.activeBrowser.model?.focus(); }
-		} else if (mode === 'snippets' || mode === 'settings') {
+		} else if (isShortestPathPageMode(mode)) {
 			try {
 				if (!this.pages.has(mode)) {
 					let pending = this.pendingPages.get(mode);
 					if (!pending) {
-						pending = this.commands.executeCommand<void>(mode === 'snippets' ? 'shortestpath.configureCppSnippets' : 'shortestpath.openSettings');
+						pending = this.commands.executeCommand<void>(shortestPathPageCommands[mode]);
 						this.pendingPages.set(mode, pending);
 						void pending.finally(() => this.pendingPages.delete(mode)).catch(onUnexpectedError);
 					}
@@ -304,15 +313,16 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		}
 		this.mode = mode;
 		this.browsing.set(mode === 'browse');
-		this.pageMode.set(mode === 'snippets' || mode === 'settings');
+		this.pageMode.set(isShortestPathPageMode(mode));
 		this.layoutService.mainContainer.classList.toggle('shortestpath-browsing', mode === 'browse');
-		this.layoutService.mainContainer.classList.toggle('shortestpath-page-mode', mode === 'snippets' || mode === 'settings');
+		this.layoutService.mainContainer.classList.toggle('shortestpath-page-mode', isShortestPathPageMode(mode));
 		this.surface.hidden = mode !== 'browse';
-		this.pageSurface.hidden = mode !== 'snippets' && mode !== 'settings';
-		this.pageSurface.setAttribute('aria-label', mode === 'snippets' ? localize('sp.snippets', "代码片段") : localize('sp.settings', "设置"));
+		this.pageSurface.hidden = !isShortestPathPageMode(mode);
+		this.pageSurface.setAttribute('aria-label', mode === 'snippets' ? localize('sp.snippets', "代码片段") : mode === 'draw' ? drawLabel : localize('sp.settings', "设置"));
 		this.browseButton.setAttribute('aria-pressed', String(mode === 'browse'));
 		this.solveButton.setAttribute('aria-pressed', String(mode === 'solve'));
 		this.snippetsButton.setAttribute('aria-pressed', String(mode === 'snippets'));
+		this.drawButton.setAttribute('aria-pressed', String(mode === 'draw'));
 		this.settingsButton.setAttribute('aria-pressed', String(mode === 'settings'));
 		for (const [pageMode, input] of this.pages) {
 			if (mode === pageMode) { this.showPage(input); }
@@ -328,9 +338,7 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 	}
 
 	private adoptPage(input: WebviewInput, preserveFocus: boolean): boolean {
-		if (input.extension?.id.value.toLowerCase() !== 'shortestpath.shortestpath-setup') { return true; }
-		const mode = input.webview.providedViewType === 'shortestpath.cppSnippets' ? 'snippets'
-			: input.webview.providedViewType === 'shortestpath.settings' ? 'settings' : undefined;
+		const mode = getShortestPathPageMode(input.extension?.id.value, input.webview.providedViewType);
 		if (!mode) { return true; }
 		if (this.pages.get(mode) !== input) {
 			const previous = this.pages.get(mode);
@@ -540,9 +548,10 @@ const modeTitles = {
 	browse: localize2('sp.switchBrowse', "切换到浏览模式"),
 	solve: localize2('sp.switchSolve', "切换到做题模式"),
 	snippets: localize2('sp.switchSnippets', "打开代码片段"),
+	draw: drawTitle,
 	settings: localize2('sp.switchSettings', "打开设置"),
 };
-for (const mode of ['browse', 'solve', 'snippets', 'settings'] as const) {
+for (const mode of ['browse', 'solve', 'snippets', 'draw', 'settings'] as const) {
 	registerAction2(class extends Action2 {
 		constructor() { super({ id: `shortestpath.mode.${mode}`, title: modeTitles[mode], f1: true }); }
 		run(accessor: ServicesAccessor): Promise<void> { return accessor.get(IShortestPathModeService).switchMode(mode); }

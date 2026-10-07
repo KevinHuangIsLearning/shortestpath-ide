@@ -42,6 +42,53 @@ test('settings groups preserve each control and expose only the three left navig
 	}
 });
 
+test('bundled Fira Code stays selectable while system fonts load, fail or are absent', async () => {
+	class FontElement {
+		children: FontElement[] = [];
+		style: Record<string, string> = {};
+		value = '';
+		textContent = '';
+		label = '';
+		disabled = false;
+		append(child: FontElement) { this.children.push(child); }
+		prepend(child: FontElement) { this.children.unshift(child); }
+		replaceChildren() { this.children = []; }
+		setAttribute() { }
+	}
+	const primary = new FontElement();
+	const status = new FontElement();
+	const html = renderSettings();
+	const addOptions = html.match(/function addOptions[^\n]+/)?.[0];
+	const functions = html.slice(html.indexOf('function fontSelect('), html.indexOf('function apply(state)'));
+	assert.ok(addOptions);
+	const context = vm.createContext({
+		document: { createElement: () => new FontElement() },
+		byId: (id: string) => id === 'fontFamily' ? primary : status,
+		serializeFont: JSON.stringify,
+		updateLigatureSupport: async () => { },
+		getMonospaceFonts: async (fonts: string[]) => fonts,
+		codeFontPriority: () => 0
+	});
+	vm.runInContext(`let systemFonts = [], monospaceSystemFonts = [];
+		let fontLoadError = '', fontLoadComplete = false, fontDetectionInProgress = false, fontDetectionGeneration = 0;
+		let selectedFont = 'Fira Code';\n${addOptions}\n${functions}`, context);
+	const snapshot = () => ({
+		disabled: primary.disabled, value: primary.value,
+		fonts: primary.children.flatMap(group => group.children.map(option => option.value))
+	});
+	vm.runInContext('renderFonts()', context);
+	assert.deepStrictEqual(snapshot(), { disabled: false, value: 'Fira Code', fonts: ['Fira Code'] });
+	for (const result of [{ fonts: [] }, { fonts: [], error: 'permission denied' }, { fonts: ['Fira Code', 'Menlo'] }]) {
+		await vm.runInContext(`applySystemFonts(${JSON.stringify(result)})`, context);
+		assert.deepStrictEqual(snapshot(), {
+			disabled: false, value: 'Fira Code', fonts: result.fonts.length ? ['Fira Code', 'Menlo'] : ['Fira Code']
+		});
+	}
+	vm.runInContext("selectedFont = 'Menlo'", context);
+	await vm.runInContext("applySystemFonts({ fonts: ['Fira Code', 'Menlo'] })", context);
+	assert.equal(primary.value, 'Menlo');
+});
+
 test('navigation switches complete groups, updates accessible selection and resets scrolling without changing values', () => {
 	const html = renderSettings();
 	const navigation = html.match(/function selectCategory\(category\) \{[\s\S]*?\n\}/)?.[0];
@@ -151,6 +198,7 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 		exports, console,
 		require(id: string) {
 			if (id === 'vscode') { return vscode; }
+			if (id === './bundledFont') { return { withBundledCodeFont: (html: string) => html }; }
 			if (id === './systemFonts') { return { getSystemFonts: async () => ({ fonts: [] }) }; }
 			return { localize: (text: string) => text, localizeWebviewHtml: (html: string) => html, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) };
 		}

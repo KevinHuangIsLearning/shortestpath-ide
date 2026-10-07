@@ -7,7 +7,24 @@ import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import type { BrowserEditorInput } from '../../browserView/common/browserEditorInput.js';
 
-export type ShortestPathMode = 'browse' | 'solve' | 'snippets' | 'settings';
+export type ShortestPathPageMode = 'snippets' | 'draw' | 'settings';
+export type ShortestPathMode = 'browse' | 'solve' | ShortestPathPageMode;
+export const shortestPathPageCommands: Record<ShortestPathPageMode, string> = {
+	snippets: 'shortestpath.configureCppSnippets',
+	draw: 'shortestpath.draw.open',
+	settings: 'shortestpath.openSettings',
+};
+
+export function isShortestPathPageMode(mode: string | undefined): mode is ShortestPathPageMode {
+	return mode === 'snippets' || mode === 'draw' || mode === 'settings';
+}
+
+/** Only adopt the dedicated mode page; companion sketchpads stay in editor groups. */
+export function getShortestPathPageMode(extensionId: string | undefined, viewType: string | undefined): ShortestPathPageMode | undefined {
+	if (extensionId?.toLowerCase() === 'shortestpath.shortestpath-draw' && viewType === 'shortestpath.draw') { return 'draw'; }
+	if (extensionId?.toLowerCase() !== 'shortestpath.shortestpath-setup') { return undefined; }
+	return viewType === 'shortestpath.cppSnippets' ? 'snippets' : viewType === 'shortestpath.settings' ? 'settings' : undefined;
+}
 export const shortestPathHome = 'https://shortestpath.cn/topics';
 export const IShortestPathModeService = createDecorator<IShortestPathModeService>('shortestPathModeService');
 

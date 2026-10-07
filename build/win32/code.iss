@@ -66,6 +66,11 @@ Name: "brazilianPortuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "hungarian"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.hu.isl,{#RepoDir}\build\win32\i18n\messages.hu.isl" {#LocalizedLanguageFile("hun")}
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl,{#RepoDir}\build\win32\i18n\messages.tr.isl" {#LocalizedLanguageFile("trk")}
 
+[CustomMessages]
+UserInstallerAdminWarning=This User Installer is not meant to be run as an Administrator. Please restart the installer without administrator privileges. Are you sure you want to continue?
+simplifiedChinese.UserInstallerAdminWarning=用户安装版不应以管理员身份运行。请以普通用户身份重新启动安装程序。确定要继续吗？
+traditionalChinese.UserInstallerAdminWarning=使用者安裝版不應以管理員身分執行。請以一般使用者身分重新啟動安裝程式。確定要繼續嗎？
+
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\out"; Check: IsNotBackgroundUpdate
 Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\plugins"; Check: IsNotBackgroundUpdate
@@ -331,7 +336,7 @@ begin
 
   #if "user" == InstallTarget
     if not WizardSilent() and IsAdmin() then begin
-      if MsgBox('This User Installer is not meant to be run as an Administrator. If you would like to install ShortestPath IDE for all users in this system, download the System Installer from the ShortestPath IDE releases page. Are you sure you want to continue?', mbError, MB_OKCANCEL) = IDCANCEL then begin
+      if MsgBox(CustomMessage('UserInstallerAdminWarning'), mbError, MB_OKCANCEL) = IDCANCEL then begin
         Result := False;
       end;
     end;

@@ -18,6 +18,9 @@ const globAsync = promisify(glob);
 
 // Common resources needed by all targets
 const commonResourcePatterns = [
+	// License and provenance for the Fira Code font emitted by the CSS bundler.
+	'vs/workbench/browser/media/fonts/{LICENSE,README}.txt',
+
 	// Tree-sitter queries
 	'vs/editor/common/languages/highlights/*.scm',
 	'vs/editor/common/languages/injections/*.scm',

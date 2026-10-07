@@ -1,0 +1,9 @@
+node_modules/**
+src/**
+out/**
+tsconfig*.json
+esbuild.mjs
+package-lock.json
+**/*.map
+dist/metafile.json
+.vscodeignore
