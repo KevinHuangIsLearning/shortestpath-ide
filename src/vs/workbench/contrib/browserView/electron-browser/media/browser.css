@@ -370,7 +370,7 @@
 
 	.browser-container {
 		overflow: visible;
-		border-radius: var(--vscode-cornerRadius-small);
+		border-radius: var(--browser-container-corner-radius, var(--vscode-cornerRadius-small));
 		/*  Absolutely positioned within the wrapper; size and position are set
 			inline from JS (already snapped to the physical-pixel grid) so the
 			WebContentsView placed by the main process and the placeholder
@@ -389,7 +389,7 @@
 			right: -1px;
 			bottom: -1px;
 			z-index: -2;
-			border-radius: calc(var(--vscode-cornerRadius-small) + 1px);
+			border-radius: calc(var(--browser-container-corner-radius, var(--vscode-cornerRadius-small)) + 1px);
 			background: conic-gradient(from var(--animation-angle),
 				color-mix(in srgb, #b44aff var(--animation-opacity), var(--vscode-browser-border, transparent)),
 				color-mix(in srgb, #4af0c0 var(--animation-opacity), var(--vscode-browser-border, transparent)),
@@ -405,7 +405,7 @@
 			left: -2px;
 			right: -2px;
 			bottom: -2px;
-			border-radius: calc(var(--vscode-cornerRadius-small) + 2px);
+			border-radius: calc(var(--browser-container-corner-radius, var(--vscode-cornerRadius-small)) + 2px);
 			--animation-angle: 495deg;
 			--animation-opacity: 100%;
 		}
@@ -432,7 +432,7 @@
 			right: 1px;
 			bottom: 1px;
 			z-index: -1;
-			border-radius: var(--vscode-cornerRadius-small);
+			border-radius: var(--browser-container-corner-radius, var(--vscode-cornerRadius-small));
 			background-color: var(--vscode-editor-background);
 			pointer-events: none;
 		}
@@ -488,7 +488,7 @@
 		height: 100%;
 		position: relative;
 		overflow: hidden;
-		border-radius: var(--vscode-cornerRadius-small);
+		border-radius: var(--browser-container-corner-radius, var(--vscode-cornerRadius-small));
 	}
 
 	.browser-placeholder-screenshot {

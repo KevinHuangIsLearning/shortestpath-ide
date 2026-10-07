@@ -740,6 +740,7 @@
 		"--vscode-settings-textInputForeground",
 		"--vscode-shortestpath-activeModeForeground",
 		"--vscode-shortestpath-browseModeBackground",
+		"--vscode-shortestpath-drawModeBackground",
 		"--vscode-shortestpath-solveModeBackground",
 		"--vscode-shortestpath-snippetsModeBackground",
 		"--vscode-shortestpath-settingsModeBackground",
@@ -993,6 +994,7 @@
 		"--vscode-modernSash-gripForeground"
 	],
 	"others": [
+		"--browser-container-corner-radius",
 		"--action-widget-close-start-opacity",
 		"--action-widget-close-start-transform",
 		"--activity-bar-action-gap",

@@ -470,6 +470,8 @@
 }
 
 .shortestpath-browser-space {
+	/* Native web content and its placeholder must use the same radius tier as this surface. */
+	--browser-container-corner-radius: var(--vscode-cornerRadius-large, 12px);
 	position: absolute;
 	left: 0;
 	right: var(--vscode-spacing-size40, 4px);
