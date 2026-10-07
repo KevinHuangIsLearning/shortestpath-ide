@@ -40,7 +40,7 @@ suite('Workbench navigation column', () => {
 		for (const width of [800, 1200, 600]) {
 			grid.layout(width, 600);
 			grid.setViewVisible(sidebar, false);
-			assert.deepStrictEqual({ navigation: grid.getViewSize(navigation), editor: editor.size, left: editor.left }, { navigation: { width: 56, height: 600 }, editor: [width - 56, 600], left: 56 });
+			assert.deepStrictEqual({ navigation: grid.getViewSize(navigation), editor: editor.size, left: editor.left }, { navigation: { width: 48, height: 600 }, editor: [width - 48, 600], left: 48 });
 			grid.setViewVisible(sidebar, true);
 		}
 	});

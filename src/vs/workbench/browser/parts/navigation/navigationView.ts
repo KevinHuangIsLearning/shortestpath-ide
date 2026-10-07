@@ -11,8 +11,8 @@ import { Event } from '../../../../base/common/event.js';
 export class NavigationView implements ISerializableView {
 	static readonly ID = 'workbench.navigation';
 	readonly element = $('.workbench-navigation');
-	readonly minimumWidth = 56;
-	readonly maximumWidth = 56;
+	readonly minimumWidth = 48;
+	readonly maximumWidth = 48;
 	readonly minimumHeight = 0;
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
 	readonly onDidChange = Event.None;

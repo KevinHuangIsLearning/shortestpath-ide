@@ -19,7 +19,7 @@
 	display: flex;
 	flex-direction: column;
 	box-sizing: border-box;
-	padding: var(--vscode-spacing-size80, 8px) var(--vscode-spacing-size60, 6px);
+	padding: var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size40, 4px);
 	color: var(--vscode-titleBar-activeForeground);
 }
 
@@ -249,7 +249,7 @@
 .shortestpath-navigation-actions {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size80, 8px);
+	gap: var(--vscode-spacing-size40, 4px);
 	-webkit-app-region: no-drag;
 }
 
@@ -259,7 +259,7 @@
 
 .shortestpath-navigation-actions {
 	order: 2;
-	margin-top: var(--vscode-spacing-size80, 8px);
+	margin-top: var(--vscode-spacing-size40, 4px);
 }
 
 .monaco-workbench.shortestpath-dual-mode .shortestpath-update-indicator {
@@ -273,8 +273,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	min-height: 44px;
-	padding: var(--vscode-spacing-size80, 8px) var(--vscode-spacing-size40, 4px);
+	min-height: 36px;
+	padding: var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size40, 4px);
 	border: var(--vscode-strokeThickness, 1px) solid transparent;
 	border-radius: var(--vscode-cornerRadius-medium, 6px);
 	background: transparent;
@@ -285,7 +285,7 @@
 
 .shortestpath-mode-switch .codicon,
 .shortestpath-navigation-actions .codicon {
-	font-size: 24px;
+	font-size: 22px;
 	opacity: .7;
 }
 
@@ -295,8 +295,8 @@
 }
 
 .shortestpath-mode-icon {
-	width: 24px;
-	height: 24px;
+	width: 22px;
+	height: 22px;
 	pointer-events: none;
 	fill: none;
 	stroke: currentColor;
