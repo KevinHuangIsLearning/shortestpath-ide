@@ -779,7 +779,7 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 <div class="row"><div><label for="autoFormat">启用自动格式化</label><div class="hint">同时控制保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="autoFormat" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label>自动格式化规则</label><div class="hint">配置当前工作目录的 .clang-format。</div></div><button id="autoFormatSettings" class="secondary">配置格式化规则</button></div>
 <div class="row"><div><label for="clangdVariableTypeHints">clangd 变量类型提示</label><div class="hint">在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。</div></div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="errorLensEnabled">Error Lens Enable</label><div class="hint">启用 Error Lens，在代码中显示诊断信息。</div></div><label class="toggle"><input id="errorLensEnabled" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="errorLensEnabled">Error Lens Enable</label><div class="hint">启用 Error Lens，高亮错误行。</div></div><label class="toggle"><input id="errorLensEnabled" type="checkbox"><span>启用</span></label></div>
 </section>
 <section class="card" data-category="compiler" hidden><h3>编译与运行</h3>
 <div class="row"><div><label for="cppStandard">C++ 版本</label></div><select id="cppStandard"><option>c++11</option><option>c++14</option><option>c++17</option><option>c++20</option><option>c++23</option></select></div>
