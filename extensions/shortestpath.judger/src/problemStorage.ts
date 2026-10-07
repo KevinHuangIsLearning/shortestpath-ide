@@ -5,13 +5,13 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Problem } from './types';
+import { Problem, TestCase } from './types';
 
 type StoredProblem = {
 	version: 1;
 	generation: string;
 	problem: Omit<Problem, 'tests'>;
-	tests: { disabled?: boolean; id: number; input: string; output: string; inputPath?: string; outputPath?: string }[];
+	tests: TestCase[];
 };
 
 const MAX_INLINE_BYTES = 65536;
@@ -72,7 +72,7 @@ export function readStoredProblem(legacyPath: string): Problem | null {
                     const output = test.outputPath ? '' : read(test.output);
                     const inputPath = test.inputPath || (Buffer.byteLength(input) > MAX_INLINE_BYTES ? storeLargeText(directory, input, 'in') : undefined);
                     const outputPath = test.outputPath || (Buffer.byteLength(output) > MAX_INLINE_BYTES ? storeLargeText(directory, output, 'out') : undefined);
-                    return { id: test.id, ...(test.disabled !== undefined ? { disabled: test.disabled } : {}), input: inputPath ? '' : input, output: outputPath ? '' : output,
+                    return { id: test.id, ...(test.origin ? { origin: test.origin } : {}), ...(test.sampleIndex !== undefined ? { sampleIndex: test.sampleIndex } : {}), ...(test.disabled !== undefined ? { disabled: test.disabled } : {}), input: inputPath ? '' : input, output: outputPath ? '' : output,
                         ...(inputPath ? { inputPath } : {}), ...(outputPath ? { outputPath } : {}) };
                 }),
 			};
@@ -119,7 +119,7 @@ export function writeStoredProblem(legacyPath: string, problem: Problem): void {
 				output = `${index}.out`;
 			if (!test.inputPath) { fs.writeFileSync(path.join(snapshot, input), test.input, 'utf8'); }
 			if (!test.outputPath) { fs.writeFileSync(path.join(snapshot, output), test.output, 'utf8'); }
-			manifest.tests.push({ id: test.id, disabled: test.disabled, input, output, inputPath: test.inputPath, outputPath: test.outputPath });
+			manifest.tests.push({ id: test.id, origin: test.origin, sampleIndex: test.sampleIndex, disabled: test.disabled, input, output, inputPath: test.inputPath, outputPath: test.outputPath });
 		}
 		fs.writeFileSync(
 			temporaryManifest,

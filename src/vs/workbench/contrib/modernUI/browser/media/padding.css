@@ -81,7 +81,7 @@
 	flex: 2;
 }
 
-.modern-ui.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	padding: 0 var(--vscode-spacing-size40);
 }
 

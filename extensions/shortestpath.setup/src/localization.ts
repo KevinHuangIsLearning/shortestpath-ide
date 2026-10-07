@@ -6,6 +6,81 @@
 import * as vscode from 'vscode';
 
 const english: Readonly<Record<string, string>> = {
+    '已在“{0}”中创建 .clangd 和 .clang-format。': 'Created .clangd and .clang-format in “{0}”.',
+    '“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？': '“{0}” has no OI project configuration yet. Create .clangd and .clang-format?',
+
+	'新建文件': 'New Files',
+	'默认代码模板': 'Default Code Template',
+	'尚未获取到代码格式化结果，请稍后重试。': 'Code formatting is not available yet. Please retry shortly.',
+	'代码缩进': 'Code Indentation',
+	'clang 类型提示': 'clang Type Hints',
+	'无法完成开箱配置：{0}': 'Could not complete setup: {0}',
+	'代码存放目录': 'Code Folder',
+	'选择代码存放目录': 'Choose Code Folder',
+	'选择一个文件夹存放代码，完成后将自动打开该目录。': 'Choose a folder for your code. It will open when setup finishes.',
+	'已选目录': 'Selected Folder',
+	'尚未选择目录。': 'No folder selected.',
+	'请选择有效的本地目录。': 'Choose a valid local folder.',
+	'无法选择代码存放目录：{0}': 'Could not choose the code folder: {0}',
+	'模版配置': 'Template Setup',
+	'Judger 新建 C++ 文件时会自动填入这份模版。': 'Judger automatically inserts this template into new C++ files.',
+	'正在加载代码预览…': 'Loading code preview…',
+	'重试预览': 'Retry Preview',
+	'无法加载代码预览。': 'Could not load the code preview.',
+	'无法加载代码预览：{0}': 'Could not load the code preview: {0}',
+	'尚未获取到 clang 类型提示，请稍后重试。': 'clang type hints are not available yet. Please retry shortly.',
+	'模版内容无效或过长。': 'The template is invalid or too long.',
+	'当前字体': 'Current Font',
+	'编译配置': 'Compiler Setup',
+	'检查编译器、运行样例，并验证代码提示。': 'Check the compiler, run sample tests, and verify code completion.',
+	'开箱配置步骤': 'Setup Steps',
+	'运行 A+B 示例，检查命令行编译、Judger 样例测试与代码提示。': 'Run an A+B example to check command-line compilation, Judger sample tests, and code completion.',
+	"完成环境检查后继续。": "Complete the environment checks to continue.",
+	'编辑配置': 'Editor Setup',
+	'按你的习惯调整编辑体验。': 'Customize the editor to suit your preferences.',
+	"保存与粘贴时自动整理代码格式。": "Format code automatically when saving and pasting.",
+	"在代码旁显示变量的推导类型。": "Show inferred variable types alongside code.",
+	'延迟后保存': 'Save after a delay',
+	'切换编辑器时保存': 'Save when switching editors',
+	"无法保存编辑配置：{0}": "Could not save editor settings: {0}",
+	'检查命令行 A+B 样例结果…': 'Checking command-line A+B sample results…',
+	'检查 Judger 编译、运行与样例判题…': 'Checking Judger compilation, execution, and sample judging…',
+	'命令行、Judger 与代码提示自测全部通过。': 'Command-line, Judger, and code completion self-tests passed.',
+	'Judger 样例 {0}：输入 {1}，期望 {2}，实际 {3}，{4}': 'Judger sample {0}: input {1}, expected {2}, actual {3}, {4}',
+	'Judger 自检失败：{0}': 'Judger self-test failed: {0}',
+	'编译失败': 'Compilation failed',
+	'错误答案未被正确识别': 'Wrong answers were not correctly rejected',
+	'样例运行或判题失败': 'Sample execution or judging failed',
+	'Judger 编译、样例通过与错误答案识别检查均通过。': 'Judger compilation, accepted samples, and wrong-answer rejection checks passed.',
+	"通过": "Passed",
+	'类型提示': 'Type Hints',
+	'颜色主题': 'Color Theme',
+	'字号': 'Font Size',
+	'将 ->、!=、<= 等符号组合显示为连字，需要字体支持。': 'Display symbol combinations such as ->, !=, and <= as ligatures. Requires font support.',
+	"正在保存…": "Saving\u2026",
+	'无法读取编译器的目标平台。': 'Cannot read the compiler target platform.',
+	'无法更新代码提示配置：{0}': 'Could not update code completion settings: {0}',
+	"环境配置": "Environment Setup",
+	"环境自测": "Environment Self-test",
+	"编译并运行 C++20 程序，检查 clangd 与系统头文件。": "Compile and run a C++20 program, then check clangd and system headers.",
+	"环境自测失败。": "Environment self-test failed.",
+	"开始配置": "Start Setup",
+	"待检查": "Pending",
+	"正在配置，请等待…": "Setup in progress, please wait\u2026",
+	"已完成": "Complete",
+	"失败": "Failed",
+	"环境已就绪，自测通过。": "Environment ready. Self-test passed.",
+	"配置未完成。请展开失败步骤查看日志，然后重试。": "Setup is incomplete. Expand the failed step for logs, then retry.",
+	"环境配置与自测全部通过后才能完成。": "All setup checks and the self-test must pass before finishing.",
+	"已检测到可用环境，无需安装。": "A usable environment was detected; installation is unnecessary.",
+	"环境自测失败：{0}": "Environment self-test failed: {0}",
+	"无法读取编译器的系统头文件路径。": "Cannot read the compiler system header paths.",
+	'检查编译器与 clangd 版本…': 'Checking compiler and clangd versions…',
+	"编译 C++20 测试程序…": "Compiling the C++20 test program\u2026",
+	"运行测试程序并检查输出…": "Running the test program and checking its output\u2026",
+	"测试程序的输出不符合预期。": "The test program output is unexpected.",
+	'检查 clangd 的 C++20 语法与系统头文件…': 'Checking C++20 syntax and system headers with clangd…',
+	'编译、运行与代码提示自测全部通过。': 'Compilation, execution, and code completion self-tests passed.',
 	'Judger 默认提交方式': 'Judger Default Submission Method',
 	'当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。': 'Used when both original OJ and VJudge submission are available. Per-OJ custom scripts are unaffected.',
 	'测试 VJudge URL': 'Test VJudge URL',
@@ -25,18 +100,46 @@ const english: Readonly<Record<string, string>> = {
 	"题目 ID": "Problem ID",
 	"测试题目 URL": "Test problem URL",
 	"测试代码": "Test code",
-	"保存此 OJ": "Save this OJ",
+	'保存此 OJ': 'Save this OJ',
 	"恢复默认脚本": "Restore default script",
 	"打开并执行": "Open and run",
 	"正在处理…": "Working…",
 	"配置提交脚本": "Configure submission scripts",
 	"按 OJ 配置提交页面 URL 和 JavaScript，点击 Judger 提交按钮时打开并填写表单。": "Configure a submission URL and JavaScript per OJ, then fill the form using the Judger submission button.",
 
-	'开始使用': 'Get Started',
+	"选择目录": "Choose Folder",
+	"配置": "Configuration",
+	"请选择有效的 C++ 版本和工作目录。": "Choose a valid C++ version and workspace folder.",
+	"编译环境尚未准备完成。请完成安装后重试。": "The build environment is not ready. Finish installation and try again.",
+	"准备环境需要确认，可能要求管理员权限。": "Preparing the environment requires confirmation and may require administrator privileges.",
+	"稍后配置": "Set Up Later",
+	"继续": "Continue",
+	"正在准备编译环境。": "Preparing the Build Environment",
+	"请保持此页面打开。准备完成后可继续配置。": "Keep this page open. Continue with configuration once preparation finishes.",
+	"重试": "Retry",
+	"安装进度": "Installation Progress",
+	"设置写入个人配置，不影响其他编辑器。": "Settings are saved to your personal profile without affecting other editors.",
+	"选择工作目录。": "Choose a Workspace Folder",
+	"我们会在此目录创建 .clangd，并在完成后直接打开它。": "We will create .clangd in this folder and open it when setup finishes.",
+	"工作目录": "Workspace Folder",
+	"已有 .clangd 不会被覆盖。": "An existing .clangd file will be preserved.",
+	"应用配置并打开工作目录": "Apply Settings and Open Folder",
+	"请选择工作目录。": "Choose a workspace folder.",
+	"正在准备编译环境…": "Preparing the build environment…",
+	"编译环境已准备就绪。点击“下一步”继续配置。": "The build environment is ready. Click “Next” to continue.",
+	"我们会按原有步骤准备编译环境，然后进入配置确认。": "We will prepare the build environment, then confirm the configuration.",
+	"下载源": "Download Source",
+	"我们会准备编译环境，并选择 C++ 语言版本，然后打开工作台。": "We will prepare the build environment and select a C++ version, then open the workbench.",
+	"选择默认的 C++ 语言版本。": "Choose the default C++ language version.",
+	"工具链": "Toolchain",
+	"环境准备": "Environment Preparation",
+	"确认配置": "Confirm Configuration",
+	"选择工作目录": "Choose Workspace Folder",
+
+	'初始配置': 'Initial Setup',
 	'开箱配置': 'Initial Setup',
 	'准备编译环境': 'Prepare Build Environment',
 	'先检测并配置 g++ 与 clangd，环境准备完成后再继续设置 IDE 偏好。': 'Detect and configure g++ and clangd before continuing with IDE preferences.',
-	'环境配置': 'Environment Setup',
 	'点击“开始准备”检测编译器和智能提示工具。': 'Click “Start Preparation” to detect the compiler and language server.',
 	'如果需要下载工具链，安装会在终端中进行；完成后可再次点击检测。': 'If tools need to be downloaded, installation will run in a terminal. Check again when it finishes.',
 	'开始准备': 'Start Preparation',
@@ -56,8 +159,6 @@ const english: Readonly<Record<string, string>> = {
 	'自动格式化': 'Automatic Formatting',
 	'Judger 设置': 'Judger Settings',
 	'工具链诊断': 'Toolchain Diagnostics',
-	'放松模式设置': 'Relax Mode Settings',
-	'放松模式': 'Relax Mode',
 	'在线评测映射': 'Online Judge Mappings',
 	'VJudge 映射': 'VJudge Mappings',
 	'保存': 'Save',
@@ -103,28 +204,18 @@ const english: Readonly<Record<string, string>> = {
 	'文件': 'Files',
 	'格式化': 'Formatting',
 	'模板': 'Templates',
-	'放松设置': 'Relax Settings',
-	'隐藏模式': 'Hide Mode',
-	'恢复默认源': 'Restore Default Sources',
-	'添加新的放松源': 'Add a Relax Source',
-	'名称（可选）': 'Name (optional)',
-	'网站地址': 'Website URL',
-	'加入放松源': 'Add Source',
 	'打开': 'Open',
-	'移除': 'Remove',
-	'内置放松源': 'Built-in source',
-	'自定义放松源': 'Custom source',
-	'尚未启动': 'Not started',
-	'已启动': 'Started',
-	'放松模式已启动': 'Relax mode is active',
-	'放松模式尚未启动': 'Relax mode is not active',
-	'自定义快捷键': 'Customize Shortcut',
-	'启动/显示放松模式': 'Start / Show Relax Mode',
-	'隐藏放松模式': 'Hide Relax Mode'
+	'移除': 'Remove'
 	,'设置': 'Settings'
 	,'搜索设置': 'Search Settings'
 	,'全部': 'All'
 	,'编辑器': 'Editor'
+	,'编译器': 'Compiler'
+	,'编辑行为': 'Editing Behavior'
+	,'编译与运行': 'Compilation and Execution'
+	,'提交与评测': 'Submission and Judging'
+	,'应用管理': 'Application Management'
+	,'代码片段': 'Code Snippets'
 	,'C++ 与 clangd': 'C++ and clangd'
 	,'外观': 'Appearance'
 	,'外观与保存': 'Appearance and Save'
@@ -168,7 +259,7 @@ const english: Readonly<Record<string, string>> = {
 	,'切换窗口时保存': 'Save on Window Change'
 	,'使用插件市场': 'Use Extension Marketplace'
 	,'开启后显示扩展入口，并使用 Open VSX 插件市场。': 'Show the Extensions entry and use the Open VSX extension marketplace.'
-	,'分步引导配置字体、主题、语言版本等偏好。': 'Configure fonts, themes, language versions, and other preferences step by step.'
+	,'检查编译环境并配置编辑器、模版和代码存放目录。': 'Check the build environment and configure the editor, template, and code folder.'
 	,'打开引导': 'Open Guide'
 	,'配置 C++ 用户代码片段。': 'Configure C++ user code snippets.'
 	,'配置代码模板': 'Configure Code Snippets'
@@ -187,10 +278,9 @@ const english: Readonly<Record<string, string>> = {
 	,'在诊断位置上方显示 Error Lens 的代码透镜。': 'Show the Error Lens code lens above diagnostic locations.'
 	,'检查 Judger、Compile Run、clangd 与编译器是否可用且配置一致。': 'Check whether Judger, Compile Run, clangd, and the compiler are available and configured consistently.'
 	,'打开诊断页': 'Open Diagnostics'
-	,'防诈骗提醒': 'Anti-fraud Reminder'
-	,'打开题目时显示防诈骗提醒。': 'Show an anti-fraud reminder when opening a problem.'
 	,'没有匹配的设置。': 'No matching settings.'
 	,'高级设置': 'Advanced Settings'
+	,'只保留竞赛编程常用选项。更改会自动保存；其他设置可在{0}中调整。': 'Only commonly used competitive-programming options are shown here. Changes save automatically; adjust other settings in {0}.'
 	,'请先打开一个本地文件夹，再初始化 OI 项目配置。': 'Open a local folder before initializing OI project configuration.'
 	,'“{0}”的 OI 项目配置已补全。': 'Completed the OI project configuration in “{0}”.'
 	,'“{0}”的 OI 项目配置不完整。要补全 .clangd 和 .clang-format 吗？': '“{0}” does not have a complete OI project configuration. Complete .clangd and .clang-format?'
@@ -316,16 +406,6 @@ const english: Readonly<Record<string, string>> = {
 	,'当前字体不是等宽字体，请选择': 'The current font is not monospaced. Please choose one.'
 	,'正在检测系统等宽字体…': 'Detecting system monospaced fonts…'
 	,'当前字体不支持连字，无法启用。': 'The current font does not support ligatures and cannot be enabled.'
-	,'放松模式 🌿': 'Relax Mode 🌿'
-	,'写题累了就放松一会儿。点击一个放松源，它会在 Integrated Browser 中打开。': 'Take a break when you are tired from solving problems. Click a source to open it in the Integrated Browser.'
-	,'今日放松宣言：编译器可以等，快乐不能等。': 'Today’s reminder: the compiler can wait, happiness cannot.'
-	,'放松源': 'Relax Sources'
-	,'默认源和自定义源都只会在 IDE 自己的浏览器标签中打开。': 'Both built-in and custom sources open only in the IDE’s own browser tabs.'
-	,'还没有放松源，先添加一个吧。': 'There are no relax sources yet. Add one to get started.'
-	,'这里可以把 IDE 变成一个合法放松入口。普通编辑器、终端和题目功能不会被改变。': 'This turns the IDE into a permitted place to relax. Editors, terminals, and problem features are unchanged.'
-	,'启动后可以用快捷键一键隐藏/显示；隐藏时不会关闭放松源或 Integrated Browser 标签。': 'After starting, use the shortcut to hide or show it. Hiding does not close relax sources or Integrated Browser tabs.'
-	,'放松源在哪里管理？': 'Where are relax sources managed?'
-	,'进入放松模式主页后，可以添加任意 HTTP / HTTPS 网站。默认已经准备好 bilibili.com 和 poki.com。': 'From the Relax Mode home page, you can add any HTTP or HTTPS website. bilibili.com and poki.com are ready by default.'
 	,'题面来源': 'Problem Source'
 	,'留空时使用 Judger 设置中的默认题面来源。': 'Leave blank to use the default problem source from Judger Settings.'
 	,'使用默认值': 'Use Default'
@@ -474,7 +554,6 @@ const english: Readonly<Record<string, string>> = {
 	,'自动格式化：': 'Automatic Formatting: '
 	,'Judger 文件名：': 'Judger File Names: '
 	,'正在检测': 'Detecting'
-	,'默认快捷键：Cmd/Ctrl + Alt + F。点击“自定义快捷键”可在 VS Code 键盘快捷方式中修改。': 'Default shortcut: Cmd/Ctrl + Alt + F. Select “Customize Shortcut” to change it in VS Code Keyboard Shortcuts.'
 	,'例如：知乎、猫猫图片': 'For example: Zhihu or cat pictures'
 	,'设置分类': 'Settings Categories'
 	,'编译与语言': 'Compilers and Languages'
@@ -488,6 +567,8 @@ const english: Readonly<Record<string, string>> = {
 	,'当前代码字体不是等宽字体，请选择': 'The current code font is not monospaced. Choose another font.'
 	,'编辑语言': 'Language'
 	,'模板列表': 'Snippet List'
+	,'更改会自动保存。输入触发前缀，可在 C++ 文件中展开模板。': 'Changes save automatically. Type a prefix in a C++ file to expand a snippet.'
+	,'无法保存模板：{0}': 'Could not save the snippet: {0}'
 	,'更改会自动保存到当前编辑语言对应的用户片段文件。输入触发前缀后，可在相应语言文件中使用补全展开模板。': 'Changes are saved automatically to the user snippet file for the selected language. Type a prefix to expand the snippet through completions.'
 	,'删除模板': 'Delete Snippet'
 	,'打开 JSON': 'Open JSON'
@@ -525,6 +606,9 @@ const english: Readonly<Record<string, string>> = {
 	,'立即重新启动设置': 'Restart Setup Now'
 	,'未能读取系统字体。请检查系统字体服务后重新打开此页面。': 'Could not read system fonts. Check the system font service, then reopen this page.'
 	,'系统等宽字体': 'System Monospaced Fonts'
+	,'内置及系统等宽字体': 'Bundled and System Monospaced Fonts'
+	,'可选择内置 Fira Code 或检测到的系统等宽字体。': 'Choose the bundled Fira Code or a detected system monospaced font.'
+	,'未发现系统等宽字体，可使用内置 Fira Code。': 'No system monospaced fonts were found. The bundled Fira Code is available.'
 	,'系统字体': 'System Fonts'
 	,'未发现可用的系统字体，无法选择代码字体。': 'No system fonts are available, so a code font cannot be selected.'
 	,'未发现可用的系统等宽字体，无法选择代码字体。': 'No system monospaced fonts are available, so a code font cannot be selected.'
@@ -568,7 +652,7 @@ export function localizeFormat(value: string, ...arguments_: readonly unknown[])
 
 export function localizeToolchainProgress(message: string): string {
 	if (vscode.env.language.toLowerCase().startsWith('en')) {
-		return message;
+		return localize(message);
 	}
 	return message
 		.replace(/^Preparing (.+)…$/, '正在准备 $1…')

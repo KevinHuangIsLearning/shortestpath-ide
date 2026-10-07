@@ -7,6 +7,7 @@ import localize from './i18n';
 import fs from 'fs';
 import path from 'path';
 import { mountImportControl } from './browserImportControl';
+import { shortestPathBrowserHelpers } from './shortestpathBrowserImport';
 import type { BrowserImportResult } from './browserImport';
 
 const worldName = 'shortestpath-import-button';
@@ -28,7 +29,63 @@ export function browserImportButtonScript(label: string, title: string, runtime 
 		drag: localize('judger.browserImport.drag', 'Drag to move; use arrow keys to adjust'),
 		close: localize('judger.browserImport.closePicker', 'Close parser picker'),
 	};
+	const nativeScript = `(() => {
+		if (window !== window.top || !/^https?:$/.test(location.protocol)) return;
+		if (window.__shortestpathImportButtonCleanup) return;
+		${shortestPathBrowserHelpers()}
+		const shortestPath = isShortestPathBrowserUrl(location.href);
+		if (!shortestPath) return;
+		let busy = false, observer;
+		const mount = () => {
+			const nativeButton = shortestPath ? findShortestPathStartButton() : undefined;
+			let host = document.getElementById(${JSON.stringify(elementId)});
+			if (shortestPath && (!isShortestPathProblemPage(location.href) || !nativeButton)) {
+				host?.remove(); return;
+			}
+			if (host) { update(nativeButton); return; }
+			host = document.createElement('div'); host.id = ${JSON.stringify(elementId)};
+			host.style.cssText = 'all:initial!important;position:fixed!important;right:24px!important;bottom:24px!important;z-index:2147483647!important;display:block!important';
+			const root = host.attachShadow({mode:'closed'});
+			const button = document.createElement('button'); button.type = 'button';
+			button.textContent = ${JSON.stringify(label)};
+			button.style.cssText = 'all:initial;display:block;box-sizing:border-box;padding:12px 18px;border:1px solid #ffffff40;border-radius:24px;background:#237b4b;color:white;box-shadow:0 4px 18px #0004;font:600 14px/20px system-ui;cursor:pointer';
+			button.addEventListener('click', event => { if (event.isTrusted && !button.disabled) window[${JSON.stringify(bindingName)}]('import'); });
+			update = native => {
+				const disabled = busy || !!native?.disabled;
+				const tooltip = native ? native.title || native.getAttribute('aria-label') : ${JSON.stringify(title)};
+				if (button.title !== tooltip) button.title = tooltip;
+				if (button.getAttribute('aria-label') !== tooltip) button.setAttribute('aria-label', tooltip);
+				if (button.disabled !== disabled) button.disabled = disabled;
+				const opacity = disabled ? '.6' : '1', cursor = disabled ? 'wait' : 'pointer';
+				if (button.style.opacity !== opacity) button.style.opacity = opacity;
+				if (button.style.cursor !== cursor) button.style.cursor = cursor;
+			};
+			root.append(button); document.documentElement.append(host);
+			update(nativeButton);
+		};
+		let update = () => {};
+		window.__shortestpathImportButtonRefresh = mount;
+		window.__shortestpathImportButtonBusy = value => { busy = value; mount(); };
+		const start = () => {
+			if (shortestPath) {
+				observer = new MutationObserver(mount);
+				observer.observe(document.documentElement, {subtree:true, childList:true, attributes:true, attributeFilter:['aria-label','disabled','title']});
+				window.addEventListener('popstate', mount); window.addEventListener('hashchange', mount);
+			}
+			mount();
+		};
+		window.__shortestpathImportButtonCleanup = () => {
+			observer?.disconnect();
+			window.removeEventListener('popstate', mount); window.removeEventListener('hashchange', mount);
+			document.removeEventListener('DOMContentLoaded', start);
+			document.getElementById(${JSON.stringify(elementId)})?.remove();
+			delete window.__shortestpathImportButtonBusy; delete window.__shortestpathImportButtonRefresh; delete window.__shortestpathImportButtonCleanup;
+		};
+		if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once:true}); else start();
+	})()`;
 	return `(() => {
+		${shortestPathBrowserHelpers()}
+		if (isShortestPathBrowserUrl(location.href)) { ${nativeScript}; return; }
 		if (window !== window.top || !/^https?:$/.test(location.protocol) || window.__shortestpathImportButtonCleanup) return;
 		${runtime};
 		(${mountImportControl.toString()})(${JSON.stringify(labels)}, ${JSON.stringify(initiallyCollapsed)} || window.__shortestpathImportButtonInitiallyCollapsed === true);
@@ -65,6 +122,11 @@ export async function attachBrowserImportButton(tab: vscode.BrowserTab, importCu
 		if (event.sessionId !== sid) { return; }
 		if (event.method === 'Runtime.executionContextsCleared') { contexts.clear(); }
 		if (event.method === 'Runtime.executionContextDestroyed') { contexts.delete(event.params?.executionContextId); }
+		if (event.method === 'Page.navigatedWithinDocument' && event.params?.frameId === mainFrame) {
+			for (const contextId of contexts) {
+				void send('Runtime.evaluate', { expression: 'window.__shortestpathImportButtonRefresh?.()', contextId }).catch(() => {});
+			}
+		}
 		const context = event.params?.context;
 		if (event.method === 'Runtime.executionContextCreated' && context?.name === worldName && context.auxData?.frameId === mainFrame) {
 			contexts.add(context.id);
@@ -72,7 +134,7 @@ export async function attachBrowserImportButton(tab: vscode.BrowserTab, importCu
 		}
 		if (event.method !== 'Runtime.bindingCalled' || event.params?.name !== bindingName || !contexts.has(event.params.executionContextId) || busy || disposed) { return; }
 		let request: { action?: string; parserId?: string; url?: string };
-		try { request = JSON.parse(event.params.payload); } catch { return; }
+		try { request = event.params.payload === 'import' ? { action: 'import', parserId: '', url: tab.url } : JSON.parse(event.params.payload); } catch { return; }
 		if (request.action !== 'import' || typeof request.parserId !== 'string' || typeof request.url !== 'string') { return; }
 		busy = true;
 		const contextId = event.params.executionContextId;

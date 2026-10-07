@@ -29,9 +29,13 @@ After the page is connected, the IDE opens the problem view beside your source f
 - statement, examples, problem timer, hints, and hint-answer access state;
 - source-code submission, submission progress, and final verdicts;
 - editorial access and hint likes; and
-- the problem context needed to continue the workflow in CPH Plus (including problem-level stress testing).
+- submission diagnostics, AI correction reports, and the problem context needed for CPH Plus.
 
 The website remains the source of truth for permissions such as opening hint answers and editorials. If the view shows that it is disconnected, keep ShortestPath IDE open and trigger the website's integration entry again. The local bridge does not expose a network service outside the current machine; source code is sent only when you choose to submit it.
+
+Protocol v2 supports training, standalone upsolving and contest targets, public interaction/grader information, OI scores and hidden results, and recovery of submissions and paid tasks after an uncertain response. Standard token-based samples run in CPH; special judging modes show their public testing instructions and use the server for formal judging. The website still owns authentication and business permissions.
+
+The shared bridge contract and HTTP DTOs are generated in the SPOJ repository and vendored under `extensions/shortestpath.oj/src/generated/`. Update them with SPOJ's `scripts/sync-ide-contract.mjs --ide-root ../shortestpath-ide`; do not edit generated files manually. Design and acceptance records are in SPOJ's `docs/shortestpath-ide-protocol-v2-design-2026-10-02.md` and `docs/shortestpath-ide-e2e-2026-10-02.md`. See [native E2E driver instructions](test/ide-bridge/README.md) for local integration testing. See [online testing instructions](docs/online-testing.md) to use an already logged-in browser against the production website.
 
 ### Details that matter in a contest
 
@@ -50,9 +54,12 @@ Run the following from this directory:
 
 ```bash
 npm ci
-npm run compile
+npm run transpile-client-localized
+npm run compile-oi-extensions
 ./scripts/code.sh --locale zh-cn --user-data-dir ./tmp/shortestpath-dev
 ```
+
+The localized development build supports Simplified Chinese and English. Use **Configure Display Language** in the command palette and restart to switch languages. Plain `transpile-client` and incremental watch outputs use English; rebuild with `transpile-client-localized` for localized UI.
 
 Build a macOS Apple Silicon package:
 

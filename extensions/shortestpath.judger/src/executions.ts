@@ -229,7 +229,10 @@ export const deleteBinary = (language: Language, binPath: string) => {
                     if ((file === prefix + '.class' || file.startsWith(prefix + '$')) && file.endsWith('.class')) { fs.rmSync(path.join(directory, file), { force: true }); }
                 }
             }
-        } else { fs.rmSync(binPath, { recursive: true, force: true }); }
+        } else {
+            fs.rmSync(binPath, { recursive: true, force: true });
+            fs.rmSync(`${binPath}.dSYM`, { recursive: true, force: true });
+        }
     } catch (error) { globalThis.logger.error('Error deleting binary', error); }
 
 };

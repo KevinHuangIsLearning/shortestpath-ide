@@ -2,13 +2,53 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.4.1 更新 / What's New
+## v0.4.4 更新 / What's New
 
-- 修复 Judger 在 Windows 高 DPI 环境下整个面板字号偏大的问题：按钮、标题和样例统一跟随 IDE 界面字号，不再随编辑器字号一起放大。
+- 新增离线草稿画板，内置 16 个可编辑竞赛绘图模板，支持自动保存、代码旁绘图，以及 Excalidraw、PNG 和 SVG 导出。
+- 内置 Fira Code，编辑器、设置及引导预览均可直接使用；字体加载完成后自动刷新字宽测量。
+- 首次引导新增字体选择和连字开关，示例代码可即时展示连字效果；保留既有字体设置。
+- 代码存放目录选定后立即记住，重新进入引导时恢复；重装保留用户数据即可恢复，便携版支持目录随盘符或位置变化重新定位。
+- Windows 改为提供用户安装版与便携版；旧系统安装版的更新入口引导至用户安装包。
+- 统一草稿、设置和代码片段页面的边界样式，改善紧凑布局下的显示。
 
 ### English
 
-- Fixed oversized Judger panel text and controls on Windows high-DPI displays. Buttons, titles, and samples now follow the IDE UI font size instead of the editor font size.
+- Added an offline sketchpad with 16 editable competition templates, autosave, drawing beside code, and Excalidraw, PNG, and SVG export.
+- Bundled Fira Code for the editor, settings, and setup previews. Font measurements refresh after fonts finish loading.
+- Added font selection and a ligature toggle to initial setup, with live ligature examples and preservation of existing font preferences.
+- Code folders are remembered immediately and restored when setup reopens. Reinstalling with user data preserved keeps the selection; portable installations rebase folders after drive or location changes.
+- Windows now provides a per-user installer and a portable package. Update links for legacy system installations lead to the user installer.
+- Unified sketchpad, settings, and snippet page borders, including compact layouts.
+
+## v0.4.3 更新 / What's New
+
+- 修复 Judger 初始化顺序错误，恢复题目样例加载与本地评测，并加入冷启动回归测试。
+- 内置浏览器的 ShortestPath 导题入口改用网站的“开始做题”流程，支持页面导航与按钮状态变化。
+- 将题目评价移至题面顶部浮层，改善投票后的焦点、浮层边界和悬停交互。
+- 题解代码高亮、字体与编辑器主题保持一致，改进浏览器标签标题宽度及拥挤时的滚动显示。
+
+### English
+
+- Fixed Judger initialization order to restore sample loading and local judging, with a cold-start regression test.
+- Integrated browser imports on ShortestPath now use the website's Start Solving flow and follow page navigation and button state changes.
+- Moved problem ratings into a header popover and improved focus, viewport positioning, and hover behavior after voting.
+- Editorial code highlighting and fonts follow the editor theme. Improved browser tab title sizing and scrolling when tabs are crowded.
+
+## v0.4.2 更新 / What's New
+
+- 新增题目与代码配对的解题工作区、内嵌样例和自定义测试；官方样例保持只读，支持编译诊断、取消运行及输出差异。
+- 题目快照移入 IDE 私有缓存，只保留最近 30 题；保留代码关联并迁移旧缓存，不删除代码或 Judger 测试文件。
+- 完善连接恢复、题目评价、历史题面和报告展示。点赞使用题目快照，支持投票及修改，下次获取题目时同步远端状态。
+- 改进首次配置和环境自检、C++ 模板及代码片段编辑、字体和格式预览，并兼容新版 Judger。
+- 修复本地开发与安装包的中文翻译加载，保留扩展宿主所需的 Chat、MCP 和 Agent 服务。
+
+### English
+
+- Added paired problem and source workspaces with integrated samples and custom tests. Official samples remain read-only, with compiler diagnostics, cancellation, and output differences.
+- Moved problem snapshots to a private IDE cache retaining the latest 30 problems. Source bindings survive eviction; migration preserves source and Judger testcase files.
+- Improved connection recovery, ratings, statement history, and reports. Likes use the imported snapshot, support voting and changes, and refresh on the next problem fetch.
+- Improved first-run setup, environment checks, C++ templates, snippet editing, font and formatting previews, with support for the current Judger backend.
+- Fixed Chinese translation loading in local development and packaged builds while preserving Chat, MCP, and Agent services required by the extension host.
 
 The English version follows the Chinese version.
 
@@ -20,10 +60,11 @@ The English version follows the Chinese version.
 | --- | --- | --- |
 | Windows x64（大多数人） | [`ShortestPath-IDE-Windows-x64-User-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-User-Setup.exe) | 当前用户安装，**内置 MinGW Lite GCC**，无需管理员权限，装完即用、离线可用 |
 | Windows x64，要 U 盘便携版（推荐） | [`ShortestPath-IDE-Windows-x64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64.zip) | 解压即用，**内置 MinGW Lite GCC**；设置、插件和工具链保存在安装目录的 `data` 中，可随 U 盘移动 |
-| Windows x64，系统级安装 | [`ShortestPath-IDE-Windows-x64-Setup.exe`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-Setup.exe) | 系统级安装（需管理员），**内置 MinGW Lite GCC**，给这台机器所有用户用 |
 | macOS（Apple Silicon，M 系列）| [`ShortestPath-IDE-macos-arm64.zip`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip) | 唯一选择；解压后拖入「应用程序」，首次打开被拦截请看下方指南 |
 | Linux x64（大多数发行版） | [`ShortestPath-IDE-linux-x64.tar.gz`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-linux-x64.tar.gz) | 解压后在目录中运行 `shortestpath`；**不含编译器**，向导会调用系统包管理器安装 g++ 并下载 clangd |
 | Linux x64（Debian / Ubuntu） | [`ShortestPath-IDE-linux-x64.deb`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-linux-x64.deb) | 双击安装，或执行 `sudo apt install ./ShortestPath-IDE-linux-x64.deb`；同样不含编译器 |
+
+Windows 仅提供用户安装版与便携版。此前使用系统安装版的用户，建议先卸载旧版，再安装用户版。
 
 ### macOS（Apple Silicon）
 
@@ -55,10 +96,11 @@ xattr -c "/Applications/ShortestPath IDE.app"
 | :--------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
 | Windows x64 (Most users)                 | [\`ShortestPath-IDE-Windows-x64-User-Setup.exe\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-User-Setup.exe) | Per-user installation; **includes MinGW Lite GCC**; no admin rights needed; ready to use immediately; works offline. |
 | Windows x64 (Portable version)           | [\`ShortestPath-IDE-Windows-x64.zip\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64.zip) | Extract and run; **includes MinGW Lite GCC**; settings, extensions, and the toolchain stay in the adjacent `data` directory and travel with a USB drive. |
-| Windows x64 (System-wide)                | [\`ShortestPath-IDE-Windows-x64-Setup.exe\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-Windows-x64-Setup.exe) | System-wide installation (requires administrator privileges); **includes MinGW Lite GCC**; for all users on the machine. |
 | macOS (Apple Silicon / M-series)         | [\`ShortestPath-IDE-macos-arm64.zip\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-macos-arm64.zip) | The only option; extract and drag to "Applications"; see the guide below if blocked upon first launch. |
 | Linux x64 (Most distributions)           | [\`ShortestPath-IDE-linux-x64.tar.gz\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-linux-x64.tar.gz) | Extract and run \`shortestpath\`; **no compiler bundled** — the wizard installs g++ with your distribution's package manager and downloads clangd. |
 | Linux x64 (Debian / Ubuntu)              | [\`ShortestPath-IDE-linux-x64.deb\`](https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/latest/download/ShortestPath-IDE-linux-x64.deb) | Double-click, or run \`sudo apt install ./ShortestPath-IDE-linux-x64.deb\`; also ships without a compiler. |
+
+Windows provides a per-user installer and a portable package. If you previously used the system-wide installer, uninstall it before installing the per-user version.
 
 ### macOS (Apple Silicon)
 

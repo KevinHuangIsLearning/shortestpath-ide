@@ -350,13 +350,14 @@ export class ModalEditorPart {
 		)));
 
 		// Create editor toolbar
-		const editorActionsToolbarContainer = append(actionBarContainer, $('div.modal-editor-editor-actions'));
+		const standardActionsContainer = append(actionBarContainer, $('div.modal-editor-standard-actions'));
+		const editorActionsToolbarContainer = append(standardActionsContainer, $('div.modal-editor-editor-actions'));
 		const editorActionsToolbar = disposables.add(scopedInstantiationService.createInstance(WorkbenchToolBar, editorActionsToolbarContainer, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			highlightToggledItems: true,
 		}));
 
-		const editorActionsSeparator = append(actionBarContainer, $('div.modal-editor-action-separator'));
+		const editorActionsSeparator = append(standardActionsContainer, $('div.modal-editor-action-separator'));
 		const editorActionsDisposables = disposables.add(new DisposableStore());
 		const updateEditorActions = () => {
 			editorActionsDisposables.clear();
@@ -374,11 +375,15 @@ export class ModalEditorPart {
 		disposables.add(modalEditorService.onDidEditorsChange(() => editorPart.enforceModalPartOptions()));
 
 		// Create global toolbar
-		disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ModalEditorTitle, {
+		disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, standardActionsContainer, MenuId.ModalEditorTitle, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			highlightToggledItems: true,
 			menuOptions: { shouldForwardArgs: true }
 		}));
+		const closeOnlyContainer = append(actionBarContainer, $('div.modal-editor-close-only-actions'));
+		const closeAction = disposables.add(new Action(CLOSE_MODAL_EDITOR_COMMAND_ID, localize('closeModalEditor', "Close Modal Editor"), ThemeIcon.asClassName(Codicon.close), true, () => editorPart.close()));
+		const closeActionBar = disposables.add(new ActionBar(closeOnlyContainer));
+		closeActionBar.push(closeAction, { icon: true, label: false });
 
 		// Create label
 		const label = disposables.add(scopedInstantiationService.createInstance(ResourceLabel, titleElement, {}));
@@ -746,6 +751,8 @@ export class ModalEditorPart {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			const editorModalOptions = isModalEditorOptionsProvider(activeEditor) ? activeEditor.getModalEditorOptions() : undefined;
 			modalElement.classList.toggle('compact-header', !!editorModalOptions?.compactHeader);
+			setVisibility(!editorModalOptions?.closeOnly, standardActionsContainer);
+			setVisibility(!!editorModalOptions?.closeOnly, closeOnlyContainer);
 			layoutModal();
 		}));
 

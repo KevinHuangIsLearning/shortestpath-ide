@@ -7,7 +7,7 @@ import { join } from '../common/path.js';
 import { promises } from 'fs';
 import { createHash } from 'crypto';
 import { mark } from '../common/performance.js';
-import { ILanguagePacks, INLSConfiguration } from '../../nls.js';
+import { ILanguagePack, ILanguagePacks, INLSConfiguration } from '../../nls.js';
 import { Promises } from './pfs.js';
 
 export interface IResolveNLSConfigurationContext {
@@ -52,17 +52,15 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 	mark('code/willGenerateNls');
 
 	if (
-		process.env['VSCODE_DEV'] ||
 		userLocale === 'pseudo' ||
 		userLocale.startsWith('en') ||
-		!commit ||
 		!userDataPath
 	) {
 		return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 	}
 
 	try {
-		let languagePacks = await getLanguagePackConfigurations(userDataPath) ?? {};
+		let languagePacks = await getLanguagePackConfigurations(userDataPath, nlsMetadataPath) ?? {};
 		if (builtInExtensionsPath && !resolveLanguagePackLanguage(languagePacks, userLocale)) {
 			languagePacks = { ...await getBuiltInLanguagePackConfigurations(builtInExtensionsPath), ...languagePacks };
 		}
@@ -85,8 +83,10 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 		}
 
 		const languagePackId = `${languagePack.hash}.${resolvedLanguage}`;
+		// Development indices change between builds without a product commit.
+		const languagePackCommit = commit ?? `dev-${createHash('sha256').update(await promises.readFile(join(nlsMetadataPath, 'nls.keys.json'))).update(await promises.readFile(join(nlsMetadataPath, 'nls.messages.json'))).digest('hex')}`;
 		const globalLanguagePackCachePath = join(userDataPath, 'clp', languagePackId);
-		const commitLanguagePackCachePath = join(globalLanguagePackCachePath, nlsMetadataHash ?? commit);
+		const commitLanguagePackCachePath = join(globalLanguagePackCachePath, nlsMetadataHash ?? languagePackCommit);
 		const languagePackMessagesFile = join(commitLanguagePackCachePath, 'nls.messages.json');
 		const translationsConfigFile = join(globalLanguagePackCachePath, 'tcf.json');
 		const languagePackCorruptMarkerFile = join(globalLanguagePackCachePath, 'corrupted.info');
@@ -218,13 +218,62 @@ async function getBuiltInLanguagePackConfigurations(extensionsPath: string): Pro
  *
  * The file is updated whenever a new language pack is installed or removed.
  */
-async function getLanguagePackConfigurations(userDataPath: string): Promise<ILanguagePacks | undefined> {
+async function getLanguagePackConfigurations(userDataPath: string, nlsMetadataPath: string): Promise<ILanguagePacks | undefined> {
 	const configFile = join(userDataPath, 'languagepacks.json');
+	let languagePacks: ILanguagePacks = {};
 	try {
-		return JSON.parse(await promises.readFile(configFile, 'utf-8'));
-	} catch (err) {
-		return undefined; // Do nothing. If we can't read the file we have no language pack config.
+		const storedLanguagePacks: unknown = JSON.parse(await promises.readFile(configFile, 'utf-8'));
+		if (storedLanguagePacks && typeof storedLanguagePacks === 'object' && !Array.isArray(storedLanguagePacks)) {
+			languagePacks = storedLanguagePacks as ILanguagePacks;
+		}
+	} catch {
+		// A fresh profile does not have languagepacks.json yet.
 	}
+
+	// `nls.ts` is bundled into out/main.js for packaged builds, so paths based
+	// on import.meta.dirname point at a different directory in development and
+	// in a packaged application. nlsMetadataPath is stable in both layouts:
+	// <app>/out-build in development and <app>/out when packaged.
+	const builtInLanguagePacks = [
+		{ extensionFolder: 'MS-CEINTL.vscode-language-pack-zh-hans', extensionId: 'ms-ceintl.vscode-language-pack-zh-hans', languageId: 'zh-cn' },
+	];
+	for (const builtInLanguagePack of builtInLanguagePacks) {
+		const extensionRoot = join(nlsMetadataPath, '..', 'extensions', builtInLanguagePack.extensionFolder);
+		const manifestPath = join(extensionRoot, 'package.json');
+		if (!await Promises.exists(manifestPath)) { continue; }
+		try {
+			const manifest = JSON.parse(await promises.readFile(manifestPath, 'utf-8')) as {
+				version?: string;
+				contributes?: { localizations?: Array<{ languageId?: string; localizedLanguageName?: string; translations?: Array<{ id?: string; path?: string }> }> };
+			};
+			const localization = manifest.contributes?.localizations?.find(candidate => candidate.languageId?.toLowerCase() === builtInLanguagePack.languageId);
+			if (localization?.translations?.length) {
+				const translations: Record<string, string> = {};
+				for (const translation of localization.translations) {
+					if (translation.id && translation.path) {
+						translations[translation.id] = join(extensionRoot, translation.path);
+					}
+				}
+				if (translations['vscode'] && await Promises.exists(translations['vscode'])) {
+					const version = manifest.version ?? 'builtin';
+					const translationHash = createHash('sha256').update(await promises.readFile(translations['vscode'])).digest('hex');
+					const builtInPack: ILanguagePack = {
+						hash: `builtin-${builtInLanguagePack.languageId}-${version}-${translationHash}`,
+						label: localization.localizedLanguageName ?? builtInLanguagePack.languageId,
+						extensions: [{ extensionIdentifier: { id: builtInLanguagePack.extensionId }, version }],
+						translations
+					};
+					// Always prefer the bundled pack. Existing profiles can contain an
+					// empty or stale entry whose absolute path belongs to another build.
+					languagePacks[builtInLanguagePack.languageId] = builtInPack;
+				}
+			}
+		} catch (error) {
+			console.error(`Loading the bundled ${builtInLanguagePack.languageId} language pack failed.`, error);
+		}
+	}
+
+	return languagePacks;
 }
 
 function resolveLanguagePackLanguage(languagePacks: ILanguagePacks, locale: string | undefined): string | undefined {

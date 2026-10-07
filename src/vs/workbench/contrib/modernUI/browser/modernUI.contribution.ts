@@ -116,7 +116,6 @@ const MODERN_UI_MODULES: readonly IModernUIModule[] = [
 	{ id: 'scrollShadows' },
 	{ id: 'shadows' },
 	{ id: 'statusBar' },
-	{ id: 'tabs' },
 	{ id: 'titlebar' },
 	{ id: 'notificationsDialogs' },
 ];
@@ -217,8 +216,9 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 	private applyTo(container: HTMLElement, enabled: boolean, compact: boolean, useUppercaseViewHeaders: boolean): void {
 		container.classList.toggle(MODERN_UI_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_COMPACT_CLASS, compact);
-		container.classList.toggle(MODERN_UI_TABS_CLASS, enabled);
-		container.classList.toggle(MODERN_UI_CONNECTED_EDITOR_TABS_CLASS, enabled && this.useConnectedEditorTabs());
+		// Keep the regular workbench's native VS Code tabs, including their layout metrics.
+		container.classList.remove(MODERN_UI_TABS_CLASS);
+		container.classList.remove(MODERN_UI_CONNECTED_EDITOR_TABS_CLASS);
 		container.classList.toggle(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS, useUppercaseViewHeaders);
 	}

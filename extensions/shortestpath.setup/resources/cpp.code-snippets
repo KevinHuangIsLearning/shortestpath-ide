@@ -1,0 +1,38 @@
+{
+	"线段树单点更新": {
+		"prefix": "seg_tree",
+		"body": [
+			"struct segment_tree {",
+			"  int n, base = 1;",
+			"  vector<int> mn;",
+			"",
+			"  segment_tree(vector<int>& a) : n(a.size() - 1) {",
+			"    while (base < n) base <<= 1;",
+			"    mn.assign(base << 1, INT_MAX);",
+			"    for (int i = 1; i <= n; i++) mn[base + i - 1] = a[i];",
+			"    for (int p = base - 1; p; p--) push_up(p);",
+			"  }",
+			"",
+			"  void push_up(int p) {",
+			"    mn[p] = min(mn[p << 1], mn[p << 1 | 1]);",
+			"  }",
+			"",
+			"  void set(int pos, int x) {",
+			"    int p = base + pos - 1;",
+			"    mn[p] = x;",
+			"    for (p >>= 1; p; p >>= 1) push_up(p);",
+			"  }",
+			"",
+			"  int query(int l, int r) {",
+			"    int res = INT_MAX;",
+			"    for (l += base - 1, r += base - 1; l <= r; l >>= 1, r >>= 1) {",
+			"      if (l & 1) res = min(res, mn[l++]);",
+			"      if (!(r & 1)) res = min(res, mn[r--]);",
+			"    }",
+			"    return res;",
+			"  }",
+			"};"
+		],
+		"description": "线段树模版"
+	}
+}

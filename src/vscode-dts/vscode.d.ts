@@ -10057,6 +10057,14 @@ declare module 'vscode' {
 		/** Controls whether this webview opens in the workbench modal editor. */
 		readonly modal?: boolean;
 
+		/** Show only the close action in this panel's modal editor header. Requires `modal`. */
+		readonly modalCloseOnly?: boolean;
+
+		/** Show a native source editor on the left, sharing this panel's tab and lifecycle. */
+		readonly sourceEditor?: Uri;
+		/** Initial percentage of space reserved for the source editor. */
+		readonly sourceEditorRatio?: number;
+
 		/**
 		 * Controls if the find widget is enabled in the panel.
 		 *

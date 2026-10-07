@@ -1,9 +1,21 @@
 globalThis.logger = { ...console };
 import {
+    decodeShortestPathSourcePath,
     words_in_text,
     toPascalCase,
     replaceFileNamePlaceholders,
 } from '../utilsPure';
+
+test('ShortestPath paths support Unicode, legacy peers and reject injected controls', () => {
+    const path = 'C:\\用户\\字母互换%20.cpp';
+    expect([
+        decodeShortestPathSourcePath(encodeURIComponent(path), undefined),
+        decodeShortestPathSourcePath(undefined, '/tmp/legacy.cpp'),
+        decodeShortestPathSourcePath('%0D%0AInjected', undefined),
+        decodeShortestPathSourcePath('%ZZ', '/tmp/legacy.cpp'),
+        decodeShortestPathSourcePath(undefined, '/tmp/a\u0000'),
+    ]).toEqual([path, '/tmp/legacy.cpp', undefined, undefined, undefined]);
+});
 
 describe('problem name parser', () => {
     test('mix of latin, non latin and numbers', () => {

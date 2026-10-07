@@ -37,12 +37,16 @@
                 {
                     "type": "webview",
                     "id": "judger.judgeView",
-                    "name": "%judger.judgeView.name%"
+                    "name": "%judger.judgeView.name%",
+                    "when": "!shortestpath.oj.integratedLocalTests"
                 }
             ]
         },
         "commands": [
-            { "command": "judger.importBrowserProblem", "title": "%judger.importBrowserProblem.title%" },
+            {
+                "command": "judger.importBrowserProblem",
+                "title": "%judger.importBrowserProblem.title%"
+            },
             {
                 "command": "judger.runTestCases",
                 "title": "%judger.runTestCases.title%",
@@ -1445,6 +1449,10 @@
                     "default": 60000,
                     "minimum": 1,
                     "description": "%judger.stressTest.bruteForceTimeLimit.description%"
+                },
+                "judger.language.cpp.Template": {
+                    "type": "string",
+                    "description": "%judger.language.cpp.Template.description%"
                 }
             }
         }

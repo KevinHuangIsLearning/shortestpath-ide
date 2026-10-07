@@ -150,7 +150,7 @@ perf.mark('code/willGetPreferredSystemLanguages');
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
 perf.mark('code/didGetPreferredSystemLanguages');
 const userLocale = resolveUserLocale(args['locale'], argvConfig.locale, osLocale);
-const nlsMetadataPath = process.env['VSCODE_DEV'] && fs.existsSync(path.join(import.meta.dirname, '..', 'out-build', 'nls.keys.json'))
+const nlsMetadataPath = process.env['VSCODE_DEV'] && !fs.existsSync(path.join(import.meta.dirname, 'nls.keys.json')) && fs.existsSync(path.join(import.meta.dirname, '..', 'out-build', 'nls.keys.json'))
 	? path.join(import.meta.dirname, '..', 'out-build')
 	: import.meta.dirname;
 if (userLocale) {

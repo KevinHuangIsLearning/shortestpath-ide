@@ -79,7 +79,6 @@ export function registerBacklinks(
   const refresh = (): void => provider.refresh();
 
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider("ofm.backlinks", provider),
     vscode.window.tabGroups.onDidChangeTabs(refresh),
     vscode.window.onDidChangeActiveTextEditor(refresh),
     vscode.workspace.onDidSaveTextDocument(refresh),

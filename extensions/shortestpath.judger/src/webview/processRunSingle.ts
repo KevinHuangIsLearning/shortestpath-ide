@@ -87,6 +87,7 @@ export const runSingleAndSave = async (
     const expectedOutput = testCase.outputPath ? await fs.promises.readFile(testCase.outputPath, 'utf8') : testCase.output;
     const fileBacked = !!(testCase.inputPath || testCase.outputPath);
     checkCancelled();
+    getJudgeViewProvider().extensionToJudgeViewMessage({ command: 'running', id, problem });
     const result = await executeAndJudgeTestCase(language, binPath, {
         checkCancelled,
         artifacts,

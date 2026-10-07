@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { IEditorService, MODAL_GROUP } from '../../services/editor/common/editorService.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext, MainContext, MainThreadBrowsersShape } from '../common/extHost.protocol.js';
 import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../../contrib/browserView/common/browserView.js';
-import { BrowserViewUri } from '../../../platform/browserView/common/browserViewUri.js';
-import { generateUuid } from '../../../base/common/uuid.js';
-import { EditorGroupColumn, columnToEditorGroup } from '../../services/editor/common/editorGroupColumn.js';
+import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { GroupsOrder, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../platform/editor/common/editor.js';
 import { CDPRequest } from '../../../platform/browserView/common/cdp/types.js';
 import { BrowserEditorInput } from '../../contrib/browserView/common/browserEditorInput.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { BrowserViewStorageScope } from '../../../platform/browserView/common/browserView.js';
+import { IShortestPathModeService } from '../../contrib/shortestpath/common/shortestPathMode.js';
 
 @extHostNamedCustomer(MainContext.MainThreadBrowsers)
 export class MainThreadBrowsers extends Disposable implements MainThreadBrowsersShape {
@@ -24,6 +24,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 	private readonly _proxy: ExtHostBrowsersShape;
 
 	private readonly _cdpSessions = this._register(new DisposableMap<string, { groupId: string } & IDisposable>());
+	private readonly _ownedHiddenBrowsers = this._register(new DisposableMap<string, BrowserEditorInput>());
 	private readonly _knownBrowsers = this._register(new DisposableMap<string, { input: BrowserEditorInput } & IDisposable>());
 
 	constructor(
@@ -32,8 +33,8 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		@IBrowserViewCDPService private readonly cdpService: IBrowserViewCDPService,
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IShortestPathModeService private readonly modeService: IShortestPathModeService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostBrowsers);
@@ -45,6 +46,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 			}
 		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => this._syncActiveBrowserTab()));
+		this._register(this.modeService.onDidChangeActiveBrowser(() => this._syncActiveBrowserTab()));
 
 		// Initial sync
 		for (const editor of this.browserViewService.getKnownBrowserViews().values()) {
@@ -55,25 +57,24 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 
 	// #region Browser tab open
 
-	async $openBrowserTab(url: string, viewColumn?: EditorGroupColumn, options?: IEditorOptions): Promise<BrowserTabDto> {
-		const id = generateUuid();
-		const browserUri = BrowserViewUri.forId(id);
-
-		await this.editorService.openEditor(
-			{
-				resource: browserUri,
-				options: { ...options, viewState: { url, requiresModal: !!options?.modal } }
-			},
-			options?.modal
-				? MODAL_GROUP
-				: columnToEditorGroup(this.editorGroupsService, this.configurationService, viewColumn),
-		);
-		const known = this._knownBrowsers.get(id);
-		if (!known) {
-			throw new Error('Failed to open browser tab');
+	async $openBrowserTab(url: string, _viewColumn?: EditorGroupColumn, options?: IEditorOptions & { hidden?: boolean }): Promise<BrowserTabDto> {
+		if (options?.hidden) {
+			const input = await this.browserViewService.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global } });
+			this._ownedHiddenBrowsers.set(input.id, input);
+			this._track(input);
+			try {
+				const model = await input.resolve();
+				const loaded = await raceTimeout(model.loadURL(url).then(() => true), 30_000);
+				if (!loaded) { throw new Error('Background browser navigation timed out'); }
+				return this._toDto(input);
+			} catch (error) {
+				input.dispose();
+				throw error;
+			}
 		}
-
-		return this._toDto(known.input);
+		const input = await this.modeService.openBrowser(url, true, !!options?.preserveFocus || !!options?.inactive);
+		this._track(input);
+		return this._toDto(input);
 	}
 
 	// #endregion
@@ -84,7 +85,10 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 	private async _syncActiveBrowserTab(): Promise<void> {
 		const active = this.editorService.activeEditorPane?.input;
 		let activeId: string | undefined;
-		if (active instanceof BrowserEditorInput) {
+		if (this.modeService.mode === 'browse' && this.modeService.activeBrowser) {
+			this._track(this.modeService.activeBrowser);
+			activeId = this.modeService.activeBrowser.id;
+		} else if (active instanceof BrowserEditorInput) {
 			this._track(active);
 			activeId = active.id;
 		}
@@ -105,6 +109,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 			this._proxy.$onDidChangeBrowserTabState(this._toDto(input));
 		}));
 		disposables.add(input.onWillDispose(() => {
+			this._ownedHiddenBrowsers.deleteAndLeak(input.id);
 			this._knownBrowsers.deleteAndDispose(input.id);
 		}));
 		disposables.add(toDisposable(() => {
@@ -181,7 +186,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 			throw new Error(`Unknown browser id: ${browserId}`);
 		}
 
-		await this.editorService.openEditor(known.input, { preserveFocus: false });
+		await this.modeService.showBrowser(known.input);
 	}
 
 	async $moveBrowserTabToNewWindow(browserId: string, additionalBrowserIds: readonly string[], minimize = false): Promise<void> {

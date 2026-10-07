@@ -2,6 +2,7 @@ import { retainExecutable } from '../executableCleanup';
 import { sameTestcase } from '../testcasePresentation';
 import { isShortestPathProblem, setProblemCompletion } from '../problemTimer';
 import { webviewBootstrap } from '../webviewBootstrap';
+import { isIntegratedTestRunning } from '../integratedTestCommands';
 import { problemLanguage } from '../problemOptions';
 import { stopTestcase } from '../testcaseCancellation';
 import { problemActions } from '../problemActions';
@@ -71,6 +72,8 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
     private currentProblem: Problem | undefined;
 
     private ordinaryRunRunning = false;
+    public get isOrdinaryRunRunning(): boolean { return this.ordinaryRunRunning; }
+    public isViewVisible(): boolean { return this._view?.visible === true; }
     private readonly recentProblems = new Map<string, Problem>();
 
     public isViewUninitialized() {
@@ -201,7 +204,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                     case 'run-single-and-save': {
                         if (
                             isStressTestRunning() ||
-                            this.ordinaryRunRunning || runningBinaries.length > 0 || runningCompilers.length > 0
+                            isIntegratedTestRunning() || this.ordinaryRunRunning || runningBinaries.length > 0 || runningCompilers.length > 0
                         ) {
                             void vscode.window.showErrorMessage(
                                 'Stop the stress test before running test cases.',
@@ -232,7 +235,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                     case 'stress-start': {
                         if (
                             isStressTestRunning() ||
-                            this.ordinaryRunRunning ||
+                            isIntegratedTestRunning() || this.ordinaryRunRunning ||
                             runningBinaries.length > 0 ||
                             runningCompilers.length > 0
                         ) {
@@ -632,7 +635,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
     }
 
     public async compileSource(srcPath: string) {
-        if (isStressTestRunning() || this.ordinaryRunRunning || runningBinaries.length > 0 || runningCompilers.length > 0) {
+        if (isStressTestRunning() || isIntegratedTestRunning() || this.ordinaryRunRunning || runningBinaries.length > 0 || runningCompilers.length > 0) {
             void vscode.window.showErrorMessage(localize('judger.run.busy', 'Stop the current run before running testcases.'));
             return;
         }
@@ -645,7 +648,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
     }
 
     public async runAll(problem: Problem) {
-        if (isStressTestRunning() || this.ordinaryRunRunning || runningBinaries.length > 0 || runningCompilers.length > 0) {
+        if (isStressTestRunning() || isIntegratedTestRunning() || this.ordinaryRunRunning || runningBinaries.length > 0 || runningCompilers.length > 0) {
             void vscode.window.showErrorMessage(localize('judger.run.busy', 'Stop the current run before running testcases.'));
             return;
         }

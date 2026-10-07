@@ -180,5 +180,6 @@ import './contrib/processExplorer/browser/processExplorer.web.contribution.js';
 
 // Browser View
 import './contrib/browserView/browser/browserView.contribution.js';
+import './contrib/shortestpath/browser/shortestPathMode.web.contribution.js';
 
 //#endregion

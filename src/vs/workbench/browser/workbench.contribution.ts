@@ -611,7 +611,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.secondarySideBar.defaultVisibility': {
 				'type': 'string',
 				'enum': ['hidden', 'visibleInWorkspace', 'visible', 'maximizedInWorkspace', 'maximized'],
-				'default': 'visibleInWorkspace',
+				'default': 'hidden',
+				'included': false,
 				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows that are opened for the first time. Can be overridden by the agent sessions startup editor setting."),
 				'enumDescriptions': [
 					localize('workbench.secondarySideBar.defaultVisibility.hidden', "The secondary side bar is hidden by default."),
@@ -623,6 +624,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				agentsWindow: { default: 'visibleInWorkspace', readOnly: true },
 			},
 			'workbench.secondarySideBar.forceMaximized': {
+				'included': false,
 				'type': 'boolean',
 				'default': false,
 				tags: ['experimental'],
@@ -630,6 +632,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				agentsWindow: { default: false, readOnly: true },
 			},
 			'workbench.secondarySideBar.showLabels': {
+				'included': false,
 				'type': 'boolean',
 				'default': true,
 				'markdownDescription': localize('secondarySideBarShowLabels', "Controls whether activity items in the secondary side bar title are shown as label or icon. This setting only has an effect when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`top`'),
@@ -784,7 +787,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.navigationControl.enabled': {
 				'type': 'boolean',
-				'default': true,
+				'default': false,
 				'markdownDescription': isWeb ?
 					localize('navigationControlEnabledWeb', "Controls whether the navigation control in the title bar is shown.") :
 					localize({ key: 'navigationControlEnabled', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Controls whether the navigation control is shown in the custom title bar. This setting only has an effect when {0} is not set to {1}.", '`#window.customTitleBarVisibility#`', '`never`'),

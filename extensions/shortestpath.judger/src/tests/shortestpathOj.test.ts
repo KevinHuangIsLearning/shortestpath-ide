@@ -19,7 +19,7 @@ describe('ShortestPath OJ test import', () => {
         expect(appendShortestPathTestCase(value, 'counterexample\n', 'expected\n', 2)).toBe(true);
         expect(value.tests).toEqual([
             { input: 'sample\n', output: 'sample output\n', id: 1 },
-            { input: 'counterexample\n', output: 'expected\n', id: 2 },
+            { input: 'counterexample\n', output: 'expected\n', id: 2, origin: 'custom' },
         ]);
     });
 

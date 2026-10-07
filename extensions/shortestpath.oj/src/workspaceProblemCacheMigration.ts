@@ -12,11 +12,11 @@ export type WorkspaceCacheMigration<T> = {
 };
 
 export async function migrateLegacyWorkspaceCache<T>(migration: WorkspaceCacheMigration<T>): Promise<boolean> {
-	const current = await migration.readCurrent();
 	const legacy = await migration.readLegacy();
 	if (!legacy) {
 		return false;
 	}
+	const current = await migration.readCurrent();
 	const merged = migration.merge(current, legacy);
 	await migration.writeCurrent(merged);
 	await migration.deleteLegacy();

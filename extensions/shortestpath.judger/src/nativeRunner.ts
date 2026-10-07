@@ -44,6 +44,8 @@ export async function runNative(
 		if (
 			!(await compileFile(source, {
 				outputPath: executable,
+                silent: true,
+                isCancelled: () => { try { checkCancelled?.(); return false; } catch { return true; } },
 				additionalArgs: [
 					'-std=c++17',
 					...(process.platform === 'win32'

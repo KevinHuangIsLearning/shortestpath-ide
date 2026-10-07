@@ -1,0 +1,689 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench.shortestpath-dual-mode {
+	--vscode-cornerRadius-large: var(--vscode-cornerRadius-xLarge, 12px);
+}
+
+/* The title bar sets an inline theme background; keep all window chrome in the same tier. */
+.monaco-workbench.shortestpath-dual-mode,
+.monaco-workbench.shortestpath-dual-mode > .monaco-grid-view,
+.monaco-workbench.shortestpath-dual-mode .part.titlebar,
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation {
+	background-color: color-mix(in srgb, var(--modern-ui-shell-background, var(--vscode-titleBar-activeBackground)) 94%, var(--vscode-foreground) 6%) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation {
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80, 8px) var(--vscode-spacing-size60, 6px);
+	color: var(--vscode-titleBar-activeForeground);
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.sidebar > .header-or-footer.header {
+	padding-left: var(--vscode-spacing-size80, 8px);
+}
+
+/* Solving is one workspace, with no card gutter between the sidebar and editor.
+ * Keep the leading margin in sync with getFloatingPaneCompositeHorizontalMargins. */
+.monaco-workbench.shortestpath-dual-mode.floating-panels .part.sidebar,
+.monaco-workbench.shortestpath-dual-mode.floating-panels > .monaco-grid-view .part.editor {
+	margin-left: var(--modern-ui-floating-card-inner-margin);
+}
+
+.monaco-workbench.shortestpath-dual-mode.floating-panels .part.sidebar.floating-part-outer-left,
+.monaco-workbench.shortestpath-dual-mode.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-left {
+	margin-left: var(--modern-ui-floating-card-outer-margin);
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.sidebar,
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part),
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content {
+	border-radius: 0 !important;
+}
+
+/* Round only the workspace perimeter; the shared sidebar/editor seam stays square. */
+.monaco-workbench.shortestpath-dual-mode .part.sidebar.floating-part-outer-left.floating-part-outer-top,
+.monaco-workbench.shortestpath-dual-mode .part.editor.floating-editor-outer-left.floating-editor-outer-top:not(.modal-editor-part) {
+	border-top-left-radius: var(--vscode-cornerRadius-large, 12px) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.sidebar.floating-part-outer-left.floating-part-outer-bottom,
+.monaco-workbench.shortestpath-dual-mode .part.editor.floating-editor-outer-left.floating-editor-outer-bottom:not(.modal-editor-part) {
+	border-bottom-left-radius: var(--vscode-cornerRadius-large, 12px) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.sidebar.floating-part-outer-right.floating-part-outer-top,
+.monaco-workbench.shortestpath-dual-mode .part.editor.floating-editor-outer-right.floating-editor-outer-top:not(.modal-editor-part) {
+	border-top-right-radius: var(--vscode-cornerRadius-large, 12px) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.sidebar.floating-part-outer-right.floating-part-outer-bottom,
+.monaco-workbench.shortestpath-dual-mode .part.editor.floating-editor-outer-right.floating-editor-outer-bottom:not(.modal-editor-part) {
+	border-bottom-right-radius: var(--vscode-cornerRadius-large, 12px) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .webview-overlay-content:not(.webview-overlay-modal) {
+	border-radius: var(--vscode-cornerRadius-large, 12px);
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.sidebar,
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) {
+	border-color: transparent !important;
+	background-image: none !important;
+}
+
+/* The solving workspace has no editor frame inset, so its strip reaches the outer edge. */
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) {
+	border-width: 0 !important;
+}
+
+/* Use the same Chrome-style strip as browsing while keeping native tab behavior. */
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs {
+	--editor-group-tab-height: 40px !important;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-tab-inactiveBackground)) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs.compact-height {
+	--editor-group-tab-height: 32px !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
+	padding: 0 !important;
+	align-items: center;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after {
+	display: none;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element {
+	padding-bottom: 0;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container {
+	min-height: var(--editor-group-tab-height);
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab {
+	margin: 0;
+	min-height: var(--editor-group-tab-height) !important;
+	border-block: var(--vscode-spacing-size60, 6px) solid transparent !important;
+	border-bottom-width: 0 !important;
+	border-right: 0 !important;
+	border-radius: var(--vscode-cornerRadius-xLarge, 12px) var(--vscode-cornerRadius-xLarge, 12px) 0 0;
+	background-color: transparent !important;
+	box-shadow: none !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.sticky) {
+	z-index: 1;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-fill {
+	display: block;
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	border: 0 !important;
+	border-radius: inherit;
+	background-color: transparent !important;
+	box-shadow: none;
+	pointer-events: none;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.active):hover > .tab-fill {
+	inset: 0 var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px);
+	border-radius: var(--vscode-cornerRadius-xLarge, 12px);
+	background-color: var(--vscode-tab-hoverBackground, var(--vscode-toolbar-hoverBackground)) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected:not(.active) > .tab-fill {
+	background-color: var(--vscode-tab-selectedBackground) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill {
+	background-color: var(--vscode-editor-background) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::before,
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	width: var(--vscode-cornerRadius-xLarge, 12px);
+	height: var(--vscode-cornerRadius-xLarge, 12px);
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::before {
+	left: calc(-1 * var(--vscode-cornerRadius-xLarge, 12px));
+	background: radial-gradient(circle at 0 0, transparent var(--vscode-cornerRadius-xLarge, 12px), var(--vscode-editor-background) var(--vscode-cornerRadius-xLarge, 12px));
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::after {
+	right: calc(-1 * var(--vscode-cornerRadius-xLarge, 12px));
+	background: radial-gradient(circle at 100% 0, transparent var(--vscode-cornerRadius-xLarge, 12px), var(--vscode-editor-background) var(--vscode-cornerRadius-xLarge, 12px));
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-label {
+	position: relative;
+	z-index: 1;
+	line-height: calc(var(--editor-group-tab-height) - var(--vscode-spacing-size60, 6px));
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab > :is(.tab-border-top-container, .tab-border-bottom-container, .tab-fade-hider) {
+	display: none !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-actions {
+	border: 0 !important;
+	top: 0;
+	margin-right: var(--vscode-spacing-size60, 6px);
+	background-color: transparent !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-actions::before {
+	display: none;
+}
+
+.modern-ui-tabs.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off) {
+	padding-right: var(--vscode-spacing-size320, 32px) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.close-action-off) > .tab-actions {
+	pointer-events: auto;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.close-action-off) > .tab-actions .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	opacity: 1 !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tabs-bar-add-tab {
+	padding-top: var(--vscode-spacing-size60, 6px);
+	box-sizing: border-box;
+	height: var(--editor-group-tab-height);
+	background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-tab-inactiveBackground));
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tabs-bar-add-tab .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	font-size: 20px;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .sticky-tabs-background {
+	background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-tab-inactiveBackground));
+}
+
+:is(.hc-black, .hc-light).monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab:is(.active, .selected) > .tab-fill {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.titlebar {
+	border-bottom: 0;
+}
+
+.monaco-workbench.shortestpath-browsing .part.titlebar > .titlebar-container > .titlebar-left > .titlebar-sidebar-toggle,
+.monaco-workbench.shortestpath-browsing .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container,
+.monaco-workbench.shortestpath-page-mode .part.titlebar > .titlebar-container > .titlebar-left > .titlebar-sidebar-toggle,
+.monaco-workbench.shortestpath-page-mode .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
+	display: none;
+}
+
+.shortestpath-mode-switch,
+.shortestpath-navigation-actions {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80, 8px);
+	-webkit-app-region: no-drag;
+}
+
+.shortestpath-mode-switch {
+	margin-bottom: auto;
+}
+
+.shortestpath-navigation-actions {
+	order: 2;
+	margin-top: var(--vscode-spacing-size80, 8px);
+}
+
+.monaco-workbench.shortestpath-dual-mode .shortestpath-update-indicator {
+	order: 1;
+	margin-top: 0;
+}
+
+.shortestpath-mode-switch button,
+.shortestpath-navigation-actions button {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	padding: var(--vscode-spacing-size80, 8px) var(--vscode-spacing-size40, 4px);
+	border: var(--vscode-strokeThickness, 1px) solid transparent;
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+}
+
+.shortestpath-mode-switch .codicon,
+.shortestpath-navigation-actions .codicon {
+	font-size: 24px;
+	opacity: .7;
+}
+
+.shortestpath-mode-switch button[aria-pressed="true"],
+.shortestpath-navigation-actions button[aria-pressed="true"] {
+	border-color: var(--vscode-contrastActiveBorder, transparent);
+}
+
+.shortestpath-mode-icon {
+	width: 24px;
+	height: 24px;
+	pointer-events: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.75;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	opacity: .7;
+}
+
+.shortestpath-mode-switch button[aria-pressed="true"] .shortestpath-mode-icon,
+.shortestpath-navigation-actions button[aria-pressed="true"] .codicon,
+.shortestpath-navigation-actions button[aria-pressed="true"] .shortestpath-mode-icon {
+	opacity: 1;
+}
+
+.shortestpath-mode-browse[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #ffb454;
+}
+
+.shortestpath-mode-solve[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #45debf;
+}
+
+.shortestpath-mode-snippets[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #c4a7ff;
+}
+
+.shortestpath-mode-draw[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #ff9bc2;
+}
+
+.shortestpath-mode-settings[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #73b8ff;
+}
+
+.monaco-workbench.vs .shortestpath-mode-browse[aria-pressed="true"] .shortestpath-mode-icon,
+.monaco-workbench.hc-light .shortestpath-mode-browse[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #b45d00;
+}
+
+.monaco-workbench.vs .shortestpath-mode-solve[aria-pressed="true"] .shortestpath-mode-icon,
+.monaco-workbench.hc-light .shortestpath-mode-solve[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #008768;
+}
+
+.monaco-workbench.vs .shortestpath-mode-snippets[aria-pressed="true"] .shortestpath-mode-icon,
+.monaco-workbench.hc-light .shortestpath-mode-snippets[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #7650b8;
+}
+
+.monaco-workbench.vs .shortestpath-mode-draw[aria-pressed="true"] .shortestpath-mode-icon,
+.monaco-workbench.hc-light .shortestpath-mode-draw[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #b63773;
+}
+
+.monaco-workbench.vs .shortestpath-mode-settings[aria-pressed="true"] .shortestpath-mode-icon,
+.monaco-workbench.hc-light .shortestpath-mode-settings[aria-pressed="true"] .shortestpath-mode-icon {
+	color: #1769aa;
+}
+
+.shortestpath-mode-switch .shortestpath-mode-browse[aria-pressed="true"],
+.shortestpath-mode-switch .shortestpath-mode-browse:focus-visible {
+	background: var(--vscode-shortestpath-browseModeBackground);
+	color: var(--vscode-shortestpath-activeModeForeground);
+}
+
+.shortestpath-mode-switch .shortestpath-mode-solve[aria-pressed="true"],
+.shortestpath-mode-switch .shortestpath-mode-solve:focus-visible {
+	background: var(--vscode-shortestpath-solveModeBackground);
+	color: var(--vscode-shortestpath-activeModeForeground);
+}
+
+.shortestpath-mode-switch .shortestpath-mode-snippets[aria-pressed="true"],
+.shortestpath-mode-switch .shortestpath-mode-snippets:focus-visible {
+	background: var(--vscode-shortestpath-snippetsModeBackground);
+	color: var(--vscode-shortestpath-activeModeForeground);
+}
+
+.shortestpath-mode-switch .shortestpath-mode-draw[aria-pressed="true"],
+.shortestpath-mode-switch .shortestpath-mode-draw:focus-visible {
+	background: var(--vscode-shortestpath-drawModeBackground);
+	color: var(--vscode-shortestpath-activeModeForeground);
+}
+
+.shortestpath-navigation-actions .shortestpath-mode-settings[aria-pressed="true"],
+.shortestpath-navigation-actions .shortestpath-mode-settings:focus-visible {
+	background: var(--vscode-shortestpath-settingsModeBackground);
+	color: var(--vscode-shortestpath-activeModeForeground);
+}
+
+.shortestpath-mode-switch button:focus-visible,
+.shortestpath-navigation-actions button:focus-visible {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.shortestpath-mode-switch button:hover,
+.shortestpath-navigation-actions button:hover,
+.shortestpath-browser-space button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.shortestpath-result-badge {
+	position: absolute;
+	top: var(--vscode-spacing-size60, 6px);
+	right: var(--vscode-spacing-size60, 6px);
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--vscode-notificationsInfoIcon-foreground);
+}
+
+.shortestpath-mode-switch button:disabled {
+	opacity: .4;
+	cursor: default;
+}
+
+.monaco-workbench .monaco-hover.shortestpath-navigation-hover {
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-xLarge, 12px);
+	background: #35363d;
+	color: #fff;
+	box-shadow: 0 2px 8px #0002;
+}
+
+.monaco-workbench .monaco-hover.shortestpath-navigation-hover .hover-contents {
+	padding: var(--vscode-spacing-size80, 8px) var(--vscode-spacing-size120, 12px);
+	font-size: var(--vscode-fontSize-body1, 13px);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
+}
+
+.shortestpath-result-badge[hidden],
+.shortestpath-page-space[hidden],
+.shortestpath-browser-space[hidden] {
+	display: none;
+}
+
+.monaco-workbench.shortestpath-page-mode .part:not(.titlebar):not(.banner):not(.modal-editor-part) {
+	visibility: hidden;
+}
+
+.monaco-workbench.shortestpath-page-mode .webview-overlay-content:not(.shortestpath-page-webview):not(.webview-overlay-modal) {
+	visibility: hidden !important;
+}
+
+/* Standalone pages keep the full workspace perimeter even in compact layouts.
+ * The overlay directly hosts and clips the iframe, outside the page surface. */
+.monaco-workbench.shortestpath-dual-mode .webview-overlay-content.shortestpath-page-webview {
+	border-radius: var(--vscode-cornerRadius-large, 12px) !important;
+}
+
+.shortestpath-page-space {
+	position: absolute;
+	right: var(--vscode-spacing-size40, 4px);
+	bottom: var(--vscode-spacing-size40, 4px);
+	margin-left: var(--vscode-spacing-size40, 4px);
+	border-radius: var(--vscode-cornerRadius-large, 12px);
+	overflow: hidden;
+	z-index: 100;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+}
+
+.monaco-workbench.shortestpath-browsing .part:not(.titlebar):not(.banner),
+.monaco-workbench.shortestpath-browsing .webview {
+	visibility: hidden;
+}
+
+.shortestpath-browser-space {
+	position: absolute;
+	left: 0;
+	right: var(--vscode-spacing-size40, 4px);
+	bottom: var(--vscode-spacing-size40, 4px);
+	margin-left: var(--vscode-spacing-size40, 4px);
+	border-radius: var(--vscode-cornerRadius-large, 12px);
+	overflow: hidden;
+	z-index: 100;
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+}
+
+.shortestpath-browser-navigation {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60, 6px);
+	padding: var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size120, 12px);
+	background: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder);
+}
+
+.shortestpath-browser-tabs {
+	--editor-group-tab-height: 34px;
+	display: flex;
+	align-items: flex-start;
+	flex-shrink: 0;
+	padding: var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size80, 8px) 0;
+	background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-tab-inactiveBackground));
+}
+
+.shortestpath-browser-tab-list {
+	display: flex;
+	flex: 0 1 auto;
+	min-width: 0;
+	padding: 0 var(--vscode-cornerRadius-xLarge, 12px);
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.shortestpath-browser-tab-list::-webkit-scrollbar {
+	display: none;
+}
+
+.shortestpath-browser-tabs.compact-height {
+	--editor-group-tab-height: 26px;
+}
+
+.shortestpath-browser-space button {
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+	padding: 6px;
+}
+
+.shortestpath-browser-space button:disabled {
+	opacity: .4;
+	cursor: default;
+}
+
+.shortestpath-browser-space button:focus-visible,
+.shortestpath-mode-switch button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.shortestpath-browser-tab {
+	position: relative;
+	display: flex;
+	align-items: center;
+	/* Keep short titles compact; overflow the strip instead of squeezing page names. */
+	flex: 0 0 auto;
+	box-sizing: border-box;
+	height: var(--editor-group-tab-height);
+	min-width: 96px;
+	max-width: 280px;
+	border-radius: var(--vscode-cornerRadius-xLarge, 12px) var(--vscode-cornerRadius-xLarge, 12px) 0 0;
+	color: var(--vscode-tab-inactiveForeground);
+}
+
+.shortestpath-browser-tab.active {
+	z-index: 1;
+	color: var(--vscode-tab-activeForeground);
+}
+
+.shortestpath-browser-tab:hover {
+	color: var(--vscode-tab-hoverForeground, var(--vscode-tab-inactiveForeground));
+}
+
+.shortestpath-browser-tab.active:hover {
+	color: var(--vscode-tab-activeForeground);
+}
+
+.shortestpath-browser-tab-fill {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+.shortestpath-browser-tab:not(.active):hover > .shortestpath-browser-tab-fill {
+	inset: 0 var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px);
+	border-radius: var(--vscode-cornerRadius-xLarge, 12px);
+	background: var(--vscode-tab-hoverBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.shortestpath-browser-tab.active > .shortestpath-browser-tab-fill {
+	background: var(--vscode-editor-background);
+}
+
+.shortestpath-browser-tab.active > .shortestpath-browser-tab-fill::before,
+.shortestpath-browser-tab.active > .shortestpath-browser-tab-fill::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	width: var(--vscode-cornerRadius-xLarge, 12px);
+	height: var(--vscode-cornerRadius-xLarge, 12px);
+}
+
+.shortestpath-browser-tab.active > .shortestpath-browser-tab-fill::before {
+	left: calc(-1 * var(--vscode-cornerRadius-xLarge, 12px));
+	background: radial-gradient(circle at 0 0, transparent var(--vscode-cornerRadius-xLarge, 12px), var(--vscode-editor-background) var(--vscode-cornerRadius-xLarge, 12px));
+}
+
+.shortestpath-browser-tab.active > .shortestpath-browser-tab-fill::after {
+	right: calc(-1 * var(--vscode-cornerRadius-xLarge, 12px));
+	background: radial-gradient(circle at 100% 0, transparent var(--vscode-cornerRadius-xLarge, 12px), var(--vscode-editor-background) var(--vscode-cornerRadius-xLarge, 12px));
+}
+
+.shortestpath-browser-tab > button.shortestpath-browser-tab-label {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	border-radius: 0;
+	background: transparent;
+	padding: 0 var(--vscode-spacing-size120, 12px);
+	overflow: hidden;
+	text-align: left;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.shortestpath-browser-tab > button.shortestpath-browser-tab-close {
+	position: relative;
+	z-index: 1;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	margin-right: var(--vscode-spacing-size60, 6px);
+	border-radius: 50%;
+	padding: var(--vscode-spacing-size40, 4px);
+}
+
+.shortestpath-browser-tabs > button.shortestpath-browser-tab-add {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	margin: calc((var(--editor-group-tab-height) - 28px) / 2) 0 0;
+	border-radius: 50%;
+	color: var(--vscode-tab-inactiveForeground);
+	padding: var(--vscode-spacing-size60, 6px);
+}
+
+button.shortestpath-browser-tab-close:hover,
+button.shortestpath-browser-tab-add:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-tab-activeForeground);
+}
+
+.shortestpath-browser-tab-add > .codicon {
+	font-size: 20px;
+}
+
+:is(.hc-black, .hc-light) .shortestpath-browser-tab.active > .shortestpath-browser-tab-fill {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
+
+.shortestpath-browser-address {
+	flex: 1;
+	min-width: 60px;
+	padding: var(--vscode-spacing-size80, 8px) var(--vscode-spacing-size120, 12px);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font: inherit;
+}
+
+.shortestpath-browser-address:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.shortestpath-browser-message {
+	padding: 0 16px;
+	line-height: 32px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.shortestpath-browser-message:empty {
+	display: none;
+}
+
+.shortestpath-browser-page {
+	flex: 1;
+	min-height: 0;
+	background-size: 100% 100%;
+	background-repeat: no-repeat;
+}

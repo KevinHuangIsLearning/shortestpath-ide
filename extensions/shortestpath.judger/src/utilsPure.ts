@@ -1,6 +1,16 @@
 // Pure javascript utilities, that don't use VS Code API.
 // They can still use VS Code type definitions.
 
+/** Decode Unicode paths without allowing control characters from either protocol. */
+export function decodeShortestPathSourcePath(encoded: string | string[] | undefined, legacy: string | string[] | undefined): string | undefined {
+    try {
+        const value = typeof encoded === 'string' ? decodeURIComponent(encoded) : typeof legacy === 'string' ? legacy : undefined;
+        return value && !/[\u0000-\u001F\u007F-\u009F]/.test(value) ? value : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 export const words_in_text = function (text: string, wordRegex: string) {
     const regex = new RegExp(wordRegex, 'gu');
     return text.match(regex);

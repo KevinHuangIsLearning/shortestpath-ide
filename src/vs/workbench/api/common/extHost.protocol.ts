@@ -1042,6 +1042,9 @@ export interface IWebviewContentOptions {
 
 export interface IWebviewPanelOptions {
 	readonly modal?: boolean;
+	readonly modalCloseOnly?: boolean;
+	readonly sourceEditor?: UriComponents;
+	readonly sourceEditorRatio?: number;
 	readonly enableFindWidget?: boolean;
 	readonly retainContextWhenHidden?: boolean;
 }
@@ -1158,6 +1161,7 @@ export interface WebviewPanelViewStateData {
 		readonly active: boolean;
 		readonly visible: boolean;
 		readonly position: EditorGroupColumn;
+		readonly sourceEditor?: UriComponents;
 	};
 }
 
@@ -1433,7 +1437,7 @@ export interface BrowserTabDto {
 }
 
 export interface MainThreadBrowsersShape extends IDisposable {
-	$openBrowserTab(url: string, viewColumn?: EditorGroupColumn, options?: IEditorOptions): Promise<BrowserTabDto>;
+	$openBrowserTab(url: string, viewColumn?: EditorGroupColumn, options?: IEditorOptions & { hidden?: boolean }): Promise<BrowserTabDto>;
 	$closeBrowserTab(browserId: string): Promise<void>;
 	$showBrowserTab(browserId: string): Promise<void>;
 	$moveBrowserTabToNewWindow(browserId: string, additionalBrowserIds: readonly string[], minimize?: boolean): Promise<void>;

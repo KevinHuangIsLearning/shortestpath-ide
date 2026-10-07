@@ -5,7 +5,6 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
-import { alert } from '../../base/browser/ui/aria/aria.js';
 import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
@@ -15,8 +14,7 @@ import { PanelPart } from './parts/panel/panelPart.js';
 import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeExposed, ModernUIDensity } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
-import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
-import { ChatAIDisabledSettingId } from '../../platform/chat/common/chatSettings.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
@@ -50,7 +48,7 @@ import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
-import { localize } from '../../nls.js';
+import { NavigationView } from './parts/navigation/navigationView.js';
 
 //#region Layout Implementation
 
@@ -115,9 +113,7 @@ enum LayoutClasses {
 	// runtime by `ModernUIContribution`. It is *also* applied here at render
 	// time (see `getLayoutClasses`) to avoid a flash of unstyled workbench chrome.
 	MODERN_UI = 'modern-ui',
-	MODERN_UI_COMPACT = 'modern-ui-compact',
-	// Module-specific gate shared with the Agents workbench.
-	MODERN_UI_TABS = 'modern-ui-tabs'
+	MODERN_UI_COMPACT = 'modern-ui-compact'
 }
 
 interface IPathToOpen extends IPath {
@@ -203,6 +199,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	//#region Properties
 
 	readonly mainContainer = document.createElement('div');
+	private readonly navigationView = isWeb ? undefined : new NavigationView();
+	get mainWindowNavigationContainer(): HTMLElement | undefined { return this.navigationView?.element; }
 	get activeContainer() { return this.getContainerFromDocument(getActiveDocument()); }
 	get containers(): Iterable<HTMLElement> {
 		const containers: HTMLElement[] = [];
@@ -377,30 +375,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		};
 
-		// Maybe maximize auxiliary bar when no editors are visible
-		const maybeMaximizeAuxiliaryBar = () => {
-			if (
-				this.mainPartEditorService.visibleEditors.length === 0 &&
-				this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED) === true
-			) {
-				this.setAuxiliaryBarMaximized(true);
-
-				return true;
-			}
-
-			return false;
-		};
-
 		// Wait to register these listeners after the editor group service
 		// is ready to avoid conflicts on startup
 		this.editorGroupService.whenRestored.then(() => {
 
 			// Handle visible editors changing for parts visibility
 			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(e => {
-				const handled = maybeMaximizeAuxiliaryBar();
-				if (!handled) {
-					showEditorIfHidden(e.isExplicit);
-				}
+				showEditorIfHidden(e.isExplicit);
 			}));
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(e => {
 				if (e.reason !== GroupActivationReason.PART_CLOSE) {
@@ -458,15 +439,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.updateFloatingPanels();
 			}
 
-			// Auxiliary Sidebar
-			if (e.affectsConfiguration(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED)) {
-				const forceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
-				if (forceMaximized === true && this.mainPartEditorService.visibleEditors.length === 0) {
-					this.setAuxiliaryBarMaximized(true);
-				} else if (forceMaximized === false && this.isAuxiliaryBarMaximized()) {
-					this.setAuxiliaryBarMaximized(false);
-				}
-			}
 		}));
 
 		// Fullscreen changes
@@ -733,7 +705,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
 		this._mainContainerDimension = getClientArea(this.parent, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.environmentService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
@@ -1672,7 +1644,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView
 		};
 
-		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
+		if (this.navigationView) {
+			viewMap[NavigationView.ID] = this.navigationView;
+		}
+		const fromJSON = ({ type }: { type: string }) => viewMap[type];
 		const workbenchGrid = SerializableGrid.deserialize(
 			this.createGridDescriptor(),
 			{ fromJSON },
@@ -1686,23 +1661,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
-				if (!this.inMaximizedAuxiliaryBarTransition) {
-
-					// skip reacting when we are transitioning
-					// in or out of maximised auxiliary bar to prevent
-					// stepping on each other toes because this
-					// transition is already dealing with all parts
-					// visibility efficiently.
-
-					if (part === sideBar) {
-						this.setSideBarHidden(!visible);
-					} else if (part === panelPart && this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) === visible) {
-						this.setPanelHidden(!visible, true);
-					} else if (part === auxiliaryBarPart) {
-						this.setAuxiliaryBarHidden(!visible, true);
-					} else if (part === editorPart) {
-						this.setEditorHidden(!visible);
-					}
+				if (part === sideBar) {
+					this.setSideBarHidden(!visible);
+				} else if (part === panelPart && this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) === visible) {
+					this.setPanelHidden(!visible, true);
+				} else if (part === auxiliaryBarPart) {
+					this.setAuxiliaryBarHidden(true, true);
+				} else if (part === editorPart) {
+					this.setEditorHidden(!visible);
 				}
 
 				this._onDidChangePartVisibility.fire({ partId: part.getId(), visible });
@@ -1926,6 +1892,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	getLayoutClasses(): string[] {
 		return coalesce([
+			// Apply desktop solving metrics before the first grid layout. The mode
+			// contribution starts after restoration, when grid dimensions are cached.
+			!isWeb ? 'shortestpath-dual-mode' : undefined,
 			!this.isVisible(Parts.SIDEBAR_PART) ? LayoutClasses.SIDEBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.EDITOR_PART, mainWindow) ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
@@ -1939,7 +1908,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Also seed the modern-ui class here (see `LayoutClasses.MODERN_UI`).
 			this.isFloatingPanelsEnabled() ? LayoutClasses.MODERN_UI : undefined,
 			this.isModernUICompact() ? LayoutClasses.MODERN_UI_COMPACT : undefined,
-			this.isFloatingPanelsEnabled() ? LayoutClasses.MODERN_UI_TABS : undefined,
 			`panel-position-${positionToString(this.getPanelPosition())}`,
 			`panel-alignment-${this.getPanelAlignment()}`
 		]);
@@ -2008,7 +1976,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const focusedPart = [Parts.PANEL_PART, Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART].find(part => this.hasFocus(part)) as SINGLE_WINDOW_PARTS | undefined;
 
 		if (sideBarPosition === Position.LEFT) {
-			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 0]);
+			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, this.navigationView ? 1 : 0]);
 			this.workbenchGrid.moveView(this.sideBarPartView, preMoveSideBarSize, sideBarSiblingToEditor ? this.editorPartView : this.activityBarPartView, sideBarSiblingToEditor ? Direction.Left : Direction.Right);
 			if (auxiliaryBarSiblingToEditor) {
 				this.workbenchGrid.moveView(this.auxiliaryBarPartView, preMoveAuxiliaryBarSize, this.editorPartView, Direction.Right);
@@ -2021,7 +1989,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (auxiliaryBarSiblingToEditor) {
 				this.workbenchGrid.moveView(this.auxiliaryBarPartView, preMoveAuxiliaryBarSize, this.editorPartView, Direction.Left);
 			} else {
-				this.workbenchGrid.moveViewTo(this.auxiliaryBarPartView, [2, 0]);
+				this.workbenchGrid.moveViewTo(this.auxiliaryBarPartView, [2, this.navigationView ? 1 : 0]);
 			}
 		}
 
@@ -2166,7 +2134,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private inMaximizedAuxiliaryBarTransition = false;
 
 	isAuxiliaryBarMaximized(): boolean {
 		return this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED);
@@ -2176,71 +2143,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.setAuxiliaryBarMaximized(!this.isAuxiliaryBarMaximized());
 	}
 
-	setAuxiliaryBarMaximized(maximized: boolean): boolean {
-		if (
-			this.inMaximizedAuxiliaryBarTransition ||		// prevent re-entrance
-			(maximized === this.isAuxiliaryBarMaximized())	// return early if state is already present
-		) {
-			return false;
-		}
-
-		if (maximized) {
-			const state = {
-				sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
-				editorVisible: this.isVisible(Parts.EDITOR_PART),
-				panelVisible: this.isVisible(Parts.PANEL_PART),
-				auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
-			};
-			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
-
-			this.inMaximizedAuxiliaryBarTransition = true;
-			try {
-				if (!state.auxiliaryBarVisible) {
-					this.setAuxiliaryBarHidden(false);
-				}
-
-				const size = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
-				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, size);
-
-				if (state.sideBarVisible) {
-					this.setSideBarHidden(true);
-				}
-				if (state.panelVisible) {
-					this.setPanelHidden(true);
-				}
-				if (state.editorVisible) {
-					this.setEditorHidden(true);
-				}
-
-				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, state);
-			} finally {
-				this.inMaximizedAuxiliaryBarTransition = false;
-			}
-		} else {
-			const state = assertReturnsDefined(this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY));
-			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, false);
-
-			this.inMaximizedAuxiliaryBarTransition = true;
-			try {
-				this.setEditorHidden(!state?.editorVisible);	// this order of updating view visibility
-				this.setPanelHidden(!state?.panelVisible);		// helps in restoring the previous view
-				this.setSideBarHidden(!state?.sideBarVisible);	// sizes we had
-
-				const size = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView);
-				this.workbenchGrid.resizeView(this.auxiliaryBarPartView, {
-					width: this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE),
-					height: size.height
-				});
-			} finally {
-				this.inMaximizedAuxiliaryBarTransition = false;
-			}
-		}
-
-		this.focusPart(Parts.AUXILIARYBAR_PART);
-
-		this._onDidChangeAuxiliaryBarMaximized.fire();
-
-		return true;
+	setAuxiliaryBarMaximized(_maximized: boolean): boolean {
+		// ShortestPath has no secondary side bar. Keep the layout service contract
+		// for upstream consumers without letting it hide the editor or primary bar.
+		return false;
 	}
 
 	isPanelMaximized(): boolean {
@@ -2288,6 +2194,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {
+		// Reject requests from commands, extensions, saved layouts and Zen Mode.
+		if (!hidden) {
+			return;
+		}
+
 		if (hidden && this.setAuxiliaryBarMaximized(false) && !this.isVisible(Parts.AUXILIARYBAR_PART)) {
 			return; // return: leaving maximised auxiliary bar made this part hidden
 		}
@@ -2346,11 +2257,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	toggleSecondarySideBar(): void {
-		const visible = !this.isSecondarySideBarVisible();
-		this.setPartHidden(!visible, Parts.AUXILIARYBAR_PART);
-		alert(visible
-			? localize('auxiliaryBarVisible', "Secondary Side Bar shown")
-			: localize('auxiliaryBarHidden', "Secondary Side Bar hidden"));
+		this.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 	}
 
 	isSecondarySideBarVisible(): boolean {
@@ -2735,7 +2642,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			editor: editorNode,
 			panel: panelNode,
 			sideBar: sideBarNode
-		}, width, middleSectionHeight);
+		}, width - (this.navigationView?.minimumWidth ?? 0), middleSectionHeight);
+		if (this.navigationView) {
+			middleSection.unshift({ type: 'leaf', data: this.navigationView.toJSON(), size: this.navigationView.minimumWidth });
+		}
 
 		const result: ISerializedGrid = {
 			root: {
@@ -2857,7 +2767,7 @@ class InitializationStateKey<T extends StorageKeyType> extends WorkbenchLayoutSt
 	readonly runtime = false;
 }
 
-const LayoutStateKeys = {
+export const LayoutStateKeys = {
 
 	// Editor
 	MAIN_EDITOR_CENTERED: new RuntimeStateKey<boolean>('editor.centered', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
@@ -2916,8 +2826,6 @@ interface ILayoutStateChangeEvent<T extends StorageKeyType> {
 }
 
 enum WorkbenchLayoutSettings {
-	AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility',
-	AUXILIARYBAR_FORCE_MAXIMIZED = 'workbench.secondarySideBar.forceMaximized',
 	ACTIVITY_BAR_VISIBLE = 'workbench.activityBar.visible',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
@@ -2936,7 +2844,7 @@ interface ILayoutStateLoadConfiguration {
 	readonly resetLayout: boolean;
 }
 
-class LayoutStateModel extends Disposable {
+export class LayoutStateModel extends Disposable {
 
 	static readonly STORAGE_PREFIX = 'workbench.';
 
@@ -2956,7 +2864,6 @@ class LayoutStateModel extends Disposable {
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
-		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -3020,49 +2927,12 @@ class LayoutStateModel extends Disposable {
 		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 
 		// Set dynamic defaults: part sizing and side bar visibility
-		const auxiliaryBarForceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
 		const workbenchState = this.contextService.getWorkbenchState();
 		const mainContainerDimension = configuration.mainContainerDimension;
 		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
-		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY || auxiliaryBarForceMaximized === true;
-		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = auxiliaryBarForceMaximized ? Math.max(300, mainContainerDimension.width / 2) : Math.min(300, mainContainerDimension.width / 4);
-		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
-			if (isWeb && !this.environmentService.remoteAuthority) {
-				return true; // not required in web if unsupported
-			}
-
-			if (auxiliaryBarForceMaximized === true) {
-				return false; // forced to be visible
-			}
-
-			// Unless auxiliary bar visibility is explicitly configured, make
-			// sure to not force open it in case we know it was empty before.
-			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
-			if (configuration.defaultValue !== 'hidden' && !isConfigured(configuration) && this.stateCache.get(LayoutStateKeys.AUXILIARYBAR_EMPTY.name)) {
-				return true;
-			}
-
-			// New users: Show auxiliary bar even in empty workspaces,
-			// but not if the user explicitly hides it or AI features are disabled.
-			if (
-				this.isNew[StorageScope.APPLICATION] &&
-				configuration.value !== 'hidden' &&
-				!this.configurationService.getValue<boolean>(ChatAIDisabledSettingId)
-			) {
-				return false;
-			}
-
-			// Existing users: respect visibility setting
-			switch (configuration.value) {
-				case 'hidden':
-					return true;
-				case 'visibleInWorkspace':
-				case 'maximizedInWorkspace':
-					return workbenchState === WorkbenchState.EMPTY;
-				default:
-					return false;
-			}
-		})();
+		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
+		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
+		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = true;
 		LayoutStateKeys.PANEL_SIZE.defaultValue = (this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? isHorizontal(LayoutStateKeys.PANEL_POSITION.defaultValue)) ? mainContainerDimension.height / 3 : mainContainerDimension.width / 4;
 		LayoutStateKeys.PANEL_POSITION.defaultValue = positionFromString(this.configurationService.getValue(WorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom');
 
@@ -3097,19 +2967,17 @@ class LayoutStateModel extends Disposable {
 
 	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
-		// Auxiliary bar: Maximized settings
-		if (this.isNew[StorageScope.WORKSPACE]) {
-			const defaultAuxiliaryBarVisibility = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
-			const startupEditor = this.configurationService.getValue<'none' | 'welcomePage' | 'readme' | 'newUntitledFile' | 'welcomePageInEmptyWorkbench' | 'terminal' | 'agentSessionsWelcomePage'>('workbench.startupEditor');
-			if (startupEditor === 'agentSessionsWelcomePage') {
-				this.applyAuxiliaryBarHiddenOverride(true);
-			} else if (
-				defaultAuxiliaryBarVisibility === 'maximized' ||
-				(defaultAuxiliaryBarVisibility === 'maximizedInWorkspace' && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)
-			) {
-				this.applyAuxiliaryBarMaximizedOverride();
+		// Migrate layouts saved with the upstream secondary side bar maximized.
+		if (this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
+			const previous = this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
+			if (previous) {
+				this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, !previous.sideBarVisible);
+				this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, !previous.panelVisible);
+				this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, !previous.editorVisible);
 			}
 		}
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, true);
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, false);
 
 		// Both editor and panel should not be hidden on startup unless auxiliary bar is maximized
 		if (
@@ -3125,27 +2993,6 @@ class LayoutStateModel extends Disposable {
 			this.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, Math.min(300, configuration.mainContainerDimension.width / 4));
 			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.min(300, configuration.mainContainerDimension.width / 4));
 		}
-	}
-
-	private applyAuxiliaryBarMaximizedOverride(): void {
-		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, {
-			sideBarVisible: !this.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN),
-			panelVisible: !this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN),
-			editorVisible: !this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN),
-			auxiliaryBarVisible: !this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
-		});
-
-		this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
-		this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, true);
-		this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, true);
-		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-
-		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
-		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
-	}
-
-	private applyAuxiliaryBarHiddenOverride(value: boolean): void {
-		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, value);
 	}
 
 	save(workspace: boolean, global: boolean): void {

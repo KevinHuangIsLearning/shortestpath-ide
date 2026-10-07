@@ -1,32 +1,11 @@
+// Dependencies read preferences while loading, before activate() runs.
+import './logger';
+import { registerIntegratedTestCommands } from './integratedTestCommands';
+import { usesIntegratedTests } from './integratedTests';
+import { runEnvironmentSelfTest } from './environmentSelfTest';
+import { Problem } from './types';
 import { getProblemDirectory } from './parser';
 import { registerProblemDocuments } from './problemDocument';
-/************************************************************************************/
-globalThis.storedLogs = '';
-function customLogger(
-    originalMethod: (...args: any[]) => void,
-    ...args: any[]
-) {
-    originalMethod(...args);
-
-    globalThis.storedLogs += new Date().toISOString() + ' ';
-    globalThis.storedLogs +=
-        args
-            .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : arg))
-            .join(' ') + '\n';
-}
-
-globalThis.logger = {};
-globalThis.logger.log = (...args: any[]) => customLogger(console.log, ...args);
-globalThis.logger.error = (...args: any[]) =>
-    customLogger(console.error, ...args);
-globalThis.logger.warn = (...args: any[]) =>
-    customLogger(console.warn, ...args);
-globalThis.logger.info = (...args: any[]) =>
-    customLogger(console.info, ...args);
-globalThis.logger.debug = (...args: any[]) =>
-    customLogger(console.debug, ...args);
-/************************************************************************************/
-
 import * as vscode from 'vscode';
 import { migrateSettings } from './settingsMigration';
 import { setupCompanionServer, handleNewProblem } from './companion';
@@ -35,7 +14,7 @@ import runTestCases from './runTestCases';
 import {
 	editorChanged,
 	editorClosed,
-	judgeViewTabsChanged,
+    refreshActiveJudgeTab,
     checkLaunchWebview,
 } from './webview/editorChange';
 import { submitToCodeForces, submitToKattis } from './submit';
@@ -53,6 +32,20 @@ import { checkUnsupported } from './utils';
 import { createLatestTaskScheduler } from './webview/judgeLifecycle';
 
 let judgeViewProvider: JudgeViewProvider;
+let statusBarItem: vscode.StatusBarItem;
+let judgeVisibilityVersion = 0;
+let judgeIntegrated = false;
+export function updateJudgeVisibility(problem: Problem | undefined): void {
+    const integrated = usesIntegratedTests(problem);
+    if (judgeIntegrated !== integrated) { judgeVisibilityVersion++; judgeIntegrated = integrated; }
+    const version = judgeVisibilityVersion;
+    const leaveJudge = integrated && judgeViewProvider?.isViewVisible();
+    void vscode.commands.executeCommand('setContext', 'shortestpath.oj.integratedLocalTests', integrated).then(() => {
+        if (leaveJudge && version === judgeVisibilityVersion) { return vscode.commands.executeCommand('workbench.view.explorer'); }
+        return undefined;
+    });
+    if (integrated) { statusBarItem?.hide(); } else { statusBarItem?.show(); }
+}
 
 export const getJudgeViewProvider = () => {
     return judgeViewProvider;
@@ -61,7 +54,8 @@ export const getJudgeViewProvider = () => {
 const registerCommands = (context: vscode.ExtensionContext) => {
     globalThis.logger.log('Registering commands');
     registerBrowserSubmission(context);
-    registerBrowserImport(context, problem => handleNewProblem(problem, undefined, true));
+    context.subscriptions.push(vscode.commands.registerCommand('judger.selfTestEnvironment', runEnvironmentSelfTest));
+    registerBrowserImport(context, problem => handleNewProblem(problem, undefined, undefined, true));
     context.subscriptions.push(vscode.commands.registerCommand('judger.getProblemDirectory', (srcPath: string) => getProblemDirectory(srcPath)));
     // Keep existing user keybindings and external callers working after the ID change.
     for (const command of ['runTestCases', 'submitToCodeForces', 'submitToKattis', 'compileWithoutRunning', 'runSubmitScript', 'getSubmitScriptAliases', 'getSubmitScriptDefaults', 'judgeView.focus']) {
@@ -115,6 +109,7 @@ const registerCommands = (context: vscode.ExtensionContext) => {
     );
 
     judgeViewProvider = new JudgeViewProvider(context.extensionUri);
+    registerIntegratedTestCommands(context, () => judgeViewProvider.isOrdinaryRunRunning);
 
     const webviewView = vscode.window.registerWebviewViewProvider(
         JudgeViewProvider.viewType,
@@ -145,7 +140,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     downloadRemoteMessage();
 
-    const statusBarItem = vscode.window.createStatusBarItem(
+    statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Left,
         1000,
     );
@@ -174,17 +169,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.workspace.onDidCloseTextDocument((e) => {
 			editorClosed(e);
-			tabChangeScheduler.schedule(judgeViewTabsChanged);
+			tabChangeScheduler.schedule(refreshActiveJudgeTab);
 		}),
 		new vscode.Disposable(tabChangeScheduler.dispose),
 	);
+    context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabGroups(() => tabChangeScheduler.schedule(refreshActiveJudgeTab)));
 	// A document can remain retained after its final editor tab is closed, so
 	// use the tab model rather than visible editors to distinguish closing a
 	// source tab from merely moving focus to another editor.
 	context.subscriptions.push(
-		vscode.window.tabGroups.onDidChangeTabs(() => {
-			tabChangeScheduler.schedule(judgeViewTabsChanged);
-		}),
+		vscode.window.tabGroups.onDidChangeTabs(() => tabChangeScheduler.schedule(refreshActiveJudgeTab)),
 	);
 
 	const activeEditorChangeScheduler = createLatestTaskScheduler(

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindowId } from '../../../base/browser/dom.js';
+import { addDisposableListener, getWindowId, onDidUnregisterWindow } from '../../../base/browser/dom.js';
 import { PixelRatio } from '../../../base/browser/pixelRatio.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from './charWidthReader.js';
 import { EditorFontLigatures } from '../../common/config/editorOptions.js';
 import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from '../../common/config/fontInfo.js';
@@ -37,11 +37,21 @@ export interface ISerializedFontInfo {
 export class FontMeasurementsImpl extends Disposable {
 
 	private readonly _cache = new Map<number, FontMeasurementsCache>();
+	private readonly _fontListeners = this._register(new DisposableMap<number>());
 
 	private _evictUntrustedReadingsTimeout = -1;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange = this._onDidChange.event;
+
+	constructor() {
+		super();
+		this._register(onDidUnregisterWindow(window => {
+			const windowId = getWindowId(window);
+			this._fontListeners.deleteAndDispose(windowId);
+			this._cache.delete(windowId);
+		}));
+	}
 
 	public override dispose(): void {
 		if (this._evictUntrustedReadingsTimeout !== -1) {
@@ -61,6 +71,13 @@ export class FontMeasurementsImpl extends Disposable {
 
 	private _ensureCache(targetWindow: Window): FontMeasurementsCache {
 		const windowId = getWindowId(targetWindow);
+		if (!this._fontListeners.has(windowId)) {
+			// Web fonts can finish loading after a fallback font was measured.
+			this._fontListeners.set(windowId, addDisposableListener(targetWindow.document.fonts, 'loadingdone', () => {
+				this._cache.delete(windowId);
+				this._onDidChange.fire();
+			}));
+		}
 		let cache = this._cache.get(windowId);
 		if (!cache) {
 			cache = new FontMeasurementsCache();

@@ -19,6 +19,19 @@
 			]
 		}
 	],
+	"setupStages": [
+		{
+			"id": "toolchain",
+			"title": {
+				"en": "C++ compiler and clangd",
+				"zh-CN": "C++ 编译器与 clangd"
+			},
+			"text": {
+				"en": "Detect or prepare the bundled GCC and clangd.",
+				"zh-CN": "检测或解压内置的 GCC 与 clangd。"
+			}
+		}
+	],
 	"portableToolchain": true,
 	"compilerCandidates": ["{{TOOLCHAIN_ROOT}}\\winlibs\\mingw64-ucrt-15\\bin\\g++.exe"],
 	"clangdCandidates": ["{{TOOLCHAIN_ROOT}}\\clangd\\clangd_22.1.6\\bin\\clangd.exe"],

@@ -288,7 +288,11 @@ export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbe
 	const meetsActivityBarRail = partId === Parts.SIDEBAR_PART
 		&& layoutService.getSideBarPosition() === Position.LEFT
 		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART);
-	const leading = meetsActivityBarRail ? FLOATING_PANEL_INNER_MARGIN : margin;
+	// ShortestPath joins the primary sidebar and editor into one solving surface.
+	// Mirrors shortestPathMode.css; retain gutters on the workspace perimeter.
+	const joinsSolvingSurface = layoutService.mainContainer.classList.contains('shortestpath-dual-mode')
+		&& (partId === Parts.SIDEBAR_PART || partId === Parts.EDITOR_PART);
+	const leading = meetsActivityBarRail || joinsSolvingSurface ? FLOATING_PANEL_INNER_MARGIN : margin;
 
 	return {
 		left: outerGutter.left ? outerMargin : leading,
@@ -477,6 +481,9 @@ export interface IPartVisibilityChangeEvent {
 }
 
 export interface IWorkbenchLayoutService extends ILayoutService {
+
+	/** The main window's fixed navigation column, independent of side bar placement. */
+	readonly mainWindowNavigationContainer?: HTMLElement;
 
 	readonly _serviceBrand: undefined;
 

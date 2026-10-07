@@ -150,9 +150,9 @@ jobs:
             }
           }
 
-      - name: Build Inno Setup installers
+      - name: Build Inno Setup user installer
         shell: pwsh
-        run: npm run gulp -- vscode-win32-x64-system-setup vscode-win32-x64-user-setup
+        run: npm run gulp -- vscode-win32-x64-user-setup
 
       - name: Archive Windows package
         shell: pwsh
@@ -176,6 +176,9 @@ jobs:
             'resources\app\extensions\usernamehw.errorlens\dist\extension.js',
             'resources\app\extensions\shortestpath.setup\out\extension.js',
             'resources\app\extensions\shortestpath.oj\out\extension.js',
+            'resources\app\extensions\shortestpath.draw\dist\extension.js',
+            'resources\app\extensions\shortestpath.draw\dist\webview.js',
+            'resources\app\extensions\shortestpath.draw\dist\webview.css',
             'resources\app\extensions\danielpinto8zz6.c-cpp-compile-run\dist\extension.js',
             'resources\app\extensions\llvm-vs-code-extensions.vscode-clangd\out\bundle.js'
           )
@@ -196,7 +199,6 @@ jobs:
           Compress-Archive -Path "$destination\*" -DestinationPath 'ShortestPath-IDE-Windows-x64.zip'
 
           $installerOutputs = @(
-            @{ Source = '.build\win32-x64\system-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-x64-Setup.exe' },
             @{ Source = '.build\win32-x64\user-setup\VSCodeSetup.exe'; Destination = 'ShortestPath-IDE-Windows-x64-User-Setup.exe' }
           )
           foreach ($installer in $installerOutputs) {
@@ -213,7 +215,6 @@ jobs:
           name: windows-x64
           path: |
             ShortestPath-IDE-Windows-x64.zip
-            ShortestPath-IDE-Windows-x64-Setup.exe
             ShortestPath-IDE-Windows-x64-User-Setup.exe
           if-no-files-found: error
 
@@ -262,6 +263,9 @@ jobs:
             "usernamehw.errorlens/dist/extension.js" \
             "shortestpath.setup/out/extension.js" \
             "shortestpath.oj/out/extension.js" \
+            "shortestpath.draw/dist/extension.js" \
+            "shortestpath.draw/dist/webview.js" \
+            "shortestpath.draw/dist/webview.css" \
             "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
             "llvm-vs-code-extensions.vscode-clangd/out/bundle.js"; do
             test -f "$app/Contents/Resources/app/extensions/$entry" || {
@@ -350,6 +354,9 @@ jobs:
             "usernamehw.errorlens/dist/extension.js" \
             "shortestpath.setup/out/extension.js" \
             "shortestpath.oj/out/extension.js" \
+            "shortestpath.draw/dist/extension.js" \
+            "shortestpath.draw/dist/webview.js" \
+            "shortestpath.draw/dist/webview.css" \
             "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
             "llvm-vs-code-extensions.vscode-clangd/out/bundle.js"; do
             test -f "$app/resources/app/extensions/$entry" || {

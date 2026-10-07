@@ -154,6 +154,7 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	class HorizontalMarginLayoutService extends TestLayoutService {
+		override mainContainer = document.createElement('div');
 		floatingPanelsEnabled = true;
 		modernUICompact = false;
 		sideBarPosition = Position.LEFT;
@@ -210,6 +211,35 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 			compactJustifiedPanel: { left: COMPACT_FLOATING_PANEL_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
 			compactJustifiedPanelSideBarRight: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 		});
+	});
+
+	test('ShortestPath joins the sidebar and editor while retaining outer gutters', () => {
+		const service = new HorizontalMarginLayoutService();
+		service.mainContainer.classList.add('shortestpath-dual-mode');
+		const results = [];
+		for (const compact of [false, true]) {
+			service.modernUICompact = compact;
+			for (const position of [Position.LEFT, Position.RIGHT]) {
+				service.sideBarPosition = position;
+				service.visibleParts = new Set([Parts.SIDEBAR_PART, Parts.EDITOR_PART]);
+				results.push({
+					sidebar: getFloatingPaneCompositeHorizontalMargins(service, Parts.SIDEBAR_PART),
+					editor: getFloatingPaneCompositeHorizontalMargins(service, Parts.EDITOR_PART)
+				});
+			}
+		}
+		service.visibleParts = new Set([Parts.EDITOR_PART]);
+		results.push({ editor: getFloatingPaneCompositeHorizontalMargins(service, Parts.EDITOR_PART) });
+		service.floatingPanelsEnabled = false;
+		results.push({ editor: getFloatingPaneCompositeHorizontalMargins(service, Parts.EDITOR_PART) });
+		assert.deepStrictEqual(results, [
+			{ sidebar: { left: 4, right: 0 }, editor: { left: 0, right: 4 } },
+			{ sidebar: { left: 0, right: 4 }, editor: { left: 4, right: 0 } },
+			{ sidebar: { left: 4, right: 0 }, editor: { left: 0, right: 4 } },
+			{ sidebar: { left: 0, right: 4 }, editor: { left: 4, right: 0 } },
+			{ editor: { left: 4, right: 4 } },
+			{ editor: { left: 0, right: 0 } }
+		]);
 	});
 });
 

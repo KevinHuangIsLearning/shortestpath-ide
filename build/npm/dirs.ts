@@ -31,6 +31,7 @@ export const dirs = [
 	'extensions/debug-server-ready',
 	'extensions/shortestpath.judger',
 	'extensions/shortestpath.oj',
+	'extensions/shortestpath.draw',
 	'extensions/usernamehw.errorlens',
 	'extensions/emmet',
 	'extensions/extension-editing',

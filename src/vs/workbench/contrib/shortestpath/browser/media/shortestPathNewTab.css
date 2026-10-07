@@ -70,6 +70,10 @@
 	cursor: pointer;
 }
 
+.shortestpath-new-tab-action[hidden] {
+	display: none;
+}
+
 .shortestpath-new-tab-action .codicon {
 	font-size: 17px;
 }

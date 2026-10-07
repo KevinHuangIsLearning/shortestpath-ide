@@ -7,8 +7,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFile, spawn } from 'child_process';
 import * as vscode from 'vscode';
-import { defaultClangFormatConfig, defaultCompilerFlagsFor, registerSimpleSettings } from './simpleSettings';
-import { registerRelaxMode } from './relaxMode';
+import { compilerFallbackFlags, runToolchainCommand, runToolchainSelfTest } from './toolchainSelfTest';
+import { withCompilerRuntime } from './compilerRuntime';
+import { defaultClangFormatConfig, registerCppFormatting } from './cppFormatting';
+import { findCppStandard, initializeCppSnippets, registerSimpleSettings } from './simpleSettings';
 import { registerCphSettings } from './cphSettings';
 	import { registerBrowserScriptTester } from './browserScriptTester';
 import { registerGettingStarted } from './gettingStarted';
@@ -56,7 +58,7 @@ type FirstRunSelection = {
 	mode: SetupSelection;
 	installToolchain: boolean;
 	cppStandard: 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
-	workspaceFolder: string;
+	workspaceFolder?: string;
 	completeSetup?: boolean;
 };
 
@@ -89,7 +91,6 @@ const shortestPathHiddenFiles: Record<string, boolean> = {
 const FILE_EXCLUDES_MIGRATION = 'shortestpath.fileExcludes.v3';
 const OJ_MAPPING_MIGRATION = 'shortestpath.ojMapping.v2';
 const FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION = 'shortestpath.fileNameTemplateOverrides.v1';
-const CLANG_FORMAT_MIGRATION = 'shortestpath.clangFormat.v1';
 const shortestPathOjMapping = {
 	oj: 'ShortestPath',
 	ojName: 'ShortestPath',
@@ -121,6 +122,7 @@ CompileFlags:
     - -std=${cppStandard}
     - -Wall
     - -Wextra
+    - -DDEBUG
     - "-Drsize_t=size_t"
     - "-D__STDC_WANT_LIB_EXT1__=1"
     - "-D__float128=long double"
@@ -154,16 +156,13 @@ function createDefaultClangdProjectConfig(workspaceFolder: string, compiler: str
 	createDefaultClangdConfig(path.join(workspaceFolder, '.clangd'), compiler, cppStandard);
 }
 
-// The content comes from simpleSettings, which owns the .clang-format model for
-// the settings page. Keeping a second template here is how the first-run path
-// and the settings page drift apart.
 function createDefaultClangFormatConfig(workspaceFolder: string): void {
 	const configPath = path.join(workspaceFolder, '.clang-format');
 	if (fs.existsSync(configPath)) {
 		return;
 	}
 	try {
-		fs.writeFileSync(configPath, defaultClangFormatConfig(), { encoding: 'utf8', flag: 'wx' });
+		fs.writeFileSync(configPath, defaultClangFormatConfig(vscode.workspace.getConfiguration('editor', vscode.Uri.file(workspaceFolder)).get<number>('tabSize') ?? 2), { encoding: 'utf8', flag: 'wx' });
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
 			throw error;
@@ -179,31 +178,9 @@ function getSingleLocalWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
 	return workspaceFolders[0];
 }
 
-// .clang-format is the file the OI setup has to add, and it is also the file a
-// foreign C++ project already carries. Keying the prompt on it therefore asks
-// about a fresh folder and about a workspace left behind by the first-run build
-// that only wrote .clangd, while leaving somebody else's project alone.
 function hasOiWorkspaceConfig(workspaceFolder: vscode.WorkspaceFolder): boolean {
-	return fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clang-format'));
-}
-
-// Older builds wrote only .clangd during first-run setup, so workspaces that went
-// through that flow never received a .clang-format and clang-format silently fell
-// back to the LLVM style (2-space indentation). Repair that exact signature.
-// Nothing is overwritten: the create helper returns early when the file exists.
-async function repairLegacyClangFormatConfig(): Promise<boolean> {
-	const workspaceFolder = getSingleLocalWorkspaceFolder();
-	if (!workspaceFolder) {
-		return false;
-	}
-	const folder = workspaceFolder.uri.fsPath;
-	// Only a workspace ShortestPath already set up is ours to repair; writing a
-	// .clang-format into somebody else's C++ project is not.
-	if (!fs.existsSync(path.join(folder, '.clangd')) || fs.existsSync(path.join(folder, '.clang-format'))) {
-		return true;
-	}
-	createDefaultClangFormatConfig(folder);
-	return true;
+	return fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clangd'))
+		|| fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clang-format'));
 }
 
 async function initializeOiWorkspace(context: vscode.ExtensionContext): Promise<void> {
@@ -215,10 +192,10 @@ async function initializeOiWorkspace(context: vscode.ExtensionContext): Promise<
 
 	const configuredCompiler = vscode.workspace.getConfiguration('judger.language.cpp').get<string>('Command');
 	const compiler = configuredCompiler || await findPreferredCompiler(loadPreset(context).compilerCandidates) || 'g++';
-	createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, 'c++23');
+	createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, 'c++20');
 	createDefaultClangFormatConfig(workspaceFolder.uri.fsPath);
 	await context.workspaceState.update(OI_WORKSPACE_INITIALIZATION_DISMISSED, undefined);
-	void vscode.window.showInformationMessage(localizeFormat('“{0}”的 OI 项目配置已补全。', workspaceFolder.name));
+	void vscode.window.showInformationMessage(localizeFormat('已在“{0}”中创建 .clangd 和 .clang-format。', workspaceFolder.name));
 }
 
 async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext): Promise<void> {
@@ -228,7 +205,7 @@ async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext):
 	}
 
 	const action = await vscode.window.showInformationMessage(
-		localizeFormat('“{0}”的 OI 项目配置不完整。要补全 .clangd 和 .clang-format 吗？', workspaceFolder.name),
+		localizeFormat('“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？', workspaceFolder.name),
 		localize('初始化 OI 配置'),
 		localize('暂不初始化')
 	);
@@ -240,22 +217,31 @@ async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext):
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	configureCompilerRuntime(context);
 	const updateExtensionMarketplaceVisibility = () => vscode.commands.executeCommand('setContext', 'shortestpath.extensionMarketplaceEnabled', vscode.workspace.getConfiguration('shortestpath').get<boolean>('useExtensionMarketplace') === true);
 	await updateExtensionMarketplaceVisibility();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+		if (event.affectsConfiguration('judger.language.cpp.Command')) { configureCompilerRuntime(context); }
 		if (event.affectsConfiguration('shortestpath.useExtensionMarketplace')) {
 			void updateExtensionMarketplaceVisibility();
 		}
 	}));
 	registerSimpleSettings(context);
+	try {
+		await initializeCppSnippets(context);
+	} catch (error) {
+		console.error('Failed to initialize bundled C++ snippets', error);
+	}
+	registerCppFormatting(context);
 	registerBrowserScriptTester(context);
-	registerRelaxMode(context);
 	registerCphSettings(context);
 	registerGettingStarted(context);
 	registerToolchainDiagnostics(context);
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.setupEnvironment', () => runSetup(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.redetectToolchain', () => runSetup(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.installToolchainStage', (options?: SetupEnvironmentOptions) => installToolchainStage(context, options)));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.prepareFirstRunStage', (options?: SetupEnvironmentOptions) => prepareFirstRunStage(context, options)));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.selfTestEnvironment', (options?: SetupEnvironmentOptions) => selfTestEnvironment(options)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.applyFirstRunSetup', (selection: unknown) => isFirstRunSelection(selection) ? configure(context, { ...selection, completeSetup: false }) : false));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.repairToolchain', () => repairToolchain(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.rerunFirstRunSetup', () => rerunFirstRunSetup()));
@@ -265,6 +251,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.hideSetupFiles', toggleHiddenFiles));
 	warnAboutPortablePathWithSpaces();
 	await rebasePortableToolchain(context);
+	configureCompilerRuntime(context);
 	await removeLegacyWindowsCompilerLocale(context);
 	if (!context.globalState.get<boolean>(FILE_EXCLUDES_MIGRATION)) {
 		await ensureShortestPathFileExcludes();
@@ -277,18 +264,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	if (!context.globalState.get<boolean>(FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION)) {
 		await ensureShortestPathFileNameTemplateOverride();
 		await context.globalState.update(FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION, true);
-	}
-	if (!context.workspaceState.get<boolean>(CLANG_FORMAT_MIGRATION)) {
-		// Per workspace: a global flag repairs only the first workspace ever opened.
-		// Stay pending until a single local folder is open; marking it done without
-		// a folder would skip the repair entirely.
-		try {
-			if (await repairLegacyClangFormatConfig()) {
-				await context.workspaceState.update(CLANG_FORMAT_MIGRATION, true);
-			}
-		} catch {
-			// An unwritable folder must not fail activation; retry on the next launch.
-		}
 	}
 	const updateHiddenFilesContext = () => {
 		void vscode.commands.executeCommand('setContext', 'shortestpath.showAllFiles', !hasShortestPathHiddenFiles());
@@ -450,7 +425,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	if (firstRunSelection?.mode === 'recommended') {
 		Object.assign(settings, loadCphDefaultSettings(context), loadRecommendedSettings(context));
 	}
-	const cppStandard = firstRunSelection?.cppStandard ?? 'c++23';
+	const cppStandard = firstRunSelection?.cppStandard ?? 'c++20';
 	if (compiler) {
 		if (process.platform === 'win32' && vscode.env.isAppPortable) {
 			compiler = getSpaceSafePortableCompilerPath(context, compiler);
@@ -459,13 +434,22 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		settings['c-cpp-compile-run.output-location'] = '.';
 		settings['c-cpp-compile-run.cpp-compiler'] = compiler;
 		if (firstRunSelection?.mode !== 'repair' || preservedCompilerFlags !== undefined) {
-			const compilerFlags = preservedCompilerFlags ?? defaultCompilerFlagsFor(cppStandard);
+			const compilerFlags = preservedCompilerFlags ?? [
+				`-std=${cppStandard}`,
+				'-O2',
+				'-g',
+				'-Wall',
+				'-Wextra',
+				'-DDEBUG',
+			].join(' ');
 			settings['judger.language.cpp.Args'] = compilerFlags;
 			settings['c-cpp-compile-run.cpp-flags'] = compilerFlags;
 		}
-		if (firstRunSelection) {
+		if (firstRunSelection?.workspaceFolder) {
 			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard);
-			createDefaultClangFormatConfig(firstRunSelection.workspaceFolder);
+		}
+		if (firstRunSelection) {
+			settings['clangd.fallbackFlags'] = await compilerFallbackFlags(compiler, runToolchainCommand, cppStandard);
 		}
 		settings['clangd.arguments'] = clangdArgumentsForCompiler(compiler);
 	}
@@ -475,6 +459,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	const compilerReady = !!compiler && (!path.isAbsolute(compiler) || fs.existsSync(compiler));
 	const clangdReady = !!clangd && (!path.isAbsolute(clangd) || fs.existsSync(clangd));
 	await updateGlobalSettings(settings);
+	if (compiler) { configureCompilerRuntime(context, compiler); }
 	if (firstRunSelection) {
 		const firstRunConfiguration = vscode.workspace.getConfiguration('shortestpath.setup');
 		await firstRunConfiguration.update('pending', undefined, vscode.ConfigurationTarget.Global);
@@ -497,6 +482,18 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 		}
 	}
 	return compilerReady && clangdReady;
+}
+
+function configureCompilerRuntime(context: vscode.ExtensionContext, compiler = vscode.workspace.getConfiguration('judger.language.cpp', null).get<string>('Command')): void {
+	if (process.platform !== 'win32' || !compiler || !path.win32.isAbsolute(compiler)) { return; }
+	const environment = withCompilerRuntime(process.env, compiler);
+	// All bundled Node extensions share this process. Their compiler and runner
+	// children inherit the same DLL search path, including Judger and Compile Run.
+	for (const key of Object.keys(process.env).filter(key => key.toLowerCase() === 'path')) { delete process.env[key]; }
+	for (const [key, value] of Object.entries(environment)) {
+		if (key.toLowerCase() === 'path') { process.env[key] = value; }
+	}
+	context.environmentVariableCollection.prepend('PATH', `${path.win32.dirname(compiler)};`);
 }
 
 async function rebasePortableToolchain(context: vscode.ExtensionContext): Promise<void> {
@@ -537,6 +534,13 @@ async function rebasePortableToolchain(context: vscode.ExtensionContext): Promis
 		}
 	}
 
+	if (compilerExists && (settings['judger.language.cpp.Command'] || settings['c-cpp-compile-run.cpp-compiler']) && configuration.inspect<string[]>('clangd.fallbackFlags')?.globalValue) {
+		try {
+			settings['clangd.fallbackFlags'] = await compilerFallbackFlags(compiler, runToolchainCommand, findCppStandard(configuration.get<string>('judger.language.cpp.Args') ?? ''));
+		} catch (error) {
+			void vscode.window.showWarningMessage(localizeFormat('无法更新代码提示配置：{0}', localize(error instanceof Error ? error.message : String(error))));
+		}
+	}
 	await updateGlobalSettings(settings);
 	await enableBundledConptyWhenUnset();
 	if (!compilerExists) {
@@ -583,8 +587,7 @@ function isFirstRunSelection(candidate: unknown): candidate is FirstRunSelection
 	return (value.mode === 'recommended' || value.mode === 'repair')
 		&& typeof value.installToolchain === 'boolean'
 		&& (value.cppStandard === 'c++11' || value.cppStandard === 'c++14' || value.cppStandard === 'c++17' || value.cppStandard === 'c++20' || value.cppStandard === 'c++23')
-		&& typeof value.workspaceFolder === 'string'
-		&& path.isAbsolute(value.workspaceFolder);
+		&& (value.workspaceFolder === undefined || (typeof value.workspaceFolder === 'string' && path.isAbsolute(value.workspaceFolder)));
 }
 
 function getToolchainRoot(context: vscode.ExtensionContext): string {
@@ -644,6 +647,54 @@ async function pickWorkspaceFolder(): Promise<string | undefined> {
 		openLabel: localize('选择目录')
 	});
 	return result?.[0]?.fsPath;
+}
+
+async function prepareFirstRunStage(context: vscode.ExtensionContext, options: SetupEnvironmentOptions = {}): Promise<ToolchainInstallResult> {
+	const report = options.reportProgress ?? (() => undefined);
+	let detected = false;
+	if (process.platform === 'darwin' && options.stage === 'xcode') {
+		try { await runToolchainCommand('/usr/bin/xcode-select', ['-p'], report); detected = true; } catch { /* Install below. */ }
+	} else if (process.platform === 'darwin' && options.stage === 'homebrew') {
+		const brew = await findFirstExecutable(['/opt/homebrew/bin/brew', '/usr/local/bin/brew', 'brew']);
+		if (brew) { await runToolchainCommand(brew, ['--version'], report); detected = true; }
+	} else if (options.stage === 'toolchain') {
+		const preset = loadPreset(context);
+		const compiler = await findPreferredCompiler(preset.compilerCandidates);
+		const clangd = await findFirstExecutable(preset.clangdCandidates);
+		if (compiler && clangd && !await isAppleClang(compiler)) {
+			await runToolchainCommand(compiler, ['--version'], report);
+			await runToolchainCommand(clangd, ['--version'], report);
+			detected = true;
+		}
+	}
+	if (detected) { return { success: true, message: localize('已检测到可用环境，无需安装。') }; }
+	return installToolchainStage(context, options);
+}
+
+async function selfTestEnvironment(options: SetupEnvironmentOptions = {}): Promise<ToolchainInstallResult> {
+	const configuration = vscode.workspace.getConfiguration(undefined, null);
+	const compiler = configuration.get<string>('judger.language.cpp.Command');
+	const clangd = configuration.get<string>('clangd.path');
+	const flags = configuration.get<string[]>('clangd.fallbackFlags');
+	if (!compiler || !clangd || !flags?.length) { return { success: false, message: localize('编译环境尚未准备完成。请完成安装后重试。') }; }
+	try {
+		await runToolchainSelfTest(compiler, clangd, flags, options.reportProgress ?? (() => undefined), async (file, samples, report) => {
+			const result = await vscode.commands.executeCommand<{ success: boolean; reason?: string; detail?: string }>('judger.selfTestEnvironment', {
+				sourcePath: file, samples,
+				reportProgress: (event: { type: string; text?: string; index?: number; input?: string; expected?: string; actual?: string; pass?: boolean }) => {
+					if (event.type === 'compilerOutput') { report(event.text ?? ''); }
+					if (event.type === 'sample') {
+						report(localizeFormat('Judger 样例 {0}：输入 {1}，期望 {2}，实际 {3}，{4}', (event.index ?? 0) + 1, event.input?.trim(), event.expected?.trim(), event.actual?.trim(), event.pass ? localize('通过') : localize('失败')));
+					}
+				}
+			});
+			if (!result?.success) { throw new Error(localizeFormat('Judger 自检失败：{0}', result?.reason === 'compile' ? localize('编译失败') : result?.reason === 'judge' ? localize('错误答案未被正确识别') : localize('样例运行或判题失败')) + (result?.detail ? `\n${result.detail}` : '')); }
+			report(localize('Judger 编译、样例通过与错误答案识别检查均通过。'));
+		});
+		return { success: true, message: localize('环境已就绪，自测通过。') };
+	} catch (error) {
+		return { success: false, message: localizeFormat('环境自测失败：{0}', localize(error instanceof Error ? error.message : String(error))) };
+	}
 }
 
 async function installToolchainStage(context: vscode.ExtensionContext, options: SetupEnvironmentOptions = {}): Promise<ToolchainInstallResult> {
@@ -727,11 +778,7 @@ async function offerInstaller(context: vscode.ExtensionContext, preset: Platform
 		const toolchainRoot = getToolchainRoot(context);
 		const source = selectDownloadSource(preset, undefined);
 		const installer = loadPlatformInstaller(context);
-		// Only a platform with no shell installer at all is sent back to the
-		// first-run page. Windows qualifies: its whole toolchain arrives through
-		// that page. Linux also ships portable assets (clangd), but its compiler
-		// comes from the distribution, so it has to reach the terminal below.
-		if (!installer.createCommand) {
+		if (installer.getPortableAssets || !installer.createCommand) {
 			const restartLabel = localize('立即重新启动设置');
 			const restart = await vscode.window.showInformationMessage(
 				localize('便携工具链由开箱配置页下载。请重新启动开箱配置以完成下载。'),

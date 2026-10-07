@@ -1,0 +1,10 @@
+{
+  "name": "ide-e2e-driver",
+  "publisher": "shortestpath",
+  "version": "0.0.0",
+  "displayName": "Isolated IDE E2E Driver",
+  "engines": { "vscode": "^1.128.0" },
+  "activationEvents": ["onStartupFinished"],
+  "main": "./host.cjs",
+  "capabilities": { "untrustedWorkspaces": { "supported": false } }
+}

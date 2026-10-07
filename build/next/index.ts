@@ -20,7 +20,7 @@ import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
-import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
+import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile, transpileLocalizedFiles } from './transpile.ts';
 import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
 import { getBundleOptions } from './bundle.ts';
@@ -401,7 +401,7 @@ function fileContentMapperPlugin(outDir: string, target: BuildTarget): esbuild.P
 // Transpile (Goal 1: TS → JS using esbuild.transform for maximum speed)
 // ============================================================================
 
-async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
+async function transpile(outDir: string, excludeTests: boolean, localized = false): Promise<void> {
 	// Find all .ts files
 	const ignorePatterns = ['**/*.d.ts'];
 	if (excludeTests) {
@@ -414,6 +414,10 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 	});
 
 	console.log(`[transpile] Found ${files.length} files`);
+	if (localized) {
+		await transpileLocalizedFiles(path.join(REPO_ROOT, SRC_DIR), path.join(REPO_ROOT, outDir), files);
+		return;
+	}
 
 	await mapWithConcurrency(files, MAX_CONCURRENT_FILE_OPERATIONS, file => {
 		const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
@@ -792,6 +796,7 @@ Options for 'build-fast':
 
 Options for 'transpile':
 	--watch            Watch for changes and rebuild incrementally
+	--nls              Generate localized development output (without --watch)
 	--out <dir>        Output directory (default: out)
 	--exclude-tests    Exclude test files from transpilation
 
@@ -827,6 +832,9 @@ async function main(): Promise<void> {
 				await runBuildFast(REPO_ROOT, options.force);
 				break;
 			case 'transpile':
+				if (options.nls && options.watch) {
+					throw new Error('Localized transpilation requires a full rebuild; --nls cannot be combined with --watch.');
+				}
 				if (options.watch) {
 					await watch();
 				} else {
@@ -840,7 +848,7 @@ async function main(): Promise<void> {
 
 					console.log(`[transpile] ${SRC_DIR} → ${outDir}${options.excludeTests ? ' (excluding tests)' : ''}`);
 					const t1 = Date.now();
-					await transpile(outDir, options.excludeTests);
+					await transpile(outDir, options.excludeTests, options.nls);
 					await copyAllNonTsFiles(outDir, options.excludeTests);
 					console.log(`[transpile] Done in ${Date.now() - t1}ms`);
 				}

@@ -1,0 +1,30 @@
+{
+	"name": "shortestpath-draw",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "shortestpath",
+	"license": "GPL-3.0-or-later",
+	"engines": { "vscode": "^1.129.0" },
+	"categories": ["Visualization"],
+	"capabilities": { "untrustedWorkspaces": { "supported": true } },
+	"activationEvents": ["onCommand:shortestpath.draw.open", "onWebviewPanel:shortestpath.draw", "onWebviewPanel:shortestpath.draw.companion"],
+	"main": "./dist/extension.js",
+	"scripts": {
+		"typecheck": "node ../../node_modules/typescript/bin/tsc6 -p tsconfig.json --noEmit && node ../../node_modules/typescript/bin/tsc6 -p tsconfig.webview.json --noEmit",
+		"compile": "node ../../node_modules/typescript/bin/tsc6 -p tsconfig.json && node esbuild.mjs",
+		"test": "npm run compile && node --test out/test/*.test.js",
+		"vscode:prepublish": "npm run typecheck && node esbuild.mjs"
+	},
+	"contributes": {
+		"commands": [{ "command": "shortestpath.draw.open", "title": "%command.open%" }]
+	},
+	"devDependencies": {
+		"@excalidraw/excalidraw": "0.18.1",
+		"react": "18.3.1",
+		"react-dom": "18.3.1",
+		"@types/react": "^18.3.0",
+		"@types/react-dom": "^18.3.0",
+		"esbuild": "0.28.1"
+	}
+}

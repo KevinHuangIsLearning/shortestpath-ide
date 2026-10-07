@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EditorActivation, IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { EditorActivation, IResourceEditorInput, ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor, isEditorInput, EditorInputCapabilities } from '../../../../common/editor.js';
@@ -29,6 +29,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IEditorPaneService } from '../../common/editorPaneService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { SideBySideEditor as SideBySideEditorPane } from '../../../../browser/parts/editor/sideBySideEditor.js';
 
 suite('EditorService', () => {
 
@@ -55,6 +57,7 @@ suite('EditorService', () => {
 	});
 
 	async function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService(undefined, disposables)): Promise<[EditorPart, EditorService, TestServiceAccessor]> {
+		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -74,6 +77,70 @@ suite('EditorService', () => {
 		const [, service, accessor] = await createEditorService();
 
 		await testOpenBasics(service, accessor.editorPaneService);
+	});
+
+	for (const batch of [false, true]) {
+		test(`${batch ? 'openEditors()' : 'openEditor()'} - reuse the source companion tab when opening its primary`, async () => {
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
+			const [part, service] = await createEditorService(instantiationService);
+			class SourceCompanionInput extends SideBySideEditorInput {
+				override get revealOnPrimaryOpen(): boolean { return true; }
+			}
+			const source = createTestFileEditorInput(URI.file('/B_字母配对.cpp'), TEST_EDITOR_INPUT_ID);
+			const companion = createTestFileEditorInput(URI.file('/problem'), TEST_EDITOR_INPUT_ID);
+			const paired = disposables.add(testLocalInstantiationService!.createInstance(SourceCompanionInput, undefined, undefined, companion, source));
+			await service.openEditor(paired, { pinned: true });
+			source.dirty = true;
+			const options = { pinned: true, selection: { startLineNumber: 3, startColumn: 2 } };
+			const sameSource = createTestFileEditorInput(source.resource, TEST_EDITOR_INPUT_ID);
+			if (batch) {
+				await service.openEditors([{ editor: sameSource, options }]);
+			} else {
+				await service.openEditor(sameSource, options);
+			}
+			assert.deepStrictEqual({ editors: part.activeGroup.editors, active: service.activeEditor, dirty: paired.isDirty(), disposed: source.isDisposed() }, {
+				editors: [paired], active: paired, dirty: true, disposed: false,
+			});
+			const primaryOptions = (service.activeEditorPane as SideBySideEditorPane).getPrimaryEditorPane()?.options as ITextEditorOptions | undefined;
+			assert.deepStrictEqual(primaryOptions?.selection, options.selection);
+
+			// Explicit splitting still opens the native source in the requested new group.
+			const split = await service.openEditor(source, { pinned: true }, SIDE_GROUP);
+			assert.deepStrictEqual(split?.group.editors, [source]);
+
+			// Removing a companion can still replace the pair with its unsaved source.
+			await service.replaceEditors([{ editor: paired, replacement: source, forceReplaceDirty: true }], part.groups[0]);
+			assert.deepStrictEqual(part.groups[0].editors, [source]);
+		});
+	}
+
+	for (const sourceFirst of [false, true]) {
+		test(`openEditors() - deduplicates a pending source companion with sourceFirst=${sourceFirst}`, async () => {
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
+			const [part, service] = await createEditorService(instantiationService);
+			class SourceCompanionInput extends SideBySideEditorInput {
+				override get revealOnPrimaryOpen(): boolean { return true; }
+			}
+			const source = createTestFileEditorInput(URI.file('/source.cpp'), TEST_EDITOR_INPUT_ID);
+			const companion = createTestFileEditorInput(URI.file('/problem'), TEST_EDITOR_INPUT_ID);
+			const paired = disposables.add(instantiationService.createInstance(SourceCompanionInput, undefined, undefined, companion, source));
+			await service.openEditors((sourceFirst ? [source, paired] : [paired, source]).map(editor => ({ editor, options: { pinned: true } })));
+			assert.deepStrictEqual(part.activeGroup.editors, [paired]);
+		});
+	}
+
+	test('openEditor() - ordinary side by side editors do not absorb source opens', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
+		const [part, service] = await createEditorService(instantiationService);
+		const source = createTestFileEditorInput(URI.file('/source.cpp'), TEST_EDITOR_INPUT_ID);
+		const secondary = createTestFileEditorInput(URI.file('/secondary.cpp'), TEST_EDITOR_INPUT_ID);
+		const paired = disposables.add(testLocalInstantiationService!.createInstance(SideBySideEditorInput, undefined, undefined, secondary, source));
+		await service.openEditor(paired, { pinned: true });
+		await service.openEditor(source, { pinned: true });
+		assert.deepStrictEqual(part.activeGroup.editors, [paired, source]);
 	});
 
 	test('openEditor() - basics (scoped)', async () => {

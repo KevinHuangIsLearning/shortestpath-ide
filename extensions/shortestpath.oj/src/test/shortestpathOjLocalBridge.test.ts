@@ -84,6 +84,28 @@ test('enforces one active session, reuses same binding, and replaces the old pag
 	}
 });
 
+test('explicit hint reads cross the real bridge and validate the returned state', async () => {
+	const bridge = createBridge([], [], []);
+	const socket = await openSocket(await bridge.listeningPort());
+	try {
+		const bound = await sendRequest(socket, 'problem.bind', bindPayload);
+		const sessionId = stringField(bound, 'sessionId');
+		let reads = 0;
+		socket.on('message', data => {
+			const request = JSON.parse(data.toString()) as Record<string, unknown>;
+			if (request.type !== 'hint.state.request') { return; }
+			reads++;
+			socket.send(JSON.stringify({ version: 1, id: 'hint-response', replyTo: request.id, type: 'hint.state.result', sessionId, ok: true, data: { state: reads === 1 ? statePayload : {} } }));
+		});
+		assert.deepStrictEqual(await bridge.requestHintState('DSU/found/A'), statePayload);
+		await assert.rejects(bridge.requestHintState('DSU/found/A'));
+		assert.equal(reads, 2);
+	} finally {
+		socket.terminate();
+		await bridge.close();
+	}
+});
+
 test('validates IDE request responses and accepts terminal event snapshots', async () => {
 	const imports: ImportedProblem[] = [];
 	const states: ProblemState[] = [];
@@ -235,6 +257,27 @@ test('keeps the previous active session when a later import fails', async () => 
 	} finally {
 		first.terminate();
 		second.terminate();
+		await bridge.close();
+	}
+});
+
+test('first import can wait beyond the former 15 second language-selection deadline', { timeout: 25_000 }, async () => {
+	const bridge = new ShortestPathOjLocalBridge({
+		async importProblem(_problem, signal) {
+			await new Promise(resolve => setTimeout(resolve, 16_000));
+			signal.throwIfAborted();
+			return 'created';
+		},
+		async updateProblemState() { },
+		handleEvent() { },
+		handleDisconnect() { },
+	}, 0);
+	const socket = await openSocket(await bridge.listeningPort());
+	try {
+		const result = await sendRequest(socket, 'problem.bind', bindPayload);
+		assert.deepEqual({ ok: result.ok, active: bridge.getActiveSession()?.problemRef }, { ok: true, active: bindPayload.problem.ref });
+	} finally {
+		socket.terminate();
 		await bridge.close();
 	}
 });

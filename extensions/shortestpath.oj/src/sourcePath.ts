@@ -13,3 +13,15 @@
 export function isHeaderSafeSourcePath(value: string): boolean {
 	return !/[\u0000-\u0008\u000A-\u001F\u007F-\u009F\u0100-\uFFFF]/.test(value);
 }
+
+/** Filesystem paths are Unicode; HTTP header restrictions apply only in transit. */
+export function isValidSourcePath(value: string): boolean {
+	return value.length > 0 && !/[\u0000-\u001F\u007F-\u009F]/.test(value);
+}
+
+export function encodeSourcePath(value: string): string {
+	if (!isValidSourcePath(value)) {
+		throw new Error('Invalid source path');
+	}
+	return encodeURIComponent(value);
+}

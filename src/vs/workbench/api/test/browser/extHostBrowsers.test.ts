@@ -140,21 +140,22 @@ suite('ExtHostBrowsers', () => {
 
 	test('openBrowserTab forwards options to proxy', async () => {
 		let capturedViewColumn: number | undefined;
-		let capturedOptions: { preserveFocus?: boolean; inactive?: boolean } | undefined;
+		let capturedOptions: { preserveFocus?: boolean; inactive?: boolean; hidden?: boolean } | undefined;
 		const extHost = createExtHostBrowsers({
-			$openBrowserTab: (_url: string, viewColumn?: number, options?: { preserveFocus?: boolean; inactive?: boolean }) => {
+			$openBrowserTab: (_url: string, viewColumn?: number, options?: { preserveFocus?: boolean; inactive?: boolean; hidden?: boolean }) => {
 				capturedViewColumn = viewColumn;
 				capturedOptions = options;
 				return Promise.resolve(createDto({ id: 'opts' }));
 			},
 		});
 
-		await extHost.openBrowserTab('https://example.com', { viewColumn: 2, preserveFocus: true, background: true });
+		await extHost.openBrowserTab('https://example.com', { viewColumn: 2, preserveFocus: true, background: true, hidden: true });
 
 		// ViewColumn.from converts API viewColumn (1-based) to EditorGroupColumn (0-based)
 		assert.strictEqual(capturedViewColumn, 1);
 		assert.strictEqual(capturedOptions?.preserveFocus, true);
 		assert.strictEqual(capturedOptions?.inactive, true);
+		assert.strictEqual(capturedOptions?.hidden, true);
 	});
 
 	// #endregion

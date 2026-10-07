@@ -9,6 +9,7 @@ import { componentExplorer } from '@vscode/component-explorer-vite-plugin';
 import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
 import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
+import { desktopNlsPlugin } from './desktop-nls.ts';
 
 function injectBuiltinExtensionsPlugin(): Plugin {
 	let builtinExtensionsCache: unknown[] | null = null;
@@ -163,6 +164,7 @@ logger.warn = (msg, options) => {
 export default defineConfig({
 	base: './',
 	plugins: [
+		...(process.env['VSCODE_VITE_DESKTOP'] === '1' ? [desktopNlsPlugin(join(import.meta.dirname, '../..'))] : []),
 		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),
 		createHotClassSupport(),

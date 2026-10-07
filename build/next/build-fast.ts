@@ -88,7 +88,8 @@ export async function runBuildFast(repoRoot: string, force: boolean): Promise<vo
 
 		const changedPaths = computeChangedPaths(saved.state, before, committedPaths);
 		const outputs = await getOutputStatus(repoRoot);
-		const plan = createBuildPlan(saved, environment, changedPaths, outputs, force);
+		const localized = await pathExists(path.join(repoRoot, 'out', 'nls.keys.json'));
+		const plan = createBuildPlan(saved, environment, changedPaths, outputs, force, localized);
 		logPlan(plan);
 
 		const hasBuildWork = plan.client !== 'skip' || plan.extensions !== 'skip' || plan.copilot !== 'skip';
@@ -108,7 +109,7 @@ export async function runBuildFast(repoRoot: string, force: boolean): Promise<vo
 
 		const tasks: Promise<void>[] = [];
 		if (plan.client === 'full') {
-			tasks.push(runCommand(repoRoot, process.execPath, [path.join(repoRoot, 'build', 'next', 'index.ts'), 'transpile'], 'client'));
+			tasks.push(runCommand(repoRoot, process.execPath, [path.join(repoRoot, 'build', 'next', 'index.ts'), 'transpile', ...(localized ? ['--nls'] : [])], 'client'));
 		} else if (plan.client === 'incremental') {
 			tasks.push(runTimed('client', () => applyIncrementalClientChanges(repoRoot, 'out', prerequisites.clientChangedPaths)));
 		}
@@ -189,7 +190,7 @@ export function selectBuiltSnapshot(before: BuildFastSnapshot, after: BuildFastS
 	return { snapshot: inputsChanged ? before : after, inputsChanged };
 }
 
-export function createBuildPlan(saved: StateReadResult, environment: string, changedPaths: readonly string[], outputs: OutputStatus, force: boolean): BuildFastPlan {
+export function createBuildPlan(saved: StateReadResult, environment: string, changedPaths: readonly string[], outputs: OutputStatus, force: boolean, localized = false): BuildFastPlan {
 	if (force) {
 		return fullPlan('forced by --force', changedPaths);
 	}
@@ -234,6 +235,10 @@ export function createBuildPlan(saved: StateReadResult, environment: string, cha
 	}
 	if (changedPaths.length > 0) {
 		reasons.push(`${changedPaths.length} input path(s) changed`);
+	}
+
+	if (localized && client === 'incremental') {
+		client = 'full'; // NLS indices and metadata must change together.
 	}
 
 	return {
@@ -371,6 +376,7 @@ function validateSelectedOutputs(plan: BuildFastPlan, outputs: OutputStatus): vo
 }
 
 async function runAllFull(repoRoot: string): Promise<void> {
+	const localized = await pathExists(path.join(repoRoot, 'out', 'nls.keys.json'));
 	await runCommand(repoRoot, npmCommand(), [
 		'run',
 		'gulp',
@@ -379,7 +385,7 @@ async function runAllFull(repoRoot: string): Promise<void> {
 		'compile-extension-point-names',
 	], 'prerequisites');
 	await waitForTasks([
-		runCommand(repoRoot, process.execPath, [path.join(repoRoot, 'build', 'next', 'index.ts'), 'transpile'], 'client'),
+		runCommand(repoRoot, process.execPath, [path.join(repoRoot, 'build', 'next', 'index.ts'), 'transpile', ...(localized ? ['--nls'] : [])], 'client'),
 		runCommand(repoRoot, npmCommand(), EXTENSION_BUILD_ARGS, 'extensions'),
 		runCommand(repoRoot, npmCommand(), COPILOT_BUILD_ARGS, 'copilot'),
 	]);

@@ -125,11 +125,9 @@ export function getShortestPathUpdateTarget(platform: string, installMode: 'user
 		return undefined;
 	}
 
-	if (installMode === 'user') {
+	// Legacy system installations migrate to the remaining user installer.
+	if (installMode === 'user' || installMode === 'system') {
 		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-x64-User-Setup.exe`, allowsMinimumVersionLock: true, fastDownloadType: 'windowsUserSetup' };
-	}
-	if (installMode === 'system') {
-		return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-x64-Setup.exe`, allowsMinimumVersionLock: true };
 	}
 	return { downloadUrl: `${latestDownload}ShortestPath-IDE-Windows-x64.zip`, allowsMinimumVersionLock: false, fastDownloadType: 'windowsPortable' };
 }

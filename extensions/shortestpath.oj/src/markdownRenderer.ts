@@ -5,7 +5,7 @@
 
 import MarkdownIt from 'markdown-it';
 import markdownItKatex from '@vscode/markdown-it-katex';
-import type { HighlighterCore } from 'shiki';
+import type { HighlighterCore, ThemeRegistration } from 'shiki';
 import { registerLatexDelimiterMath } from './markdownItLatexDelimiters';
 
 type RenderEnvironment = { baseUrl: string };
@@ -33,7 +33,7 @@ function escapeHtml(value: string): string {
 
 export type ProblemMarkdownRenderer = (markdown: string, baseUrl: string) => string;
 
-export async function createProblemMarkdownRenderer(getTheme: () => string): Promise<ProblemMarkdownRenderer> {
+export async function createProblemMarkdownRenderer(getTheme: () => string | ThemeRegistration): Promise<ProblemMarkdownRenderer> {
 	const { createHighlighter } = await import('shiki');
 	const highlighter = await createHighlighter({
 		themes: ['github-dark', 'github-light'],
@@ -43,7 +43,7 @@ export async function createProblemMarkdownRenderer(getTheme: () => string): Pro
 	return createMarkdownRendererWithHighlighter(highlighter, getTheme);
 }
 
-function createMarkdownRendererWithHighlighter(highlighter: HighlighterCore, getTheme: () => string): ProblemMarkdownRenderer {
+function createMarkdownRendererWithHighlighter(highlighter: HighlighterCore, getTheme: () => string | ThemeRegistration): ProblemMarkdownRenderer {
 	const markdown = new MarkdownIt({
 		html: false,
 		breaks: true,

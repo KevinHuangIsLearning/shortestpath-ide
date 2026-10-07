@@ -202,6 +202,18 @@ export const getDefaultLanguageTemplateFileLocation = (): string | null => {
     }
     return pref;
 };
+
+export const getCppTemplate = (): string | null => {
+    const configuration = workspace.getConfiguration('judger');
+    const inspected = configuration.inspect<string>('language.cpp.Template');
+    // A string setting without a schema default can still resolve to ''. Only
+    // an explicit setting should supersede an existing template file path.
+    if (!inspected || [inspected.globalValue, inspected.workspaceValue, inspected.workspaceFolderValue].every(value => value === undefined)) {
+        return null;
+    }
+    const template = configuration.get<string>('language.cpp.Template');
+    return typeof template === 'string' ? template : null;
+};
 export const doTemplateFileVariableReplacement = (): boolean => {
     return getPreference('general.doTemplateFileVariableReplacement');
 };

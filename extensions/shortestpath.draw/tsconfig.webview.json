@@ -1,0 +1,13 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"lib": ["ES2024", "DOM"],
+		"jsx": "react-jsx",
+		"types": ["react", "react-dom"],
+		"skipLibCheck": true
+	},
+	"include": ["src/webview/**/*", "src/protocol.ts"]
+}

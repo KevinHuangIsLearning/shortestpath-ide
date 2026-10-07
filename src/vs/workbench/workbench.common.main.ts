@@ -399,6 +399,7 @@ import './contrib/surveys/browser/languageSurveys.contribution.js';
 
 // Welcome
 import './contrib/shortestpath/browser/shortestPathNewTab.contribution.js';
+import './contrib/shortestpath/browser/shortestPathSetupPreview.contribution.js';
 import './contrib/shortestpath/browser/shortestPathUpdate.contribution.js';
 import './contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
 import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
@@ -441,8 +442,7 @@ import './contrib/editSessions/browser/editSessions.contribution.js';
 // Code Actions
 import './contrib/codeActions/browser/codeActions.contribution.js';
 
-// Timeline
-import './contrib/timeline/browser/timeline.contribution.js';
+// Timeline service (the Explorer view is omitted in ShortestPath).
 import './contrib/timeline/browser/timeline.service.contribution.js';
 
 // Local History

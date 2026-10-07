@@ -1,6 +1,6 @@
 {
-	"version": "0.4.1",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.1",
+	"version": "0.4.4",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.4",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "修复 Judger 在 Windows 高 DPI 环境下整个面板字号偏大的问题，面板现在跟随 IDE 界面字号，不再随编辑器字号一起放大。\n\nFixed oversized Judger panel text and controls on Windows high-DPI displays. The panel now follows the IDE UI font size instead of the editor font size."
+	"releaseNote": "新增内置草稿画板、竞赛绘图模板与图片导出。内置 Fira Code，引导支持字体和连字选择、即时预览，并记住代码存放目录（支持便携目录移动）。Windows 提供用户安装版与便携版。\n\nAdded an offline sketchpad with competition templates and image export. Bundled Fira Code, added font and ligature choices with live previews to setup, and remembered code folders across restarts and portable moves. Windows provides per-user and portable packages."
 }

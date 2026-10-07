@@ -4,10 +4,11 @@ import http from 'http';
 import config from './config';
 import { Problem, CphSubmitResponse, CphEmptyResponse } from './types';
 import { getProblem, saveProblem } from './parser';
+import { preserveIntegratedTests, usesIntegratedTests } from './integratedTests';
 import { appendShortestPathTestCase } from './shortestpathOj';
 import * as vscode from 'vscode';
 import path from 'path';
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { isCodeforcesUrl, isLuoguUrl, isAtCoderUrl, randomId } from './utils';
 import {
     getDefaultLangPref,
@@ -17,6 +18,7 @@ import {
     useShortAtCoderName,
     getMenuChoices,
     getDefaultLanguageTemplateFileLocation,
+    getCppTemplate,
     includeProblemIndex,
     wordRegex,
     doTemplateFileVariableReplacement,
@@ -40,7 +42,10 @@ import { getProblemName } from './submit';
 import { runTool } from './toolProcess';
 import { getPythonCommand } from './preferences';
 import { getJudgeViewProvider } from './extension';
+import { initializeProblemSourceFile } from './problemSourceFile';
+import { getShortestPathProblemPath } from './shortestpathProblemPath';
 import {
+    decodeShortestPathSourcePath,
     words_in_text,
     toPascalCase,
     replaceFileNamePlaceholders,
@@ -118,7 +123,7 @@ export const setupCompanionServer = () => {
             const { headers } = req;
             const waitForProblemCreation = headers['x-shortestpath-oj'] === 'true';
             const addShortestPathTest = headers['x-shortestpath-oj-add-test'] === 'true';
-            const preferredSourcePath = typeof headers['x-shortestpath-source-path'] === 'string' ? headers['x-shortestpath-source-path'] : undefined;
+            const preferredSourcePath = decodeShortestPathSourcePath(headers['x-shortestpath-source-path-encoded'], headers['x-shortestpath-source-path']);
 
             if (headers['cph-submit'] == 'true') {
                 res.write(JSON.stringify(savedResponse));
@@ -148,13 +153,15 @@ export const setupCompanionServer = () => {
                         return;
                     }
                     const problem = validateCompanionProblem(payload);
+                    if (waitForProblemCreation) { problem.shortestPath = true; }
                     if (!waitForProblemCreation) {
                         await handleNewProblem(problem);
                         res.write(JSON.stringify(savedResponse));
                         res.end();
                         return;
                     }
-                    const result = await handleNewProblem(problem, preferredSourcePath);
+                    const contextHash = typeof headers['x-shortestpath-context'] === 'string' && /^[a-f0-9]{64}$/.test(headers['x-shortestpath-context']) ? headers['x-shortestpath-context'] : undefined;
+                    const result = await handleNewProblem(problem, preferredSourcePath, contextHash);
                     res.statusCode = result.created ? 200 : 422;
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.end(JSON.stringify(result));
@@ -377,7 +384,7 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
 };
 
 /** Handle the `problem` sent by Competitive Companion, such as showing the webview, opening an editor, managing layout etc. */
-export const handleNewProblem = async (problem: Problem, preferredSourcePath?: string, silent = false): Promise<ProblemCreationResult> => {
+export const handleNewProblem = async (problem: Problem, preferredSourcePath?: string, contextHash?: string, silent = false): Promise<ProblemCreationResult> => {
     globalThis.reporter.sendTelemetryEvent(telmetry.GET_PROBLEM_FROM_COMPANION);
     // If webview may be focused, close it, to prevent layout bug.
     if (vscode.window.activeTextEditor == undefined) {
@@ -394,7 +401,8 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         );
         return { created: false };
     }
-    const defaultLanguage = getDefaultLangPref();
+    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name);
+    const defaultLanguage = fixedProblemPath ? 'cpp' : getDefaultLangPref();
     let extn: string;
 
     if (defaultLanguage == null) {
@@ -477,10 +485,24 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         }
     }
 
-    const problemFileName = getProblemFileName(problem, extn);
-    const srcPath = getPreferredSourcePath(folder, preferredSourcePath) ?? path.join(folder, problemFileName);
+    const previousSourcePath = getPreferredSourcePath(folder, preferredSourcePath);
+    let srcPath: string;
+    if (fixedProblemPath) {
+        srcPath = path.join(folder, fixedProblemPath);
+    } else {
+        const titleFileName = getProblemFileName(problem, extn);
+        const problemFileName = contextHash ? `${path.parse(titleFileName).name}_${contextHash.slice(0, 24)}.${extn}` : titleFileName;
+        srcPath = previousSourcePath ?? path.join(folder, problemFileName);
+    }
+    // Preserve solutions from the previous naming scheme, including unsaved edits.
+    // Leave the old file intact and never overwrite an existing canonical file.
+    const previousSource = fixedProblemPath && previousSourcePath && previousSourcePath !== srcPath && !existsSync(srcPath)
+        ? vscode.workspace.textDocuments.find(document => document.uri.fsPath === previousSourcePath)?.getText() ?? readFileSync(previousSourcePath, 'utf8')
+        : undefined;
+
+    const cppTemplate = extn === 'cpp' ? getCppTemplate() : null;
     // Validate before creating files or changing the browser layout, so retry remains safe.
-    if (silent && defaultLanguage && !existsSync(srcPath)) {
+    if (silent && defaultLanguage && previousSource === undefined && cppTemplate === null && !existsSync(srcPath)) {
         const templateLocation = getDefaultLanguageTemplateFileLocation();
         if (templateLocation !== null && !existsSync(templateLocation)) {
             throw new Error(localize('judger.companion.templateMissing', 'Template file does not exist: {0}', templateLocation));
@@ -520,22 +542,22 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         );
     }
 
-
-
     // Add fields absent in competitive companion.
     problem.srcPath = srcPath;
     problem.tests = problem.tests.map((testcase, index) => ({
         ...testcase,
         // Pass in index to avoid generating duplicate id
         id: randomId(index),
+        ...(usesIntegratedTests(problem) ? { origin: 'sample' as const, sampleIndex: index } : {}),
     }));
+    problem = preserveIntegratedTests(problem, getProblem(srcPath) ?? (previousSourcePath ? getProblem(previousSourcePath) : null));
 
     if (!existsSync(srcPath)) {
-        let sourceContents = '';
+        let sourceContents = previousSource ?? cppTemplate ?? '';
 
-        if (defaultLanguage) {
+        if (defaultLanguage && previousSource === undefined) {
             const templateLocation = getDefaultLanguageTemplateFileLocation();
-            if (templateLocation !== null) {
+            if (cppTemplate === null && templateLocation !== null) {
                 const templateExists = existsSync(templateLocation);
                 if (!templateExists) {
                     if (silent) { throw new Error(localize('judger.companion.templateMissing', 'Template file does not exist: {0}', templateLocation)); }
@@ -552,7 +574,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
 
                     if (extn == 'java') {
                         const className = path.basename(
-                            problemFileName,
+                            srcPath,
                             '.java',
                         );
                         templateContents = templateContents.replace(
@@ -582,8 +604,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
                 }
             }
         }
-        mkdirSync(path.dirname(srcPath), { recursive: true });
-        writeFileSync(srcPath, sourceContents);
+        initializeProblemSourceFile(srcPath, sourceContents);
     }
 
     saveProblem(srcPath, problem);

@@ -3,7 +3,9 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare function acquireVsCodeApi(): { postMessage(message: object): void };
+declare function acquireVsCodeApi(): { postMessage(message: object): void; setState(state: object): void };
+
+type HintLikeMessage = { type: 'hintLike' | 'hintLikeError'; hintId: string; target: 'question' | 'answer'; liked?: boolean; count?: number };
 
 type TimerState = {
 	elapsedMs: number;
@@ -15,12 +17,13 @@ type TimerState = {
 type UpdateMessage = {
 	type: 'update';
 	sections: Record<string, string>;
+	connected?: boolean;
 	timer?: TimerState;
 };
 
 type FocusTabMessage = {
 	type: 'focusTab';
-	tabId: 'statement' | 'hints' | 'submissions';
+	tabId: 'statement' | 'hints' | 'submissions' | 'editorial';
 };
 
 type ConfirmRequest = {
@@ -31,18 +34,18 @@ type ConfirmRequest = {
 	cancelLabel: string;
 };
 
-type ShowHintModalMessage = {
-	type: 'showHintModal';
-	html: string;
-};
-
-type HintLikeMessage = { type: 'hintLike' | 'hintLikeError'; hintId: string; target: 'question' | 'answer'; liked?: boolean; count?: number };
-
-type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHintModalMessage | HintLikeMessage | undefined;
+type SourceChangedMessage = { type: 'sourceChanged'; problemRef: string; sourcePath: string };
+type LocalTestSavedMessage = { type: 'localTestSaved'; action: 'add' | 'update'; id?: number };
+type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessage | FocusTabMessage | ConfirmRequest | { type: 'expandHint'; hintId: string } | undefined;
 
 (() => {
 	const vscode = acquireVsCodeApi();
 	const body = document.body;
+	vscode.setState({ problemRef: body.dataset.problemRef, sourcePath: body.dataset.sourcePath });
+	document.querySelector('.title-line h1 a')?.addEventListener('click', event => {
+		event.preventDefault();
+		vscode.postMessage({ command: 'openWebsite' });
+	});
 	const timer = document.getElementById('problem-timer-value');
 	const accepted = document.getElementById('problem-accepted');
 	const updateTitleLayout = (): void => {
@@ -66,7 +69,6 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		accepted: body.dataset.timerAccepted === 'true',
 	};
 	let timerTimeout: ReturnType<typeof setTimeout> | undefined;
-	let submitConfirmationTimer: ReturnType<typeof setTimeout> | undefined;
 	let operationNoticeRemovalTimer: number | undefined;
 	let compatibilityWarningDismissTimer: ReturnType<typeof setTimeout> | undefined;
 	const dismissCompatibilityWarning = (): void => {
@@ -89,15 +91,6 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		if (document.querySelector('#oj-compatibility-warning .compatibility-warning')) {
 			compatibilityWarningDismissTimer = setTimeout(dismissCompatibilityWarning, 60_000);
 		}
-	};
-	const resetSubmitConfirmation = (button: HTMLButtonElement): void => {
-		if (submitConfirmationTimer) {
-			clearTimeout(submitConfirmationTimer);
-			submitConfirmationTimer = undefined;
-		}
-		button.classList.remove('armed');
-		button.dataset.armed = 'false';
-		button.textContent = '提交代码';
 	};
 
 	const formatDuration = (milliseconds: number): string => {
@@ -149,12 +142,19 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		if (!popover) {
 			return;
 		}
-		anchor.classList.remove('popover-opens-right');
 		const anchorBounds = anchor.getBoundingClientRect();
-		if (anchorBounds.right - popover.offsetWidth < 12) {
-			anchor.classList.add('popover-opens-right');
+		const opensRight = anchorBounds.right - popover.offsetWidth < 12;
+		anchor.classList.toggle('popover-opens-right', opensRight);
+		const left = opensRight ? anchorBounds.left : anchorBounds.right - popover.offsetWidth;
+		const clampedLeft = Math.max(12, Math.min(left, window.innerWidth - popover.offsetWidth - 12));
+		const shift = `${clampedLeft - left}px`;
+		if (anchor.style.getPropertyValue('--tag-popover-shift') !== shift) {
+			anchor.style.setProperty('--tag-popover-shift', shift);
 		}
 	};
+	window.addEventListener('resize', () => {
+		document.querySelectorAll<HTMLElement>('.tag-popover-anchor').forEach(updateTagPopoverDirection);
+	});
 
 	document.addEventListener('pointerover', event => {
 		const target = event.target;
@@ -170,6 +170,52 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			updateTagPopoverDirection(anchor);
 		}
 	});
+
+	/* ---- Rating updates ---- */
+	const updateRatingSection = (section: HTMLElement, html: string): boolean => {
+		const template = document.createElement('template');
+		template.innerHTML = html;
+		const options = section.querySelector<HTMLElement>('.rating-options');
+		const nextOptions = template.content.querySelector<HTMLElement>('.rating-options');
+		const status = section.querySelector<HTMLElement>('.rating-status');
+		const nextStatus = template.content.querySelector<HTMLElement>('.rating-status');
+		if (!options || !nextOptions || !status || !nextStatus) { return false; }
+		const buttons = Array.from(options.querySelectorAll<HTMLButtonElement>('button[data-rating]'));
+		const nextButtons = Array.from(nextOptions.querySelectorAll<HTMLButtonElement>('button[data-rating]'));
+		if (buttons.length !== nextButtons.length || buttons.some((button, index) => button.dataset.rating !== nextButtons[index].dataset.rating)) { return false; }
+
+		const syncAttributes = (current: HTMLElement, next: HTMLElement): void => {
+			for (const name of current.getAttributeNames()) {
+				if (!next.hasAttribute(name)) { current.removeAttribute(name); }
+			}
+			for (const { name, value } of Array.from(next.attributes)) {
+				if (current.getAttribute(name) !== value) { current.setAttribute(name, value); }
+			}
+		};
+		// Keep the popover and its controls mounted so hover, focus and transitions survive saves.
+		syncAttributes(options, nextOptions);
+		buttons.forEach((button, index) => {
+			const next = nextButtons[index];
+			if (button === document.activeElement && next.disabled) {
+				section.querySelector<HTMLButtonElement>('.rating-summary, .modal-close')?.focus();
+			}
+			syncAttributes(button, next);
+			const count = button.lastElementChild;
+			const nextCount = next.lastElementChild;
+			if (count && nextCount && count.textContent !== nextCount.textContent) { count.textContent = nextCount.textContent; }
+		});
+		if (status.textContent !== nextStatus.textContent) { status.textContent = nextStatus.textContent; }
+		const error = section.querySelector<HTMLElement>('.error');
+		const nextError = template.content.querySelector<HTMLElement>('.error');
+		if (error?.outerHTML !== nextError?.outerHTML) {
+			if (error?.contains(document.activeElement)) {
+				section.querySelector<HTMLButtonElement>('.rating-summary, .modal-close')?.focus();
+			}
+			error?.remove();
+			if (nextError) { status.after(nextError); }
+		}
+		return true;
+	};
 
 	/* ---- Hint countdown ---- */
 	let hintCountdownInterval: ReturnType<typeof setInterval> | undefined;
@@ -199,17 +245,18 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 				el.removeAttribute('data-remaining-ms');
 				countdown?.remove();
 				editorialCountdown?.remove();
-				const feedback = el.closest('.modal')?.querySelector<HTMLElement>('.hint-feedback');
+				const feedback = el.closest('.hint-item')?.querySelector<HTMLElement>('.hint-feedback');
 				if (feedback) {
-					feedback.textContent = '等待网页同步。';
+					feedback.textContent = '';
 				}
 				const lockLabel = el.querySelector<HTMLElement>('.hint-lock-label');
 				if (lockLabel) {
-					lockLabel.textContent = '等待网页同步';
+					lockLabel.textContent = '查看提示';
 				}
 				if (el instanceof HTMLButtonElement) {
-					el.disabled = true;
-					el.textContent = '等待网页同步';
+					el.disabled = body.dataset.connected === 'false';
+					el.classList.toggle('locked', el.disabled);
+					el.setAttribute('aria-label', '查看提示');
 				}
 			}
 		});
@@ -237,6 +284,56 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 
 	/* ---- Modal infrastructure ---- */
 	const modalOverlay = document.getElementById('oj-modal-overlay');
+	const pendingConfirms = new Map<string, (result: boolean) => void>();
+	const dismissPendingConfirms = (): void => {
+		for (const [id, resolve] of pendingConfirms) {
+			pendingConfirms.delete(id);
+			resolve(false);
+		}
+	};
+
+	const ratingOverlay = document.getElementById('oj-rating-overlay');
+	let ratingFocus: HTMLElement | null = null;
+	let ratingFocusedCommand: string | undefined;
+	let ratingFocusedChoice: string | undefined;
+	const rememberRatingFocus = (): void => {
+		if (ratingOverlay?.contains(document.activeElement) && document.activeElement instanceof HTMLButtonElement) {
+			ratingFocusedCommand = document.activeElement.dataset.command;
+			ratingFocusedChoice = document.activeElement.dataset.rating;
+		}
+	};
+	const syncRatingDialog = (): void => {
+		if (!ratingOverlay) { return; }
+		const open = Boolean(ratingOverlay.querySelector('.rating-modal')) && (!modalOverlay || Boolean(modalOverlay.hidden));
+		const wasHidden = Boolean(ratingOverlay.hidden);
+		ratingOverlay.hidden = !open;
+		ratingOverlay.classList.toggle('visible', open);
+		if (open) {
+			if (wasHidden && !ratingFocus && document.activeElement instanceof HTMLElement && !modalOverlay?.contains(document.activeElement)) {
+				ratingFocus = document.activeElement;
+			}
+			if (!ratingOverlay.contains(document.activeElement)) {
+				const buttons = Array.from(ratingOverlay.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+				const restored = buttons.find(button => button.dataset.command === ratingFocusedCommand && button.dataset.rating === ratingFocusedChoice);
+				(restored ?? buttons[0])?.focus();
+			}
+		} else if (!open && !wasHidden && (modalOverlay?.hidden ?? true)) {
+			if (ratingFocus?.isConnected) { ratingFocus.focus(); }
+			ratingFocus = null;
+			ratingFocusedCommand = undefined;
+			ratingFocusedChoice = undefined;
+		}
+	};
+	const dismissRatingDialog = (): void => {
+		if (ratingOverlay) { ratingOverlay.hidden = true; ratingOverlay.classList.remove('visible'); }
+		vscode.postMessage({ command: 'dismissRating' });
+		if (ratingFocus?.isConnected) { ratingFocus.focus(); }
+		ratingFocus = null;
+	};
+	ratingOverlay?.addEventListener('click', event => {
+		if (event.target === ratingOverlay) { dismissRatingDialog(); }
+	});
+
 	const pendingHintLikes = new Map<string, { liked: boolean; count: number }>();
 	const setHintLike = (button: HTMLButtonElement, liked: boolean, count: number): void => {
 		button.dataset.liked = String(liked);
@@ -261,14 +358,6 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		});
 	});
 
-	const pendingConfirms = new Map<string, (result: boolean) => void>();
-	const dismissPendingConfirms = (): void => {
-		for (const [id, resolve] of pendingConfirms) {
-			pendingConfirms.delete(id);
-			resolve(false);
-		}
-	};
-
 	const closeModal = (): void => {
 		dismissPendingConfirms();
 		if (!modalOverlay || modalOverlay.hidden) {
@@ -280,6 +369,7 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			if (!overlay.classList.contains('visible')) {
 				overlay.hidden = true;
 				overlay.innerHTML = '';
+				syncRatingDialog();
 			}
 		}, 200);
 	};
@@ -293,6 +383,7 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		modalOverlay.hidden = false;
 		void modalOverlay.offsetHeight;
 		modalOverlay.classList.add('visible');
+		syncRatingDialog();
 	};
 
 	const showConfirmDialog = (message: string, confirmLabel: string, cancelLabel: string): Promise<boolean> => {
@@ -331,13 +422,42 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 	};
 
 	window.addEventListener('message', (event: MessageEvent) => {
-		const message = event.data as ConfirmRequest | ShowHintModalMessage | HintLikeMessage | undefined;
+		const message = event.data as ConfirmRequest | undefined;
 		if (message && message.type === 'confirm') {
 			void showConfirmDialog(message.message, message.confirmLabel, message.cancelLabel).then(result => {
 				vscode.postMessage({ command: 'confirmResult', confirmId: message.id, result });
 			});
 			return;
 		}
+
+	});
+
+	if (modalOverlay) {
+		modalOverlay.addEventListener('click', event => {
+			if (event.target === modalOverlay) {
+				closeModal();
+			}
+		});
+	}
+
+	document.addEventListener('keydown', event => {
+		if (ratingOverlay && !ratingOverlay.hidden) {
+			if (event.key === 'Escape') { event.preventDefault(); dismissRatingDialog(); return; }
+			if (event.key === 'Tab') {
+				const buttons = Array.from(ratingOverlay.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+				const first = buttons[0];
+				const last = buttons[buttons.length - 1];
+				if (event.shiftKey && (document.activeElement === first || !ratingOverlay.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
+				if (!event.shiftKey && (document.activeElement === last || !ratingOverlay.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
+			}
+		}
+		if (event.key === 'Escape' && modalOverlay && !modalOverlay.hidden) {
+			closeModal();
+		}
+	});
+
+	window.addEventListener('message', (event: MessageEvent<{ type: string; html: string }>) => {
+		const message = event.data;
 		if (message && message.type === 'showHintModal') {
 			countdownRenderedAt = Date.now();
 			const modal = document.createElement('div');
@@ -354,35 +474,6 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			return;
 		}
 	});
-
-	if (modalOverlay) {
-		modalOverlay.addEventListener('click', event => {
-			if (event.target === modalOverlay) {
-				closeModal();
-			}
-		});
-	}
-
-	document.addEventListener('keydown', event => {
-		if (event.key === 'Escape' && modalOverlay && !modalOverlay.hidden) {
-			closeModal();
-		}
-		if (event.key !== 'Enter' && event.key !== ' ') {
-			return;
-		}
-		const target = event.target;
-		const hintItem = target instanceof Element ? target.closest<HTMLElement>('[data-command="openHintModal"]') : null;
-		if (!hintItem) {
-			return;
-		}
-		event.preventDefault();
-		openHintModal(hintItem.dataset.hintId!);
-	});
-
-	/* ---- Hint modal ---- */
-	const openHintModal = (hintId: string): void => {
-		vscode.postMessage({ command: 'openHintModal', hintId });
-	};
 
 	/* ---- Submission collapse/expand animation ---- */
 	document.addEventListener('click', event => {
@@ -445,7 +536,8 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		if (!code) {
 			return;
 		}
-		const text = code.textContent ?? '';
+		const edit = block?.querySelector<HTMLTextAreaElement>('.local-test-value[open] textarea');
+		const text = edit?.value ?? code.textContent ?? '';
 		if (!text) {
 			return;
 		}
@@ -474,31 +566,51 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 			}
 		};
 		if (await writeText()) {
-			const original = button.textContent;
-			button.textContent = '已复制';
+			const original = button.innerHTML;
+			if (!button.classList.contains('local-test-icon')) { button.textContent = '已复制'; }
 			button.classList.add('copied');
 			setTimeout(() => {
-				button.textContent = original;
+				button.innerHTML = original;
 				button.classList.remove('copied');
 			}, 1500);
 		}
 	};
 
 	/* ---- Click handler ---- */
+	let pendingNewTest: { input: string; output: string } | undefined;
+	const readTestFields = (container: Element): { input: string; output: string } => ({
+		input: container.querySelector<HTMLTextAreaElement>('[data-local-input]')?.value ?? '',
+		output: container.querySelector<HTMLTextAreaElement>('[data-local-output]')?.value ?? '',
+	});
+	const readTestEdits = (id?: number): Array<{ id: number; input: string; output: string }> => Array.from(document.querySelectorAll<HTMLElement>('.local-test'))
+		.filter(card => card.classList.contains('custom') && (id === undefined || Number(card.dataset.testId) === id))
+		.map(card => ({ id: Number(card.dataset.testId), ...readTestFields(card) }));
+
 	document.addEventListener('click', event => {
 		const target = event.target;
+		const valueSummary = target instanceof Element ? target.closest('.local-test-value > summary') : null;
+		if (valueSummary) {
+			const field = valueSummary.parentElement?.querySelector<HTMLTextAreaElement>('textarea');
+			if (field?.disabled) { event.preventDefault(); }
+			else { window.setTimeout(() => field?.focus(), 0); }
+			return;
+		}
 
 		// Sample input/output copy button (local webview operation).
 		const copyButton = target instanceof Element ? target.closest<HTMLButtonElement>('.copy-btn') : null;
 		if (copyButton) {
+			event.preventDefault();
 			void copySample(copyButton);
 			return;
 		}
 
-		// Hint list item click → open modal (handled by extension via postMessage)
-		const hintItem = target instanceof Element ? target.closest<HTMLElement>('[data-command="openHintModal"]') : null;
-		if (hintItem) {
-			openHintModal(hintItem.dataset.hintId!);
+		// The summary's native action expands or collapses the inline hint.
+		const hintSummary = target instanceof Element ? target.closest<HTMLElement>('.hint-item > summary') : null;
+		const hint = hintSummary?.parentElement as HTMLDetailsElement | undefined;
+		if (hint) {
+			if (!hint.open) {
+				vscode.postMessage({ command: 'openHint', hintId: hint.dataset.hintId });
+			}
 			return;
 		}
 
@@ -506,25 +618,52 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		if (!button || button.disabled) {
 			return;
 		}
+		if (button.closest('summary')) { event.preventDefault(); }
 		const command = button.dataset.command;
+		if (command === 'localTestNew') {
+			const form = document.querySelector<HTMLDetailsElement>('.local-test-add');
+			if (form) {
+				const samples = form.closest<HTMLDetailsElement>('.samples');
+				if (samples) { samples.open = true; }
+				form.open = true;
+				form.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+			}
+			return;
+		}
+		if (command === 'localTestRun' || command === 'localTestRunAll') {
+			const id = command === 'localTestRun' ? Number(button.dataset.testId) : undefined;
+			vscode.postMessage({ command, id, edits: readTestEdits(id) });
+			return;
+		}
+		if (command === 'localTestSave' || command === 'localTestAdd') {
+			const container = button.closest(command === 'localTestSave' ? '.local-test' : '.local-test-add');
+			if (container) {
+				const fields = readTestFields(container);
+				if (command === 'localTestAdd') { pendingNewTest = fields; }
+				vscode.postMessage({ command, id: Number(button.dataset.testId), ...fields });
+			}
+			return;
+		}
+		if (command === 'localTestDelete') {
+			vscode.postMessage({ command, id: Number(button.dataset.testId) });
+			return;
+		}
 		if (command === 'dismissCompatibilityWarning') {
 			dismissCompatibilityWarning();
 			return;
 		}
-		if (command === 'submit') {
-			if (button.dataset.armed !== 'true') {
-				button.classList.add('armed');
-				button.dataset.armed = 'true';
-				button.textContent = '确认提交';
-				if (submitConfirmationTimer) {
-					clearTimeout(submitConfirmationTimer);
-				}
-				submitConfirmationTimer = setTimeout(() => resetSubmitConfirmation(button), 3000);
-				return;
-			}
-			resetSubmitConfirmation(button);
+		if (command === 'rateProblem') {
+			if (button.getAttribute('aria-disabled') === 'true') { return; }
+			vscode.postMessage({ command, rating: button.dataset.rating });
+		} else if (command === 'dismissRating') {
+			dismissRatingDialog();
+		} else if (command === 'submit') {
 			vscode.postMessage({ command });
-		} else if (command === 'answer') {
+		} else if (command === 'correct') {
+			vscode.postMessage({ command, submissionId: button.dataset.submissionId });
+		} else if (command === 'retryConnection' || command === 'loginConnection') {
+			vscode.postMessage({ command });
+		} else if (command === 'answer' || command === 'openHint') {
 			vscode.postMessage({ command, hintId: button.dataset.hintId });
 		} else if (command === 'like') {
 			const key = `${button.dataset.hintId}:${button.dataset.target}`;
@@ -578,6 +717,8 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		values: Array<[string, string]>;
 		openDetails: string[];
 		allDetailKeys: string[];
+		autoExpandKeys: Map<string, string>;
+		autoCollapseKeys: Map<string, string>;
 		focusedName: string | undefined;
 		selectionStart: number | undefined;
 	};
@@ -596,14 +737,18 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		}
 		const openDetails: string[] = [];
 		const allDetailKeys: string[] = [];
+		const autoExpandKeys = new Map<string, string>();
+		const autoCollapseKeys = new Map<string, string>();
 		section.querySelectorAll('details').forEach((details, index) => {
 			const key = details.getAttribute('data-persist-key') ?? String(index);
 			allDetailKeys.push(key);
+			autoExpandKeys.set(key, details.dataset.autoExpandKey ?? '');
+			autoCollapseKeys.set(key, details.dataset.autoCollapseKey ?? '');
 			if (details.open) {
 				openDetails.push(key);
 			}
 		});
-		return { values, openDetails, allDetailKeys, focusedName, selectionStart };
+		return { values, openDetails, allDetailKeys, autoExpandKeys, autoCollapseKeys, focusedName, selectionStart };
 	};
 	const restoreSection = (section: Element, snapshot: SectionSnapshot): void => {
 		const remaining = new Map(snapshot.values);
@@ -626,7 +771,13 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		}
 		section.querySelectorAll('details').forEach((details, index) => {
 			const key = details.getAttribute('data-persist-key') ?? String(index);
-			if (snapshot.allDetailKeys.includes(key)) {
+			const expansion = details.dataset.autoExpandKey;
+			const collapse = details.dataset.autoCollapseKey;
+			if (collapse && collapse !== snapshot.autoCollapseKeys.get(key)) {
+				details.open = false;
+			} else if (expansion && expansion !== snapshot.autoExpandKeys.get(key)) {
+				details.open = true;
+			} else if (snapshot.allDetailKeys.includes(key)) {
 				details.open = snapshot.openDetails.includes(key);
 			}
 		});
@@ -815,35 +966,88 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 		if (!message) {
 			return;
 		}
-		if (message.type === 'confirm' || message.type === 'showHintModal') {
+		if (message.type === 'localTestSaved') {
+			if (message.action === 'add') {
+				const form = document.querySelector<HTMLDetailsElement>('.local-test-add');
+				if (form && pendingNewTest) {
+					const fields = readTestFields(form);
+					if (fields.input === pendingNewTest.input && fields.output === pendingNewTest.output) {
+						for (const field of form.querySelectorAll<HTMLTextAreaElement>('textarea')) { field.value = ''; }
+						form.open = false;
+					}
+				}
+				pendingNewTest = undefined;
+			} else {
+				for (const field of document.querySelectorAll<HTMLDetailsElement>(`.local-test[data-test-id="${message.id}"] .local-test-value`)) { field.open = false; }
+			}
+			return;
+		}
+		if (message.type === 'sourceChanged') {
+			body.dataset.sourcePath = message.sourcePath;
+			vscode.setState({ problemRef: message.problemRef, sourcePath: message.sourcePath });
+			return;
+		}
+		if (message.type === 'confirm') {
 			return; // handled by the dedicated handler above
 		}
 		if (message.type === 'focusTab') {
 			setActiveTab(message.tabId);
 			return;
 		}
+		if (message.type === 'expandHint') {
+			for (const hint of document.querySelectorAll<HTMLDetailsElement>('details[data-hint-id]')) {
+				if (hint.dataset.hintId === message.hintId) { hint.open = true; }
+			}
+			return;
+		}
 		if (message.type !== 'update') {
 			return;
 		}
-		const hasCountdownUpdate = Object.keys(message.sections).some(id => id === 'oj-hints' || id === 'oj-editorial-action');
+		if (message.connected !== undefined) {
+			body.dataset.connected = String(message.connected);
+		}
+		const hasCountdownUpdate = Object.keys(message.sections).some(id => id === 'oj-hints' || id === 'oj-editorial');
+		// Replacing the statement also replaces its nested tests. Preserve drafts
+		// before either section changes, then restore them into the final test DOM.
+		const oldLocalTests = message.sections['oj-statement-content'] !== undefined ? document.getElementById('oj-local-tests') : null;
+		const localDraft = oldLocalTests ? snapshotSection(oldLocalTests) : undefined;
 		for (const [id, html] of Object.entries(message.sections)) {
 			const section = document.getElementById(id);
 			if (!section) {
+				continue;
+			}
+			if (id === 'oj-connection-gate') {
+				section.innerHTML = html;
 				continue;
 			}
 			if (id === 'oj-operation-notice') {
 				updateOperationNotice(section, html);
 				continue;
 			}
+			if ((id === 'oj-rating' || id === 'oj-rating-prompt') && updateRatingSection(section, html)) { continue; }
+			if (id === 'oj-rating-prompt') { rememberRatingFocus(); }
+			const ratingFocus = id === 'oj-rating' && section.contains(document.activeElement) && document.activeElement instanceof HTMLButtonElement
+				? { command: document.activeElement.dataset.command, rating: document.activeElement.dataset.rating }
+				: undefined;
 			const snapshot = snapshotSection(section);
 			const submissionHeights = id === 'oj-submissions' ? snapshotSubmissionHeights(section) : undefined;
 			const updateSection = () => {
 				section.innerHTML = html;
 				restoreSection(section, snapshot);
+				if (id === 'oj-rating') {
+					if (ratingFocus) {
+						const buttons = Array.from(section.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+						const restored = buttons.find(button => button.dataset.command === ratingFocus.command && button.dataset.rating === ratingFocus.rating);
+						// Reveal the replaced popover before focusing an option inside it.
+						buttons[0]?.focus();
+						restored?.focus();
+					}
+					const anchor = section.querySelector<HTMLElement>('.tag-popover-anchor');
+					if (anchor) { updateTagPopoverDirection(anchor); }
+				}
 			};
-			if (id === 'oj-hints') {
-				// Hint state is synchronized frequently for countdown and access updates.
-				// Replacing it directly avoids replaying a height animation on every sync.
+			if (id === 'oj-information' || id === 'oj-local-tests' || id === 'oj-local-tests-toolbar' || id === 'oj-hints' || id === 'oj-editorial' || id === 'oj-rating' || id === 'oj-rating-prompt') {
+				// These sections update in response to actions without replaying a height animation.
 				updateSection();
 			} else if (id === 'oj-compatibility-warning') {
 				// The warning has its own entrance animation. Avoid the generic height
@@ -857,6 +1061,9 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 				animateHeightChange(section, updateSection);
 			}
 		}
+		const updatedLocalTests = localDraft ? document.getElementById('oj-local-tests') : null;
+		if (localDraft && updatedLocalTests) { restoreSection(updatedLocalTests, localDraft); }
+		syncRatingDialog();
 		if (hasCountdownUpdate) {
 			countdownRenderedAt = Date.now();
 		}
@@ -876,6 +1083,7 @@ type WebViewMessage = UpdateMessage | FocusTabMessage | ConfirmRequest | ShowHin
 	});
 
 	scheduleCompatibilityWarningDismissal();
+	syncRatingDialog();
 
 	vscode.postMessage({ command: 'ready' });
 })();

@@ -115,3 +115,53 @@
 .shortestpath-update-required-action.secondary:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
 }
+
+.shortestpath-update-indicator {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--vscode-spacing-size40, 4px);
+	margin-top: auto;
+	padding: var(--vscode-spacing-size80, 8px) var(--vscode-spacing-size40, 4px);
+	border: var(--vscode-strokeThickness, 1px) solid var(--vscode-button-border, transparent);
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font: inherit;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	cursor: pointer;
+}
+
+.shortestpath-update-indicator[hidden] {
+	display: none;
+}
+
+.shortestpath-update-indicator:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.shortestpath-update-indicator:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.shortestpath-update-available-overlay {
+	inset: auto auto var(--vscode-spacing-size320, 32px) 64px;
+	max-width: calc(100% - 64px);
+	max-height: calc(100% - 64px);
+	background: transparent;
+}
+
+.shortestpath-update-available-overlay .shortestpath-update-required-dialog {
+	box-sizing: border-box;
+	width: min(30rem, 100%);
+	max-height: inherit;
+	overflow: auto;
+	padding: var(--vscode-spacing-size200, 20px);
+	border: var(--vscode-strokeThickness, 1px) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-large, 8px);
+	background: var(--vscode-editorWidget-background);
+	box-shadow: 0 4px 16px var(--vscode-widget-shadow);
+	text-align: left;
+}

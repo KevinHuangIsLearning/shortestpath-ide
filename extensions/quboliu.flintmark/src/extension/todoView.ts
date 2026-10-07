@@ -81,7 +81,6 @@ export function registerTodoView(
   const provider = new TodoProvider(structures);
 
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider("ofm.todos", provider),
     structures.onDidChange(() => provider.refresh()),
     vscode.commands.registerCommand("ofm.refreshTodos", () => {
       structures.refreshActive();

@@ -25,6 +25,8 @@ import { getJudgeViewProvider } from './extension';
 import { toAsciiFilename } from './utilsPure';
 import localize from './i18n';
 export let onlineJudgeEnv = getDefaultOnlineJudge();
+export let compilationsInProgress = 0;
+
 export const runningCompilers: ChildProcess[] = [];
 const compiledFingerprints = new Map<string, string>();
 
@@ -333,11 +335,18 @@ export const compileFile = async (
         useProblemExecutionSettings?: boolean;
         language?: Language;
         compileMode?: 'auto' | 'force' | 'reuse';
+        timeout?: number;
+        reportProgress?: (text: string) => void;
+        isCancelled?: () => boolean;
     } = {},
 ): Promise<boolean> => {
+    compilationsInProgress++;
+    try {
+    if (options.isCancelled?.()) { return false; }
     const silent = options.silent === true;
     globalThis.logger.log('Compilation Started');
     await vscode.workspace.openTextDocument(srcPath).then((doc) => doc.save());
+    if (options.isCancelled?.()) { return false; }
     if (!silent) {
         ocHide();
     }
@@ -349,7 +358,7 @@ export const compileFile = async (
     const spawnOpts: SpawnOptionsWithoutStdio = {
         cwd: path.dirname(srcPath),
         killSignal: 'SIGKILL',
-        timeout: vscode.workspace.getConfiguration('judger.execution').get<number>('compilationTimeout', 10000),
+        timeout: options.timeout ?? vscode.workspace.getConfiguration('judger.execution').get<number>('compilationTimeout', 10000),
         env: process.env,
     };
 
@@ -427,6 +436,7 @@ export const compileFile = async (
     else { await fs.promises.rm(artifact, { force: true }); }
     globalThis.logger.log('Compiling with flags', flags);
     const result = new Promise<boolean>((resolve) => {
+        if (options.isCancelled?.()) { resolve(false); return; }
         let compiler: ChildProcessWithoutNullStreams;
         try {
             compiler = spawn(language.compiler, flags, spawnOpts);
@@ -446,13 +456,20 @@ export const compileFile = async (
         let error = '';
 
         const decoders = { stdout: new StringDecoder('utf8'), stderr: new StringDecoder('utf8') };
-        const capture = (key: 'stdout' | 'stderr', data: Buffer) => { error += decoders[key].write(data).slice(0, Math.max(0, 1024 * 1024 - error.length)); };
+        const captureText = (text: string) => {
+            const captured = text.slice(0, Math.max(0, 1024 * 1024 - error.length));
+            error += captured;
+            if (captured) { options.reportProgress?.(captured); }
+        };
+        const capture = (key: 'stdout' | 'stderr', data: Buffer) => captureText(decoders[key].write(data));
         compiler.stderr.on('data', data => capture('stderr', data));
         compiler.stdout.on('data', data => capture('stdout', data));
 
+        let launchFailed = false;
         compiler.on('error', (err) => {
-            removeRunningCompiler(compiler);
+            launchFailed = true;
             globalThis.logger.error(err);
+            options.reportProgress?.(err.message);
             if (!silent) {
                 ocWrite(
                     localize(
@@ -470,15 +487,16 @@ export const compileFile = async (
                 });
                 ocShow();
             }
-            resolve(false);
         });
 
         compiler.on('close', (exitcode) => {
+            captureText(decoders.stdout.end());
+            captureText(decoders.stderr.end());
             removeRunningCompiler(compiler);
             const exitCode = exitcode ?? 0;
             const hideWarningsWhenCompiledOK = getHideStderrorWhenCompiledOK();
 
-            if (exitcode === null || exitCode !== 0 || !fs.existsSync(compileArtifact)) {
+            if (launchFailed || exitcode === null || exitCode !== 0 || !fs.existsSync(compileArtifact)) {
                 if (!silent) {
                     ocWrite(
                         `Exit code: ${exitCode} Errors while compiling:\n` +
@@ -520,13 +538,17 @@ export const compileFile = async (
         });
     });
     try {
-        const success = await result;
+        const success = await result && !options.isCancelled?.();
         if (success) {
             if (stagedDirectory) { await fs.promises.rename(compileArtifact, artifact); }
             compiledFingerprints.set(binary, fingerprint);
-        } else { await fs.promises.rm(artifact, { force: true }); }
+        } else {
+            await fs.promises.rm(artifact, { force: true });
+            await fs.promises.rm(`${artifact}.dSYM`, { recursive: true, force: true });
+        }
         return success;
     } finally {
         if (stagedDirectory) { await fs.promises.rm(stagedDirectory, { recursive: true, force: true }); }
     }
+    } finally { compilationsInProgress--; }
 };

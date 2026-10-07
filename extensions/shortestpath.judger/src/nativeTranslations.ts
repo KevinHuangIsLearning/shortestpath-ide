@@ -24,6 +24,7 @@ export const nativeChinese: Record<string, string> = {
 	'judger.browserImport.buttonTitle': '通过 Competitive Companion 导入当前页面',
 	'judger.browserImport.progress': '正在通过 Competitive Companion 导入…',
     'judger.browserImport.error': '无法导入此页面：{0}',
+	'judger.browserImport.startUnavailable': '请打开 ShortestPath OJ 题目详情页，并等待“开始做题”按钮出现。',
 
 	'judger.migration.progress': '正在迁移配置',
     'judger.run.busy': '请先停止当前运行，再运行测试点。',

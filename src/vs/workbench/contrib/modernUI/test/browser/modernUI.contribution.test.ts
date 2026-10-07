@@ -316,12 +316,12 @@ suite('ModernUIContribution', () => {
 			startupState: {
 				mainEnabled: true,
 				mainCompact: true,
-				mainTabsEnabled: true,
+				mainTabsEnabled: false,
 				mainNotificationsDialogsEnabled: true,
 				mainUppercaseViewHeaders: true,
 				auxiliaryEnabled: true,
 				auxiliaryCompact: true,
-				auxiliaryTabsEnabled: true,
+				auxiliaryTabsEnabled: false,
 				auxiliaryNotificationsDialogsEnabled: true,
 				auxiliaryUppercaseViewHeaders: true,
 				paneHeaderSize: 28,
@@ -356,7 +356,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('switches connected editor tabs across windows and cleans up on disable and disposal', async () => {
+	test('preserves native editor tabs across windows and cleans up on disable and disposal', async () => {
 		const configurationService = new TestConfigurationService({
 			[LayoutSettings.MODERN_UI]: true,
 			[LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE]: ModernUIEditorTabStyle.Connected,
@@ -402,13 +402,13 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual({
 			startup, auxiliaryStartup, pill, connected, disabled, changedWhileDisabled, reenabled, disposed: getState(),
 		}, {
-			startup: { connected: [true], modernTabs: [true], layoutCount: 0, auxiliaryLayoutCount: 0 },
-			auxiliaryStartup: { connected: [true, true], modernTabs: [true, true], layoutCount: 0, auxiliaryLayoutCount: 0 },
-			pill: { connected: [false, false], modernTabs: [true, true], layoutCount: 1, auxiliaryLayoutCount: 1 },
-			connected: { connected: [true, true], modernTabs: [true, true], layoutCount: 2, auxiliaryLayoutCount: 2 },
+			startup: { connected: [false], modernTabs: [false], layoutCount: 0, auxiliaryLayoutCount: 0 },
+			auxiliaryStartup: { connected: [false, false], modernTabs: [false, false], layoutCount: 0, auxiliaryLayoutCount: 0 },
+			pill: { connected: [false, false], modernTabs: [false, false], layoutCount: 1, auxiliaryLayoutCount: 1 },
+			connected: { connected: [false, false], modernTabs: [false, false], layoutCount: 2, auxiliaryLayoutCount: 2 },
 			disabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 3, auxiliaryLayoutCount: 3 },
 			changedWhileDisabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 3, auxiliaryLayoutCount: 3 },
-			reenabled: { connected: [false, false], modernTabs: [true, true], layoutCount: 4, auxiliaryLayoutCount: 4 },
+			reenabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 4, auxiliaryLayoutCount: 4 },
 			disposed: { connected: [false, false], modernTabs: [false, false], layoutCount: 5, auxiliaryLayoutCount: 5 },
 		});
 	});
@@ -775,7 +775,7 @@ suite('ModernUIContribution', () => {
 				multiViewTitleTransform: 'capitalize',
 				multiViewExplorerPaneTitleTransform: 'none',
 				extensionsTitleTransform: 'capitalize',
-				panelTabTransform: 'none',
+				panelTabTransform: 'uppercase',
 				layoutCount: 0,
 			},
 			classApplied: true,

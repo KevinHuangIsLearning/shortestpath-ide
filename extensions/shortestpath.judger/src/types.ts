@@ -96,6 +96,8 @@ export type LangNames =
     | 'cangjie';
 
 export type TestCase = {
+    origin?: 'sample' | 'custom';
+    sampleIndex?: number;
     disabled?: boolean;
     inputPath?: string;
     outputPath?: string;
@@ -113,6 +115,7 @@ export type OjTimer = {
 };
 
 export type Problem = {
+    shortestPath?: boolean;
     timeSpentMs?: number;
     storageRevision?: string;
     timeStartedAtUnixMs?: number;

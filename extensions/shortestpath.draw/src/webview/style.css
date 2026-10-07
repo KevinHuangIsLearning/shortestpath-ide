@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { padding: 0; color: var(--vscode-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
+.sketchpad { height: 100%; display: flex; flex-direction: column; }
+.sketchpad-header { position: relative; z-index: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--vscode-panel-border); }
+.save-status { color: var(--vscode-descriptionForeground); font-size: 12px; }
+.save-status.error { color: var(--vscode-errorForeground); }
+.sketchpad-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.sketchpad-header button { padding: 4px 8px; border: 1px solid var(--vscode-button-border, transparent); border-radius: var(--vscode-cornerRadius-medium, 6px); font: inherit; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); cursor: pointer; }
+.sketchpad-header button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.sketchpad-header button:disabled { opacity: .5; cursor: default; }
+.sketchpad-header button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.sketchpad-export { position: relative; }
+.sketchpad-export-menu { position: absolute; top: calc(100% + 4px); right: 0; min-width: 160px; padding: 4px; display: flex; flex-direction: column; gap: 2px; color: var(--vscode-menu-foreground); background: var(--vscode-menu-background); border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border)); border-radius: var(--vscode-cornerRadius-medium, 6px); box-shadow: var(--vscode-shadow-lg, 0 4px 12px var(--vscode-widget-shadow)); }
+.sketchpad-export-menu button { text-align: left; white-space: nowrap; color: inherit; background: transparent; }
+.sketchpad-export-menu button:hover, .sketchpad-export-menu button:focus-visible { color: var(--vscode-menu-selectionForeground); background: var(--vscode-menu-selectionBackground); }
+.sketchpad-canvas { flex: 1; min-height: 0; position: relative; z-index: 0; }
+.sketchpad-error { display: flex; align-items: center; gap: 12px; padding: 12px; color: var(--vscode-errorForeground); }
+.sketchpad .excalidraw { --ui-font: var(--vscode-font-family); }
+/* This library is bundled offline. Keep local import/export and editing, without online catalog or publishing actions. */
+.sketchpad .excalidraw .library-menu-browse-button,
+.sketchpad .excalidraw .library-menu [data-testid="lib-dropdown--remove"] { display: none; }

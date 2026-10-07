@@ -54,15 +54,9 @@
 						"cpp14",
 						"cpp20"
 					],
-					"default": "ask",
+					"default": "cpp20",
 					"scope": "window",
 					"description": "%configuration.cppSubmissionLanguage%"
-				},
-				"shortestpath.oj.antiFraudReminder": {
-					"type": "boolean",
-					"default": false,
-					"scope": "window",
-					"description": "%configuration.antiFraudReminder%"
 				}
 			}
 		},
@@ -90,5 +84,8 @@
 	},
 	"devDependencies": {
 		"@types/markdown-it": "^14.1.2"
-	}
+	},
+	"enabledApiProposals": [
+		"browser"
+	]
 }

@@ -70,6 +70,15 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return undefined;
 	}
 
+	/** Layout overrides for editors that pair a primary document with a companion pane. */
+	get primaryOnLeft(): boolean { return false; }
+	get viewStateResource(): URI | undefined { return undefined; }
+	get allowEmptySecondaryViewState(): boolean { return false; }
+	get initialSplitRatio(): number | undefined { return undefined; }
+	get forceHorizontalLayout(): boolean { return false; }
+	/** Reuse this tab when its primary document is opened through the editor service. */
+	get revealOnPrimaryOpen(): boolean { return false; }
+
 	private hasIdenticalSides: boolean;
 
 	constructor(

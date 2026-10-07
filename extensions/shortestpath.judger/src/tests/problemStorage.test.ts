@@ -50,6 +50,15 @@ describe('versioned problem storage', () => {
 			),
 		).toBe('a\r\n');
 	});
+    test('preserves official sample identity and file-backed data after publication and reloading', () => {
+        const file = path.join(folder, 'sample.prob');
+        const text = 'a'.repeat(70000);
+        writeStoredProblem(file, { ...problem, shortestPath: true, tests: [{ id: 1, origin: 'sample', sampleIndex: 0, input: text, output: text }, { id: 2, origin: 'custom', input: text, output: text }] });
+        const restored = readStoredProblem(file)!;
+        expect(restored.tests.map(test => [test.origin, test.sampleIndex])).toEqual([['sample', 0], ['custom', undefined]]);
+        expect(restored.shortestPath).toBe(true);
+        expect(restored.tests.every(test => fs.readFileSync(test.inputPath!, 'utf8') === text && fs.readFileSync(test.outputPath!, 'utf8') === text)).toBe(true);
+    });
 	test('rejects future versions and missing test files instead of silently restoring stale data', () => {
 		const file = path.join(folder, 'old.prob');
 		writeStoredProblem(file, problem);

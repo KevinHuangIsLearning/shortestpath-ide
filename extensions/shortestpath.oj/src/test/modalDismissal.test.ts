@@ -92,7 +92,7 @@ function createModalHarness(): {
 } {
 	const compiledSource = fs.readFileSync(path.resolve(__dirname, '../problemView.js'), 'utf8');
 	const start = compiledSource.indexOf('/* ---- Modal infrastructure ---- */');
-	const end = compiledSource.indexOf('/* ---- Hint modal ---- */', start);
+	const end = compiledSource.indexOf('/* ---- Submission collapse/expand animation ---- */', start);
 	assert.notEqual(start, -1);
 	assert.notEqual(end, -1);
 

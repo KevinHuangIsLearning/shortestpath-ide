@@ -6,7 +6,7 @@
 import { SubmissionSnapshot } from './shortestpathOjProtocol';
 
 /** A completed submission kept in the workspace history. Test-point details are intentionally not retained. */
-export type SubmissionHistoryEntry = Pick<SubmissionSnapshot, 'submissionId' | 'status' | 'score' | 'maxTimeMs' | 'maxMemoryKB' | 'judgedAt'>;
+export type SubmissionHistoryEntry = Pick<SubmissionSnapshot, 'submissionId' | 'status' | 'score' | 'maxTimeMs' | 'maxMemoryKB' | 'judgedAt' | 'resultHidden' | 'generation'>;
 
 export function toSubmissionHistoryEntry(snapshot: SubmissionSnapshot): SubmissionHistoryEntry {
 	return {
@@ -16,6 +16,8 @@ export function toSubmissionHistoryEntry(snapshot: SubmissionSnapshot): Submissi
 		maxTimeMs: snapshot.maxTimeMs,
 		maxMemoryKB: snapshot.maxMemoryKB,
 		judgedAt: snapshot.judgedAt,
+		...(snapshot.generation !== undefined ? { generation: snapshot.generation } : {}),
+		...(snapshot.resultHidden ? { resultHidden: true } : {}),
 	};
 }
 
@@ -29,7 +31,7 @@ export function isSubmissionHistoryEntry(value: unknown): value is SubmissionHis
 		&& typeof entry.score === 'number'
 		&& typeof entry.maxTimeMs === 'number'
 		&& typeof entry.maxMemoryKB === 'number'
-		&& typeof entry.judgedAt === 'string';
+		&& (entry.judgedAt === null || typeof entry.judgedAt === 'string');
 }
 
 /** Discards any fields that may have been present in an older cache entry. */
@@ -44,6 +46,8 @@ export function sanitizeSubmissionHistoryEntry(value: unknown): SubmissionHistor
 		maxTimeMs: value.maxTimeMs,
 		maxMemoryKB: value.maxMemoryKB,
 		judgedAt: value.judgedAt,
+		...(typeof value.generation === 'number' && Number.isInteger(value.generation) && value.generation > 0 ? { generation: value.generation } : {}),
+		...(value.resultHidden ? { resultHidden: true } : {}),
 	};
 }
 

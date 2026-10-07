@@ -32,3 +32,13 @@ test('does not delete the legacy aggregate when writing new records fails', asyn
 	}), /write failed/);
 	assert.equal(deleted, false);
 });
+
+test('does not scan current records when no aggregate needs migration', async () => {
+	let scanned = false;
+	assert.equal(await migrateLegacyWorkspaceCache({
+		readLegacy: async () => undefined,
+		readCurrent: async () => { scanned = true; return {}; },
+		merge: current => current, writeCurrent: async () => {}, deleteLegacy: async () => {},
+	}), false);
+	assert.equal(scanned, false);
+});
