@@ -24,7 +24,7 @@
 			<div class="title-meta-line" data-i18n-ignore>{{METADATA}}</div>
 			<div class="title-status-row"><div id="oj-status" class="title-status">{{STATUS}}</div><div id="problem-timer"><span id="problem-timer-value">{{TIMER_VALUE}}</span><span id="problem-accepted" hidden>Accepted</span></div></div>
 		</div>
-		<div id="oj-information" class="header-info">{{INFORMATION}}</div>
+		<div class="header-info info-grid"><div id="oj-information">{{INFORMATION}}</div><div id="oj-rating">{{RATING}}</div></div>
 	</header>
 	<div class="tabs" role="tablist" aria-label="题目视图">
 		<button type="button" class="tab-button active" data-tab="statement" role="tab" aria-selected="true" aria-controls="oj-statement">题面</button>
@@ -33,7 +33,7 @@
 		<button type="button" class="tab-button" data-tab="editorial" data-command="editorial" role="tab" aria-selected="false" aria-controls="oj-editorial">解题报告</button>
 	</div>
 	<div class="tab-panels">
-		<section id="oj-statement" class="tab-panel active" role="tabpanel"><div id="oj-statement-content">{{STATEMENT}}</div><div id="oj-rating">{{RATING}}</div></section>
+		<section id="oj-statement" class="tab-panel active" role="tabpanel"><div id="oj-statement-content">{{STATEMENT}}</div></section>
 		<section id="oj-hints" class="tab-panel" role="tabpanel">{{HINTS}}</section>
 		<section id="oj-submissions" class="tab-panel" role="tabpanel">{{SUBMISSIONS}}</section>
 		<section id="oj-editorial" class="tab-panel" role="tabpanel">{{EDITORIAL}}</section>

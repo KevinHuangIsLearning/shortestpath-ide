@@ -375,6 +375,10 @@ header {
 	min-width: 0;
 }
 
+#oj-information {
+	display: contents;
+}
+
 .info-grid {
 	align-items: baseline;
 	display: flex;
@@ -467,16 +471,27 @@ header {
 	opacity: 0;
 	pointer-events: none;
 	position: absolute;
-	right: 0;
+	right: calc(0px - var(--tag-popover-shift, 0px));
 	top: calc(100% + 4px);
 	transform: translateY(-6px);
 	transition: opacity 150ms ease, transform 150ms ease;
+	visibility: hidden;
 	width: max-content;
 	z-index: 10;
 }
 
+/* Keep the gap inside the hover target when moving from the trigger to the panel. */
+.tag-popover::before {
+	content: '';
+	height: 8px;
+	left: -1px;
+	position: absolute;
+	right: -1px;
+	top: -8px;
+}
+
 .tag-popover-anchor.popover-opens-right .tag-popover {
-	left: 0;
+	left: var(--tag-popover-shift, 0px);
 	right: auto;
 }
 
@@ -485,6 +500,7 @@ header {
 	opacity: 1;
 	pointer-events: auto;
 	transform: translateY(0);
+	visibility: visible;
 }
 
 .tag-popover-arrow {
@@ -493,14 +509,14 @@ header {
 	border-top: 1px solid var(--vscode-widget-border);
 	height: 8px;
 	position: absolute;
-	right: 24px;
+	right: calc(24px + var(--tag-popover-shift, 0px));
 	top: -5px;
 	transform: rotate(45deg);
 	width: 8px;
 }
 
 .tag-popover-anchor.popover-opens-right .tag-popover-arrow {
-	left: 24px;
+	left: calc(24px - var(--tag-popover-shift, 0px));
 	right: auto;
 }
 
@@ -1589,6 +1605,19 @@ body {
 	background: none !important;
 }
 
+.editorial-container pre,
+.editorial-container code {
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size);
+	font-weight: var(--vscode-editor-font-weight);
+}
+
+.editorial-container pre {
+	background: var(--vscode-editor-background) !important;
+	color: var(--vscode-editor-foreground);
+	font-feature-settings: var(--vscode-editor-font-feature-settings);
+}
+
 .stress-counterexample-action {
 	display: block;
 	margin: 12px 0;
@@ -1679,19 +1708,50 @@ body {
 	background: transparent !important;
 }
 
-.problem-rating {
-	border-top: 1px solid var(--vscode-widget-border);
-	margin-top: 20px;
-	padding-top: 12px;
-}
-
-.problem-rating > summary {
+.rating-summary {
+	background: transparent;
+	border: 0;
+	border-radius: 4px;
 	cursor: pointer;
-	font-weight: 600;
+	font: inherit;
+	font-size: 0.8em;
+	padding: 2px 4px;
 }
 
-.problem-rating > summary:focus-visible {
+.rating-summary:hover:not(:disabled) {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.rating-summary:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.rating-popover {
+	white-space: normal;
+	width: 280px;
+}
+
+.rating-popover .tag-popover-content {
+	gap: 8px;
+}
+
+.rating-popover .rating-options,
+.rating-popover .rating-status,
+.rating-popover .error {
+	margin: 0;
+}
+
+.rating-popover .rating-status,
+.rating-popover .error {
+	font-size: 0.85em;
+}
+
+.rating-popover .rating-option {
+	min-height: 36px;
+}
+
+.rating-popover .rating-option > span:first-child {
+	font-size: 20px;
 }
 
 .rating-options {
@@ -1714,6 +1774,10 @@ body {
 
 .rating-option > span:first-child {
 	font-size: 24px;
+}
+
+.rating-options[aria-busy="true"] .rating-option {
+	cursor: progress;
 }
 
 .rating-good { --rating-color: var(--vscode-testing-iconPassed); }

@@ -1,6 +1,6 @@
 {
-	"version": "0.4.2",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.2",
+	"version": "0.4.3",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.3",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "新增题目与代码配对的解题工作区、内嵌样例与自定义测试、连接恢复和题目评价。题目快照移入 IDE 私有缓存，保留最近 30 题；保留代码关联。改进首次配置、环境自检、C++ 模板和代码片段编辑，并兼容新版 Judger。\n\nAdded paired problem and source workspaces, integrated samples and custom tests, connection recovery, and problem ratings. Problem snapshots now use a private IDE cache retaining the latest 30 problems while preserving source bindings. Improved first-run setup, environment checks, C++ templates, and snippet editing, with support for the current Judger backend."
+	"releaseNote": "修复 Judger 初始化顺序导致全部样例无法加载和评测的问题。完善内置浏览器的 ShortestPath 导题入口、评价浮层交互、题解代码与编辑器主题同步，以及浏览器标签宽度。\n\nFixed Judger initialization order that prevented all samples from loading and running. Improved ShortestPath problem import in the integrated browser, rating popover interactions, editorial code theme synchronization, and browser tab sizing."
 }

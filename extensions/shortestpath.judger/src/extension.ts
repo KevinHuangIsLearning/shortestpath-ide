@@ -1,36 +1,11 @@
+// Dependencies read preferences while loading, before activate() runs.
+import './logger';
 import { registerIntegratedTestCommands } from './integratedTestCommands';
 import { usesIntegratedTests } from './integratedTests';
 import { runEnvironmentSelfTest } from './environmentSelfTest';
 import { Problem } from './types';
 import { getProblemDirectory } from './parser';
 import { registerProblemDocuments } from './problemDocument';
-/************************************************************************************/
-globalThis.storedLogs = '';
-function customLogger(
-    originalMethod: (...args: any[]) => void,
-    ...args: any[]
-) {
-    originalMethod(...args);
-
-    globalThis.storedLogs += new Date().toISOString() + ' ';
-    globalThis.storedLogs +=
-        args
-            .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : arg))
-            .join(' ') + '\n';
-}
-
-globalThis.logger = {};
-globalThis.logger.log = (...args: any[]) => customLogger(console.log, ...args);
-globalThis.logger.error = (...args: any[]) =>
-    customLogger(console.error, ...args);
-globalThis.logger.warn = (...args: any[]) =>
-    customLogger(console.warn, ...args);
-globalThis.logger.info = (...args: any[]) =>
-    customLogger(console.info, ...args);
-globalThis.logger.debug = (...args: any[]) =>
-    customLogger(console.debug, ...args);
-/************************************************************************************/
-
 import * as vscode from 'vscode';
 import { migrateSettings } from './settingsMigration';
 import { setupCompanionServer, handleNewProblem } from './companion';

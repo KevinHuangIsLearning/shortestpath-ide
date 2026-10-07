@@ -20,6 +20,7 @@ import { localize, localizeFormat, localizeWebviewHtml } from './localization';
 import { canRequestEditorial, describeEditorialLockReason, getCurrentEditorialRemainingMs, getEditorialConfirmationMessage, shouldConfirmEditorial } from './editorialAccess';
 import { describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
+import { EditorCodeTheme } from './editorCodeTheme';
 import { defaultProblemSourceRatio } from './problemPanelLayout';
 import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses } from './problemPanelLifecycle';
 import { ImportAction, LocalBridgeHandlers, OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
@@ -1468,16 +1469,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 	}
 	// Loading Shiki can take long enough for the page's first WebSocket connection after a
 	// wake URI to fail. Start the local bridge first and upgrade the renderer when ready.
-	void createProblemMarkdownRenderer(getShikiTheme).then(renderer => {
+	const codeTheme = new EditorCodeTheme(
+		() => vscode.commands.executeCommand('_shortestpath.codeHighlightTheme'),
+		getShikiTheme,
+		() => {
+			markdownContentCache = new WeakMap();
+			panel.refreshEditorial();
+		},
+	);
+	context.subscriptions.push(codeTheme);
+	context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => { void codeTheme.refresh(); }));
+	void codeTheme.refresh();
+	void createProblemMarkdownRenderer(() => codeTheme.value).then(renderer => {
 		renderProblemMarkdown = renderer;
 		markdownContentCache = new WeakMap();
 		panel.refreshEditorial();
 		log('Problem Markdown renderer initialized.');
 	}).catch(error => log(`Failed to initialize problem Markdown renderer: ${error instanceof Error ? error.message : String(error)}`));
-	context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => {
-		markdownContentCache = new WeakMap();
-		panel.refreshEditorial();
-	}));
 	const bridgeHandlers: LocalBridgeHandlers = {
 		async importProblem(problem, signal) {
 			signal.throwIfAborted();
@@ -2560,19 +2568,18 @@ function renderInformation(problem: ImportedProblem): string {
 		.map(escapeAttribute)
 		.join(' ');
 	const difficultyTag = `<span class="tag difficulty-tag ${difficultyTagClasses}" data-i18n-ignore style="--difficulty-background: ${escapeAttribute(difficulty.backgroundHex)}; --difficulty-foreground: ${escapeAttribute(difficulty.textColor)};">${escapeHtml(difficulty.label)}</span>`;
-	return `<div class="info-grid">
+	return `
 				<div class="info-cell"><span class="info-label">${localize('时间限制')}</span><span class="info-value">${problem.limits.timeMs} ms</span></div>
 				<div class="info-cell"><span class="info-label">${localize('内存限制')}</span><span class="info-value">${problem.limits.memoryMB} MB</span></div>
 				<div class="info-cell"><span class="info-label">${localize('题目难度')}</span><span class="info-value">${difficultyTag}</span></div>
 				<div class="info-cell info-action tag-popover-anchor">
 					<span class="info-label">${localize('题目标签')}</span>
-					<span class="info-value tag-summary" aria-label="${summaryCount} 个标签">${summaryCount > 0 ? `${summaryCount}` : '0'} <span class="tag-arrow" aria-hidden="true"></span></span>
+					<span class="info-value tag-summary" tabindex="0" aria-label="${summaryCount} 个标签">${summaryCount > 0 ? `${summaryCount}` : '0'} <span class="tag-arrow" aria-hidden="true"></span></span>
 					<div class="tag-popover">
 						<div class="tag-popover-arrow"></div>
 						<div class="tag-popover-content">${allTags}</div>
 					</div>
-				</div>
-			</div>`;
+				</div>`;
 }
 
 function renderStatement(problem: ImportedProblem, previousStatements: ProblemStatementSnapshot[], statementVersionIndex: number, integrated = false): string {
@@ -2640,7 +2647,7 @@ function renderRatingControls(state: ProblemPanelState): string {
 	const buttons = ratingOptions.map(option => {
 		const count = data?.counts[option.value];
 		const label = localizeFormat('{0}，{1} 人', localize(option.label), String(count ?? 0));
-		return `<button type="button" class="rating-option rating-${option.value}" data-command="rateProblem" data-rating="${option.value}" title="${escapeAttribute(localize(option.label))}" aria-label="${escapeAttribute(label)}" aria-pressed="${data?.rating === option.value}"${state.connected && rating?.canRate() && !rating.saving ? '' : ' disabled'}><span aria-hidden="true">${option.icon}</span><span>${count ?? '—'}</span></button>`;
+		return `<button type="button" class="rating-option rating-${option.value}" data-command="rateProblem" data-rating="${option.value}" title="${escapeAttribute(localize(option.label))}" aria-label="${escapeAttribute(label)}" aria-pressed="${data?.rating === option.value}"${state.connected && rating?.canRate() ? '' : ' disabled'}${rating?.saving ? ' aria-disabled="true"' : ''}><span aria-hidden="true">${option.icon}</span><span>${count ?? '—'}</span></button>`;
 	}).join('');
 	const selected = ratingOptions.find(option => option.value === data?.rating);
 	const message = !state.connected ? localize('连接恢复后可评价')
@@ -2648,11 +2655,11 @@ function renderRatingControls(state: ProblemPanelState): string {
 			: !data ? localize(rating?.error ? '评价暂时不可用' : '正在加载评价…')
 				: !rating?.canRate() ? localize('AC 或计时满 5 小时后可评价')
 					: selected ? localizeFormat('已评价：{0}，可点击修改', localize(selected.label)) : localize('这道题怎么样？');
-	return `<div class="rating-options" role="group" aria-label="${localize('题目评价')}">${buttons}</div><p class="rating-status" aria-live="polite">${escapeHtml(message)}</p>${rating?.error ? `<p class="error" role="alert">${escapeHtml(localize(rating.error))} <button type="button" data-command="ratingRefresh"${state.connected && !rating.loading && !rating.saving ? '' : ' disabled'}>${localize('重试')}</button></p>` : ''}`;
+	return `<div class="rating-options" role="group" aria-label="${localize('题目评价')}" aria-busy="${Boolean(rating?.saving)}">${buttons}</div><p class="rating-status" aria-live="polite">${escapeHtml(message)}</p>${rating?.error ? `<p class="error" role="alert">${escapeHtml(localize(rating.error))} <button type="button" data-command="ratingRefresh"${state.connected && !rating.loading && !rating.saving ? '' : ' disabled'}>${localize('重试')}</button></p>` : ''}`;
 }
 
 function renderProblemRating(state: ProblemPanelState): string {
-	return `<details class="problem-rating" data-persist-key="problem-rating"><summary>${localize('题目评价')}</summary>${renderRatingControls(state)}</details>`;
+	return `<div class="info-cell info-action tag-popover-anchor problem-rating"><button type="button" class="tag-summary rating-summary" aria-label="${localize('题目评价')}">${localize('题目评价')} <span class="tag-arrow" aria-hidden="true"></span></button><div class="tag-popover rating-popover"><div class="tag-popover-arrow"></div><div class="tag-popover-content">${renderRatingControls(state)}</div></div></div>`;
 }
 
 function renderRatingPrompt(state: ProblemPanelState): string {

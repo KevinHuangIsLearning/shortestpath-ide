@@ -2,6 +2,20 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
+## v0.4.3 更新 / What's New
+
+- 修复 Judger 初始化顺序错误，恢复题目样例加载与本地评测，并加入冷启动回归测试。
+- 内置浏览器的 ShortestPath 导题入口改用网站的“开始做题”流程，支持页面导航与按钮状态变化。
+- 将题目评价移至题面顶部浮层，改善投票后的焦点、浮层边界和悬停交互。
+- 题解代码高亮、字体与编辑器主题保持一致，改进浏览器标签标题宽度及拥挤时的滚动显示。
+
+### English
+
+- Fixed Judger initialization order to restore sample loading and local judging, with a cold-start regression test.
+- Integrated browser imports on ShortestPath now use the website's Start Solving flow and follow page navigation and button state changes.
+- Moved problem ratings into a header popover and improved focus, viewport positioning, and hover behavior after voting.
+- Editorial code highlighting and fonts follow the editor theme. Improved browser tab title sizing and scrolling when tabs are crowded.
+
 ## v0.4.2 更新 / What's New
 
 - 新增题目与代码配对的解题工作区、内嵌样例和自定义测试；官方样例保持只读，支持编译诊断、取消运行及输出差异。

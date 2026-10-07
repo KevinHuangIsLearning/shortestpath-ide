@@ -2,10 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-jest.mock('vscode', () => ({}), { virtual: true });
+jest.mock('vscode', () => ({
+	commands: { registerCommand: jest.fn() },
+	window: { showInformationMessage: jest.fn(), showErrorMessage: jest.fn(), withProgress: jest.fn((_options, task) => task()) },
+	workspace: { workspaceFolders: [] },
+	ProgressLocation: { Notification: 15 },
+}), { virtual: true });
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, text: string) => text }));
-import { parseBrowserProblems } from '../browserImport';
+jest.mock('../browserImportButton', () => ({ registerBrowserImportButtons: jest.fn() }));
+import { parseBrowserProblems, registerBrowserImport, startShortestPathBrowserProblem } from '../browserImport';
 import * as vscode from 'vscode';
+import fs from 'fs';
+import { shortestPathStartProblemScript } from '../shortestpathBrowserImport';
 
 function browser(value: unknown, scriptError = false, closeDuringParse = false) {
 	const listeners = new Set<(message: object) => void>();
@@ -27,7 +35,7 @@ function browser(value: unknown, scriptError = false, closeDuringParse = false) 
 		},
 		close: jest.fn(async () => {}),
 	};
-	const tab = { id: 'browser', startCDPSession: async () => session } as vscode.BrowserTab;
+	const tab = { id: 'browser', url: 'https://example.com/A', startCDPSession: async () => session } as vscode.BrowserTab;
 	return { tab, session, sent, listeners, closeListeners };
 }
 
@@ -37,6 +45,62 @@ test('parses multiple tasks in the main-frame isolated context and detaches', as
 	expect(await parseBrowserProblems(testBrowser.tab, 'parse()')).toEqual(tasks);
 	expect(testBrowser.sent[testBrowser.sent.length - 1].params).toEqual({ expression: 'parse()', contextId: 42, awaitPromise: true, returnByValue: true });
 	expect([testBrowser.session.close.mock.calls.length, testBrowser.listeners.size, testBrowser.closeListeners.size]).toEqual([1, 0, 0]);
+});
+
+test('native start uses the website control and releases its CDP session', async () => {
+	const testBrowser = browser(true);
+	await startShortestPathBrowserProblem(testBrowser.tab);
+	expect([testBrowser.sent[testBrowser.sent.length - 1].params.expression, testBrowser.session.close.mock.calls.length]).toEqual([shortestPathStartProblemScript(), 1]);
+});
+
+test.each(['unavailable', 'script', 'closed'])('native start rejects %s and releases its CDP session', async mode => {
+	const testBrowser = browser(false, mode === 'script', mode === 'closed');
+	await expect(startShortestPathBrowserProblem(testBrowser.tab)).rejects.toThrow();
+	expect([testBrowser.session.close.mock.calls.length, testBrowser.listeners.size, testBrowser.closeListeners.size]).toEqual([1, 0, 0]);
+});
+
+async function runImportCommand(testBrowser: ReturnType<typeof browser>, importProblem: jest.Mock, folderOpen: boolean) {
+	jest.replaceProperty(vscode.window, 'activeBrowserTab', testBrowser.tab);
+	jest.replaceProperty(vscode.workspace, 'workspaceFolders', folderOpen ? [{ uri: { fsPath: '/workspace' } as vscode.Uri, name: 'workspace', index: 0 }] : []);
+	registerBrowserImport({ subscriptions: [], extensionPath: '/extension' } as unknown as vscode.ExtensionContext, importProblem);
+	const command = jest.mocked(vscode.commands.registerCommand).mock.calls.slice(-1)[0][1];
+	await command();
+}
+
+beforeEach(() => {
+	// The virtual vscode module exposes mutable window state for command dispatch tests.
+	Object.defineProperty(vscode.window, 'activeBrowserTab', { value: undefined, writable: true, configurable: true });
+	jest.clearAllMocks();
+});
+
+afterEach(() => jest.restoreAllMocks());
+
+test.each([true, false])('ShortestPath import bypasses Companion even without a workspace (folderOpen=%s)', async folderOpen => {
+	const testBrowser = browser(true);
+	Object.defineProperty(testBrowser.tab, 'url', { value: 'https://shortestpath.cn/problem/dsu/found/A' });
+	const read = jest.spyOn(fs.promises, 'readFile');
+	const importProblem = jest.fn();
+	await runImportCommand(testBrowser, importProblem, folderOpen);
+	expect([read.mock.calls.length, importProblem.mock.calls.length, jest.mocked(vscode.window.withProgress).mock.calls.length, jest.mocked(vscode.window.showInformationMessage).mock.calls.length]).toEqual([0, 0, 0, 0]);
+	expect(testBrowser.sent[testBrowser.sent.length - 1].params.expression).toBe(shortestPathStartProblemScript());
+});
+
+test('unavailable ShortestPath action reports an error without falling back to Companion', async () => {
+	const testBrowser = browser(false);
+	Object.defineProperty(testBrowser.tab, 'url', { value: 'https://shortestpath.cn/topics' });
+	const read = jest.spyOn(fs.promises, 'readFile');
+	const importProblem = jest.fn();
+	await runImportCommand(testBrowser, importProblem, true);
+	expect([read.mock.calls.length, importProblem.mock.calls.length, jest.mocked(vscode.window.showErrorMessage).mock.calls.length]).toEqual([0, 0, 1]);
+});
+
+test('other OJs still parse and import Companion tasks', async () => {
+	const tasks = [{ name: 'A', url: 'https://example.com/A', tests: [] }];
+	const testBrowser = browser(tasks);
+	jest.spyOn(fs.promises, 'readFile').mockResolvedValue('parse()');
+	const importProblem = jest.fn(async () => ({ created: true }));
+	await runImportCommand(testBrowser, importProblem, true);
+	expect(importProblem.mock.calls).toEqual([[tasks[0]]]);
 });
 
 test.each(['invalid', 'script', 'closed'])('rejects %s results and always releases the CDP session', async mode => {

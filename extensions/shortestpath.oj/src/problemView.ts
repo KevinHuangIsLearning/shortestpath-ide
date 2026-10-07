@@ -142,12 +142,19 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		if (!popover) {
 			return;
 		}
-		anchor.classList.remove('popover-opens-right');
 		const anchorBounds = anchor.getBoundingClientRect();
-		if (anchorBounds.right - popover.offsetWidth < 12) {
-			anchor.classList.add('popover-opens-right');
+		const opensRight = anchorBounds.right - popover.offsetWidth < 12;
+		anchor.classList.toggle('popover-opens-right', opensRight);
+		const left = opensRight ? anchorBounds.left : anchorBounds.right - popover.offsetWidth;
+		const clampedLeft = Math.max(12, Math.min(left, window.innerWidth - popover.offsetWidth - 12));
+		const shift = `${clampedLeft - left}px`;
+		if (anchor.style.getPropertyValue('--tag-popover-shift') !== shift) {
+			anchor.style.setProperty('--tag-popover-shift', shift);
 		}
 	};
+	window.addEventListener('resize', () => {
+		document.querySelectorAll<HTMLElement>('.tag-popover-anchor').forEach(updateTagPopoverDirection);
+	});
 
 	document.addEventListener('pointerover', event => {
 		const target = event.target;
@@ -163,6 +170,52 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 			updateTagPopoverDirection(anchor);
 		}
 	});
+
+	/* ---- Rating updates ---- */
+	const updateRatingSection = (section: HTMLElement, html: string): boolean => {
+		const template = document.createElement('template');
+		template.innerHTML = html;
+		const options = section.querySelector<HTMLElement>('.rating-options');
+		const nextOptions = template.content.querySelector<HTMLElement>('.rating-options');
+		const status = section.querySelector<HTMLElement>('.rating-status');
+		const nextStatus = template.content.querySelector<HTMLElement>('.rating-status');
+		if (!options || !nextOptions || !status || !nextStatus) { return false; }
+		const buttons = Array.from(options.querySelectorAll<HTMLButtonElement>('button[data-rating]'));
+		const nextButtons = Array.from(nextOptions.querySelectorAll<HTMLButtonElement>('button[data-rating]'));
+		if (buttons.length !== nextButtons.length || buttons.some((button, index) => button.dataset.rating !== nextButtons[index].dataset.rating)) { return false; }
+
+		const syncAttributes = (current: HTMLElement, next: HTMLElement): void => {
+			for (const name of current.getAttributeNames()) {
+				if (!next.hasAttribute(name)) { current.removeAttribute(name); }
+			}
+			for (const { name, value } of Array.from(next.attributes)) {
+				if (current.getAttribute(name) !== value) { current.setAttribute(name, value); }
+			}
+		};
+		// Keep the popover and its controls mounted so hover, focus and transitions survive saves.
+		syncAttributes(options, nextOptions);
+		buttons.forEach((button, index) => {
+			const next = nextButtons[index];
+			if (button === document.activeElement && next.disabled) {
+				section.querySelector<HTMLButtonElement>('.rating-summary, .modal-close')?.focus();
+			}
+			syncAttributes(button, next);
+			const count = button.lastElementChild;
+			const nextCount = next.lastElementChild;
+			if (count && nextCount && count.textContent !== nextCount.textContent) { count.textContent = nextCount.textContent; }
+		});
+		if (status.textContent !== nextStatus.textContent) { status.textContent = nextStatus.textContent; }
+		const error = section.querySelector<HTMLElement>('.error');
+		const nextError = template.content.querySelector<HTMLElement>('.error');
+		if (error?.outerHTML !== nextError?.outerHTML) {
+			if (error?.contains(document.activeElement)) {
+				section.querySelector<HTMLButtonElement>('.rating-summary, .modal-close')?.focus();
+			}
+			error?.remove();
+			if (nextError) { status.after(nextError); }
+		}
+		return true;
+	};
 
 	/* ---- Hint countdown ---- */
 	let hintCountdownInterval: ReturnType<typeof setInterval> | undefined;
@@ -600,6 +653,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 			return;
 		}
 		if (command === 'rateProblem') {
+			if (button.getAttribute('aria-disabled') === 'true') { return; }
 			vscode.postMessage({ command, rating: button.dataset.rating });
 		} else if (command === 'dismissRating') {
 			dismissRatingDialog();
@@ -970,14 +1024,29 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 				updateOperationNotice(section, html);
 				continue;
 			}
+			if ((id === 'oj-rating' || id === 'oj-rating-prompt') && updateRatingSection(section, html)) { continue; }
 			if (id === 'oj-rating-prompt') { rememberRatingFocus(); }
+			const ratingFocus = id === 'oj-rating' && section.contains(document.activeElement) && document.activeElement instanceof HTMLButtonElement
+				? { command: document.activeElement.dataset.command, rating: document.activeElement.dataset.rating }
+				: undefined;
 			const snapshot = snapshotSection(section);
 			const submissionHeights = id === 'oj-submissions' ? snapshotSubmissionHeights(section) : undefined;
 			const updateSection = () => {
 				section.innerHTML = html;
 				restoreSection(section, snapshot);
+				if (id === 'oj-rating') {
+					if (ratingFocus) {
+						const buttons = Array.from(section.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+						const restored = buttons.find(button => button.dataset.command === ratingFocus.command && button.dataset.rating === ratingFocus.rating);
+						// Reveal the replaced popover before focusing an option inside it.
+						buttons[0]?.focus();
+						restored?.focus();
+					}
+					const anchor = section.querySelector<HTMLElement>('.tag-popover-anchor');
+					if (anchor) { updateTagPopoverDirection(anchor); }
+				}
 			};
-			if (id === 'oj-local-tests' || id === 'oj-local-tests-toolbar' || id === 'oj-hints' || id === 'oj-editorial' || id === 'oj-rating' || id === 'oj-rating-prompt') {
+			if (id === 'oj-information' || id === 'oj-local-tests' || id === 'oj-local-tests-toolbar' || id === 'oj-hints' || id === 'oj-editorial' || id === 'oj-rating' || id === 'oj-rating-prompt') {
 				// These sections update in response to actions without replaying a height animation.
 				updateSection();
 			} else if (id === 'oj-compatibility-warning') {

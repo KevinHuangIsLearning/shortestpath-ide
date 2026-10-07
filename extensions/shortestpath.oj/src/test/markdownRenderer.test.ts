@@ -8,7 +8,8 @@ import { suite, test } from 'node:test';
 import MarkdownIt from 'markdown-it';
 import markdownItKatex from '@vscode/markdown-it-katex';
 import { registerLatexDelimiterMath } from '../markdownItLatexDelimiters';
-import { resolveProblemMarkdownUrl } from '../markdownRenderer';
+import { createProblemMarkdownRenderer, resolveProblemMarkdownUrl } from '../markdownRenderer';
+import type { ThemeRegistration } from 'shiki';
 
 function createMarkdown(): MarkdownIt {
 	const markdown = new MarkdownIt({
@@ -27,6 +28,29 @@ suite('ShortestPath OJ Markdown URLs', () => {
 			resolveProblemMarkdownUrl('/assets/problems/299/9f1d54265986-314053_1562642898593_2559_1.jpg', 'https://example.invalid/problem/299'),
 			'https://shortestpath.cn/assets/problems/299/9f1d54265986-314053_1562642898593_2559_1.jpg',
 		);
+	});
+});
+
+suite('ShortestPath OJ editor code theme', () => {
+	test('uses custom token colors and updates when a theme with the same name changes', async () => {
+		const makeTheme = (foreground: string): ThemeRegistration => ({
+			name: 'shortestpath-editor', type: 'dark',
+			settings: [
+				{ settings: { foreground: '#abcdef', background: '#123456' } },
+				{ scope: 'keyword.control', settings: { foreground, fontStyle: 'italic' } },
+			],
+		});
+		let theme = makeTheme('#ff1234');
+		const render = await createProblemMarkdownRenderer(() => theme);
+		const code = '```cpp\nif (value < 2) return 0; // <script>\n```';
+		const first = render(code, 'https://shortestpath.cn/');
+		theme = makeTheme('#12ff34');
+		const second = render(code, 'https://shortestpath.cn/');
+		assert.deepEqual({
+			firstColor: first.includes('color:#FF1234'), secondColor: second.includes('color:#12FF34'),
+			oldColorRemoved: !second.includes('color:#FF1234'), editorBackground: second.includes('background-color:#123456'),
+			escaped: /(?:&lt;|&#x3c;)script/i.test(second) && !second.includes('<script>'),
+		}, { firstColor: true, secondColor: true, oldColorRemoved: true, editorBackground: true, escaped: true });
 	});
 });
 

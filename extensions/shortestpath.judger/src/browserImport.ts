@@ -9,6 +9,7 @@ import { validateCompanionProblem } from './companionProtocol';
 import localize from './i18n';
 import { Problem } from './types';
 import { registerBrowserImportButtons } from './browserImportButton';
+import { isShortestPathBrowserUrl, shortestPathStartProblemScript } from './shortestpathBrowserImport';
 
 type CDPResult = {
 	targetInfos?: { targetId: string; type: string }[];
@@ -20,8 +21,8 @@ type CDPResult = {
 };
 type CDPMessage = { id?: number; sessionId?: string; result?: CDPResult; error?: { message: string } };
 
-/** Parse the current document in a separate JS world, and always detach on completion or failure. */
-export async function parseBrowserProblems(tab: vscode.BrowserTab, expression: string): Promise<Problem[]> {
+/** Evaluate in a separate JS world, and always detach on completion or failure. */
+async function evaluateBrowserPage(tab: vscode.BrowserTab, expression: string): Promise<unknown> {
 	const session = await tab.startCDPSession();
 	let nextId = 0;
 	let closed = false;
@@ -59,13 +60,24 @@ export async function parseBrowserProblems(tab: vscode.BrowserTab, expression: s
 		const world = await send('Page.createIsolatedWorld', { frameId: frames.frameTree.frame.id, worldName: 'shortestpath-companion' }, sid);
 		if (world.executionContextId === undefined) { throw new Error(localize('judger.browserImport.noPage', 'No browser page was found.')); }
 		const parsed = await send('Runtime.evaluate', { expression, contextId: world.executionContextId, awaitPromise: true, returnByValue: true }, sid);
-		if (!Array.isArray(parsed.result?.value) || parsed.result.value.length === 0) {
-			throw new Error(localize('judger.browserImport.empty', 'Competitive Companion did not return any problems.'));
-		}
-		return parsed.result.value.map(validateCompanionProblem);
+		return parsed.result?.value;
 	} finally {
 		closedListener.dispose();
 		await session.close();
+	}
+}
+
+export async function parseBrowserProblems(tab: vscode.BrowserTab, expression: string): Promise<Problem[]> {
+	const value = await evaluateBrowserPage(tab, expression);
+	if (!Array.isArray(value) || value.length === 0) {
+		throw new Error(localize('judger.browserImport.empty', 'Competitive Companion did not return any problems.'));
+	}
+	return value.map(validateCompanionProblem);
+}
+
+export async function startShortestPathBrowserProblem(tab: vscode.BrowserTab): Promise<void> {
+	if (await evaluateBrowserPage(tab, shortestPathStartProblemScript()) !== true) {
+		throw new Error(localize('judger.browserImport.startUnavailable', 'Open a ShortestPath OJ problem detail page and wait for its Start Solving button.'));
 	}
 }
 
@@ -74,10 +86,12 @@ export function registerBrowserImport(context: vscode.ExtensionContext, importPr
 	context.subscriptions.push(vscode.commands.registerCommand('judger.importBrowserProblem', async (tabId?: string) => {
 		const tab = tabId ? vscode.window.browserTabs?.find(candidate => candidate.id === tabId) : vscode.window.activeBrowserTab;
 		if (!tab) { vscode.window.showInformationMessage(localize('judger.browserImport.open', 'Open a problem in the integrated browser first.')); return; }
-		if (!vscode.workspace.workspaceFolders?.length) { vscode.window.showInformationMessage(localize('judger.companion.openFolder', 'Please open a folder first.')); return; }
+		const shortestPath = isShortestPathBrowserUrl(tab.url);
+		if (!shortestPath && !vscode.workspace.workspaceFolders?.length) { vscode.window.showInformationMessage(localize('judger.companion.openFolder', 'Please open a folder first.')); return; }
 		if (running.has(tab.id)) { return; }
 		running.add(tab.id);
 		try {
+			if (shortestPath) { await startShortestPathBrowserProblem(tab); return; }
 			await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: localize('judger.browserImport.progress', 'Importing with Competitive Companion…') }, async () => {
 				const expression = await fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.bundle.txt'), 'utf8');
 				const problems = await parseBrowserProblems(tab, expression);

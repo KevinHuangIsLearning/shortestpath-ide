@@ -520,11 +520,12 @@
 	position: relative;
 	display: flex;
 	align-items: center;
-	flex: 0 1 220px;
+	/* Keep short titles compact; overflow the strip instead of squeezing page names. */
+	flex: 0 0 auto;
 	box-sizing: border-box;
 	height: var(--editor-group-tab-height);
 	min-width: 96px;
-	max-width: 240px;
+	max-width: 280px;
 	border-radius: var(--vscode-cornerRadius-xLarge, 12px) var(--vscode-cornerRadius-xLarge, 12px) 0 0;
 	color: var(--vscode-tab-inactiveForeground);
 }
@@ -580,7 +581,7 @@
 
 .shortestpath-browser-tab > button.shortestpath-browser-tab-label {
 	position: relative;
-	flex: 1;
+	flex: 1 1 auto;
 	min-width: 0;
 	height: 100%;
 	border-radius: 0;

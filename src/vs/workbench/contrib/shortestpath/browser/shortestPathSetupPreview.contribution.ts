@@ -8,8 +8,16 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { TokenizationRegistry } from '../../../../editor/common/languages.js';
 import { LineTokens } from '../../../../editor/common/tokens/lineTokens.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
+import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 
 CommandsRegistry.registerCommand('_shortestpath.snippetsHome', accessor => accessor.get(IUserDataProfileService).currentProfile.snippetsHome.toString());
+
+// Export resolved rules, including user overrides, for code blocks in OJ webviews.
+CommandsRegistry.registerCommand('_shortestpath.codeHighlightTheme', accessor => {
+	const theme = accessor.get(IWorkbenchThemeService).getColorTheme();
+	return { name: 'shortestpath-editor', type: isDark(theme.type) ? 'dark' : 'light', settings: theme.tokenColors };
+});
 
 // Share the workbench's C++ grammar and active theme with the setup webview.
 CommandsRegistry.registerCommand('_shortestpath.cppPreviewTokens', async (accessor, source: string) => {
