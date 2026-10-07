@@ -29,6 +29,7 @@ import { OpenIntegratedBrowserAction, QuickOpenBrowserAction } from '../../../br
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { canImportBrowserProblem, BrowserProblemImportFeature } from '../../../browserView/electron-browser/features/browserProblemImportFeature.js';
 import { BrowserEditor } from '../../../browserView/electron-browser/browserEditor.js';
 import { BrowserWelcomeFeature } from '../../../browserView/electron-browser/features/browserWelcomeFeature.js';
@@ -230,6 +231,22 @@ suite('ShortestPath browser routing', () => {
 		assert.deepStrictEqual({ blank, loaded: custom.style.display, url: input.url }, {
 			blank: { custom: '', native: 'none' }, loaded: 'none', url: shortestPathHome,
 		});
+	});
+
+	test('first browsing use opens the OJ and later empty sessions keep the blank start page', async () => {
+		const first = setup();
+		first.service.mode = 'browse';
+		await first.service.ensureBlankTab();
+		assert.deepStrictEqual(first.navigations, [shortestPathHome]);
+		assert.strictEqual(first.browserInputs.length, 1);
+		assert.strictEqual(first.instantiation.get(IStorageService).getBoolean('shortestpath.browser.started', StorageScope.PROFILE), true);
+
+		const returning = setup();
+		returning.instantiation.get(IStorageService).store('shortestpath.browser.started', true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		returning.service.mode = 'browse';
+		await returning.service.ensureBlankTab();
+		assert.deepStrictEqual(returning.navigations, []);
+		assert.strictEqual(returning.browserInputs.length, 1);
 	});
 
 	test('closing all browsing tabs replaces them with exactly one blank tab', async () => {

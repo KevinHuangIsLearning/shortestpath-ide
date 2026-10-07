@@ -47,6 +47,7 @@ const browsingContext = new RawContextKey<boolean>('shortestpath.browsing', fals
 const pageContext = new RawContextKey<boolean>('shortestpath.page', false);
 const modeKey = 'shortestpath.mode';
 const tabsKey = 'shortestpath.browser.tabs';
+const browserStartedKey = 'shortestpath.browser.started';
 const drawLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? "草稿" : localize('sp.draw', "Sketchpad");
 const drawTitle = localize2('sp.switchDraw', "Open Sketchpad");
 if (getNLSLanguage()?.toLowerCase().startsWith('zh')) { drawTitle.value = "打开草稿"; }
@@ -412,6 +413,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 
 	private adopt(input: BrowserEditorInput): void {
 		if (input.isDisposed() || this.tabs.has(input.id)) { return; }
+		this.storage.store(browserStartedKey, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.tabs.set(input.id, input);
 		const store = new DisposableStore();
 		this.tabStores.set(input.id, store);
@@ -442,7 +444,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		void this.ensureBrowserTab().catch(onUnexpectedError);
 	}
 
-	/** Keep a blank native browser tab available while the browsing surface is active. */
+	/** Open the OJ on first use, then keep a blank tab when the browsing surface is empty. */
 	protected ensureBrowserTab(): Promise<void> {
 		if (this.emptyTabPromise) { return this.emptyTabPromise; }
 		if (this.stopped || this.mode !== 'browse' || !this.configuration.getValue<boolean>('shortestpath.setup.completed') || this.openingTabs.size || this.browserPart?.groups.some(group => group.count > 0)) {
@@ -452,6 +454,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			if (this.stopped || this.mode !== 'browse' || this.openingTabs.size || this.browserPart?.groups.some(group => group.count > 0)) { return; }
 			const input = await this.browsers.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global } });
 			if (this.stopped || this.mode !== 'browse' || this.openingTabs.size || this.browserPart?.groups.some(group => group.count > 0)) { input.dispose(true); return; }
+			if (!this.storage.getBoolean(browserStartedKey, StorageScope.PROFILE, false)) { input.navigate(shortestPathHome); }
 			await this.openInBrowserPart(input, true);
 			if (!this.stopped && this.mode === 'browse') { this.browserPart?.activeGroup.focus(); }
 		}).finally(() => { this.emptyTabPromise = undefined; });
