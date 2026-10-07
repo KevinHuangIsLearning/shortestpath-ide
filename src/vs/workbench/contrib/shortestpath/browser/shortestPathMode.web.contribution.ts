@@ -14,6 +14,7 @@ class WebShortestPathModeService implements IShortestPathModeService {
 	readonly mode = 'solve';
 	readonly activeBrowser = undefined;
 	readonly onDidChangeActiveBrowser = Event.None;
+	ownsBrowserTab(): boolean { return false; }
 	async switchMode(): Promise<void> { }
 	async openBrowser(): Promise<BrowserEditorInput> { throw new Error('Integrated Browser is not available in web.'); }
 	async showBrowser(): Promise<void> { throw new Error('Integrated Browser is not available in web.'); }

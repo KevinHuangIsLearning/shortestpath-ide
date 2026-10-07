@@ -1,4 +1,5 @@
 import { CompanionRequestError, readCompanionRequest, renderProblemTemplate, validateCompanionProblem } from './companionProtocol';
+import { normalizeBrowserImportFileName, validateBrowserImportFileName } from './browserImportFileName';
 import { expandLocalHeaders } from './localHeaders';
 import http from 'http';
 import config from './config';
@@ -277,6 +278,11 @@ const detectOj = (urlStr: string): OjInfo => {
     return result;
 };
 
+function configuredFileNameTemplate(problem: Problem): string | null {
+    const override = getFileNameTemplateOverrides()?.[detectOj(problem.url).oj]?.trim();
+    return override || getFileNameTemplate()?.trim() || null;
+}
+
 export const getProblemFileName = (problem: Problem, ext: string) => {
     const originalName = problem.name;
     const originalSections = originalName.split(' - ');
@@ -290,24 +296,8 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
         }
     }
 
-    const globalTemplate = getFileNameTemplate();
-    const templateOverrides = getFileNameTemplateOverrides();
-    let fileNameTemplate: string | null = null;
+    const fileNameTemplate = configuredFileNameTemplate(problem);
     const ojInfo = detectOj(problem.url);
-    globalThis.logger.log('Detected OJ:', ojInfo);
-    if (templateOverrides && ojInfo.oj) {
-        fileNameTemplate = templateOverrides[ojInfo.oj] || null;
-        globalThis.logger.log(
-            'Override found:',
-            ojInfo.oj,
-            '→',
-            fileNameTemplate,
-        );
-    }
-    if (!fileNameTemplate) {
-        fileNameTemplate = globalTemplate;
-        globalThis.logger.log('Fallback to global template:', fileNameTemplate);
-    }
     if (fileNameTemplate) {
         const words = words_in_text(problem.name, wordRegex());
         let slug: string;
@@ -385,7 +375,7 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
 };
 
 /** Handle the `problem` sent by Competitive Companion, such as showing the webview, opening an editor, managing layout etc. */
-export const handleNewProblem = async (problem: Problem, preferredSourcePath?: string, contextHash?: string, silent = false): Promise<ProblemCreationResult> => {
+export const handleNewProblem = async (problem: Problem, preferredSourcePath?: string, contextHash?: string, silent = false, promptForFileName = false): Promise<ProblemCreationResult> => {
     globalThis.reporter.sendTelemetryEvent(telmetry.GET_PROBLEM_FROM_COMPANION);
     // If webview may be focused, close it, to prevent layout bug.
     if (vscode.window.activeTextEditor == undefined) {
@@ -492,7 +482,28 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     if (fixedProblemPath && useFixedPath) {
         srcPath = path.join(folder, fixedProblemPath);
     } else {
-        const titleFileName = getProblemFileName(problem, extn);
+        let titleFileName: string;
+        if (promptForFileName && !previousSourcePath && !configuredFileNameTemplate(problem)) {
+            const suggested = getProblemFileName({ ...problem }, extn);
+            const entered = await vscode.window.showInputBox({
+                title: localize('judger.browserImport.fileNameTitle', 'Import Problem'),
+                prompt: localize('judger.browserImport.fileNamePrompt', 'No filename template is configured. Enter a filename for {0}.', problem.name),
+                value: suggested,
+                ignoreFocusOut: true,
+                validateInput: value => {
+                    const invalid = validateBrowserImportFileName(value, extn);
+                    if (invalid) { return invalid; }
+                    return existsSync(path.join(folder, normalizeBrowserImportFileName(value, extn)))
+                        ? localize('judger.browserImport.fileExists', 'A file with this name already exists.') : undefined;
+                },
+            });
+            if (entered === undefined) { return { created: false }; }
+            if (validateBrowserImportFileName(entered, extn)) { return { created: false }; }
+            titleFileName = normalizeBrowserImportFileName(entered, extn);
+            if (existsSync(path.join(folder, titleFileName))) { return { created: false }; }
+        } else {
+            titleFileName = getProblemFileName(problem, extn);
+        }
         const parsedFileName = path.parse(titleFileName);
         const problemFileName = contextHash && !problem.shortestPath && !fixedProblemPath ? path.join(parsedFileName.dir, `${parsedFileName.name}_${contextHash.slice(0, 24)}.${extn}`) : titleFileName;
         srcPath = previousSourcePath ?? path.join(folder, problemFileName);
@@ -538,7 +549,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         );
         await vscode.commands.executeCommand(
             'workbench.action.browser.open',
-            targetUrl,
+            { url: targetUrl, openInEditor: true },
         );
         await vscode.commands.executeCommand(
             'workbench.action.focusFirstEditorGroup',

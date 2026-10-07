@@ -210,6 +210,8 @@ export interface IEditorPartsView {
  */
 export interface IEditorGroupsView {
 
+	readonly excludeFromDefaultRouting?: boolean;
+
 	readonly windowId: number;
 
 	readonly groups: IEditorGroupView[];

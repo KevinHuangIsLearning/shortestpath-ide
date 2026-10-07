@@ -8,12 +8,13 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorsOrder, EditorResourceAccessor, GroupIdentifier, SideBySideEditor } from '../../../../common/editor.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation, IQuickPick } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { match } from '../../../../../base/common/glob.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -90,6 +91,7 @@ class BrowserTabQuickPick extends Disposable {
 		@IQuickInputService quickInputService: IQuickInputService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
+		@IShortestPathModeService private readonly _modeService: IShortestPathModeService,
 	) {
 		super();
 
@@ -117,9 +119,14 @@ class BrowserTabQuickPick extends Disposable {
 			if (selected === this._openNewTabPick) {
 				logBrowserOpen(telemetryService, 'quickOpenWithoutUrl');
 				this._quickPick.hide();
-				await this._editorService.openEditor({
-					resource: BrowserViewUri.forId(generateUuid()),
-				}, await this._browserViewService.getPreferredGroup());
+				if (this._modeService.mode === 'browse') {
+					await this._modeService.openBrowser('', true);
+				} else {
+					await this._editorService.openEditor({ resource: BrowserViewUri.forId(generateUuid()) }, await this._browserViewService.getPreferredGroup());
+				}
+			} else if (this._modeService.ownsBrowserTab(selected.editor)) {
+				this._quickPick.hide();
+				await this._modeService.showBrowser(selected.editor);
 			} else {
 				await this._editorService.openEditor(selected.editor, await this._browserViewService.getPreferredGroup(selected.groupId));
 			}
@@ -234,7 +241,7 @@ class BrowserTabQuickPick extends Disposable {
 	}
 }
 
-class QuickOpenBrowserAction extends Action2 {
+export class QuickOpenBrowserAction extends Action2 {
 	constructor() {
 		super({
 			id: BrowserViewCommandId.QuickOpen,
@@ -261,6 +268,8 @@ class QuickOpenBrowserAction extends Action2 {
 interface IOpenBrowserOptions {
 	url?: string;
 	openToSide?: boolean;
+	/** Keep problem display in editor groups even when opened from browsing mode. */
+	openInEditor?: boolean;
 
 	/**
 	 * If set, the first existing tab with a URL matching this glob pattern will be reused / focused instead of opening a new tab.
@@ -270,7 +279,7 @@ interface IOpenBrowserOptions {
 	reuseUrlFilter?: string;
 }
 
-class OpenIntegratedBrowserAction extends Action2 {
+export class OpenIntegratedBrowserAction extends Action2 {
 	constructor() {
 		super({
 			id: BrowserViewCommandId.Open,
@@ -282,10 +291,65 @@ class OpenIntegratedBrowserAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
+		const modeService = accessor.get(IShortestPathModeService);
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
-		await accessor.get(IShortestPathModeService).openBrowser(options.url);
-	}
+		if (modeService.mode === 'browse' && !options.openToSide && !options.openInEditor) {
+			await modeService.openBrowser(options.url);
+			return;
+		}
+		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
+		const resource = BrowserViewUri.forId(generateUuid());
+		const group = await browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
+
+		if (options.reuseUrlFilter) {
+			const filterUri = URI.parse(options.reuseUrlFilter);
+			const matchingEditor = [...browserViewService.getContextualBrowserViews().values()].find((e) => {
+				if (!editorService.isOpened(e) || modeService.ownsBrowserTab(e)) { return false; }
+				const editorUri = URI.parse(e.url || '');
+				// URIs default to putting "file" scheme. Check that the scheme is really in the filter.
+				if (filterUri.scheme && options.reuseUrlFilter!.startsWith(`${filterUri.scheme}:`) && filterUri.scheme !== editorUri.scheme) {
+					return false;
+				}
+				if (filterUri.authority && !match(filterUri.authority, editorUri.authority)) {
+					return false;
+				}
+				if (filterUri.path && !match(filterUri.path, editorUri.path)) {
+					return false;
+				}
+				if (filterUri.query) {
+					const filterParams = new URLSearchParams(filterUri.query);
+					const editorParams = new URLSearchParams(editorUri.query);
+					if (![...filterParams].every(([key, value]) => match(value, editorParams.get(key) ?? ''))) {
+						return false;
+					}
+				}
+
+				return true;
+			});
+			if (matchingEditor) {
+				if (options.url) {
+					matchingEditor.navigate(options.url);
+				}
+				// Reveal the existing browser tab where it already lives rather than
+				// relocating it into the docked group (which would move a tab out of a
+				// modal group when `workbench.editor.useModal: 'all'`).
+				await editorService.openEditor(matchingEditor);
+				return;
+			}
+		}
+
+		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
+
+		const editorPane = await editorService.openEditor({ resource, options: { viewState: { url: options.url } } }, group);
+
+		// Lock the group when opening to the side
+		if (options.openToSide && editorPane?.group) {
+			editorPane.group.lock(true);
+		}
+	}
 }
 
 class OpenFileInIntegratedBrowserAction extends Action2 {
@@ -366,6 +430,8 @@ class NewTabAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		const modeService = accessor.get(IShortestPathModeService);
+		if (modeService.mode === 'browse') { await modeService.openBrowser('', true); return; }
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
@@ -489,7 +555,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	group: 'navigation',
 	order: 1,
-	when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, IsSessionsWindowContext)
+	when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, ContextKeyExpr.or(IsSessionsWindowContext, ContextKeyExpr.has('shortestpath.browsing')))
 });
 
 registerAction2(QuickOpenBrowserAction);
@@ -723,6 +789,7 @@ class BrowserTabUrlSuggestions extends BrowserEditorContribution {
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IShortestPathModeService private readonly _modeService: IShortestPathModeService,
 	) {
 		super(editor);
 
@@ -839,14 +906,16 @@ class BrowserTabUrlSuggestions extends BrowserEditorContribution {
 	 */
 	private async _switchToTab(source: BrowserEditorInput, target: BrowserEditorInput): Promise<void> {
 		if (source === target) {
-			await this._editorService.openEditor(target);
+			if (this._modeService.ownsBrowserTab(target)) { await this._modeService.showBrowser(target); }
+			else { await this._editorService.openEditor(target); }
 			return;
 		}
 		const sourceGroup = this._editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(g => g.contains(source));
 		if (sourceGroup) {
 			await sourceGroup.closeEditor(source, { preserveFocus: true });
 		}
-		await this._editorService.openEditor(target);
+		if (this._modeService.ownsBrowserTab(target)) { await this._modeService.showBrowser(target); }
+		else { await this._editorService.openEditor(target); }
 	}
 }
 

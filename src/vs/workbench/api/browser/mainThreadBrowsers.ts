@@ -9,8 +9,9 @@ import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext, MainContext, MainThreadBrowsersShape } from '../common/extHost.protocol.js';
 import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../../contrib/browserView/common/browserView.js';
-import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { columnToEditorGroup, EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { GroupsOrder, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../platform/editor/common/editor.js';
 import { CDPRequest } from '../../../platform/browserView/common/cdp/types.js';
 import { BrowserEditorInput } from '../../contrib/browserView/common/browserEditorInput.js';
@@ -35,6 +36,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IShortestPathModeService private readonly modeService: IShortestPathModeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostBrowsers);
@@ -57,7 +59,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 
 	// #region Browser tab open
 
-	async $openBrowserTab(url: string, _viewColumn?: EditorGroupColumn, options?: IEditorOptions & { hidden?: boolean }): Promise<BrowserTabDto> {
+	async $openBrowserTab(url: string, viewColumn?: EditorGroupColumn, options?: IEditorOptions & { hidden?: boolean }): Promise<BrowserTabDto> {
 		if (options?.hidden) {
 			const input = await this.browserViewService.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global } });
 			this._ownedHiddenBrowsers.set(input.id, input);
@@ -72,7 +74,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 				throw error;
 			}
 		}
-		const input = await this.modeService.openBrowser(url, true, !!options?.preserveFocus || !!options?.inactive);
+		const input = await this.modeService.openBrowser(url, true, !!options?.preserveFocus || !!options?.inactive, { ...options, group: this.modeService.mode === 'solve' ? columnToEditorGroup(this.editorGroupsService, this.configurationService, viewColumn) : undefined });
 		this._track(input);
 		return this._toDto(input);
 	}
@@ -88,7 +90,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		if (this.modeService.mode === 'browse' && this.modeService.activeBrowser) {
 			this._track(this.modeService.activeBrowser);
 			activeId = this.modeService.activeBrowser.id;
-		} else if (active instanceof BrowserEditorInput) {
+		} else if (this.modeService.mode === 'solve' && active instanceof BrowserEditorInput) {
 			this._track(active);
 			activeId = active.id;
 		}

@@ -36,5 +36,5 @@ test('opens documentation in the external browser', () => {
 	const newTabEditor = fs.readFileSync(path.resolve(extensionRoot, '../../src/vs/workbench/contrib/shortestpath/browser/shortestPathNewTabEditor.ts'), 'utf8');
 	// The solving workspace's empty page now routes directly to the browser mode.
 	assert.match(newTabEditor, /executeCommand\('shortestpath.mode.browse'\)/);
-	assert.doesNotMatch(newTabEditor, /View Documentation/);
+	assert.match(newTabEditor, /localizeNewTab\('View Documentation', '查看文档'\)[^\n]+openerService\.open\(URI\.parse\('https:\/\/kevinhuang\.feishu\.cn\/wiki\/LLBBwJQQGil2NnkJXWxcAeaLndd'\), \{ openExternal: true \}\)/);
 });

@@ -40,7 +40,7 @@ import { BrowserOverlayManager, BrowserOverlayType } from '../overlayManager.js'
  * An alternative renderer (e.g. an in-DOM iframe) would replace this
  * contribution and need none of the above.
  */
-class WebContentsViewRendererFeature extends BrowserEditorContribution {
+export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	private _container: HTMLElement | undefined;
 	private _model: IBrowserViewModel | undefined;
@@ -119,6 +119,14 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	override onContainerCreated(container: HTMLElement): void {
 		this._container = container;
+		// DOM mode pages make the editor part inert, but native views live outside
+		// the DOM and must follow that visibility explicitly. Auxiliary windows
+		// observe their own ancestors and remain independent of the main mode.
+		const observer = new this.editor.window.MutationObserver(() => this._refresh());
+		this._register(toDisposable(() => observer.disconnect()));
+		for (let ancestor = container.parentElement; ancestor; ancestor = ancestor.parentElement) {
+			observer.observe(ancestor, { attributes: true, attributeFilter: ['inert'] });
+		}
 
 		this._register(addDisposableListener(container, EventType.FOCUS, () => this.tryFocus()));
 		this._register(addDisposableListener(container, EventType.BLUR, () => this._cancelFocusTimeout()));
@@ -208,6 +216,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	private _shouldShowPage(): boolean {
 		return this._editorVisible
+			&& !this._container?.closest('[inert]')
 			&& !this._overlayObscured
 			&& !!this._model?.url
 			&& !this._model?.error;

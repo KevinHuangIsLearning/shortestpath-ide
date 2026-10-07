@@ -290,7 +290,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		if (placement === 'sideGroup') {
 			const direction = preferredSideBySideGroupDirection(this.configurationService);
-			const group = this.editorGroupsService.addGroup(this.editorGroupsService.activeGroup, direction);
+			const group = this.editorGroupsService.addGroup(this.editorGroupsService.mainPart.activeGroup, direction);
 			// Lock the group so that other (non-browser) editors are not opened
 			// into it. Browser tabs still open here because we target it directly.
 			group.lock(true);
@@ -325,8 +325,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			if (group.editors.length > 0 && !group.editors.some(editor => editor instanceof BrowserEditorInput)) {
 				continue;
 			}
-			const inMainPart = this.editorGroupsService.getPart(group) === mainPart;
-			const matchesPlacement = placement === 'sideGroup' ? inMainPart : !inMainPart;
+			const part = this.editorGroupsService.getPart(group);
+			const matchesPlacement = placement === 'sideGroup' ? part === mainPart : part.windowId !== mainPart.windowId;
 			if (matchesPlacement) {
 				return group;
 			}

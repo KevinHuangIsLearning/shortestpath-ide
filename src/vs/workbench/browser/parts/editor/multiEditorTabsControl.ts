@@ -316,7 +316,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private openNewTabPage(): void {
 		// A group can be removed while handling its final tab close. Ignore this
 		// delayed callback instead of trying to reactivate a stale group.
-		if (!isCurrentEditorGroup(this.groupsView, this.groupView)) {
+		if (this.groupsView.excludeFromDefaultRouting || !isCurrentEditorGroup(this.groupsView, this.groupView)) {
 			return;
 		}
 

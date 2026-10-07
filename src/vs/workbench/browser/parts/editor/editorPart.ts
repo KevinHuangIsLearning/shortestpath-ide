@@ -1422,6 +1422,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
+	protected get useMainWindowFloatingLayout(): boolean { return true; }
+
 	override layout(width: number, height: number, top: number, left: number): void {
 		this.top = top;
 		this.left = left;
@@ -1429,7 +1431,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// When the floating panels experiment is enabled, reserve a margin around the
 		// main editor so it floats like the side bar and panel cards. Scope to the main
 		// window (auxiliary editor windows do not apply the matching CSS).
-		if (this.windowId === mainWindow.vscodeWindowId && this.layoutService.isFloatingPanelsEnabled()) {
+		if (this.useMainWindowFloatingLayout && this.windowId === mainWindow.vscodeWindowId && this.layoutService.isFloatingPanelsEnabled()) {
 
 			// When the editor becomes the outermost card on a side (no floating part
 			// sits between it and the window edge) it adopts the same doubled gutter the

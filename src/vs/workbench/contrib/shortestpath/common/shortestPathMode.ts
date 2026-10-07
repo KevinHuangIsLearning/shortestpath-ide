@@ -5,6 +5,8 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import type { BrowserEditorInput } from '../../browserView/common/browserEditorInput.js';
 
 export type ShortestPathPageMode = 'snippets' | 'draw' | 'settings';
@@ -34,7 +36,9 @@ export interface IShortestPathModeService {
 	readonly activeBrowser: BrowserEditorInput | undefined;
 	readonly onDidChangeActiveBrowser: Event<void>;
 	switchMode(mode: ShortestPathMode): Promise<void>;
-	openBrowser(url?: string, newTab?: boolean, preserveFocus?: boolean): Promise<BrowserEditorInput>;
+	openBrowser(url?: string, newTab?: boolean, preserveFocus?: boolean, options?: IEditorOptions & { group?: PreferredGroup }): Promise<BrowserEditorInput>;
+	/** Whether a tab belongs to the standalone browsing surface. */
+	ownsBrowserTab(input: BrowserEditorInput): boolean;
 	showBrowser(input: BrowserEditorInput, preserveFocus?: boolean): Promise<void>;
 	notifyResult(): void;
 }

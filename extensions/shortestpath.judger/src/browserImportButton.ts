@@ -12,10 +12,9 @@ import type { BrowserImportResult } from './browserImport';
 
 const worldName = 'shortestpath-import-button';
 const bindingName = '__shortestpathImportProblem';
-const elementId = 'shortestpath-import-button';
 
 /** A shadow root protects IDE controls from the page's styles; only the top frame gets a button. */
-export function browserImportButtonScript(label: string, title: string, runtime = '', initiallyCollapsed = false): string {
+export function browserImportButtonScript(label: string, title: string, runtime = '', initiallyCollapsed = true): string {
 	const labels = {
 		add: label, choose: title,
 		search: localize('judger.browserImport.search', 'Search parsers by name or domain'),
@@ -29,63 +28,9 @@ export function browserImportButtonScript(label: string, title: string, runtime 
 		drag: localize('judger.browserImport.drag', 'Drag to move; use arrow keys to adjust'),
 		close: localize('judger.browserImport.closePicker', 'Close parser picker'),
 	};
-	const nativeScript = `(() => {
-		if (window !== window.top || !/^https?:$/.test(location.protocol)) return;
-		if (window.__shortestpathImportButtonCleanup) return;
-		${shortestPathBrowserHelpers()}
-		const shortestPath = isShortestPathBrowserUrl(location.href);
-		if (!shortestPath) return;
-		let busy = false, observer;
-		const mount = () => {
-			const nativeButton = shortestPath ? findShortestPathStartButton() : undefined;
-			let host = document.getElementById(${JSON.stringify(elementId)});
-			if (shortestPath && (!isShortestPathProblemPage(location.href) || !nativeButton)) {
-				host?.remove(); return;
-			}
-			if (host) { update(nativeButton); return; }
-			host = document.createElement('div'); host.id = ${JSON.stringify(elementId)};
-			host.style.cssText = 'all:initial!important;position:fixed!important;right:24px!important;bottom:24px!important;z-index:2147483647!important;display:block!important';
-			const root = host.attachShadow({mode:'closed'});
-			const button = document.createElement('button'); button.type = 'button';
-			button.textContent = ${JSON.stringify(label)};
-			button.style.cssText = 'all:initial;display:block;box-sizing:border-box;padding:12px 18px;border:1px solid #ffffff40;border-radius:24px;background:#237b4b;color:white;box-shadow:0 4px 18px #0004;font:600 14px/20px system-ui;cursor:pointer';
-			button.addEventListener('click', event => { if (event.isTrusted && !button.disabled) window[${JSON.stringify(bindingName)}]('import'); });
-			update = native => {
-				const disabled = busy || !!native?.disabled;
-				const tooltip = native ? native.title || native.getAttribute('aria-label') : ${JSON.stringify(title)};
-				if (button.title !== tooltip) button.title = tooltip;
-				if (button.getAttribute('aria-label') !== tooltip) button.setAttribute('aria-label', tooltip);
-				if (button.disabled !== disabled) button.disabled = disabled;
-				const opacity = disabled ? '.6' : '1', cursor = disabled ? 'wait' : 'pointer';
-				if (button.style.opacity !== opacity) button.style.opacity = opacity;
-				if (button.style.cursor !== cursor) button.style.cursor = cursor;
-			};
-			root.append(button); document.documentElement.append(host);
-			update(nativeButton);
-		};
-		let update = () => {};
-		window.__shortestpathImportButtonRefresh = mount;
-		window.__shortestpathImportButtonBusy = value => { busy = value; mount(); };
-		const start = () => {
-			if (shortestPath) {
-				observer = new MutationObserver(mount);
-				observer.observe(document.documentElement, {subtree:true, childList:true, attributes:true, attributeFilter:['aria-label','disabled','title']});
-				window.addEventListener('popstate', mount); window.addEventListener('hashchange', mount);
-			}
-			mount();
-		};
-		window.__shortestpathImportButtonCleanup = () => {
-			observer?.disconnect();
-			window.removeEventListener('popstate', mount); window.removeEventListener('hashchange', mount);
-			document.removeEventListener('DOMContentLoaded', start);
-			document.getElementById(${JSON.stringify(elementId)})?.remove();
-			delete window.__shortestpathImportButtonBusy; delete window.__shortestpathImportButtonRefresh; delete window.__shortestpathImportButtonCleanup;
-		};
-		if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once:true}); else start();
-	})()`;
 	return `(() => {
 		${shortestPathBrowserHelpers()}
-		if (isShortestPathBrowserUrl(location.href)) { ${nativeScript}; return; }
+		if (isShortestPathBrowserUrl(location.href)) return;
 		if (window !== window.top || !/^https?:$/.test(location.protocol) || window.__shortestpathImportButtonCleanup) return;
 		${runtime};
 		(${mountImportControl.toString()})(${JSON.stringify(labels)}, ${JSON.stringify(initiallyCollapsed)} || window.__shortestpathImportButtonInitiallyCollapsed === true);
@@ -96,7 +41,7 @@ type Message = { id?: number; sessionId?: string; method?: string; params?: any;
 
 type ImportButtonHandle = vscode.Disposable & { collapse(): Promise<void> };
 
-export async function attachBrowserImportButton(tab: vscode.BrowserTab, importCurrent: (parserId: string, expectedUrl: string) => Promise<BrowserImportResult>, runtime = '', initiallyCollapsed = false): Promise<ImportButtonHandle> {
+export async function attachBrowserImportButton(tab: vscode.BrowserTab, importCurrent: (parserId: string, expectedUrl: string) => Promise<BrowserImportResult>, runtime = '', initiallyCollapsed = true): Promise<ImportButtonHandle> {
 	const session = await tab.startCDPSession();
 	let disposed = false, nextId = 0, sid: string | undefined, identifier: string | undefined, mainFrame: string | undefined;
 	const contexts = new Set<number>();
@@ -193,20 +138,16 @@ export async function attachBrowserImportButton(tab: vscode.BrowserTab, importCu
 export function registerBrowserImportButtons(context: vscode.ExtensionContext): void {
 	const attached = new Map<string, Promise<ImportButtonHandle>>();
 	let disposed = false;
-	let importsInProgress = 0;
 	const attach = (tab: vscode.BrowserTab) => {
 		if (disposed || attached.has(tab.id)) { return; }
-		const initiallyCollapsed = importsInProgress > 0;
+		const initiallyCollapsed = true;
 		const task = fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.runtime.txt'), 'utf8').then(runtime => attachBrowserImportButton(tab, async (parserId, expectedUrl) => {
 			const before = new Map((vscode.window.browserTabs ?? []).map(browser => [browser.id, browser.url]));
-			importsInProgress++;
-			try {
-				const result = await vscode.commands.executeCommand<BrowserImportResult>('judger.importBrowserProblem', tab.id, parserId, expectedUrl);
-				if (result.count > 0) {
-					await Promise.all((vscode.window.browserTabs ?? []).filter(browser => browser.id === tab.id || before.get(browser.id) !== browser.url).map(browser => attached.get(browser.id)?.then(handle => handle.collapse().catch(error => globalThis.logger?.warn('Browser button collapse', String(error))), () => {})));
-				}
-				return result;
-			} finally { importsInProgress--; }
+			const result = await vscode.commands.executeCommand<BrowserImportResult>('judger.importBrowserProblem', tab.id, parserId, expectedUrl);
+			if (result.count > 0) {
+				await Promise.all((vscode.window.browserTabs ?? []).filter(browser => browser.id === tab.id || before.get(browser.id) !== browser.url).map(browser => attached.get(browser.id)?.then(handle => handle.collapse().catch(error => globalThis.logger?.warn('Browser button collapse', String(error))), () => {})));
+			}
+			return result;
 		}, runtime, initiallyCollapsed));
 		attached.set(tab.id, task);
 		void task.catch(error => { if (attached.get(tab.id) === task) { attached.delete(tab.id); } globalThis.logger?.warn('Browser button unavailable', String(error)); });

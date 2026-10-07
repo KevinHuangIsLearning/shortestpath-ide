@@ -3,6 +3,12 @@
  * Licensed under GPL-3.0-or-later. See LICENSE for license information.
  *--------------------------------------------------------------------------------------------*/
 export const nativeChinese: Record<string, string> = {
+	'judger.browserImport.invalidFileName': '请输入有效的文件名，不要包含目录。',
+	'judger.browserImport.fileExtension': '所选语言需要使用 .{0} 扩展名。',
+	'judger.browserImport.fileNameTitle': '导入题目',
+	'judger.browserImport.fileNamePrompt': '尚未配置文件名模板，请为 {0} 输入文件名。',
+	'judger.browserImport.fileExists': '同名文件已存在，请使用其他文件名。',
+
 	'judger.browserImport.collapse': '收起导入控件',
 	'judger.browserImport.expand': '展开导入控件',
 	'judger.browserImport.drag': '拖动以移动；也可使用方向键调整位置',
@@ -15,15 +21,15 @@ export const nativeChinese: Record<string, string> = {
 	'judger.browserImport.cancelled': '已取消导入。',
 	'judger.browserImport.matched': '自动匹配',
 	'judger.browserImport.closePicker': '关闭 Parser 选择面板',
-    'judger.browserImport.closed': '浏览器已关闭。',
-    'judger.browserImport.timeout': '题目解析超时。',
-    'judger.browserImport.noPage': '未找到浏览器页面。',
-    'judger.browserImport.empty': 'Competitive Companion 未返回题目。',
-    'judger.browserImport.open': '请先在内置浏览器打开题目。',
-    'judger.browserImport.button': '+ 添加题目',
+	'judger.browserImport.closed': '浏览器已关闭。',
+	'judger.browserImport.timeout': '题目解析超时。',
+	'judger.browserImport.noPage': '未找到浏览器页面。',
+	'judger.browserImport.empty': 'Competitive Companion 未返回题目。',
+	'judger.browserImport.open': '请先在内置浏览器打开题目。',
+	'judger.browserImport.button': '+ 添加题目',
 	'judger.browserImport.buttonTitle': '通过 Competitive Companion 导入当前页面',
 	'judger.browserImport.progress': '正在通过 Competitive Companion 导入…',
-    'judger.browserImport.error': '无法导入此页面：{0}',
+	'judger.browserImport.error': '无法导入此页面：{0}',
 	'judger.browserImport.startUnavailable': '请打开 ShortestPath OJ 题目详情页，并等待“开始做题”按钮出现。',
 
 	'judger.migration.progress': '正在迁移配置',

@@ -23,6 +23,7 @@ class SessionsShortestPathModeService implements IShortestPathModeService {
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 	) { }
 
+	ownsBrowserTab(): boolean { return false; }
 	async switchMode(): Promise<void> { }
 	notifyResult(): void { }
 

@@ -1,0 +1,86 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.shortestpath-browser-new-tab {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: auto;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+}
+
+.shortestpath-browser-new-tab-content {
+	width: min(100%, 560px);
+	padding: 32px;
+	box-sizing: border-box;
+}
+
+.shortestpath-browser-new-tab-brand {
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 12px;
+}
+
+.shortestpath-browser-new-tab h1 {
+	font-size: 28px;
+	font-weight: 500;
+	margin: 0 0 12px;
+}
+
+.shortestpath-browser-new-tab-description {
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.6;
+	margin: 0 0 24px;
+}
+
+.shortestpath-browser-new-tab button {
+	font: inherit;
+	cursor: pointer;
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+}
+
+.shortestpath-browser-new-tab-shortcut {
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	width: 100%;
+	min-height: 128px;
+	padding: 24px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editorWidget-background);
+	text-align: left;
+}
+
+.shortestpath-browser-new-tab-shortcut:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.shortestpath-browser-new-tab-shortcut > .codicon {
+	font-size: 36px;
+}
+
+.shortestpath-browser-new-tab-shortcut-label {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.shortestpath-browser-new-tab-shortcut-title {
+	font-size: 22px;
+	font-weight: 600;
+}
+
+.shortestpath-browser-new-tab-shortcut-description {
+	color: var(--vscode-descriptionForeground);
+}
+
+.shortestpath-browser-new-tab :focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}

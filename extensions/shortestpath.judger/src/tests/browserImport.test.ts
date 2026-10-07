@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 jest.mock('vscode', () => ({
 	commands: { registerCommand: jest.fn() },
-	window: { showInformationMessage: jest.fn(), showErrorMessage: jest.fn(), withProgress: jest.fn((_options, task) => task()) },
+	window: { showQuickPick: jest.fn(), showInformationMessage: jest.fn(), showErrorMessage: jest.fn(), withProgress: jest.fn((_options, task) => task()) },
 	workspace: { workspaceFolders: [] },
 	ProgressLocation: { Notification: 15 },
 }), { virtual: true });
@@ -70,7 +70,7 @@ async function runImportCommand(testBrowser: ReturnType<typeof browser>, importP
 	jest.replaceProperty(vscode.workspace, 'workspaceFolders', folderOpen ? [{ uri: { fsPath: '/workspace' } as vscode.Uri, name: 'workspace', index: 0 }] : []);
 	registerBrowserImport({ subscriptions: [], extensionPath: '/extension' } as unknown as vscode.ExtensionContext, importProblem);
 	const command = jest.mocked(vscode.commands.registerCommand).mock.calls.slice(-1)[0][1];
-	return await command();
+	return await command(undefined, 'ExampleParser');
 }
 
 beforeEach(() => {
@@ -154,8 +154,37 @@ test('cancellation and navigation release the per-tab import lock', async () => 
 	jest.spyOn(fs.promises, 'readFile').mockResolvedValue('Promise.resolve([])');
 	const importer = jest.fn().mockResolvedValue({ created: false });
 	const command = register(importer);
-	expect(await command(f.tab.id, undefined, 'https://example.com/B')).toEqual({ count: 0, error: 'Could not import this page: {0}' });
+	expect(await command(f.tab.id, 'ExampleParser', 'https://example.com/B')).toEqual({ count: 0, error: 'Could not import this page: {0}' });
 	expect(importer).not.toHaveBeenCalled();
+	expect(await command(f.tab.id, 'ExampleParser')).toEqual({ count: 0, cancelled: true });
+	expect(await command(f.tab.id, 'ExampleParser')).toEqual({ count: 0, cancelled: true });
+});
+
+
+test.each([true, false])('native import %s matched parser chooses automatic or manual parsing', async matched => {
+	const choices = [{ id: 'ExampleParser', name: 'Example', patterns: ['https://example.com/*'], matched }];
+	const tasks = [{ name: 'A', url: 'https://example.com/A', tests: [] }];
+	const f = browser(undefined, false, false, async expression => expression.includes('ShortestPathCompanionInspect()') ? choices : tasks);
+	Object.assign(vscode.window, { activeBrowserTab: f.tab, browserTabs: [f.tab] });
+	Object.assign(vscode.workspace, { workspaceFolders: [{}] });
+	jest.spyOn(fs.promises, 'readFile').mockResolvedValue('runtime');
+	(vscode.window.showQuickPick as jest.Mock).mockClear().mockResolvedValue({ parserId: 'ExampleParser' });
+	const importer = jest.fn().mockResolvedValue({ created: true });
+	expect(await register(importer)()).toEqual({ count: 1 });
+	expect(vscode.window.showQuickPick).toHaveBeenCalledTimes(matched ? 0 : 1);
+	expect(f.sent.find(message => message.method === 'Runtime.evaluate' && String(message.params.expression).includes('__shortestpathParserId'))?.params.expression).toContain('__shortestpathParserId = "ExampleParser"');
+	expect(importer).toHaveBeenCalledWith(tasks[0]);
+});
+
+test('manual parser picker cancellation releases the import lock without importing', async () => {
+	const f = browser([{ id: 'ExampleParser', name: 'Example', patterns: [], matched: false }]);
+	Object.assign(vscode.window, { activeBrowserTab: f.tab, browserTabs: [f.tab] });
+	Object.assign(vscode.workspace, { workspaceFolders: [{}] });
+	jest.spyOn(fs.promises, 'readFile').mockResolvedValue('runtime');
+	(vscode.window.showQuickPick as jest.Mock).mockResolvedValue(undefined);
+	const importer = jest.fn();
+	const command = register(importer);
 	expect(await command()).toEqual({ count: 0, cancelled: true });
 	expect(await command()).toEqual({ count: 0, cancelled: true });
+	expect(importer).not.toHaveBeenCalled();
 });

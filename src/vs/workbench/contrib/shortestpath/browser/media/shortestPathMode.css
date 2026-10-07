@@ -40,8 +40,8 @@
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.sidebar,
-.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part),
-.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content {
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part):not(.embedded-editor-part),
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part):not(.embedded-editor-part) > .content {
 	border-radius: 0 !important;
 }
 
@@ -83,12 +83,12 @@
 
 /* Use the same Chrome-style strip as browsing while keeping native tab behavior. */
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs {
-	--editor-group-tab-height: 40px !important;
+	--editor-group-tab-height: 34px !important;
 	background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-tab-inactiveBackground)) !important;
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs.compact-height {
-	--editor-group-tab-height: 32px !important;
+	--editor-group-tab-height: 30px !important;
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
@@ -111,7 +111,7 @@
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab {
 	margin: 0;
 	min-height: var(--editor-group-tab-height) !important;
-	border-block: var(--vscode-spacing-size60, 6px) solid transparent !important;
+	border-block: var(--vscode-spacing-size40, 4px) solid transparent !important;
 	border-bottom-width: 0 !important;
 	border-right: 0 !important;
 	border-radius: var(--vscode-cornerRadius-xLarge, 12px) var(--vscode-cornerRadius-xLarge, 12px) 0 0;
@@ -171,7 +171,7 @@
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-label {
 	position: relative;
 	z-index: 1;
-	line-height: calc(var(--editor-group-tab-height) - var(--vscode-spacing-size60, 6px));
+	line-height: calc(var(--editor-group-tab-height) - var(--vscode-spacing-size40, 4px));
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab > :is(.tab-border-top-container, .tab-border-bottom-container, .tab-fade-hider) {
@@ -394,8 +394,7 @@
 }
 
 .shortestpath-mode-switch button:hover,
-.shortestpath-navigation-actions button:hover,
-.shortestpath-browser-space button:hover {
+.shortestpath-navigation-actions button:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -461,9 +460,12 @@
 	color: var(--vscode-foreground);
 }
 
-.monaco-workbench.shortestpath-browsing .part:not(.titlebar):not(.banner),
-.monaco-workbench.shortestpath-browsing .webview {
+.monaco-workbench.shortestpath-browsing .part:not(.titlebar):not(.banner):not(.embedded-editor-part):not(.modal-editor-part) {
 	visibility: hidden;
+}
+
+.monaco-workbench.shortestpath-browsing .webview-overlay-content:not(.webview-overlay-modal) {
+	visibility: hidden !important;
 }
 
 .shortestpath-browser-space {
@@ -481,209 +483,13 @@
 	color: var(--vscode-foreground);
 }
 
-.shortestpath-browser-navigation {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60, 6px);
-	padding: var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size120, 12px);
-	background: var(--vscode-editor-background);
-	border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder);
-}
-
-.shortestpath-browser-tabs {
-	--editor-group-tab-height: 34px;
-	display: flex;
-	align-items: flex-start;
-	flex-shrink: 0;
-	padding: var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size80, 8px) 0;
-	background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-tab-inactiveBackground));
-}
-
-.shortestpath-browser-tab-list {
-	display: flex;
-	flex: 0 1 auto;
-	min-width: 0;
-	padding: 0 var(--vscode-cornerRadius-xLarge, 12px);
-	overflow-x: auto;
-	scrollbar-width: none;
-}
-
-.shortestpath-browser-tab-list::-webkit-scrollbar {
-	display: none;
-}
-
-.shortestpath-browser-tabs.compact-height {
-	--editor-group-tab-height: 26px;
-}
-
-.shortestpath-browser-space button {
-	border: 0;
-	border-radius: var(--vscode-cornerRadius-small, 4px);
-	background: transparent;
-	color: inherit;
-	font: inherit;
-	cursor: pointer;
-	padding: 6px;
-}
-
-.shortestpath-browser-space button:disabled {
-	opacity: .4;
-	cursor: default;
-}
-
-.shortestpath-browser-space button:focus-visible,
-.shortestpath-mode-switch button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.shortestpath-browser-tab {
-	position: relative;
-	display: flex;
-	align-items: center;
-	/* Keep short titles compact; overflow the strip instead of squeezing page names. */
-	flex: 0 0 auto;
-	box-sizing: border-box;
-	height: var(--editor-group-tab-height);
-	min-width: 96px;
-	max-width: 280px;
-	border-radius: var(--vscode-cornerRadius-xLarge, 12px) var(--vscode-cornerRadius-xLarge, 12px) 0 0;
-	color: var(--vscode-tab-inactiveForeground);
-}
-
-.shortestpath-browser-tab.active {
-	z-index: 1;
-	color: var(--vscode-tab-activeForeground);
-}
-
-.shortestpath-browser-tab:hover {
-	color: var(--vscode-tab-hoverForeground, var(--vscode-tab-inactiveForeground));
-}
-
-.shortestpath-browser-tab.active:hover {
-	color: var(--vscode-tab-activeForeground);
-}
-
-.shortestpath-browser-tab-fill {
-	position: absolute;
-	inset: 0;
-	border-radius: inherit;
-	pointer-events: none;
-}
-
-.shortestpath-browser-tab:not(.active):hover > .shortestpath-browser-tab-fill {
-	inset: 0 var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px);
-	border-radius: var(--vscode-cornerRadius-xLarge, 12px);
-	background: var(--vscode-tab-hoverBackground, var(--vscode-toolbar-hoverBackground));
-}
-
-.shortestpath-browser-tab.active > .shortestpath-browser-tab-fill {
-	background: var(--vscode-editor-background);
-}
-
-.shortestpath-browser-tab.active > .shortestpath-browser-tab-fill::before,
-.shortestpath-browser-tab.active > .shortestpath-browser-tab-fill::after {
-	content: '';
-	position: absolute;
-	bottom: 0;
-	width: var(--vscode-cornerRadius-xLarge, 12px);
-	height: var(--vscode-cornerRadius-xLarge, 12px);
-}
-
-.shortestpath-browser-tab.active > .shortestpath-browser-tab-fill::before {
-	left: calc(-1 * var(--vscode-cornerRadius-xLarge, 12px));
-	background: radial-gradient(circle at 0 0, transparent var(--vscode-cornerRadius-xLarge, 12px), var(--vscode-editor-background) var(--vscode-cornerRadius-xLarge, 12px));
-}
-
-.shortestpath-browser-tab.active > .shortestpath-browser-tab-fill::after {
-	right: calc(-1 * var(--vscode-cornerRadius-xLarge, 12px));
-	background: radial-gradient(circle at 100% 0, transparent var(--vscode-cornerRadius-xLarge, 12px), var(--vscode-editor-background) var(--vscode-cornerRadius-xLarge, 12px));
-}
-
-.shortestpath-browser-tab > button.shortestpath-browser-tab-label {
-	position: relative;
-	flex: 1 1 auto;
-	min-width: 0;
+.shortestpath-browser-space > .content {
+	width: 100%;
 	height: 100%;
-	border-radius: 0;
-	background: transparent;
-	padding: 0 var(--vscode-spacing-size120, 12px);
+}
+
+/* This independent surface keeps its full perimeter even in compact workspace layouts. */
+.monaco-workbench.shortestpath-dual-mode .shortestpath-browser-space.embedded-editor-part > .content {
+	border-radius: inherit !important;
 	overflow: hidden;
-	text-align: left;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
-
-.shortestpath-browser-tab > button.shortestpath-browser-tab-close {
-	position: relative;
-	z-index: 1;
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 24px;
-	height: 24px;
-	margin-right: var(--vscode-spacing-size60, 6px);
-	border-radius: 50%;
-	padding: var(--vscode-spacing-size40, 4px);
-}
-
-.shortestpath-browser-tabs > button.shortestpath-browser-tab-add {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 28px;
-	height: 28px;
-	margin: calc((var(--editor-group-tab-height) - 28px) / 2) 0 0;
-	border-radius: 50%;
-	color: var(--vscode-tab-inactiveForeground);
-	padding: var(--vscode-spacing-size60, 6px);
-}
-
-button.shortestpath-browser-tab-close:hover,
-button.shortestpath-browser-tab-add:hover {
-	background: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-tab-activeForeground);
-}
-
-.shortestpath-browser-tab-add > .codicon {
-	font-size: 20px;
-}
-
-:is(.hc-black, .hc-light) .shortestpath-browser-tab.active > .shortestpath-browser-tab-fill {
-	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-contrastActiveBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
-}
-
-.shortestpath-browser-address {
-	flex: 1;
-	min-width: 60px;
-	padding: var(--vscode-spacing-size80, 8px) var(--vscode-spacing-size120, 12px);
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: var(--vscode-cornerRadius-medium, 6px);
-	background: var(--vscode-input-background);
-	color: var(--vscode-input-foreground);
-	font: inherit;
-}
-
-.shortestpath-browser-address:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-}
-
-.shortestpath-browser-message {
-	padding: 0 16px;
-	line-height: 32px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.shortestpath-browser-message:empty {
-	display: none;
-}
-
-.shortestpath-browser-page {
-	flex: 1;
-	min-height: 0;
-	background-size: 100% 100%;
-	background-repeat: no-repeat;
 }

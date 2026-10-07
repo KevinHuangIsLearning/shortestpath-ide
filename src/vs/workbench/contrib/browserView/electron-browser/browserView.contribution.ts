@@ -26,6 +26,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import './features/webContentsViewRendererFeature.js';
 import './features/browserNavigationFeatures.js';
 import './features/browserWelcomeFeature.js';
+import './features/browserProblemImportFeature.js';
 import './features/browserFavoritesFeature.js';
 import './features/browserHistoryFeature.js';
 import './features/browserPermissionsFeature.js';

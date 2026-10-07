@@ -6,8 +6,7 @@
 import '../browser/media/shortestPathMode.css';
 import '../browser/problemEditorActions.js';
 import { $, addDisposableListener, append } from '../../../../base/browser/dom.js';
-import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -15,7 +14,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getNLSLanguage, localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { BrowserViewStorageScope, IBrowserViewService, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewService, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -23,26 +22,25 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
+import { GroupsOrder, IEditorGroup, IEmbeddedEditorPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { EditorsOrder } from '../../../common/editor.js';
 import { BrowserEditorInput } from '../../browserView/common/browserEditorInput.js';
-import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
-import { BrowserOverlayManager } from '../../browserView/electron-browser/overlayManager.js';
+import { IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
 import { getShortestPathPageMode, IShortestPathModeService, isRestorableBrowserUrl, isShortestPathPageMode, parseBrowserState, shortestPathHome, shortestPathPageCommands, ShortestPathMode, ShortestPathPageMode } from '../common/shortestPathMode.js';
 import { createNavigationHoverDelegate } from '../browser/shortestPathNavigationHover.js';
-import { ShortestPathBrowserOverlay } from '../browser/shortestPathBrowserOverlay.js';
 import { shouldRevealSolveEditor } from '../browser/shortestPathEditorMode.js';
 
 const browsingContext = new RawContextKey<boolean>('shortestpath.browsing', false);
@@ -60,8 +58,8 @@ registerColor('shortestpath.drawModeBackground', 'toolbar.hoverBackground', getN
 registerColor('shortestpath.settingsModeBackground', 'toolbar.hoverBackground', localize('sp.settingsBackground', "设置选中和聚焦时的背景色。"));
 registerColor('shortestpath.activeModeForeground', 'titleBar.activeForeground', localize('sp.modeForeground', "工作模式选中和聚焦时的文字颜色。"));
 
-/** Keeps website views alive beside, rather than inside, the code editor groups. */
-class ShortestPathModeService extends Disposable implements IShortestPathModeService {
+/** Hosts browsing in native editor groups independent from the solving workspace. */
+export class ShortestPathModeService extends Disposable implements IShortestPathModeService {
 	declare readonly _serviceBrand: undefined;
 	mode: ShortestPathMode = 'solve';
 	activeBrowser: BrowserEditorInput | undefined;
@@ -69,22 +67,15 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 	readonly onDidChangeActiveBrowser = this.changeActive.event;
 	private readonly tabs = new Map<string, BrowserEditorInput>();
 	private readonly tabStores = this._register(new DisposableMap<string, DisposableStore>());
-	private readonly tabUi = this._register(new DisposableStore());
+	private readonly browserGroupStores = this._register(new DisposableMap<number, DisposableStore>());
+	private readonly openingTabs = new Set<string>();
+	protected browserPart: IEmbeddedEditorPart | undefined;
+	private emptyTabPromise: Promise<void> | undefined;
 	private readonly pages = new Map<ShortestPathPageMode, WebviewInput>();
 	private readonly pageStores = this._register(new DisposableMap<ShortestPathPageMode, DisposableStore>());
 	private readonly pendingPages = new Map<ShortestPathPageMode, Promise<void>>();
-	private readonly overlay = this._register(new BrowserOverlayManager(mainWindow));
 	private readonly ready: Promise<void>;
 	private surface!: HTMLElement;
-	private tabBar!: HTMLElement;
-	private tabList!: HTMLElement;
-	private pageArea!: HTMLElement;
-	private browserOverlay!: ShortestPathBrowserOverlay;
-	private message!: HTMLElement;
-	private address!: HTMLInputElement;
-	private back!: HTMLButtonElement;
-	private forward!: HTMLButtonElement;
-	private refreshButton!: HTMLButtonElement;
 	private browseButton!: HTMLButtonElement;
 	private solveButton!: HTMLButtonElement;
 	private snippetsButton!: HTMLButtonElement;
@@ -94,12 +85,10 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 	private resultBadge!: HTMLElement;
 	private switcher!: HTMLElement;
 	private navigationActions!: HTMLElement;
-	private renderGeneration = 0;
 	private stopped = false;
 	private returnFocus: HTMLElement | undefined;
 	private readonly browsing;
 	private readonly pageMode;
-	private readonly migrating = new Set<string>();
 	private readonly nativeBrowsers: IBrowserViewService;
 
 	constructor(
@@ -111,7 +100,6 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		@IStorageService private readonly storage: IStorageService,
 		@ILifecycleService lifecycle: ILifecycleService,
 		@IContextKeyService contextKeys: IContextKeyService,
-		@IKeybindingService private readonly keybindings: IKeybindingService,
 		@IHostService private readonly host: IHostService,
 		@IConfigurationService private readonly configuration: IConfigurationService,
 		@IHoverService private readonly hover: IHoverService,
@@ -136,22 +124,15 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		}));
 		this._register(this.browsers.registerOpenHandler({
 			shouldOpenEditor: (input, owner, options) => {
-				if (owner.type !== 'user' || options.auxiliaryWindow) { return true; }
+				if (this.mode === 'solve' || owner.type !== 'user' || options.auxiliaryWindow) { return true; }
 				void this.showBrowser(input, !!options.background || !!options.preserveFocus).catch(onUnexpectedError);
 				return false;
 			}
 		}));
 		this._register(this.storage.onWillSaveState(() => this.saveTabs()));
-		void this.ready.then(() => {
-			for (const group of this.editorGroups.mainPart.groups) {
-				for (const input of group.editors) {
-					if (input instanceof BrowserEditorInput) { void this.migrateEditor(input).catch(onUnexpectedError); }
-				}
-			}
-		}).catch(onUnexpectedError);
 	}
 
-	private async create(): Promise<void> {
+	protected async create(): Promise<void> {
 		const root = this.layoutService.mainContainer;
 		root.classList.add('shortestpath-dual-mode');
 		this.switcher = append(this.layoutService.mainWindowNavigationContainer!, $('.shortestpath-mode-switch', { role: 'group', 'aria-label': localize('sp.mode', "工作模式") }));
@@ -176,42 +157,16 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		this.pageSurface.hidden = true;
 		this.surface = append(root, $('section.shortestpath-browser-space', { 'aria-label': localize('sp.browser', "网页浏览") }));
 		this.surface.hidden = true;
-		this.tabBar = append(this.surface, $('.shortestpath-browser-tabs'));
-		this.tabList = append(this.tabBar, $('.shortestpath-browser-tab-list', { role: 'tablist', 'aria-label': localize('sp.tabs', "网页标签页") }));
-		const navigation = append(this.surface, $('.shortestpath-browser-navigation'));
-		this.back = this.button(navigation, localize('sp.back', "后退"), () => this.runModel(model => model.goBack()), 'arrow-left');
-		this.forward = this.button(navigation, localize('sp.forward', "前进"), () => this.runModel(model => model.goForward()), 'arrow-right');
-		this.refreshButton = this.button(navigation, localize('sp.reload', "刷新"), () => this.runModel(model => model.reload()), 'refresh');
-		this.address = append(navigation, $('input.shortestpath-browser-address', { type: 'text', 'aria-label': localize('sp.address', "网址"), spellcheck: 'false' })) as HTMLInputElement;
-		this._register(addDisposableListener(this.address, 'keydown', event => {
-			if (event.key === 'Enter') {
-				const value = this.address.value.trim();
-				if (value) { void this.navigate(value).catch(onUnexpectedError); }
-			}
-		}));
-		this.button(navigation, localize('sp.home', "打开 SPOJ"), () => this.openBrowser(shortestPathHome), 'mortar-board');
-		this.message = append(this.surface, $('.shortestpath-browser-message', { role: 'status' }));
-		this.pageArea = append(this.surface, $('.shortestpath-browser-page'));
-		this.browserOverlay = this._register(new ShortestPathBrowserOverlay(this.pageArea));
-		const updateTabHeight = () => {
-			this.tabBar.classList.toggle('compact-height', this.editorGroups.mainPart.partOptions.tabHeight === 'compact');
-			this.refresh();
-		};
-		updateTabHeight();
-		this._register(this.editorGroups.mainPart.onDidChangeEditorPartOptions(updateTabHeight));
+		this.surface.inert = true;
+		this.createBrowserPart(this.surface);
 		this._register(this.layoutService.onDidLayoutMainContainer(() => this.layout()));
 		this._register(this.layoutService.onDidChangePartVisibility(() => this.layout()));
 		this._register(onDidChangeZoomLevel(() => this.layout()));
-		this._register(this.overlay.onDidChangeOverlayState(() => this.refresh()));
 		this._register(addDisposableListener(mainWindow, 'focus', () => this.refresh()));
 		this._register(this.editors.onWillOpenEditor(event => {
-			if (this.mode !== 'solve' && shouldRevealSolveEditor(event)) {
+			if (this.mode !== 'solve' && this.editorGroups.mainPart.groups.some(group => group.id === event.groupId) && shouldRevealSolveEditor(event)) {
 				void this.switchMode('solve').catch(onUnexpectedError);
 			}
-		}));
-		this._register(this.editors.onDidActiveEditorChange(() => {
-			const input = this.editors.activeEditor;
-			if (input instanceof BrowserEditorInput) { void this.migrateEditor(input).catch(onUnexpectedError); }
 		}));
 		this.layout();
 		const state = parseBrowserState(this.storage.get(tabsKey, StorageScope.PROFILE));
@@ -219,15 +174,16 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		// keep page state and do not leave duplicate views running in the background.
 		const liveViews = await this.nativeBrowsers.getBrowserViews(mainWindow.vscodeWindowId);
 		for (const [index, url] of state.urls.entries()) {
-			const live = liveViews.find(view => view.owner.type === 'user' && view.id === state.ids?.[index] && !this.tabs.has(view.id))
-				?? liveViews.find(view => view.owner.type === 'user' && view.state.url === url && !this.tabs.has(view.id));
+			const live = liveViews.find(view => view.owner.type === 'user' && view.id === state.ids?.[index] && !this.tabs.has(view.id) && !this.editors.isOpened(this.browsers.getOrCreateLazy({ id: view.id })))
+				?? liveViews.find(view => view.owner.type === 'user' && view.state.url === url && !this.tabs.has(view.id) && !this.editors.isOpened(this.browsers.getOrCreateLazy({ id: view.id })));
 			const input = live ? this.browsers.getOrCreateLazy({ id: live.id, url }) : await this.browsers.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global } });
 			await input.resolve();
-			this.adopt(input);
+			await this.openInBrowserPart(input, true);
 			// Browser tabs restore independently of code editor groups.
 			if (!live) { input.navigate(url); }
 		}
 		this.activeBrowser = [...this.tabs.values()][state.active];
+		if (this.activeBrowser) { await this.openInBrowserPart(this.activeBrowser, true, false); }
 		this.renderTabs();
 		const initialMode = this.storage.get(modeKey, StorageScope.PROFILE);
 		const configured = this.configuration.getValue<boolean>('shortestpath.setup.completed');
@@ -236,7 +192,7 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 			void this.ready.then(() => this.switchMode(initialMode)).catch(onUnexpectedError);
 		} else if (configured && initialMode !== 'solve') {
 			this.applyMode('browse');
-			if (!this.activeBrowser) { void this.openBrowser().catch(onUnexpectedError); }
+			void this.ensureBrowserTab().catch(onUnexpectedError);
 		} else { this.applyMode('solve'); }
 	}
 
@@ -276,8 +232,8 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		if (mode === 'browse' && !this.configuration.getValue<boolean>('shortestpath.setup.completed')) { return; }
 		this.applyMode(mode);
 		if (mode === 'browse') {
-			if (!this.activeBrowser) { await this.openBrowser(); }
-			else { await this.activeBrowser.model?.focus(); }
+			if (!this.activeBrowser) { await this.ensureBrowserTab(); }
+			else { this.browserPart?.activeGroup.focus(); }
 		} else if (isShortestPathPageMode(mode)) {
 			try {
 				if (!this.pages.has(mode)) {
@@ -306,7 +262,7 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		}
 	}
 
-	private applyMode(mode: ShortestPathMode): void {
+	protected applyMode(mode: ShortestPathMode): void {
 		if (this.mode === 'solve' && mode !== 'solve') {
 			const active = mainWindow.document.activeElement;
 			this.returnFocus = active instanceof mainWindow.HTMLElement && !this.switcher.contains(active) && !this.navigationActions.contains(active) ? active : undefined;
@@ -317,6 +273,8 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		this.layoutService.mainContainer.classList.toggle('shortestpath-browsing', mode === 'browse');
 		this.layoutService.mainContainer.classList.toggle('shortestpath-page-mode', isShortestPathPageMode(mode));
 		this.surface.hidden = mode !== 'browse';
+		this.surface.inert = mode !== 'browse';
+		this.browserPart?.setVisible(mode === 'browse');
 		this.pageSurface.hidden = !isShortestPathPageMode(mode);
 		this.pageSurface.setAttribute('aria-label', mode === 'snippets' ? localize('sp.snippets', "代码片段") : mode === 'draw' ? drawLabel : localize('sp.settings', "设置"));
 		this.browseButton.setAttribute('aria-pressed', String(mode === 'browse'));
@@ -375,34 +333,38 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		input.webview.setAnchorElement(this.pageSurface);
 	}
 
-	async openBrowser(url = shortestPathHome, newTab = false, preserveFocus = false): Promise<BrowserEditorInput> {
+	async openBrowser(url = shortestPathHome, newTab = false, preserveFocus = false, options?: IEditorOptions & { group?: PreferredGroup }): Promise<BrowserEditorInput> {
 		await this.ready;
+		if (this.mode === 'solve') {
+			const existing = !newTab ? this.editors.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(({ editor }) => editor).find((editor): editor is BrowserEditorInput => editor instanceof BrowserEditorInput && !this.ownsBrowserTab(editor) && editor.url === url) : undefined;
+			const input = existing ?? await this.browsers.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global } });
+			if (!existing && url.trim()) { input.navigate(url); }
+			const { group: preferredGroup, ...editorOptions } = options ?? {};
+			const group = existing && preferredGroup === undefined ? undefined : await this.browsers.getPreferredGroup(preferredGroup);
+			await this.editors.openEditor(input, { pinned: true, ...editorOptions, preserveFocus }, group);
+			return input;
+		}
 		let input = !newTab ? [...this.tabs.values()].find(tab => tab.url === url) : undefined;
 		if (!input) {
 			input = await this.browsers.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global } });
-			this.adopt(input);
-			void input.model!.loadURL(url).catch(onUnexpectedError);
+			if (url.trim()) { input.navigate(url); }
 		}
 		await this.showBrowser(input, preserveFocus);
 		return input;
 	}
 
-	private async migrateEditor(input: BrowserEditorInput): Promise<void> {
-		if (this.migrating.has(input.id)) { return; }
-		const groups = this.editorGroups.mainPart.groups.filter(group => group.editors.includes(input));
-		if (!groups.length) { return; }
-		this.migrating.add(input.id);
-		try {
-			// Older profiles and generic editor links can still open a browser editor.
-			// Transfer its URL to the shared browser space before closing that editor.
-			await this.openBrowser(input.url ?? shortestPathHome, false, this.editors.activeEditor !== input);
-			for (const group of groups) { await group.closeEditor(input, { preserveFocus: true }); }
-		} finally { this.migrating.delete(input.id); }
+	ownsBrowserTab(input: BrowserEditorInput): boolean {
+		return this.tabs.get(input.id) === input;
 	}
 
 	async showBrowser(input: BrowserEditorInput, preserveFocus = false): Promise<void> {
 		await this.ready;
 		if (this.stopped || input.isDisposed()) { return; }
+		if (!this.tabs.has(input.id) && (this.mode === 'solve' || this.editors.isOpened(input))) {
+			const group = this.editors.isOpened(input) ? undefined : await this.browsers.getPreferredGroup();
+			await this.editors.openEditor(input, { preserveFocus, pinned: true }, group);
+			return;
+		}
 		this.adopt(input);
 		if (!this.configuration.getValue<boolean>('shortestpath.setup.completed')) { return; }
 		if (!preserveFocus) {
@@ -410,54 +372,90 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 			this.applyMode('browse');
 			await this.host.focus(mainWindow);
 		}
-		await input.resolve();
-		this.renderTabs();
+		await this.openInBrowserPart(input, preserveFocus);
 		this.changeActive.fire();
 		this.refresh();
-		if (!preserveFocus && this.mode === 'browse' && this.activeBrowser === input) { await input.model?.focus(); }
+		if (!preserveFocus && this.mode === 'browse' && this.activeBrowser === input) { this.browserPart?.activeGroup.focus(); }
+	}
+
+	protected createBrowserPart(container: HTMLElement): void {
+		const part = this.browserPart = this._register(this.editorGroups.createEmbeddedEditorPart(container));
+		this._register(part.enforcePartOptions({ showTabs: 'multiple', enablePreview: false, closeEmptyGroups: true }));
+		const track = (group: IEditorGroup) => {
+			group.lock(true);
+			const store = new DisposableStore();
+			this.browserGroupStores.set(group.id, store);
+			store.add(group.onDidModelChange(() => this.renderTabs()));
+			store.add(group.onDidCloseEditor(() => queueMicrotask(() => { if (!this.stopped) { this.renderTabs(); } })));
+		};
+		part.groups.forEach(track);
+		this._register(part.onDidAddGroup(track));
+		this._register(part.onDidRemoveGroup(group => { this.browserGroupStores.deleteAndDispose(group.id); this.renderTabs(); }));
+		this._register(part.onDidChangeActiveGroup(() => this.renderTabs()));
+		part.setVisible(false);
+	}
+
+	private async openInBrowserPart(input: BrowserEditorInput, preserveFocus: boolean, inactive = preserveFocus): Promise<void> {
+		const part = this.browserPart;
+		if (!part || input.isDisposed()) { return; }
+		this.openingTabs.add(input.id);
+		this.adopt(input);
+		const group = part.groups.find(group => group.contains(input)) ?? part.activeGroup;
+		try {
+			await this.editors.openEditor(input, { pinned: true, preserveFocus, inactive }, group);
+		} finally {
+			this.openingTabs.delete(input.id);
+			part.setVisible(this.mode === 'browse');
+			this.renderTabs();
+		}
 	}
 
 	private adopt(input: BrowserEditorInput): void {
-		if (this.tabs.has(input.id)) { return; }
+		if (input.isDisposed() || this.tabs.has(input.id)) { return; }
 		this.tabs.set(input.id, input);
 		const store = new DisposableStore();
 		this.tabStores.set(input.id, store);
-		store.add(input.onDidChangeLabel(() => { this.renderTabs(); this.refresh(); this.saveTabs(); }));
-		store.add(input.onDidResolveModel(model => this.trackModel(input, model, store)));
-		if (input.model) { this.trackModel(input, input.model, store); }
+		store.add(input.onDidChangeLabel(() => this.saveTabs()));
 		store.add(input.onWillDispose(() => {
 			this.tabs.delete(input.id);
 			this.tabStores.deleteAndDispose(input.id);
-			if (this.activeBrowser === input) { this.activeBrowser = [...this.tabs.values()].at(-1); }
-			if (!this.stopped) { this.renderTabs(); this.changeActive.fire(); this.refresh(); this.saveTabs(); }
+			queueMicrotask(() => { if (!this.stopped) { this.renderTabs(); } });
 		}));
 	}
 
-	private trackModel(input: BrowserEditorInput, model: IBrowserViewModel, store: DisposableStore): void {
-		store.add(model.onDidNavigate(() => this.refresh()));
-		store.add(model.onDidChangeLoadingState(() => this.refresh()));
-		store.add(model.onDidKeyCommand(event => {
-			if (this.mode === 'browse' && this.activeBrowser === input) {
-				this.keybindings.dispatchEvent(new StandardKeyboardEvent(new mainWindow.KeyboardEvent('keydown', event)), this.surface);
+	protected renderTabs(): void {
+		const part = this.browserPart;
+		if (!part || this.stopped) { return; }
+		const inputs = part.getGroups(GroupsOrder.GRID_APPEARANCE).flatMap(group => group.editors.filter((input): input is BrowserEditorInput => input instanceof BrowserEditorInput && !input.isDisposed()));
+		inputs.forEach(input => this.adopt(input));
+		for (const [id, input] of this.tabs) {
+			if (!this.openingTabs.has(id) && !inputs.includes(input)) {
+				this.tabs.delete(id);
+				this.tabStores.deleteAndDispose(id);
 			}
-		}));
+		}
+		const active = part.activeGroup.activeEditor;
+		this.activeBrowser = active instanceof BrowserEditorInput && !active.isDisposed() ? active : undefined;
+		this.changeActive.fire();
+		this.refresh();
+		this.saveTabs();
+		void this.ensureBrowserTab().catch(onUnexpectedError);
 	}
 
-	private renderTabs(): void {
-		this.tabUi.clear();
-		this.tabBar.replaceChildren(this.tabList);
-		this.tabList.replaceChildren();
-		for (const input of this.tabs.values()) {
-			const tab = append(this.tabList, $('.shortestpath-browser-tab'));
-			tab.classList.toggle('active', input === this.activeBrowser);
-			append(tab, $('span.shortestpath-browser-tab-fill', { 'aria-hidden': 'true' }));
-			const select = this.button(tab, input.getName(), () => this.showBrowser(input), undefined, this.tabUi);
-			select.setAttribute('role', 'tab');
-			select.setAttribute('aria-selected', String(input === this.activeBrowser));
-			select.classList.add('shortestpath-browser-tab-label');
-			this.button(tab, localize('sp.closeTab', "关闭 {0}", input.getName()), () => input.dispose(true), 'close', this.tabUi).classList.add('shortestpath-browser-tab-close');
+	/** Keep a blank native browser tab available while the browsing surface is active. */
+	protected ensureBrowserTab(): Promise<void> {
+		if (this.emptyTabPromise) { return this.emptyTabPromise; }
+		if (this.stopped || this.mode !== 'browse' || !this.configuration.getValue<boolean>('shortestpath.setup.completed') || this.openingTabs.size || this.browserPart?.groups.some(group => group.count > 0)) {
+			return Promise.resolve();
 		}
-		this.button(this.tabBar, localize('sp.newTab', "新建网页标签页"), () => this.openBrowser(shortestPathHome, true), 'add', this.tabUi).classList.add('shortestpath-browser-tab-add');
+		this.emptyTabPromise = this.ready.then(async () => {
+			if (this.stopped || this.mode !== 'browse' || this.openingTabs.size || this.browserPart?.groups.some(group => group.count > 0)) { return; }
+			const input = await this.browsers.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global } });
+			if (this.stopped || this.mode !== 'browse' || this.openingTabs.size || this.browserPart?.groups.some(group => group.count > 0)) { input.dispose(true); return; }
+			await this.openInBrowserPart(input, true);
+			if (!this.stopped && this.mode === 'browse') { this.browserPart?.activeGroup.focus(); }
+		}).finally(() => { this.emptyTabPromise = undefined; });
+		return this.emptyTabPromise;
 	}
 
 	private layout(): void {
@@ -471,45 +469,18 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		this.refresh();
 	}
 
-	private refresh(): void {
-		if (!this.pageArea || this.stopped) { return; }
-		const generation = ++this.renderGeneration;
-		const model = this.activeBrowser?.model;
-		if (mainWindow.document.activeElement !== this.address) { this.address.value = model?.url ?? this.activeBrowser?.url ?? ''; }
-		this.back.disabled = !model?.canGoBack;
-		this.forward.disabled = !model?.canGoForward;
-		this.refreshButton.disabled = !model;
-		const obscured = this.overlay.getOverlappingOverlays(this.pageArea).length > 0;
-		this.message.textContent = model?.error ? localize('sp.loadError', "网页加载失败，请刷新后重试。") : !model ? localize('sp.emptyBrowser', "点击 + 打开网页。") : '';
-		const active = this.mode === 'browse' && !!model && !model.error;
-		void this.browserOverlay.update(active ? model : undefined, obscured).catch(onUnexpectedError);
-		for (const input of this.tabs.values()) {
-			if (input.model && (input !== this.activeBrowser || !active) && input.model.visible) { void input.model.setVisible(false).catch(onUnexpectedError); }
+	protected refresh(): void {
+		if (!this.surface || this.stopped) { return; }
+		if (this.mode === 'browse') {
+			const bounds = this.surface.getBoundingClientRect();
+			this.browserPart?.layout(bounds.width, bounds.height, bounds.top, bounds.left);
 		}
-		if (active && !obscured && model) {
-			const bounds = this.pageArea.getBoundingClientRect();
-			void model.layout({ windowId: mainWindow.vscodeWindowId, x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, zoomFactor: getZoomFactor(mainWindow), cornerRadius: 0 }).then(() => {
-				if (generation === this.renderGeneration && !this.stopped) { return model.setVisible(true); }
-				return undefined;
-			}).catch(onUnexpectedError);
-		}
-	}
-
-	private async navigate(url: string): Promise<void> {
-		if (!this.activeBrowser?.model) { await this.openBrowser(url); return; }
-		await this.activeBrowser.model.loadURL(url);
-		this.refresh();
-		await this.activeBrowser.model.focus();
-	}
-
-	private runModel(run: (model: IBrowserViewModel) => Promise<void>): Promise<void> | undefined {
-		const model = this.activeBrowser?.model;
-		return model ? run(model) : undefined;
 	}
 
 	private saveTabs(): void {
 		if (this.stopped) { return; }
-		const saved = [...this.tabs.values()].filter(tab => isRestorableBrowserUrl(tab.url ?? ''));
+		const ordered = this.browserPart?.getGroups(GroupsOrder.GRID_APPEARANCE).flatMap(group => group.editors.filter((input): input is BrowserEditorInput => input instanceof BrowserEditorInput)) ?? [...this.tabs.values()];
+		const saved = ordered.filter(tab => isRestorableBrowserUrl(tab.url ?? ''));
 		this.storage.store(tabsKey, JSON.stringify({ urls: saved.map(tab => tab.url), ids: saved.map(tab => tab.id), active: Math.max(0, saved.indexOf(this.activeBrowser!)) }), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
@@ -520,13 +491,13 @@ class ShortestPathModeService extends Disposable implements IShortestPathModeSer
 		}
 	}
 
-	focusAddress(): void { this.address.focus(); this.address.select(); }
-	closeActiveTab(): void { this.activeBrowser?.dispose(true); }
+	focusAddress(): void { void this.commands.executeCommand(BrowserViewCommandId.FocusUrlInput).catch(onUnexpectedError); }
+	closeActiveTab(): void { if (this.activeBrowser) { void this.browserPart?.activeGroup.closeEditor(this.activeBrowser).catch(onUnexpectedError); } }
 
 	override dispose(): void {
 		this.saveTabs();
 		this.stopped = true;
-		for (const input of [...this.tabs.values()]) { input.dispose(true); }
+		this.browserPart?.setVisible(false);
 		for (const input of [...this.pages.values()]) { input.dispose(); }
 		this.surface?.remove();
 		this.pageSurface?.remove();
@@ -577,7 +548,7 @@ CommandsRegistry.registerCommand('shortestpath.browser.open', (accessor, url?: s
 CommandsRegistry.registerCommand('shortestpath.mode.notifyResult', accessor => accessor.get(IShortestPathModeService).notifyResult());
 for (const [id, title, primary, run] of [
 	['address', localize2('sp.focusAddress', "浏览：聚焦地址栏"), KeyMod.CtrlCmd | KeyCode.KeyL, (service: ShortestPathModeService) => service.focusAddress()],
-	['newTab', localize2('sp.openTab', "浏览：新建标签页"), KeyMod.CtrlCmd | KeyCode.KeyT, (service: ShortestPathModeService) => service.openBrowser(shortestPathHome, true)],
+	['newTab', localize2('sp.openTab', "浏览：新建标签页"), KeyMod.CtrlCmd | KeyCode.KeyT, (service: ShortestPathModeService) => service.openBrowser('', true)],
 	['closeTab', localize2('sp.closeActive', "浏览：关闭标签页"), KeyMod.CtrlCmd | KeyCode.KeyW, (service: ShortestPathModeService) => service.closeActiveTab()],
 ] as const) {
 	registerAction2(class extends Action2 {

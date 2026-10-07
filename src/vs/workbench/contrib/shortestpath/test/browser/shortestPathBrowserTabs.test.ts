@@ -3,51 +3,59 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../browser/media/shortestPathMode.css';
 import assert from 'assert';
-import { $, append } from '../../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { findGroup } from '../../../../services/editor/common/editorGroupFinder.js';
+import { SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
-suite('ShortestPath browser tabs', () => {
+suite('ShortestPath native browser container', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createTabs(fontSize: number, width: number, titles: string[]) {
-		const surface = append(mainWindow.document.body, $('.shortestpath-browser-space'));
-		surface.style.cssText = `position: absolute; width: ${width}px; font: ${fontSize}px system-ui;`;
-		store.add(toDisposable(() => surface.remove()));
-		const bar = append(surface, $('.shortestpath-browser-tabs'));
-		const list = append(bar, $('.shortestpath-browser-tab-list'));
-		const tabs = titles.map(title => {
-			const tab = append(list, $('.shortestpath-browser-tab'));
-			append(tab, $('span.shortestpath-browser-tab-fill'));
-			const label = append(tab, $('button.shortestpath-browser-tab-label'));
-			label.textContent = title;
-			append(tab, $('button.shortestpath-browser-tab-close'));
-			return { tab, label };
+	test('native tabs keep independent models and unregister on disposal', async () => {
+		store.add(registerTestEditor('nativeBrowserContainerTest', [new SyncDescriptor(TestFileEditorInput)]));
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiation, store.add(new DisposableStore()));
+		instantiation.stub(IEditorGroupsService, parts);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const browse = store.add(parts.createEmbeddedEditorPart(container));
+		store.add(browse.enforcePartOptions({ showTabs: 'multiple', enablePreview: false }));
+		browse.layout(800, 600, 0, 0);
+		const solveInput = store.add(new TestFileEditorInput(URI.parse('test://solve'), 'nativeBrowserContainerInput'));
+		const first = store.add(new TestFileEditorInput(URI.parse('test://browser/first'), 'nativeBrowserContainerInput'));
+		const second = store.add(new TestFileEditorInput(URI.parse('test://browser/second'), 'nativeBrowserContainerInput'));
+		await parts.mainPart.activeGroup.openEditor(solveInput, { pinned: true });
+		await browse.activeGroup.openEditor(first, { pinned: true });
+		await browse.activeGroup.openEditor(second, { pinned: true });
+		browse.activeGroup.moveEditor(second, browse.activeGroup, { index: 0 });
+		await browse.activeGroup.closeEditor(first);
+		browse.activeGroup.focus();
+		const [defaultGroup] = await instantiation.invokeFunction(accessor => findGroup(accessor, { editor: solveInput }, undefined));
+		const [sideGroup] = await instantiation.invokeFunction(accessor => findGroup(accessor, { editor: solveInput }, SIDE_GROUP));
+		const [explicitGroup] = await instantiation.invokeFunction(accessor => findGroup(accessor, { editor: second }, browse.activeGroup));
+		const snapshot = {
+			solve: parts.mainPart.activeGroup.editors.map(input => input.resource?.toString()),
+			browse: browse.activeGroup.editors.map(input => input.resource?.toString()),
+			nativeTabCount: container.querySelectorAll('.tab').length,
+			defaultInMain: parts.getPart(defaultGroup.id) === parts.mainPart,
+			sideInMain: parts.getPart(sideGroup.id) === parts.mainPart,
+			explicitInBrowse: explicitGroup === browse.activeGroup,
+			groupOwner: parts.getPart(browse.activeGroup.id) === browse,
+			elementOwner: parts.getPart(container) === browse,
+		};
+		await browse.activeGroup.closeEditor(second);
+		browse.dispose();
+		assert.deepStrictEqual({ ...snapshot, unregistered: !parts.groups.some(group => group.id === browse.activeGroup.id) }, {
+			solve: ['test://solve'], browse: ['test://browser/second'], nativeTabCount: 1, defaultInMain: true, sideInMain: true, explicitInBrowse: true, groupOwner: true, elementOwner: true, unregistered: true,
 		});
-		append(bar, $('button.shortestpath-browser-tab-add'));
-		return { list, tabs };
-	}
-
-	for (const fontSize of [13, 16, 20]) {
-		test(`seven Chinese characters and separator fit at font size ${fontSize}`, () => {
-			const { tabs } = createTabs(fontSize, 1000, ['最近宝藏距离', '入门 - 五个中文字', 'OJ']);
-			assert.deepStrictEqual({
-				titleFits: tabs[1].label.scrollWidth <= tabs[1].label.clientWidth,
-				shortTitleIsCompact: tabs[2].tab.offsetWidth < tabs[1].tab.offsetWidth,
-			}, { titleFits: true, shortTitleIsCompact: true });
-		});
-	}
-
-	test('crowded tabs scroll while long titles stay bounded', () => {
-		const { list, tabs } = createTabs(16, 350, ['入门 - 五个中文字', '进阶 - 五个中文字', '很长的网页标题'.repeat(10)]);
-		assert.deepStrictEqual({
-			titlesFit: tabs.slice(0, 2).every(({ label }) => label.scrollWidth <= label.clientWidth),
-			stripScrolls: list.scrollWidth > list.clientWidth,
-			longTitleIsBounded: tabs[2].tab.offsetWidth <= 280,
-			longTitleOverflows: tabs[2].label.scrollWidth > tabs[2].label.clientWidth,
-		}, { titlesFit: true, stripScrolls: true, longTitleIsBounded: true, longTitleOverflows: true });
 	});
 });

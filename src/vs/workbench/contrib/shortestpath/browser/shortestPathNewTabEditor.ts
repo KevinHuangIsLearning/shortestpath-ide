@@ -5,7 +5,10 @@
 
 import './media/shortestPathNewTab.css';
 import { $, addDisposableListener, append, Dimension } from '../../../../base/browser/dom.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -27,6 +30,8 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(ShortestPathNewTabEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -38,10 +43,18 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		// allow-any-unicode-next-line
 		append(content, $('.subtitle', undefined, localizeNewTab('Choose a problem and start solving.', '选择题目，开始编写与测试。')));
 
-		// Keep the empty solving workspace focused on choosing a problem.
+		// Group file actions separately from documentation and support links.
 		const columns = append(content, $('.shortestpath-new-tab-columns'));
 		// allow-any-unicode-next-line
 		const fileActions = this.addColumn(columns, localizeNewTab('Start', '开始'));
+		// allow-any-unicode-next-line
+		const toolActions = this.addColumn(columns, localizeNewTab('Tools & Resources', '工具与资源'));
+
+		// allow-any-unicode-next-line
+		this.addAction(fileActions, localizeNewTab('New File...', '新建文件...'), 'codicon-new-file', () => this.commandService.executeCommand('workbench.action.files.newUntitledFile', { languageId: this.configurationService.getValue<string>('shortestpath.newFile.defaultLanguage') || 'cpp' }));
+
+		// allow-any-unicode-next-line
+		this.addAction(fileActions, localizeNewTab('Open...', '打开...'), 'codicon-folder-opened', () => this.commandService.executeCommand('workbench.action.files.openFile'));
 
 		// allow-any-unicode-next-line
 		const openFolderAction = this.addAction(fileActions, localizeNewTab('Open Folder...', '打开文件夹...'), 'codicon-folder', () => this.commandService.executeCommand('workbench.action.files.openFolder'));
@@ -52,6 +65,15 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(updateFolderAction));
 		// allow-any-unicode-next-line
 		this.addAction(fileActions, localizeNewTab('Open ShortestPath OJ', '打开 ShortestPath OJ'), 'codicon-mortar-board', () => this.commandService.executeCommand('shortestpath.mode.browse'));
+
+		// allow-any-unicode-next-line
+		this.addAction(toolActions, localizeNewTab('View Documentation', '查看文档'), 'codicon-book', () => this.openerService.open(URI.parse('https://kevinhuang.feishu.cn/wiki/LLBBwJQQGil2NnkJXWxcAeaLndd'), { openExternal: true }));
+
+		// allow-any-unicode-next-line
+		this.addAction(toolActions, localizeNewTab('Buy Me a Coffee', '请我喝杯咖啡'), 'codicon-coffee', () => this.commandService.executeCommand('workbench.action.browser.open', 'https://kevinhuang.feishu.cn/wiki/Z6a6w3M9riOFXXkXLAoc1G7inJd'));
+
+		// allow-any-unicode-next-line
+		this.addAction(toolActions, localizeNewTab('Beware of telecom fraud, do not click!!!', '谨防电信诈骗，千万别点！！！'), 'codicon-warning', () => this.commandService.executeCommand('workbench.action.browser.open', localizeNewTab('https://youtu.be/dQw4w9WgXcQ?si=SnNrGNt_WDv4861J', 'https://player.bilibili.com/player.html?isOutside=true&aid=80433022&bvid=BV1GJ411x7h7&cid=137649199&p=1')));
 	}
 
 	private addColumn(parent: HTMLElement, title: string): HTMLElement {

@@ -3,12 +3,12 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import { registerBrowserImportCleanup } from './browserImportCleanup';
 import fs from 'fs';
 import path from 'path';
 import { validateCompanionProblem } from './companionProtocol';
 import localize from './i18n';
 import { Problem } from './types';
-import { registerBrowserImportButtons } from './browserImportButton';
 import { isShortestPathBrowserUrl, shortestPathStartProblemScript } from './shortestpathBrowserImport';
 
 type CDPResult = {
@@ -85,6 +85,7 @@ export async function startShortestPathBrowserProblem(tab: vscode.BrowserTab): P
 export type BrowserImportResult = { count: number; error?: string; cancelled?: boolean };
 
 export function registerBrowserImport(context: vscode.ExtensionContext, importProblem: (problem: Problem) => Promise<{ created: boolean }>): void {
+	registerBrowserImportCleanup(context);
 	const running = new Set<string>();
 	context.subscriptions.push(vscode.commands.registerCommand('judger.importBrowserProblem', async (tabId?: string, parserId?: string, expectedUrl?: string): Promise<BrowserImportResult> => {
 		const tab = tabId ? vscode.window.browserTabs?.find(candidate => candidate.id === tabId) : vscode.window.activeBrowserTab;
@@ -99,11 +100,25 @@ export function registerBrowserImport(context: vscode.ExtensionContext, importPr
 				await startShortestPathBrowserProblem(tab);
 				return { count: 0 };
 			}
+			const sourceUrl = expectedUrl ?? tab.url;
+			if (!parserId) {
+				const runtime = await fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.runtime.txt'), 'utf8');
+				const inspected = await evaluateBrowserPage(tab, `(() => { ${runtime}; return globalThis.ShortestPathCompanionInspect(); })()`, sourceUrl);
+				const choices = Array.isArray(inspected) ? inspected.filter((choice): choice is { id: string; name: string; patterns: string[]; matched: boolean } => typeof choice?.id === 'string' && typeof choice?.name === 'string' && Array.isArray(choice?.patterns) && typeof choice?.matched === 'boolean') : [];
+				parserId = choices.find(choice => choice.matched)?.id;
+				if (!parserId) {
+					const selected = await vscode.window.showQuickPick(choices.map(choice => ({ label: choice.name, description: choice.patterns.join(', '), parserId: choice.id })), {
+					placeHolder: localize('judger.browserImport.chooseParser', 'Choose Parser…'), matchOnDescription: true,
+				});
+					if (!selected) { return { count: 0, cancelled: true }; }
+					parserId = selected.parserId;
+				}
+			}
 			const bundle = await fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.bundle.txt'), 'utf8');
 			const expression = `(async () => { globalThis.__shortestpathParserId = ${JSON.stringify(parserId ?? null)}; return await (${bundle}); })()`;
-			const problems = await parseBrowserProblems(tab, expression, expectedUrl);
+			const problems = await parseBrowserProblems(tab, expression, sourceUrl);
 			for (const problem of problems) {
-				if (expectedUrl && tab.url !== expectedUrl) { throw new Error(localize('judger.browserImport.pageChanged', 'The page changed during import. Please retry.')); }
+				if (tab.url !== sourceUrl) { throw new Error(localize('judger.browserImport.pageChanged', 'The page changed during import. Please retry.')); }
 				if (!(await importProblem(problem)).created) { return { count, cancelled: true }; }
 				count++;
 			}
@@ -115,5 +130,4 @@ export function registerBrowserImport(context: vscode.ExtensionContext, importPr
 		}
 		finally { running.delete(tab.id); }
 	}));
-	registerBrowserImportButtons(context);
 }

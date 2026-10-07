@@ -479,6 +479,9 @@ export interface IEditorGroupsContainer {
  */
 export interface IEditorPart extends IEditorGroupsContainer {
 
+	/** Owner-hosted surfaces require an explicit group target when opening editors. */
+	readonly excludeFromDefaultRouting?: boolean;
+
 	/**
 	 * An event for when the editor part is layed out.
 	 */
@@ -518,6 +521,12 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * Find out if the editor layout is currently centered.
 	 */
 	isLayoutCentered(): boolean;
+}
+
+/** Native editor groups embedded in a main-window container. The caller owns its lifetime. */
+export interface IEmbeddedEditorPart extends IEditorPart, IDisposable {
+	layout(width: number, height: number, top: number, left: number): void;
+	setVisible(visible: boolean): void;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
@@ -679,6 +688,9 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * in there at the optional position and size on screen.
 	 */
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean; alwaysOnTop?: boolean }): Promise<IAuxiliaryEditorPart>;
+
+	/** Create native editor groups inside an existing main-window container. */
+	createEmbeddedEditorPart(container: unknown /* HTMLElement */): IEmbeddedEditorPart;
 
 	/**
 	 * Creates a modal editor part that shows in a modal overlay

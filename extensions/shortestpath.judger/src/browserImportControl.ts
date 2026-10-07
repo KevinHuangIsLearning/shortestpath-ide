@@ -10,12 +10,13 @@ export type ImportControlLabels = {
 };
 
 /** Runs in the browser's isolated world. Keep this function self-contained. */
-export function mountImportControl(labels: ImportControlLabels, initiallyCollapsed = false): void {
+export function mountImportControl(labels: ImportControlLabels, initiallyCollapsed = true): void {
 	const scope = window as typeof window & {
 		ShortestPathCompanionInspect?: () => ParserChoice[];
 		__shortestpathImportProblem: (payload: string) => void;
 		__shortestpathImportButtonCleanup?: () => void;
 		__shortestpathImportButtonCollapse?: () => void;
+		__shortestpathImportButtonRefresh?: () => void;
 		__shortestpathImportButtonBusy?: (busy: boolean) => void;
 		__shortestpathImportButtonResult?: (result: { count: number; error?: string; cancelled?: boolean }) => void;
 	};
@@ -27,7 +28,7 @@ export function mountImportControl(labels: ImportControlLabels, initiallyCollaps
 	let resize: (() => void) | undefined;
 	const mount = () => {
 		host = document.createElement('div'); host.id = 'shortestpath-import-button';
-		host.style.cssText = 'all:initial!important;position:fixed!important;right:20px!important;bottom:20px!important;z-index:2147483647!important;display:block!important;color-scheme:light dark!important';
+		host.style.cssText = 'all:initial!important;position:fixed!important;right:20px!important;top:20px!important;z-index:2147483647!important;display:block!important;color-scheme:light dark!important';
 		const root = host.attachShadow({ mode: 'closed' });
 		const style = new CSSStyleSheet();
 		style.replaceSync( `
@@ -38,9 +39,9 @@ export function mountImportControl(labels: ImportControlLabels, initiallyCollaps
 			button:hover{background:var(--hover)} button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 			button:disabled{opacity:.6;cursor:wait} [hidden]{display:none!important}
 			.drag{cursor:grab;touch-action:none;padding:6px;color:var(--fg)} .drag:active{cursor:grabbing}
-			.toggle[data-collapsed=true]{width:28px;height:28px;padding:0;border-radius:50%;opacity:.4;touch-action:none;cursor:grab} .toggle[data-collapsed=true]:hover,.toggle[data-collapsed=true]:focus-visible{opacity:.8} .toggle[data-collapsed=true]:active{cursor:grabbing}
+			.toggle[data-collapsed=true]{width:28px;height:28px;padding:0;border-radius:50%;opacity:1;touch-action:none;cursor:grab} .toggle[data-collapsed=true]:hover,.toggle[data-collapsed=true]:focus-visible{opacity:.8} .toggle[data-collapsed=true]:active{cursor:grabbing}
 			.bar{display:flex;justify-content:flex-end;gap:4px;max-width:calc(100vw - 40px)} .add{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0} .add{background:var(--accent);color:#fff;border-color:var(--accent)} .add:hover{filter:brightness(1.08);background:var(--accent)}
-			.panel{max-height:min(410px,calc(65vh - 60px));overflow:auto;width:min(340px,calc(100vw - 40px));margin-bottom:8px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);box-shadow:0 6px 24px #0003}
+			.panel{max-height:min(410px,calc(65vh - 60px));overflow:auto;width:min(340px,calc(100vw - 40px));margin-top:8px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);box-shadow:0 6px 24px #0003}
 			.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.header span{font-weight:600}.close{border:0;padding:0 6px}
 			input{display:block;width:100%;padding:7px 8px;background:var(--bg);border:1px solid var(--line);border-radius:4px}
 			.list{max-height:min(300px,50vh);overflow:auto;margin-top:8px}.item{display:block;text-align:left;width:100%;border:0;border-radius:4px;padding:7px 8px}.item small{display:block;opacity:.7;overflow-wrap:anywhere}
@@ -60,23 +61,23 @@ export function mountImportControl(labels: ImportControlLabels, initiallyCollaps
 		const choose = document.createElement('button'); choose.className = 'choose'; choose.type = 'button'; choose.textContent = labels.choose; choose.setAttribute('aria-expanded', 'false');
 		const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'toggle';
 		const status = document.createElement('div'); status.className = 'status'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-		header.append(heading, close); panel.append(header, input, list); bar.append(drag, add, choose, toggle); wrap.append(panel, bar, status); root.append(wrap); document.documentElement.append(host!);
-		const clampPosition = (right: number, bottom: number) => {
+		header.append(heading, close); panel.append(header, input, list); bar.append(drag, add, choose, toggle); wrap.append(bar, panel, status); root.append(wrap); document.documentElement.append(host!);
+		const clampPosition = (right: number, top: number) => {
 			const bounds = host!.getBoundingClientRect();
 			host!.style.setProperty('right', `${Math.max(8, Math.min(right, innerWidth - bounds.width - 8))}px`, 'important');
-			host!.style.setProperty('bottom', `${Math.max(8, Math.min(bottom, innerHeight - bounds.height - 8))}px`, 'important');
+			host!.style.setProperty('top', `${Math.max(8, Math.min(top, innerHeight - bounds.height - 8))}px`, 'important');
 		};
-		resize = () => clampPosition(parseFloat(host!.style.right), parseFloat(host!.style.bottom));
+		resize = () => clampPosition(parseFloat(host!.style.right), parseFloat(host!.style.top));
 		window.addEventListener('resize', resize);
 		let choices: ParserChoice[] = [], selected: string | undefined, manual = false, busy = false, collapsed = initiallyCollapsed;
 		let toggleDragged = false;
-		let dragging: { pointer: number; x: number; y: number; right: number; bottom: number } | undefined;
+		let dragging: { pointer: number; x: number; y: number; right: number; top: number } | undefined;
 		const registerDrag = (control: HTMLButtonElement) => {
 			control.addEventListener('pointerdown', event => {
 				if (!event.isTrusted || event.button !== 0 || (control === toggle && !collapsed)) { return; }
 				event.preventDefault();
 				if (control === toggle) { toggleDragged = false; }
-				dragging = { pointer: event.pointerId, x: event.clientX, y: event.clientY, right: parseFloat(host!.style.right), bottom: parseFloat(host!.style.bottom) };
+				dragging = { pointer: event.pointerId, x: event.clientX, y: event.clientY, right: parseFloat(host!.style.right), top: parseFloat(host!.style.top) };
 				control.setPointerCapture(event.pointerId);
 			});
 			control.addEventListener('pointermove', event => {
@@ -86,16 +87,16 @@ export function mountImportControl(labels: ImportControlLabels, initiallyCollaps
 					if (Math.hypot(dx, dy) < 4 && !toggleDragged) { return; }
 					toggleDragged = true;
 				}
-				clampPosition(dragging.right - dx, dragging.bottom - dy);
+				clampPosition(dragging.right - dx, dragging.top + dy);
 			});
 			control.addEventListener('pointerup', () => { dragging = undefined; });
 			control.addEventListener('pointercancel', () => { dragging = undefined; toggleDragged = false; });
 			control.addEventListener('lostpointercapture', () => { dragging = undefined; });
 			control.addEventListener('keydown', event => {
 				if (control === toggle && !collapsed) { return; }
-				const moves: Record<string, [number, number]> = { ArrowLeft: [16, 0], ArrowRight: [-16, 0], ArrowUp: [0, 16], ArrowDown: [0, -16] };
+				const moves: Record<string, [number, number]> = { ArrowLeft: [16, 0], ArrowRight: [-16, 0], ArrowUp: [0, -16], ArrowDown: [0, 16] };
 				const move = moves[event.key]; if (!move) { return; }
-				event.preventDefault(); clampPosition(parseFloat(host!.style.right) + move[0], parseFloat(host!.style.bottom) + move[1]);
+				event.preventDefault(); clampPosition(parseFloat(host!.style.right) + move[0], parseFloat(host!.style.top) + move[1]);
 			});
 		};
 		registerDrag(drag); registerDrag(toggle);
@@ -146,8 +147,9 @@ export function mountImportControl(labels: ImportControlLabels, initiallyCollaps
 			if (!event.isTrusted) { return; }
 			if (toggleDragged && event.detail !== 0) { toggleDragged = false; return; }
 			toggleDragged = false;
-			collapsed = !collapsed; panel.hidden = true; choose.setAttribute('aria-expanded', 'false');
-			refreshButton(); toggle.focus();
+			collapsed = !collapsed;
+			inspect(); panel.hidden = collapsed || !!selected; choose.setAttribute('aria-expanded', String(!panel.hidden));
+			refreshButton(); if (panel.hidden) { toggle.focus(); } else { input.focus(); }
 		});
 		choose.addEventListener('click', event => { if (!event.isTrusted || busy || collapsed) { return; } panel.hidden = !panel.hidden; choose.setAttribute('aria-expanded', String(!panel.hidden)); if (!panel.hidden) { inspect(); render(); resize?.(); input.focus(); } });
 		close.addEventListener('click', hidePanel);
@@ -170,11 +172,12 @@ export function mountImportControl(labels: ImportControlLabels, initiallyCollaps
 			resize?.();
 			if (!result.error) { resetTimer = setTimeout(() => { status.textContent = ''; resize?.(); }, 4000); }
 		};
+		scope.__shortestpathImportButtonRefresh = inspect;
 		inspect(); timer = setInterval(inspect, 1000);
 	};
 	scope.__shortestpathImportButtonCleanup = () => {
 		document.removeEventListener('DOMContentLoaded', mount); if (resize) { window.removeEventListener('resize', resize); } clearInterval(timer); clearTimeout(resetTimer); host?.remove();
-		delete scope.__shortestpathImportButtonCollapse; delete scope.__shortestpathImportButtonBusy; delete scope.__shortestpathImportButtonResult; delete scope.__shortestpathImportButtonCleanup;
+		delete scope.__shortestpathImportButtonRefresh; delete scope.__shortestpathImportButtonCollapse; delete scope.__shortestpathImportButtonBusy; delete scope.__shortestpathImportButtonResult; delete scope.__shortestpathImportButtonCleanup;
 	};
 	if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', mount, { once: true }); } else { mount(); }
 }

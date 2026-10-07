@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
@@ -15,6 +15,7 @@ import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEdito
 import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { createEditorPart, ITestInstantiationService, registerTestEditor, TestFileEditorInput, workbenchInstantiationService, workbenchTeardown } from '../../../../test/browser/workbenchTestServices.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { shouldRevealSolveEditor } from '../../browser/shortestPathEditorMode.js';
 
 suite('ShortestPath editor mode', () => {
@@ -61,6 +62,13 @@ suite('ShortestPath editor mode', () => {
 		await service.openEditor(paired);
 
 		assert.deepStrictEqual(decisions, [false, false, false, false, true, true, false, true]);
+	});
+
+	test('foreground browser editors reveal the solving layout while background opens preserve the mode', () => {
+		instantiation = workbenchInstantiationService(undefined, store);
+		const browser = store.add(instantiation.createInstance(BrowserEditorInput, { id: 'problem-browser' }, async () => { throw new Error('Model resolution is not needed'); }));
+		const options: IEditorOptions[] = [{}, { preserveFocus: false }, { preserveFocus: true }, { inactive: true }];
+		assert.deepStrictEqual(options.map(options => shouldRevealSolveEditor({ editor: browser, groupId: 0, options })), [true, true, false, false]);
 	});
 
 	test('foreground modal editors keep the current work mode', () => {

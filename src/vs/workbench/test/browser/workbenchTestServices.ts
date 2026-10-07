@@ -941,6 +941,10 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
+	createEmbeddedEditorPart(): never {
+		throw new Error('Method not implemented.');
+	}
+
 	createModalEditorPart(): Promise<IModalEditorPart> { throw new Error('Method not implemented.'); }
 }
 
@@ -1686,6 +1690,10 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	}
 
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> {
+		throw new Error('Method not implemented.');
+	}
+
+	createEmbeddedEditorPart(): never {
 		throw new Error('Method not implemented.');
 	}
 

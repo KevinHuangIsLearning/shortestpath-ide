@@ -102,6 +102,8 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	let group: Promise<IEditorGroup> | IEditorGroup | undefined;
 	const editor = isEditorInputWithOptions(input) ? input.editor : input;
 	const options = input.options;
+	const defaultGroups = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).filter(group => !editorGroupService.getPart(group).excludeFromDefaultRouting);
+	const activeGroup = editorGroupService.getPart(editorGroupService.activeGroup).excludeFromDefaultRouting ? editorGroupService.mainPart.activeGroup : editorGroupService.activeGroup;
 
 	// Group: Force modal if the editor has the RequiresModal capability,
 	// but respect `workbench.editor.useModal: 'off'` as an explicit opt-out.
@@ -124,11 +126,11 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	else if (preferredGroup === SIDE_GROUP) {
 		const direction = preferredSideBySideGroupDirection(configurationService);
 
-		let candidateGroup = editorGroupService.findGroup({ direction });
+		let candidateGroup = editorGroupService.findGroup({ direction }, activeGroup);
 		if (!candidateGroup || isGroupLockedForEditor(candidateGroup, editor)) {
 			// Create new group either when the candidate group
 			// is locked or was not found in the direction
-			candidateGroup = editorGroupService.addGroup(editorGroupService.activeGroup, direction);
+			candidateGroup = editorGroupService.addGroup(activeGroup, direction);
 		}
 
 		group = candidateGroup;
@@ -148,7 +150,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 
 	// Group: Unspecified without a specific index to open
 	else if (!options || typeof options.index !== 'number') {
-		const groupsByLastActive = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+		const groupsByLastActive = defaultGroups;
 
 		// Respect option to reveal an editor if it is already visible in any group
 		if (options?.revealIfVisible) {
@@ -200,13 +202,13 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	// Fallback to active group if target not valid but avoid
 	// locked editor groups unless editor is already opened there
 	if (!group) {
-		let candidateGroup = editorGroupService.activeGroup;
+		let candidateGroup = activeGroup;
 
 		// Locked group: find the next non-locked group
 		// going up the neigbours of the group or create
 		// a new group otherwise
 		if (isGroupLockedForEditor(candidateGroup, editor)) {
-			for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			for (const group of defaultGroups) {
 				if (isGroupLockedForEditor(group, editor)) {
 					continue;
 				}

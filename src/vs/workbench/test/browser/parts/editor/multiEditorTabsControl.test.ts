@@ -22,6 +22,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { TestFileEditorInput, TestHostService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
+import '../../../../contrib/shortestpath/browser/media/shortestPathMode.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
 suite('MultiEditorTabsControl', () => {
@@ -632,6 +633,24 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(measurements, [
 			{ tabHeight: 'default', stripHeight: 90, visibleHeights: [28, 28, 28], rowGaps: [2, 2] },
 			{ tabHeight: 'compact', stripHeight: 78, visibleHeights: [24, 24, 24], rowGaps: [2, 2] },
+		]);
+	});
+
+	test('ShortestPath native tab layout matches the compact visual strip', async () => {
+		const group = connectedGroup();
+		group.closest('.monaco-workbench')!.classList.add('shortestpath-dual-mode');
+		const measurements = [];
+		for (const tabHeight of ['default', 'compact'] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, tabHeight };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, 600);
+			const tab = container.querySelector<HTMLElement>('.tabs-container > .tab')!;
+			measurements.push({ tabHeight, layout: control.getHeight(), tab: tab.getBoundingClientRect().height, topInset: mainWindow.getComputedStyle(tab).borderTopWidth });
+		}
+		assert.deepStrictEqual(measurements, [
+			{ tabHeight: 'default', layout: 34, tab: 34, topInset: '4px' },
+			{ tabHeight: 'compact', layout: 30, tab: 30, topInset: '4px' },
 		]);
 	});
 
