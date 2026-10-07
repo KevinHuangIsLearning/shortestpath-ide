@@ -270,6 +270,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}));
 
 			this._register(this.onDidLeaveFullScreen(() => {
+				// AppKit can reset the traffic light position during the transition.
+				// The renderer may keep the same titlebar height and skip sending it again.
+				if (this.lastWindowControlHeight !== undefined) {
+					this.updateWindowControls({ height: this.lastWindowControlHeight });
+				}
 				this.joinNativeFullScreenTransition?.complete(true);
 			}));
 		}
@@ -481,6 +486,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
 	private windowControlsDimmed = false;
+	private lastWindowControlHeight: number | undefined;
 	private lastWindowControlColors: { backgroundColor?: string; foregroundColor?: string } | undefined;
 
 	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
@@ -520,7 +526,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// macOS: update window controls via setWindowButtonPosition()
-		else if (isMacintosh && options.height !== undefined) {
+		else if (isMacintosh && options.height !== undefined && options.height > 0) {
+			this.lastWindowControlHeight = options.height;
 			// When the position is set, the horizontal margin is offset to ensure
 			// the distance between the traffic lights and the window frame is equal
 			// in both directions.

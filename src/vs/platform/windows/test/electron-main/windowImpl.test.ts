@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { EventEmitter } from 'events';
 import type { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
 import sinon from 'sinon';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -43,17 +44,44 @@ suite('BaseWindow - window controls overlay', () => {
 			store.add(new NullLogService())
 		));
 		const setTitleBarOverlay = sinon.stub();
-		const on = sinon.stub();
-		const removeListener = sinon.stub();
+		const events = new EventEmitter();
+		const on = sinon.stub().callsFake((event, listener) => events.on(event, listener));
+		const removeListener = sinon.stub().callsFake((event, listener) => events.removeListener(event, listener));
+		const setWindowButtonPosition = sinon.stub();
 		const nativeWindow = upcastPartial<BrowserWindow>({
 			on,
 			removeListener,
 			setSheetOffset: sinon.stub(),
-			setWindowButtonPosition: sinon.stub(),
+			setWindowButtonPosition,
 			setTitleBarOverlay,
 		});
-		return { window, nativeWindow, configurationService, setTitleBarOverlay };
+		return { window, nativeWindow, configurationService, setTitleBarOverlay, setWindowButtonPosition, events };
 	}
+
+	(isMacintosh ? test : test.skip)('restores the latest traffic light position after leaving fullscreen', () => {
+		const { window, nativeWindow, setWindowButtonPosition, events } = createWindow();
+		window.setWin(nativeWindow, { titleBarStyle: 'hidden' });
+		window.updateWindowControls({ height: 32 });
+		window.updateWindowControls({ height: 40 });
+		const expectedPosition = setWindowButtonPosition.lastCall.args;
+		setWindowButtonPosition.resetHistory();
+
+		events.emit('enter-full-screen');
+		window.updateWindowControls({ height: 0 });
+		const callsInFullscreen = setWindowButtonPosition.args.slice();
+		events.emit('leave-full-screen');
+
+		assert.deepStrictEqual({ callsInFullscreen, restored: setWindowButtonPosition.args }, {
+			callsInFullscreen: [], restored: [expectedPosition]
+		});
+	});
+
+	(isMacintosh ? test : test.skip)('does not reposition traffic lights without a renderer height', () => {
+		const { window, nativeWindow, setWindowButtonPosition, events } = createWindow();
+		window.setWin(nativeWindow, { titleBarStyle: 'hidden' });
+		events.emit('leave-full-screen');
+		assert.deepStrictEqual(setWindowButtonPosition.args, []);
+	});
 
 	const windowsWithoutOverlay: { name: string; options?: BrowserWindowConstructorOptions }[] = [
 		{ name: 'unknown constructor options' },

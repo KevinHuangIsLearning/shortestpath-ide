@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../base/browser/dom.js';
+import { isFullscreen, setFullscreen } from '../../../base/browser/browser.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { Direction, Grid, IView, Orientation } from '../../../base/browser/ui/grid/grid.js';
 import { TestView } from '../../../base/test/browser/ui/grid/util.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -13,11 +15,28 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { Layout, LayoutStateKeys, LayoutStateModel } from '../../browser/layout.js';
 import { NavigationView } from '../../browser/parts/navigation/navigationView.js';
-import { Parts, Position } from '../../services/layout/browser/layoutService.js';
+import { Parts, Position, shouldShowCustomTitleBar } from '../../services/layout/browser/layoutService.js';
 import { TestContextService, TestStorageService } from '../common/workbenchTestServices.js';
 
 suite('Workbench navigation column', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	(isWeb ? test.skip : test)('windowed hides the command center titlebar in fullscreen and restores it on exit', () => {
+		const configuration = new TestConfigurationService({
+			window: { titleBarStyle: 'custom', customTitleBarVisibility: 'windowed', commandCenter: true },
+			workbench: { layoutControl: { enabled: true } }
+		});
+		const originalFullscreen = isFullscreen(mainWindow);
+		try {
+			const visibility = [false, true, false].map(fullscreen => {
+				setFullscreen(fullscreen, mainWindow);
+				return shouldShowCustomTitleBar(configuration, mainWindow);
+			});
+			assert.deepStrictEqual(visibility, [true, false, true]);
+		} finally {
+			setFullscreen(originalFullscreen, mainWindow);
+		}
+	});
 	test('desktop solving metrics are enabled before the mode contribution starts', () => {
 		const layout = Object.assign(Object.create(Layout.prototype), {
 			state: { runtime: { mainWindowFullscreen: false } },

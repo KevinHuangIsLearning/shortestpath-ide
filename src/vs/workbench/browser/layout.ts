@@ -1672,7 +1672,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				this._onDidChangePartVisibility.fire({ partId: part.getId(), visible });
-				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
+				// SplitView notifies visibility before laying out the remaining views.
+				// Overlays must read the final bounds, especially across fullscreen transitions.
+				queueMicrotask(() => {
+					if (!this.disposed) {
+						this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
+					}
+				});
 			}));
 		}
 
