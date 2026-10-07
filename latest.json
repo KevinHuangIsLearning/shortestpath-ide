@@ -2,5 +2,5 @@
 	"version": "0.4.5",
 	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.5",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "浏览模式改用独立原生编辑器容器，统一标签栏、地址栏和错误页，修复设置弹窗与模式切换。导入题目移至浏览器右上角，支持选择解析器和无模板时输入文件名。恢复做题 New Tab 快捷入口，收紧标签栏和左侧栏，进入浏览时唯一空白标签默认打开 ShortestPath OJ。\n\nBrowsing now uses a dedicated native editor container with consistent tabs, address bar, and error pages. Fixed browser settings and mode routing. Problem import moved to the browser toolbar with parser selection and filename prompts. Restored solving start-page actions, compacted tabs and navigation, and open ShortestPath OJ when entering browsing with a single blank tab."
+	"releaseNote": "浏览和做题的小窝收拾好啦喵～🐾 统一原生标签栏，修复页面切换、错误页和设置弹窗；导题搬到右上角，支持选择解析器和输入文件名。恢复 New Tab 快捷入口，收紧标签栏和左侧栏，进入浏览时只有一个 New Tab 就打开 ShortestPath OJ 喵。\n\nTidied up browsing and solving tabs, fixed browser routing, error pages, and settings dialogs, and moved problem import to the toolbar with parser and filename selection. Restored start-page shortcuts and compacted navigation. Purr!"
 }
