@@ -2,6 +2,24 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
+## v0.4.5 更新 / What's New
+
+- 浏览模式使用独立原生编辑器容器，统一浏览和做题标签栏的实现，保留各自的标签页。
+- 修复浏览页面的完整加载错误页、空网址、新建标签页、圆角、设置弹窗和跨模式网页切换。
+- 删除 ShortestPath OJ 页面里的 Add problem；其他网站通过浏览器右上角导入按钮导题，自动选择匹配解析器，也可手动选择；未配置文件名模板时提示输入文件名。
+- 恢复做题 New Tab 的新建文件、打开、文档和支持入口；浏览 New Tab 放大专题入口，进入浏览时仅有一个空白标签会打开 ShortestPath OJ。
+- 收紧标签栏与左侧模式栏，统一 hover 留白，并取消浏览容器的锁定图标。
+- 修复 Error Lens 设置开关，并改进 Judger 的 AC 完成状态和临时目录清理。
+
+### English
+
+- Browsing uses a dedicated native editor container and shares the native tab implementation with solving while keeping separate tabs.
+- Fixed full browser error pages, empty URLs, new tabs, rounded borders, settings dialogs, and cross-mode tab switching.
+- Removed Add problem from ShortestPath OJ pages. Other websites use the browser toolbar import action, with automatic or manual parser selection and filename prompts when no naming template is configured.
+- Restored New File, Open, documentation, and support actions on the solving start page. Enlarged the topic shortcut and open ShortestPath OJ when entering browsing with a single blank tab.
+- Compacted tabs and the navigation rail, aligned hover gutters, and removed the browser container lock icon.
+- Fixed the Error Lens settings toggle and improved Judger AC completion state and temporary directory cleanup.
+
 ## v0.4.4 更新 / What's New
 
 - 新增离线草稿画板，内置 16 个可编辑竞赛绘图模板，支持自动保存、代码旁绘图，以及 Excalidraw、PNG 和 SVG 导出。

@@ -1,6 +1,6 @@
 {
-	"version": "0.4.4",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.4",
+	"version": "0.4.5",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.5",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "新增内置草稿画板、竞赛绘图模板与图片导出。内置 Fira Code，引导支持字体和连字选择、即时预览，并记住代码存放目录（支持便携目录移动）。Windows 提供用户安装版与便携版。\n\nAdded an offline sketchpad with competition templates and image export. Bundled Fira Code, added font and ligature choices with live previews to setup, and remembered code folders across restarts and portable moves. Windows provides per-user and portable packages."
+	"releaseNote": "浏览模式改用独立原生编辑器容器，统一标签栏、地址栏和错误页，修复设置弹窗与模式切换。导入题目移至浏览器右上角，支持选择解析器和无模板时输入文件名。恢复做题 New Tab 快捷入口，收紧标签栏和左侧栏，进入浏览时唯一空白标签默认打开 ShortestPath OJ。\n\nBrowsing now uses a dedicated native editor container with consistent tabs, address bar, and error pages. Fixed browser settings and mode routing. Problem import moved to the browser toolbar with parser selection and filename prompts. Restored solving start-page actions, compacted tabs and navigation, and open ShortestPath OJ when entering browsing with a single blank tab."
 }

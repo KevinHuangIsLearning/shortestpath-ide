@@ -383,7 +383,6 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		const part = this.browserPart = this._register(this.editorGroups.createEmbeddedEditorPart(container));
 		this._register(part.enforcePartOptions({ showTabs: 'multiple', enablePreview: false, closeEmptyGroups: true }));
 		const track = (group: IEditorGroup) => {
-			group.lock(true);
 			const store = new DisposableStore();
 			this.browserGroupStores.set(group.id, store);
 			store.add(group.onDidModelChange(() => this.renderTabs()));
