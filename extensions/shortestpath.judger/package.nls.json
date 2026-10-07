@@ -135,5 +135,6 @@
     "judger.execution.outputRatioLimit.description": "Also report OLE when stdout exceeds this multiple of expected output size. Zero disables this check.",
     "judger.stressTest.generatorTimeLimit.description": "Generator time limit (ms).",
     "judger.stressTest.bruteForceTimeLimit.description": "Reference solution time limit (ms).",
-    "judger.language.cpp.Template.description": "C++ source template. An explicit empty value creates an empty source file."
+    "judger.language.cpp.Template.description": "C++ source template. An explicit empty value creates an empty source file.",
+    "judger.general.shortestPathFixedTemplate.description": "Use the fixed source directory and filename for ShortestPath OJ imports. Disable to use Judger filename templates, including template directories. Existing bound solutions are preserved."
 }

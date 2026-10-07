@@ -130,5 +130,6 @@
     "judger.execution.outputRatioLimit.description": "当实际输出超过期望输出大小的指定倍数时判 OLE；0 表示关闭此检查。",
     "judger.stressTest.generatorTimeLimit.description": "生成器时间限制（毫秒）。",
     "judger.stressTest.bruteForceTimeLimit.description": "标程时间限制（毫秒）。",
-    "judger.language.cpp.Template.description": "C++ 代码模板。明确设为空字符串时创建空代码文件。"
+    "judger.language.cpp.Template.description": "C++ 代码模板。明确设为空字符串时创建空代码文件。",
+    "judger.general.shortestPathFixedTemplate.description": "为 ShortestPath OJ 导入使用固定的源码目录和文件名。关闭后使用 Judger 文件名模板及模板中的目录；保留已有绑定的解答文件。"
 }

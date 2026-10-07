@@ -24,6 +24,7 @@ import {
     doTemplateFileVariableReplacement,
     getFileNameTemplate,
     getFileNameTemplateOverrides,
+    getShortestPathFixedTemplate,
     getOjMapping,
     getDefaultProblemSource,
     getVjudgeOjNames,
@@ -486,17 +487,19 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     }
 
     const previousSourcePath = getPreferredSourcePath(folder, preferredSourcePath);
+    const useFixedPath = Boolean(fixedProblemPath) && getShortestPathFixedTemplate();
     let srcPath: string;
-    if (fixedProblemPath) {
+    if (fixedProblemPath && useFixedPath) {
         srcPath = path.join(folder, fixedProblemPath);
     } else {
         const titleFileName = getProblemFileName(problem, extn);
-        const problemFileName = contextHash ? `${path.parse(titleFileName).name}_${contextHash.slice(0, 24)}.${extn}` : titleFileName;
+        const parsedFileName = path.parse(titleFileName);
+        const problemFileName = contextHash && !problem.shortestPath && !fixedProblemPath ? path.join(parsedFileName.dir, `${parsedFileName.name}_${contextHash.slice(0, 24)}.${extn}`) : titleFileName;
         srcPath = previousSourcePath ?? path.join(folder, problemFileName);
     }
     // Preserve solutions from the previous naming scheme, including unsaved edits.
     // Leave the old file intact and never overwrite an existing canonical file.
-    const previousSource = fixedProblemPath && previousSourcePath && previousSourcePath !== srcPath && !existsSync(srcPath)
+    const previousSource = useFixedPath && previousSourcePath && previousSourcePath !== srcPath && !existsSync(srcPath)
         ? vscode.workspace.textDocuments.find(document => document.uri.fsPath === previousSourcePath)?.getText() ?? readFileSync(previousSourcePath, 'utf8')
         : undefined;
 

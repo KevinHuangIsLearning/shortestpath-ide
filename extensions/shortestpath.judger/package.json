@@ -473,6 +473,14 @@
                     "description": "Replace $var$ in the template file with its value. For example, replace $url$ with the problem's url. For more information, please refer to the user guide.",
                     "scope": "resource"
                 },
+                "judger.general.shortestPathFixedTemplate": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%judger.general.shortestPathFixedTemplate.description%",
+                    "scope": "resource",
+                    "order": 1000,
+                    "tags": ["advanced"]
+                },
                 "judger.general.fileNameTemplate": {
                     "type": "string",
                     "default": "",

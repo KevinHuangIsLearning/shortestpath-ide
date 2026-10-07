@@ -7,7 +7,7 @@ jest.mock('vscode', () => ({ window: {}, workspace: { getConfiguration: jest.fn(
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, fallback: string) => fallback }));
 
 import { workspace } from 'vscode';
-import { getCppTemplate, getDefaultLanguageTemplateFileLocation } from '../preferences';
+import { getCppTemplate, getDefaultLanguageTemplateFileLocation, getShortestPathFixedTemplate } from '../preferences';
 
 globalThis.logger = { ...console, log: jest.fn() };
 
@@ -23,4 +23,10 @@ test('an unset inline template preserves the legacy template file even when sche
 test.each(['', 'int main() {}\n'])('an explicitly configured inline template takes precedence, including deliberate emptiness (%p)', template => {
 	(workspace.getConfiguration as jest.Mock).mockReturnValue({ inspect: () => ({ globalValue: template }), get: () => template });
 	expect(getCppTemplate()).toBe(template);
+});
+
+
+test.each([[undefined, true], [true, true], [false, false]])('ShortestPath fixed template defaults to enabled (%p)', (configured, expected) => {
+	(workspace.getConfiguration as jest.Mock).mockReturnValue({ get: () => configured });
+	expect(getShortestPathFixedTemplate()).toBe(expected);
 });

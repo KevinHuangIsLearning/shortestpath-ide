@@ -56,6 +56,7 @@ export type prefSection =
     | 'general.autoShowJudge'
     | 'general.defaultLanguageTemplateFileLocation'
     | 'general.doTemplateFileVariableReplacement'
+    | 'general.shortestPathFixedTemplate'
     | 'general.fileNameTemplate'
     | 'general.fileNameTemplateOverrides'
     | 'general.remoteServerAddress'

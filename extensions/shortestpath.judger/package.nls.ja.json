@@ -94,5 +94,6 @@
     "judger.submit.notCodeforces": "Codeforces の問題ではありません。",
     "judger.utils.unsupported": "サポートされていないファイル拡張子です。以下の形式のみ有効です: {0}",
     "judger.preferences.invalidSaveLocation": "保存場所が無効です。デフォルトに復元します。存在しないパス: {0}",
-    "judger.processRunSingle.invalidChecker": "カスタム判題スクリプトが '{0}' に見つかりません"
+    "judger.processRunSingle.invalidChecker": "カスタム判題スクリプトが '{0}' に見つかりません",
+    "judger.general.shortestPathFixedTemplate.description": "ShortestPath OJ のインポートに固定のソースディレクトリとファイル名を使用します。無効にすると Judger のファイル名テンプレートとそのディレクトリを使用します。既存の関連付けられた解答は保持されます。"
 }

@@ -218,6 +218,9 @@ export const doTemplateFileVariableReplacement = (): boolean => {
     return getPreference('general.doTemplateFileVariableReplacement');
 };
 
+export const getShortestPathFixedTemplate = (): boolean =>
+    getPreference('general.shortestPathFixedTemplate') !== false;
+
 export const getFileNameTemplate = (): string | null => {
     const pref = getPreference('general.fileNameTemplate');
     if (pref === '' || !pref) {
