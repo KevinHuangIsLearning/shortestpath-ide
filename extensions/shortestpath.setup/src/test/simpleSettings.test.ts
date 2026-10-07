@@ -31,7 +31,7 @@ test('settings groups preserve each control and expose only the three left navig
 		controls[match[1]].push(...[...match[2].matchAll(/<(?:input|select|button)[^>]*id="([^"]+)"/g)].map(control => control[1]));
 	}
 	assert.deepStrictEqual(controls, {
-		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensCodeLensEnabled'],
+		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
 		compiler: ['cppStandard', 'compilerFlags', 'executableCleanupEnabled', 'executableCleanupDelaySeconds', 'toolchainDiagnostics'],
 		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'defaultSubmitMethod', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
 	});
@@ -172,6 +172,7 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 	const messages: Array<Record<string, unknown>> = [];
 	let receive!: (message: Record<string, unknown>) => Promise<void>;
 	let onTheme!: () => void;
+	let onConfiguration!: (event: { affectsConfiguration(key: string): boolean }) => void;
 	let onDispose!: () => void;
 	let disposedListeners = 0;
 	const listener = () => ({ dispose() { disposedListeners++; } });
@@ -188,7 +189,7 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 		window: { createWebviewPanel: () => panel, onDidChangeActiveColorTheme(handler: () => void) { onTheme = handler; return listener(); } },
 		workspace: {
 			getConfiguration: () => ({ get: () => undefined, async update(key: string) { updates.push(key); } }),
-			onDidChangeConfiguration: () => listener()
+			onDidChangeConfiguration(handler: typeof onConfiguration) { onConfiguration = handler; return listener(); }
 		},
 		commands: { async executeCommand(command: string) { commands.push(command); return command === '_shortestpath.cppPreviewTokens' ? tokens() : undefined; } }
 	};
@@ -204,7 +205,7 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 		}
 	});
 	exports.open!({ subscriptions: [], globalState: { get: () => undefined } });
-	return { receive, onTheme, onDispose, commands, updates, messages, disposedListeners: () => disposedListeners };
+	return { receive, onTheme, onConfiguration, onDispose, commands, updates, messages, disposedListeners: () => disposedListeners };
 }
 
 test('settings preview uses IDE tokens, refreshes on theme changes and leaves removed preferences untouched', async () => {
@@ -242,4 +243,13 @@ test('tools opens initial setup and dismisses the settings modal', async () => {
 	assert.deepStrictEqual({ commands: host.commands, disposedListeners: host.disposedListeners() }, {
 		commands: ['shortestpath.openGettingStarted'], disposedListeners: 2
 	});
+});
+
+test('Error Lens toggle controls the extension enable setting', async () => {
+	const host = createSettingsHost();
+	assert.match(renderSettings(), /<label for="errorLensEnabled">Error Lens Enable<\/label>/);
+	host.onConfiguration({ affectsConfiguration: key => key === 'errorLens.enabled' });
+	assert.equal((host.messages.find(message => message.type === 'state')?.value as { errorLensEnabled: boolean }).errorLensEnabled, true);
+	await host.receive({ type: 'save', value: { errorLensEnabled: false } });
+	assert.deepStrictEqual(host.updates.filter(key => key.startsWith('errorLens.')), ['errorLens.enabled']);
 });

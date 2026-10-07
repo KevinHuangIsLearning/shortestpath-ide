@@ -44,7 +44,7 @@ type SimpleSettingsState = {
 	compilerFlags: string;
 	cppTemplate: string;
 	clangdVariableTypeHints: boolean;
-	errorLensCodeLensEnabled: boolean;
+	errorLensEnabled: boolean;
 	executableCleanupEnabled: boolean;
 	executableCleanupDelaySeconds: number;
 	colorTheme: string;
@@ -594,7 +594,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('judger.language.cpp.Template')
 			|| event.affectsConfiguration('c-cpp-compile-run.cpp-flags')
 			|| event.affectsConfiguration('editor.inlayHints.enabled')
-			|| event.affectsConfiguration('errorLens.codeLensEnabled')
+			|| event.affectsConfiguration('errorLens.enabled')
 			|| event.affectsConfiguration('shortestpath.executableCleanupEnabled')
 			|| event.affectsConfiguration('shortestpath.executableCleanupDelaySeconds')
 			|| event.affectsConfiguration('workbench.colorTheme')
@@ -626,7 +626,7 @@ function getState(): SimpleSettingsState {
 	const compileRunFlags = vscode.workspace.getConfiguration('c-cpp-compile-run', null).get<string>('cpp-flags');
 	const compilerFlags = cphFlags || compileRunFlags || defaultCompilerFlags;
 	const inlayHintsEnabled = editor.get<boolean | string>('inlayHints.enabled') ?? 'on';
-	const errorLensCodeLensEnabled = vscode.workspace.getConfiguration('errorLens', null).get<boolean>('codeLensEnabled') ?? false;
+	const errorLensEnabled = vscode.workspace.getConfiguration('errorLens', null).get<boolean>('enabled') ?? true;
 	const executableCleanupEnabled = vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('executableCleanupEnabled') ?? true;
 	const executableCleanupDelaySeconds = vscode.workspace.getConfiguration('shortestpath', null).get<number>('executableCleanupDelaySeconds') ?? 60;
 	const colorTheme = workbench.get<string>('colorTheme') ?? 'One Monokai';
@@ -639,7 +639,7 @@ function getState(): SimpleSettingsState {
 		compilerFlags,
 		cppTemplate: vscode.workspace.getConfiguration('judger.language.cpp', null).get<string>('Template') ?? defaultCppTemplate,
 		clangdVariableTypeHints: inlayHintsEnabled !== false && inlayHintsEnabled !== 'off',
-		errorLensCodeLensEnabled,
+		errorLensEnabled,
 		executableCleanupEnabled,
 		executableCleanupDelaySeconds,
 		colorTheme,
@@ -699,7 +699,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		...(typeof value.cppTemplate === 'string' ? [settings.update('judger.language.cpp.Template', value.cppTemplate, vscode.ConfigurationTarget.Global)] : []),
 		settings.update('c-cpp-compile-run.cpp-flags', compilerFlags, vscode.ConfigurationTarget.Global),
 		settings.update('editor.inlayHints.enabled', value.clangdVariableTypeHints !== false ? 'on' : 'off', vscode.ConfigurationTarget.Global),
-		settings.update('errorLens.codeLensEnabled', value.errorLensCodeLensEnabled === true, vscode.ConfigurationTarget.Global),
+		settings.update('errorLens.enabled', value.errorLensEnabled === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.executableCleanupEnabled', value.executableCleanupEnabled !== false, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.executableCleanupDelaySeconds', executableCleanupDelaySeconds, vscode.ConfigurationTarget.Global),
 		settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' ? value.colorTheme : 'One Monokai', vscode.ConfigurationTarget.Global),
@@ -779,7 +779,7 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 <div class="row"><div><label for="autoFormat">启用自动格式化</label><div class="hint">同时控制保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="autoFormat" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label>自动格式化规则</label><div class="hint">配置当前工作目录的 .clang-format。</div></div><button id="autoFormatSettings" class="secondary">配置格式化规则</button></div>
 <div class="row"><div><label for="clangdVariableTypeHints">clangd 变量类型提示</label><div class="hint">在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。</div></div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="errorLensCodeLensEnabled">Error Lens Code Lens</label><div class="hint">在诊断位置上方显示 Error Lens 的代码透镜。</div></div><label class="toggle"><input id="errorLensCodeLensEnabled" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="errorLensEnabled">Error Lens Enable</label><div class="hint">启用 Error Lens，在代码中显示诊断信息。</div></div><label class="toggle"><input id="errorLensEnabled" type="checkbox"><span>启用</span></label></div>
 </section>
 <section class="card" data-category="compiler" hidden><h3>编译与运行</h3>
 <div class="row"><div><label for="cppStandard">C++ 版本</label></div><select id="cppStandard"><option>c++11</option><option>c++14</option><option>c++17</option><option>c++20</option><option>c++23</option></select></div>
@@ -995,7 +995,7 @@ function apply(state) {
   byId('compilerFlags').value = state.compilerFlags;
   byId('cppTemplate').value = state.cppTemplate ?? '';
   byId('clangdVariableTypeHints').checked = !!state.clangdVariableTypeHints;
-  byId('errorLensCodeLensEnabled').checked = !!state.errorLensCodeLensEnabled;
+  byId('errorLensEnabled').checked = !!state.errorLensEnabled;
   byId('executableCleanupEnabled').checked = !!state.executableCleanupEnabled;
   byId('executableCleanupDelaySeconds').value = state.executableCleanupDelaySeconds;
   const theme = byId('colorTheme'); theme.replaceChildren();
@@ -1007,7 +1007,7 @@ function apply(state) {
 	byId('useExtensionMarketplace').checked = !!state.useExtensionMarketplace;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, cppTemplate: byId('cppTemplate').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensCodeLensEnabled: byId('errorLensCodeLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked }; }
+function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, cppTemplate: byId('cppTemplate').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily), textarea').forEach(control => {

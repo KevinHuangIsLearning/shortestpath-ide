@@ -275,7 +275,7 @@ const english: Readonly<Record<string, string>> = {
 	,'检查更新失败：{0}': 'Update check failed: {0}'
 	,'更新检查命令未返回结果，可能是扩展尚未激活。': 'The update command returned no result. The extension may not be active yet.'
 	,'未返回具体原因。': 'No specific reason was provided.'
-	,'在诊断位置上方显示 Error Lens 的代码透镜。': 'Show the Error Lens code lens above diagnostic locations.'
+	,'启用 Error Lens，在代码中显示诊断信息。': 'Enable Error Lens to show diagnostics in the code.'
 	,'检查 Judger、Compile Run、clangd 与编译器是否可用且配置一致。': 'Check whether Judger, Compile Run, clangd, and the compiler are available and configured consistently.'
 	,'打开诊断页': 'Open Diagnostics'
 	,'没有匹配的设置。': 'No matching settings.'
