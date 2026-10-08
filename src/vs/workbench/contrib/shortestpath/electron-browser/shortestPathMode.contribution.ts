@@ -48,15 +48,25 @@ const browsingContext = new RawContextKey<boolean>('shortestpath.browsing', fals
 const pageContext = new RawContextKey<boolean>('shortestpath.page', false);
 const modeKey = 'shortestpath.mode';
 const tabsKey = 'shortestpath.browser.tabs';
-const drawLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? "草稿" : localize('sp.draw', "Sketchpad");
+// allow-any-unicode-next-line
+const drawLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? '草稿' : localize('sp.draw', "Sketchpad");
+// allow-any-unicode-next-line
+const dashboardLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? '做题统计' : localize('sp.dashboard', "Dashboard");
 const drawTitle = localize2('sp.switchDraw', "Open Sketchpad");
-if (getNLSLanguage()?.toLowerCase().startsWith('zh')) { drawTitle.value = "打开草稿"; }
+// allow-any-unicode-next-line
+if (getNLSLanguage()?.toLowerCase().startsWith('zh')) { drawTitle.value = '打开草稿'; }
 
+// allow-any-unicode-next-line
 registerColor('shortestpath.browseModeBackground', 'toolbar.hoverBackground', localize('sp.browseBackground', "浏览模式选中和聚焦时的背景色。"));
+// allow-any-unicode-next-line
 registerColor('shortestpath.solveModeBackground', 'toolbar.hoverBackground', localize('sp.solveBackground', "做题模式选中和聚焦时的背景色。"));
+// allow-any-unicode-next-line
 registerColor('shortestpath.snippetsModeBackground', 'toolbar.hoverBackground', localize('sp.snippetsBackground', "代码片段选中和聚焦时的背景色。"));
-registerColor('shortestpath.drawModeBackground', 'toolbar.hoverBackground', getNLSLanguage()?.toLowerCase().startsWith('zh') ? "草稿选中和聚焦时的背景色。" : localize('sp.drawBackground', "Background of the sketchpad button when selected or focused."));
+// allow-any-unicode-next-line
+registerColor('shortestpath.drawModeBackground', 'toolbar.hoverBackground', getNLSLanguage()?.toLowerCase().startsWith('zh') ? '草稿选中和聚焦时的背景色。' : localize('sp.drawBackground', "Background of the sketchpad button when selected or focused."));
+// allow-any-unicode-next-line
 registerColor('shortestpath.settingsModeBackground', 'toolbar.hoverBackground', localize('sp.settingsBackground', "设置选中和聚焦时的背景色。"));
+// allow-any-unicode-next-line
 registerColor('shortestpath.activeModeForeground', 'titleBar.activeForeground', localize('sp.modeForeground', "工作模式选中和聚焦时的文字颜色。"));
 
 /** Hosts browsing in native editor groups independent from the solving workspace. */
@@ -76,11 +86,13 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private readonly pageStores = this._register(new DisposableMap<ShortestPathPageMode, DisposableStore>());
 	private readonly pendingPages = new Map<ShortestPathPageMode, Promise<void>>();
 	private readonly ready: Promise<void>;
+	private requestedMode: ShortestPathMode | undefined;
 	private surface!: HTMLElement;
 	private browseButton!: HTMLButtonElement;
 	private solveButton!: HTMLButtonElement;
 	private snippetsButton!: HTMLButtonElement;
 	private drawButton!: HTMLButtonElement;
+	private dashboardButton!: HTMLButtonElement;
 	private settingsButton!: HTMLButtonElement;
 	private pageSurface!: HTMLElement;
 	private resultBadge!: HTMLElement;
@@ -111,7 +123,13 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.nativeBrowsers = ProxyChannel.toService<IBrowserViewService>(mainProcess.getChannel(ipcBrowserViewChannelName));
 		this.browsing = browsingContext.bindTo(contextKeys);
 		this.pageMode = pageContext.bindTo(contextKeys);
-		this.ready = lifecycle.when(LifecyclePhase.Restored).then(() => this.create());
+		this.ready = lifecycle.when(LifecyclePhase.Ready).then(async () => {
+			if (this.stopped) { return; }
+			// Show navigation with the workbench shell; native tabs still restore later.
+			this.createNavigation();
+			await lifecycle.when(LifecyclePhase.Restored);
+			if (!this.stopped) { await this.create(); }
+		});
 		this._register(webviews.registerOpenHandler({
 			onDidChange: this.changeActive.event,
 			getActiveWebview: () => isShortestPathPageMode(this.mode) ? this.pages.get(this.mode) : undefined,
@@ -139,29 +157,42 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this._register(this.storage.onWillSaveState(() => this.saveTabs()));
 	}
 
-	protected async create(): Promise<void> {
+	protected createNavigation(): void {
 		const root = this.layoutService.mainContainer;
 		root.classList.add('shortestpath-dual-mode');
+		// allow-any-unicode-next-line
 		this.switcher = append(this.layoutService.mainWindowNavigationContainer!, $('.shortestpath-mode-switch', { role: 'group', 'aria-label': localize('sp.mode', "工作模式") }));
 		this.switcher.parentElement!.prepend(this.switcher);
+		// allow-any-unicode-next-line
 		this.browseButton = this.button(this.switcher, localize('sp.browse', "浏览"), () => this.switchMode('browse'), 'globe');
 		this.browseButton.classList.add('shortestpath-mode-browse');
 		const updateSetup = () => { this.browseButton.disabled = !this.configuration.getValue<boolean>('shortestpath.setup.completed'); };
 		updateSetup();
 		this._register(this.configuration.onDidChangeConfiguration(event => { if (event.affectsConfiguration('shortestpath.setup.completed')) { updateSetup(); } }));
+		// allow-any-unicode-next-line
 		this.solveButton = this.button(this.switcher, localize('sp.solve', "做题"), () => this.switchMode('solve'), 'code');
 		this.solveButton.classList.add('shortestpath-mode-solve');
 		this.resultBadge = append(this.solveButton, $('span.shortestpath-result-badge', { 'aria-hidden': 'true' }));
 		this.resultBadge.hidden = true;
+		// allow-any-unicode-next-line
 		this.snippetsButton = this.button(this.switcher, localize('sp.snippets', "代码片段"), () => this.switchMode('snippets'), 'snippets');
 		this.snippetsButton.classList.add('shortestpath-mode-snippets');
 		this.drawButton = this.button(this.switcher, drawLabel, () => this.switchMode('draw'), 'pencil');
 		this.drawButton.classList.add('shortestpath-mode-draw');
+		this.dashboardButton = this.button(this.switcher, dashboardLabel, () => this.switchMode('dashboard'), 'dashboard');
+		this.dashboardButton.classList.add('shortestpath-mode-dashboard');
 		this.navigationActions = append(this.layoutService.mainWindowNavigationContainer!, $('.shortestpath-navigation-actions'));
+		// allow-any-unicode-next-line
 		this.settingsButton = this.button(this.navigationActions, localize('sp.settings', "设置"), () => this.switchMode('settings'), 'settings-gear');
 		this.settingsButton.classList.add('shortestpath-mode-settings');
+		this.solveButton.setAttribute('aria-pressed', 'true');
+	}
+
+	protected async create(): Promise<void> {
+		const root = this.layoutService.mainContainer;
 		this.pageSurface = append(root, $('section.shortestpath-page-space'));
 		this.pageSurface.hidden = true;
+		// allow-any-unicode-next-line
 		this.surface = append(root, $('section.shortestpath-browser-space', { 'aria-label': localize('sp.browser', "网页浏览") }));
 		this.surface.hidden = true;
 		this.surface.inert = true;
@@ -192,9 +223,16 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.activeBrowser = [...this.tabs.values()][state.active];
 		if (this.activeBrowser) { await this.openInBrowserPart(this.activeBrowser, true, false); }
 		this.renderTabs();
+		this.restoreMode();
+	}
+
+	protected restoreMode(): void {
 		const initialMode = this.storage.get(modeKey, StorageScope.PROFILE);
 		const configured = this.configuration.getValue<boolean>('shortestpath.setup.completed');
-		if (isShortestPathPageMode(initialMode)) {
+		if (this.requestedMode !== undefined) {
+			// An early navigation click takes precedence over the saved startup mode.
+			this.applyMode('solve');
+		} else if (isShortestPathPageMode(initialMode)) {
 			this.applyMode('solve');
 			void this.ready.then(() => this.switchMode(initialMode)).catch(onUnexpectedError);
 		} else if (configured && initialMode !== 'solve') {
@@ -205,7 +243,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 
 	private button(parent: HTMLElement, label: string, run: () => PromiseLike<unknown> | void, icon?: string, store: DisposableStore = this._store): HTMLButtonElement {
 		const button = append(parent, $('button', { type: 'button', 'aria-label': label })) as HTMLButtonElement;
-		if ((parent === this.switcher || parent === this.navigationActions) && (icon === 'globe' || icon === 'code' || icon === 'snippets' || icon === 'pencil' || icon === 'settings-gear')) {
+		if ((parent === this.switcher || parent === this.navigationActions) && (icon === 'globe' || icon === 'code' || icon === 'snippets' || icon === 'pencil' || icon === 'dashboard' || icon === 'settings-gear')) {
 			const svg = button.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'svg');
 			svg.classList.add('shortestpath-mode-icon');
 			svg.setAttribute('viewBox', '0 0 24 24');
@@ -214,13 +252,15 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			const path = button.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path.setAttribute('d', icon === 'globe'
 				? 'M6 4h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3ZM3 9h18M7 6.5h.01M10 6.5h.01'
-				: icon === 'snippets'
-					? 'M8 3h11a2 2 0 0 1 2 2v12M5 7h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2ZM8 11l-3 3 3 3M13 11l3 3-3 3'
-					: icon === 'pencil'
-						? 'M4 20l4.5-1 12-12a2.1 2.1 0 0 0-3-3l-12 12L4 20ZM15.5 6.5l3 3M5.5 16.5l3 3M12 20h8'
-					: icon === 'settings-gear'
-						? 'M9.5 2h5l.6 2.4 2.1 1.2 2.4-.7 2.5 4.3-1.8 1.6v2.4l1.8 1.6-2.5 4.3-2.4-.7-2.1 1.2-.6 2.4h-5l-.6-2.4-2.1-1.2-2.4.7-2.5-4.3 1.8-1.6v-2.4L1.9 9.2l2.5-4.3 2.4.7 2.1-1.2L9.5 2ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0'
-						: 'M6 4h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3ZM9 9l-3 3 3 3M15 9l3 3-3 3');
+				: icon === 'dashboard'
+					? 'M4 4h6v6H4V4ZM14 4h6v6h-6V4ZM4 14h6v6H4v-6ZM14 14h6v6h-6v-6Z'
+					: icon === 'snippets'
+						? 'M8 3h11a2 2 0 0 1 2 2v12M5 7h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2ZM8 11l-3 3 3 3M13 11l3 3-3 3'
+						: icon === 'pencil'
+							? 'M4 20l4.5-1 12-12a2.1 2.1 0 0 0-3-3l-12 12L4 20ZM15.5 6.5l3 3M5.5 16.5l3 3M12 20h8'
+							: icon === 'settings-gear'
+								? 'M9.5 2h5l.6 2.4 2.1 1.2 2.4-.7 2.5 4.3-1.8 1.6v2.4l1.8 1.6-2.5 4.3-2.4-.7-2.1 1.2-.6 2.4h-5l-.6-2.4-2.1-1.2-2.4.7-2.5-4.3 1.8-1.6v-2.4L1.9 9.2l2.5-4.3 2.4.7 2.1-1.2L9.5 2ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0'
+								: 'M6 4h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3ZM9 9l-3 3 3 3M15 9l3 3-3 3');
 			svg.append(path);
 			button.append(svg);
 		} else if (icon) { append(button, $(`span.codicon.codicon-${icon}`, { 'aria-hidden': 'true' })); }
@@ -234,6 +274,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	}
 
 	async switchMode(mode: ShortestPathMode): Promise<void> {
+		this.requestedMode = mode;
 		await this.ready;
 		if (this.stopped) { return; }
 		if (mode === 'browse' && !this.configuration.getValue<boolean>('shortestpath.setup.completed')) { return; }
@@ -264,6 +305,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			}
 		} else {
 			this.resultBadge.hidden = true;
+			// allow-any-unicode-next-line
 			this.solveButton.setAttribute('aria-label', localize('sp.solve', "做题"));
 			if (this.returnFocus?.isConnected) { this.returnFocus.focus(); }
 			else { this.layoutService.focusPart(Parts.EDITOR_PART, mainWindow); }
@@ -284,11 +326,13 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.surface.inert = mode !== 'browse';
 		this.browserPart?.setVisible(mode === 'browse');
 		this.pageSurface.hidden = !isShortestPathPageMode(mode);
-		this.pageSurface.setAttribute('aria-label', mode === 'snippets' ? localize('sp.snippets', "代码片段") : mode === 'draw' ? drawLabel : localize('sp.settings', "设置"));
+		// allow-any-unicode-next-line
+		this.pageSurface.setAttribute('aria-label', mode === 'dashboard' ? dashboardLabel : mode === 'snippets' ? localize('sp.snippets', "代码片段") : mode === 'draw' ? drawLabel : localize('sp.settings', "设置"));
 		this.browseButton.setAttribute('aria-pressed', String(mode === 'browse'));
 		this.solveButton.setAttribute('aria-pressed', String(mode === 'solve'));
 		this.snippetsButton.setAttribute('aria-pressed', String(mode === 'snippets'));
 		this.drawButton.setAttribute('aria-pressed', String(mode === 'draw'));
+		this.dashboardButton.setAttribute('aria-pressed', String(mode === 'dashboard'));
 		this.settingsButton.setAttribute('aria-pressed', String(mode === 'settings'));
 		for (const [pageMode, input] of this.pages) {
 			if (mode === pageMode) { this.showPage(input); }
@@ -511,6 +555,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	notifyResult(): void {
 		if (this.mode === 'browse') {
 			this.resultBadge.hidden = false;
+			// allow-any-unicode-next-line
 			this.solveButton.setAttribute('aria-label', localize('sp.newResult', "做题，有新的评测结果"));
 		}
 	}
@@ -537,22 +582,28 @@ class ShortestPathModeContribution {
 	static readonly ID = 'workbench.contrib.shortestpathModes';
 	constructor(@IShortestPathModeService _modeService: IShortestPathModeService) { }
 }
-registerWorkbenchContribution2(ShortestPathModeContribution.ID, ShortestPathModeContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ShortestPathModeContribution.ID, ShortestPathModeContribution, WorkbenchPhase.BlockRestore);
 
 const modeTitles = {
+	dashboard: { ...localize2('sp.switchDashboard', "Open Dashboard"), value: dashboardLabel },
+	// allow-any-unicode-next-line
 	browse: localize2('sp.switchBrowse', "切换到浏览模式"),
+	// allow-any-unicode-next-line
 	solve: localize2('sp.switchSolve', "切换到做题模式"),
+	// allow-any-unicode-next-line
 	snippets: localize2('sp.switchSnippets', "打开代码片段"),
 	draw: drawTitle,
+	// allow-any-unicode-next-line
 	settings: localize2('sp.switchSettings', "打开设置"),
 };
-for (const mode of ['browse', 'solve', 'snippets', 'draw', 'settings'] as const) {
+for (const mode of ['browse', 'solve', 'snippets', 'draw', 'settings', 'dashboard'] as const) {
 	registerAction2(class extends Action2 {
 		constructor() { super({ id: `shortestpath.mode.${mode}`, title: modeTitles[mode], f1: true }); }
 		run(accessor: ServicesAccessor): Promise<void> { return accessor.get(IShortestPathModeService).switchMode(mode); }
 	});
 }
 registerAction2(class extends Action2 {
+	// allow-any-unicode-next-line
 	constructor() { super({ id: 'shortestpath.mode.toggle', title: localize2('sp.toggleMode', "切换浏览 / 做题模式"), f1: true, keybinding: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space, weight: KeybindingWeight.WorkbenchContrib } }); }
 	run(accessor: ServicesAccessor): Promise<void> { const service = accessor.get(IShortestPathModeService); return service.switchMode(service.mode === 'browse' ? 'solve' : 'browse'); }
 });
@@ -560,6 +611,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'shortestpath.page.back',
+			// allow-any-unicode-next-line
 			title: localize2('sp.backToSolve', "返回做题"),
 			precondition: pageContext,
 			keybinding: { primary: KeyMod.CtrlCmd | KeyCode.KeyW, when: pageContext, weight: KeybindingWeight.WorkbenchContrib + 1 },
@@ -571,8 +623,11 @@ registerAction2(class extends Action2 {
 CommandsRegistry.registerCommand('shortestpath.browser.open', (accessor, url?: string, newTab?: boolean) => accessor.get(IShortestPathModeService).openBrowser(url, newTab));
 CommandsRegistry.registerCommand('shortestpath.mode.notifyResult', accessor => accessor.get(IShortestPathModeService).notifyResult());
 for (const [id, title, primary, run] of [
+	// allow-any-unicode-next-line
 	['address', localize2('sp.focusAddress', "浏览：聚焦地址栏"), KeyMod.CtrlCmd | KeyCode.KeyL, (service: ShortestPathModeService) => service.focusAddress()],
+	// allow-any-unicode-next-line
 	['newTab', localize2('sp.openTab', "浏览：新建标签页"), KeyMod.CtrlCmd | KeyCode.KeyT, (service: ShortestPathModeService) => service.openBrowser('', true)],
+	// allow-any-unicode-next-line
 	['closeTab', localize2('sp.closeActive', "浏览：关闭标签页"), KeyMod.CtrlCmd | KeyCode.KeyW, (service: ShortestPathModeService) => service.closeActiveTab()],
 ] as const) {
 	registerAction2(class extends Action2 {

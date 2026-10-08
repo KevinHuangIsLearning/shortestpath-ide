@@ -32,6 +32,25 @@ suite('ShortestPath OJ Markdown URLs', () => {
 });
 
 suite('ShortestPath OJ editor code theme', () => {
+	test('the granular bundle preserves highlighting for all previously loaded languages, aliases and themes', async () => {
+		const { createHighlighter } = await import('shiki');
+		const original = await createHighlighter({
+			themes: ['github-dark', 'github-light'],
+			langs: ['cpp', 'python', 'java', 'javascript', 'typescript', 'bash', 'json', 'text'],
+		});
+		try {
+			for (const theme of ['github-dark', 'github-light']) {
+				const render = await createProblemMarkdownRenderer(() => theme);
+				for (const lang of original.getLoadedLanguages().concat('text', 'txt', 'plaintext')) {
+					const code = 'if (value < 2) return "你好"; // <script>\n';
+					assert.equal(render(`\`\`\`${lang}\n${code}\`\`\``, 'https://shortestpath.cn/'), original.codeToHtml(code, { lang, theme }), `${theme}: ${lang}`);
+				}
+			}
+		} finally {
+			original.dispose();
+		}
+	});
+
 	test('uses custom token colors and updates when a theme with the same name changes', async () => {
 		const makeTheme = (foreground: string): ThemeRegistration => ({
 			name: 'shortestpath-editor', type: 'dark',

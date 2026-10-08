@@ -1,0 +1,72 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+body { color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font: var(--vscode-font-size)/1.5 var(--vscode-font-family); }
+main { max-width: 1200px; margin: auto; padding: 20px; text-align: center; }
+h1 { font-size: 1.5em; } h2 { font-size: 1.1em; margin-top: 24px; }
+button, select { font: inherit; color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: 1px solid var(--vscode-contrastBorder, transparent); padding: 4px 8px; cursor: pointer; }
+select { color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); }
+button:not(.dashboard-day):hover { background: var(--vscode-button-hoverBackground); }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.dashboard-controls, .dashboard-totals { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: center; margin: 20px 0; }
+.dashboard-scroll { overflow-x: auto; padding: 4px; }
+.dashboard-heatmap { display: grid; grid-template-rows: repeat(7, 24px); grid-auto-flow: column; grid-auto-columns: 24px; gap: 4px; width: max-content; }
+.dashboard-day { box-sizing: border-box; width: 24px; height: 24px; padding: 0; font-size: 10px; border-radius: 3px; border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent)); }
+.level-0 { background: var(--vscode-editor-inactiveSelectionBackground); color: var(--vscode-editor-foreground); }
+.level-1 { background: color-mix(in srgb, var(--vscode-charts-blue) 25%, var(--vscode-editor-background)); color: var(--vscode-editor-foreground); }
+.level-2 { background: color-mix(in srgb, var(--vscode-charts-blue) 45%, var(--vscode-editor-background)); color: var(--vscode-editor-foreground); }
+.level-3 { background: color-mix(in srgb, var(--vscode-charts-blue) 70%, var(--vscode-editor-background)); color: var(--vscode-editor-foreground); }
+.level-4 { background: var(--vscode-charts-blue); color: var(--vscode-editor-background); }
+.dashboard-day:hover, .dashboard-day.selected { outline: 2px solid var(--vscode-focusBorder); }
+.dashboard-legend { display: flex; justify-content: center; gap: 5px; align-items: center; margin-top: 8px; }
+.dashboard-problems { list-style: none; padding: 0; overflow-x: auto; }
+.dashboard-problems li { display: grid; grid-template-columns: minmax(160px, 1fr) 150px 8em 100px 20em; min-width: calc(474px + 28em); box-sizing: border-box; align-items: center; gap: 12px; padding: 7px 8px; border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-editor-inactiveSelectionBackground)); text-align: left; }
+.dashboard-problems .dashboard-problem-details, .dashboard-problems dl { display: contents; }
+.dashboard-problems dt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.dashboard-problems dd { margin: 0; color: var(--vscode-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dashboard-problems button { margin: 0 4px; }
+
+.dashboard-header { text-align: center; margin: 32px 0 40px; }
+.dashboard-avatar { width: 72px; height: 72px; display: grid; place-items: center; margin: auto; border-radius: 50%; background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-size: 32px; }
+.dashboard-header h1 { margin: 16px 0 8px; font-weight: 600; }
+.dashboard-header p, .dashboard-note { color: var(--vscode-descriptionForeground); }
+.dashboard-totals { border: 1px solid var(--vscode-widget-border, var(--vscode-editor-inactiveSelectionBackground)); border-radius: 20px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; padding: 20px 0; margin: 28px 0; }
+.dashboard-metric { text-align: center; display: flex; flex-direction: column; gap: 6px; padding: 0 16px; min-width: 0; }
+.dashboard-metric + .dashboard-metric { border-left: 1px solid var(--vscode-widget-border, var(--vscode-editor-inactiveSelectionBackground)); }
+.dashboard-metric strong { font-size: 1.25em; font-weight: 500; overflow-wrap: anywhere; }
+.dashboard-metric span { color: var(--vscode-descriptionForeground); }
+.dashboard-metric small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-activity { margin-top: 32px; }
+.dashboard-section-heading { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 12px; }
+.dashboard-section-heading span { color: var(--vscode-descriptionForeground); }
+.dashboard-calendar { width: max-content; margin-inline: auto; }
+.dashboard-months { display: grid; grid-auto-flow: column; grid-auto-columns: 28px; margin-top: 10px; color: var(--vscode-descriptionForeground); }
+.dashboard-months span { white-space: nowrap; }
+@media (max-width: 700px) {
+	main { padding: 12px; }
+	.dashboard-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 0; }
+	.dashboard-metric + .dashboard-metric { border-left: 0; }
+	.dashboard-metric:nth-child(even) { border-left: 1px solid var(--vscode-widget-border, var(--vscode-editor-inactiveSelectionBackground)); }
+}
+
+.dashboard-range { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.dashboard-range input { font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); padding: 4px 8px; color-scheme: light dark; }
+.dashboard-range input:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+button:disabled { cursor: default; opacity: .5; }
+
+.dashboard-problem-details { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; margin: 10px 0; }
+.dashboard-status { font-weight: 600; }
+.dashboard-status-accepted { color: var(--vscode-charts-green); }
+.dashboard-status-partial { color: var(--vscode-charts-yellow); }
+.dashboard-range { justify-content: center; }
+
+.dashboard-controls { color: var(--vscode-descriptionForeground); font-size: .92em; gap: 12px; margin: 16px 0 24px; }
+.dashboard-controls select, .dashboard-controls input { color: var(--vscode-descriptionForeground); background: var(--vscode-editor-background); border-color: var(--vscode-widget-border, var(--vscode-contrastBorder, transparent)); }
+.dashboard-controls button { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); }
+.dashboard-controls button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+
+.dashboard-problem-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dashboard-problem-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.dashboard-problem-actions button { margin: 0; padding: 2px 6px; font-size: .92em; white-space: nowrap; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); }
+.dashboard-problem-actions button:hover { background: var(--vscode-button-secondaryHoverBackground); }

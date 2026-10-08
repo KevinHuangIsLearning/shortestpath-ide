@@ -1,3 +1,4 @@
+// allow-any-unicode-comment-file
 //@ts-check
 
 'use strict';
@@ -8,11 +9,11 @@ const CopyPlugin = require('copy-webpack-plugin');
 /**@type {import('webpack').Configuration}*/
 const config = {
     target: 'web', // vscode extensions run in a Node.js-context 📖 -> https://webpack.js.org/configuration/node/
-    entry: './src/webview/frontend/App.tsx', // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/
+    entry: { frontend: './src/webview/frontend/App.tsx', dashboard: './src/webview/frontend/Dashboard.tsx' }, // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/
     output: {
         // the bundle is stored in the 'dist' folder (check package.json), 📖 -> https://webpack.js.org/configuration/output/
         path: path.resolve(__dirname, 'dist'),
-        filename: 'frontend.module.js',
+        filename: '[name].module.js',
         libraryTarget: 'window',
         devtoolModuleFilenameTemplate: '../[resource-path]',
     },
@@ -40,6 +41,7 @@ const config = {
     plugins: [
         new CopyPlugin({
             patterns: [
+                { from: 'src/webview/frontend/dashboard.css', to: 'dashboard.css' },
                 {
                     from: 'src/webview/frontend/app.css',
                     to: 'app.css',

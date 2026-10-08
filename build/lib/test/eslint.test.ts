@@ -11,6 +11,21 @@ import { eslintFilter } from '../../filters.ts';
 
 suite('eslint', () => {
 
+	test('type-aware extension linting works with the retained extension projects', async () => {
+		const linter = new ESLint();
+		const files = [
+			'extensions/mermaid-markdown-features/src/chatOutputRenderer.ts',
+			'extensions/mermaid-markdown-features/src/editorManager.ts',
+		];
+		const results = await linter.lintFiles(files);
+		assert.equal(results.length, files.length);
+		assert.deepStrictEqual(results.flatMap(result => result.messages.filter(message => message.fatal)), []);
+		for (const file of files) {
+			const config = await linter.calculateConfigForFile(file);
+			assert.equal(config.rules['@typescript-eslint/prefer-optional-chain'][0], 1);
+		}
+	});
+
 	test('enforces source attribution for authored and upstream files', async () => {
 		const linter = new ESLint();
 		const header = (owner: string, license: string) => `/*---------------------------------------------------------------------------------------------

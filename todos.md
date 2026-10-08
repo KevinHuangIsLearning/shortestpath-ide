@@ -3,9 +3,14 @@
 # Todos
 
 
-- [ ] 【暂时搁置】添加做题 Dashboard，显示做题热力图，展示出做的题目的 source oj, from，**make a plan before do it, and you should let me comfirm. 如果有不清楚的细节，向我询问**。方案：[Dashboard 实施方案（待确认）](reports/dashboard-plan-2026-10-04.md)。已确认按 AC 日期统计、部分 AC 单列，同时展示原 OJ、导入平台和比赛/题单。确认方案后实施。
 
 # Solved
+
+## 20261007
+
+- [x] 添加做题 Dashboard：Codex 风格统计条、AC 峰值日期与题数、单题最长耗时、默认 180 天热力图，展示原始 OJ、导入平台和比赛/题单。左侧新增 Dashboard（中文「做题统计」）入口。
+
+实现与验证记录：[Dashboard 实现报告](reports/dashboard-implementation-2026-10-07.md)。
 
 ## 20261006
 

@@ -166,16 +166,36 @@ export default defineConfig(
 		files: [
 			'extensions/shortestpath.oj/src/**/*.ts',
 			'extensions/shortestpath.setup/src/**/*.ts',
+			'build/lib/checkPackageSize.ts',
+			'build/lib/minifyDependency.ts',
+			'build/lib/test/checkPackageSize.test.ts',
+			'build/lib/test/minifyDependency.test.ts',
+			'build/lib/test/moduleIgnore.test.ts',
+			'build/lib/test/oiPackageContents.test.ts',
+			'extensions/shortestpath.oj/.esbuild.mts',
 			'build/lib/darwinBundleVersion.ts',
 			'build/lib/electronLocales.ts',
 			'build/lib/test/darwinBundleVersion.test.ts',
 			'build/lib/test/electronLocales.test.ts',
+			'extensions/shortestpath.judger/src/nativeTranslations.ts',
+			'extensions/shortestpath.judger/src/webview/frontend/components/AuxMenu.tsx',
+			'extensions/shortestpath.judger/src/problemTimer.ts',
+			'extensions/shortestpath.judger/src/dashboardCompletion.ts',
+			'extensions/shortestpath.judger/src/tests/dashboardCompletion.test.ts',
+			'extensions/shortestpath.judger/src/dashboardRepository.ts',
+			'extensions/shortestpath.judger/src/dashboardStats.ts',
+			'extensions/shortestpath.judger/src/tests/dashboardRepository.test.ts',
+			'extensions/shortestpath.judger/src/tests/dashboardStats.test.ts',
+			'extensions/shortestpath.judger/src/tests/dashboardView.test.tsx',
+			'extensions/shortestpath.judger/src/webview/DashboardView.ts',
+			'extensions/shortestpath.judger/src/webview/frontend/Dashboard.tsx',
 			'extensions/shortestpath.judger/src/browserSubmission.ts',
 			'extensions/shortestpath.judger/src/browserImport.ts',
 			'extensions/shortestpath.judger/src/browserImportButton.ts',
 			'extensions/shortestpath.judger/src/problemDisplay.ts',
 			'extensions/shortestpath.judger/src/submissionTemplates.ts',
 			'extensions/shortestpath.judger/src/tests/browserImport.test.ts',
+			'extensions/shortestpath.judger/src/tests/browserImportCreation.test.ts',
 			'extensions/shortestpath.judger/src/tests/browserImportButton.test.ts',
 			'extensions/shortestpath.judger/src/tests/browserSubmission.test.ts',
 			'extensions/shortestpath.judger/src/tests/dropHint.test.ts',
@@ -2643,9 +2663,6 @@ export default defineConfig(
 			'extensions/markdown-language-features/preview-src/**/*.ts',
 			'extensions/mermaid-markdown-features/preview-src/chat/**/*.ts',
 			'extensions/mermaid-markdown-features/src/**/*.ts',
-			'extensions/media-preview/src/**/*.ts',
-			'extensions/simple-browser/**/*.ts',
-			'extensions/typescript-language-features/**/*.ts',
 		],
 		languageOptions: {
 			parser: tseslint.parser,
@@ -2656,20 +2673,9 @@ export default defineConfig(
 					'extensions/markdown-language-features/notebook/tsconfig.json',
 					'extensions/markdown-language-features/preview-src/tsconfig.json',
 
-					// Media preview
-					'extensions/media-preview/tsconfig.json',
-
-					// Media preview
-					'extensions/simple-browser/tsconfig.json',
-					'extensions/simple-browser/preview-src/tsconfig.json',
-
 					// Mermaid markdown features
 					'extensions/mermaid-markdown-features/tsconfig.json',
 					'extensions/mermaid-markdown-features/preview-src/chat/tsconfig.json',
-
-					// TypeScript
-					'extensions/typescript-language-features/tsconfig.json',
-					'extensions/typescript-language-features/web/tsconfig.json',
 				],
 			}
 		},

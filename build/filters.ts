@@ -75,6 +75,11 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/shortestpath.setup/src/toolchainDiagnostics.ts',
 	'!extensions/shortestpath.setup/src/fishMode.ts',
 	'!extensions/shortestpath.oj/**',
+	// Judger translation dictionaries and inherited CPH messages contain localized text.
+	'!extensions/shortestpath.judger/src/nativeTranslations.ts',
+	'!extensions/shortestpath.judger/src/webview/translations.ts',
+	'!extensions/shortestpath.judger/src/companion.ts',
+
 	'!scripts/delete_legacy_release_binaries.py',
 
 	// extensions/copilot has its own code style
@@ -90,6 +95,17 @@ export const unicodeFilter = Object.freeze<string[]>([
 
 export const indentationFilter = Object.freeze<string[]>([
 	'**',
+
+	// These files were inherited from CPH. Preserve their original style and notices;
+	// newly authored Judger files remain subject to the normal checks.
+	'!extensions/shortestpath.judger/src/companion.ts',
+	'!extensions/shortestpath.judger/src/extension.ts',
+	'!extensions/shortestpath.judger/src/parser.ts',
+	'!extensions/shortestpath.judger/src/types.ts',
+	'!extensions/shortestpath.judger/src/webview/JudgeView.ts',
+	'!extensions/shortestpath.judger/src/webview/frontend/App.tsx',
+	'!extensions/shortestpath.judger/src/webview/translations.ts',
+	'!extensions/shortestpath.judger/webpack.frontend.config.js',
 
 	// except specific files
 	'!**/ThirdPartyNotices.txt',

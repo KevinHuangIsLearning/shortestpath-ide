@@ -1,8 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- * Part of ShortestPath Judger.
- * Licensed under GPL-3.0-or-later. See LICENSE for license information.
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 export const nativeChinese: Record<string, string> = {
+	'judger.dashboard.confirmAction': '确认',
+	'judger.dashboard.partial': '部分 AC',
+	'judger.dashboard.confirmCompletion': '将“{0}”标记为{1}？',
+	'judger.dashboard.confirmCompletionDetail': '计时保持 5:00:00+，仍按题目创建日期统计。',
+	'judger.dashboard.updateFailed': '无法更改标记状态。请刷新 Dashboard 后重试。',
+	'judger.dashboard.title': '做题 Dashboard',
+	'judger.dashboard.openFailed': '无法打开所选题目。请刷新 Dashboard 后重试。',
 	'judger.browserImport.invalidFileName': '请输入有效的文件名，不要包含目录。',
 	'judger.browserImport.fileExtension': '所选语言需要使用 .{0} 扩展名。',
 	'judger.browserImport.fileNameTitle': '导入题目',
@@ -33,12 +40,12 @@ export const nativeChinese: Record<string, string> = {
 	'judger.browserImport.startUnavailable': '请打开 ShortestPath OJ 题目详情页，并等待“开始做题”按钮出现。',
 
 	'judger.migration.progress': '正在迁移配置',
-    'judger.run.busy': '请先停止当前运行，再运行测试点。',
-    'judger.submit.failed': '提交失败：{0}',
-    'judger.problem.recent': '切换到其他题目…',
-    'judger.problem.raw': '编辑题目 JSON',
-    'judger.problem.invalidDocument': '题目数据无效，请保留源码路径、正数时限和内存限制、名称、链接及测试点数组。',
-    'judger.problem.invalidTests': '测试点必须有唯一的数字 ID、文本输入和输出，文件路径须为字符串。',
+	'judger.run.busy': '请先停止当前运行，再运行测试点。',
+	'judger.submit.failed': '提交失败：{0}',
+	'judger.problem.recent': '切换到其他题目…',
+	'judger.problem.raw': '编辑题目 JSON',
+	'judger.problem.invalidDocument': '题目数据无效，请保留源码路径、正数时限和内存限制、名称、链接及测试点数组。',
+	'judger.problem.invalidTests': '测试点必须有唯一的数字 ID、文本输入和输出，文件路径须为字符串。',
 
 	'judger.actions.enable': '启用测试点',
 	'judger.actions.disable': '禁用测试点',

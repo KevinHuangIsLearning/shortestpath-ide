@@ -11,16 +11,19 @@ suite('ShortestPath browser workspace session', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	test('restores the sketchpad mode and keeps its companion in editor groups', () => {
 		assert.deepStrictEqual({
-			modes: ['browse', 'solve', 'snippets', 'draw', 'settings', undefined].map(isShortestPathPageMode),
+			modes: ['browse', 'solve', 'snippets', 'draw', 'settings', 'dashboard', undefined].map(isShortestPathPageMode),
 			command: shortestPathPageCommands.draw,
+			dashboardCommand: shortestPathPageCommands.dashboard,
 			pages: [
+				getShortestPathPageMode('shortestpath.judger', 'judger.dashboard'),
+				getShortestPathPageMode('another.extension', 'judger.dashboard'),
 				getShortestPathPageMode('shortestpath.shortestpath-draw', 'shortestpath.draw'),
 				getShortestPathPageMode('shortestpath.shortestpath-draw', 'shortestpath.draw.companion'),
 				getShortestPathPageMode('another.extension', 'shortestpath.draw'),
 				getShortestPathPageMode('shortestpath.shortestpath-setup', 'shortestpath.cppSnippets'),
 				getShortestPathPageMode('shortestpath.shortestpath-setup', 'shortestpath.settings'),
 			],
-		}, { modes: [false, false, true, true, true, false], command: 'shortestpath.draw.open', pages: ['draw', undefined, undefined, 'snippets', 'settings'] });
+		}, { modes: [false, false, true, true, true, true, false], command: 'shortestpath.draw.open', dashboardCommand: 'judger.openDashboard', pages: ['dashboard', undefined, 'draw', undefined, undefined, 'snippets', 'settings'] });
 	});
 	test('restores the selected ordinary page after removing authentication and recovery pages', () => {
 		assert.deepStrictEqual(parseBrowserState(JSON.stringify({ urls: ['https://shortestpath.cn/login', 'https://shortestpath.cn/topics', 'https://shortestpath.cn/ide/connect?token=secret', 'https://shortestpath.cn/problem/dsu/found/A'], active: 3 })), {

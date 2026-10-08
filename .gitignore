@@ -67,3 +67,5 @@ dist
 # Toolchain archives are fetched by the packaging workflows; never commit them.
 /resources/oi-defaults/toolchains/*.zip
 /resources/oi-defaults/toolchains/*.tar.zst
+/artifacts
+todos.md

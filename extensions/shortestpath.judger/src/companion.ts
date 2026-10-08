@@ -431,6 +431,9 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         problem.name = splitUrl[splitUrl.length - 1];
     }
     const receivedProblemUrl = problem.url;
+    // Capture provenance before restoring a VJudge URL to the original OJ.
+    problem.importedUrl = browserSourceUrl ?? receivedProblemUrl;
+    try { problem.importedFrom = new URL(problem.importedUrl).hostname; } catch { problem.importedFrom = undefined; }
 
     problem.url = restoreOriginalProblemUrl(problem.url, getVjudgeOjNames());
 
