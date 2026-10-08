@@ -1,6 +1,6 @@
 {
-	"version": "0.4.6",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.6",
+	"version": "0.4.7",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.7",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "修复 Windows 绿色版环境自检和 C++20 编译时找不到标准库头文件的问题，自动修复已有编译配置并保留自定义选项。工作区直接受信任，不再进入受限模式；浏览界面双击顶部标签栏空白处会打开新的空白浏览器标签页。\n\nFixed missing standard-library headers during environment checks and C++20 compilation in the Windows portable edition. Existing compiler settings are repaired automatically while preserving custom options. Workspaces are trusted automatically, and double-clicking empty space in the browsing tab bar opens a new blank browser tab."
+	"releaseNote": "新增独立仪表盘，提供做题热力图、AC 高峰和最长用时统计，支持范围筛选及按日查看。兼容旧题目记录；超时未标记题目可经确认修改状态，用时保持 5:00:00+，始终归到创建日期。\n\nAdded a standalone Dashboard with activity heatmaps, peak AC and longest-time statistics, period filters, and daily views. Legacy records are supported. Overdue unmarked problems can be updated after confirmation while retaining their creation date and 5:00:00+ elapsed time."
 }
