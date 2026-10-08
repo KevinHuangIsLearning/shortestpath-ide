@@ -34,10 +34,18 @@ function escapeHtml(value: string): string {
 export type ProblemMarkdownRenderer = (markdown: string, baseUrl: string) => string;
 
 export async function createProblemMarkdownRenderer(getTheme: () => string | ThemeRegistration): Promise<ProblemMarkdownRenderer> {
-	const { createHighlighter } = await import('shiki');
-	const highlighter = await createHighlighter({
-		themes: ['github-dark', 'github-light'],
-		langs: ['cpp', 'python', 'java', 'javascript', 'typescript', 'bash', 'json', 'text'],
+	// Import the same grammars and themes as before without the full registry of
+	// unused languages. Grammar modules include their embedded dependencies.
+	const { createHighlighterCore } = await import('shiki/core');
+	const { createOnigurumaEngine } = await import('shiki/engine/oniguruma');
+	const highlighter = await createHighlighterCore({
+		themes: [import('shiki/themes/github-dark.mjs'), import('shiki/themes/github-light.mjs')],
+		langs: [
+			import('shiki/langs/cpp.mjs'), import('shiki/langs/python.mjs'), import('shiki/langs/java.mjs'),
+			import('shiki/langs/javascript.mjs'), import('shiki/langs/typescript.mjs'),
+			import('shiki/langs/bash.mjs'), import('shiki/langs/json.mjs'),
+		],
+		engine: createOnigurumaEngine(import('shiki/wasm')),
 	});
 
 	return createMarkdownRendererWithHighlighter(highlighter, getTheme);

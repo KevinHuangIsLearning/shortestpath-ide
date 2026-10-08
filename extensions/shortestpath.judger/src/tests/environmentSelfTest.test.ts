@@ -16,6 +16,7 @@ jest.mock('../executions', () => ({ runTestCase: jest.fn(), runCustomChecker: je
 
 import { runEnvironmentSelfTest } from '../environmentSelfTest';
 import { compileFile } from '../compiler';
+import { getLanguage } from '../utils';
 import { runTestCase } from '../executions';
 import { compareOutput } from '../outputComparison';
 
@@ -26,6 +27,7 @@ let sourcePath: string;
 
 beforeEach(async () => {
 	jest.clearAllMocks();
+	(getLanguage as jest.Mock).mockReturnValue({ name: 'cpp', compiler: 'g++', args: [], skipCompile: false });
 	directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'cph-self-test-unit-'));
 	sourcePath = path.join(directory, 'check.cpp');
 	(compileFile as jest.Mock).mockImplementation(async (_file, options) => { await fs.promises.writeFile(options.outputPath, 'binary'); return true; });
@@ -47,6 +49,16 @@ test('fails when compilation fails without running testcases', async () => {
 	(compileFile as jest.Mock).mockResolvedValue(false);
 	expect(await runEnvironmentSelfTest({ sourcePath, samples })).toEqual({ success: false, reason: 'compile' });
 	expect(runTestCase).not.toHaveBeenCalled();
+});
+
+test('interpreted self-test runs the original Python source and never removes it', async () => {
+	sourcePath = path.join(directory, 'check.py');
+	await fs.promises.writeFile(sourcePath, 'print(3)');
+	(getLanguage as jest.Mock).mockReturnValue({ name: 'python', compiler: 'python3', args: [], skipCompile: true });
+	(compileFile as jest.Mock).mockResolvedValue(true);
+	expect(await runEnvironmentSelfTest({ sourcePath, samples })).toEqual({ success: true });
+	expect((runTestCase as jest.Mock).mock.calls.map(call => call[1])).toEqual([sourcePath, sourcePath, sourcePath]);
+	expect(await fs.promises.readFile(sourcePath, 'utf8')).toBe('print(3)');
 });
 
 test.each(['wrong output', 'timeout', 'stderr', 'nonzero exit'])('fails a CPH sample on %s', async failure => {

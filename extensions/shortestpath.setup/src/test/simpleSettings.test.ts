@@ -84,8 +84,8 @@ test('bundled Fira Code stays selectable while system fonts load, fail or are ab
 			disabled: false, value: 'Fira Code', fonts: result.fonts.length ? ['Fira Code', 'Menlo'] : ['Fira Code']
 		});
 	}
-	vm.runInContext("selectedFont = 'Menlo'", context);
-	await vm.runInContext("applySystemFonts({ fonts: ['Fira Code', 'Menlo'] })", context);
+	vm.runInContext(`selectedFont = 'Menlo'`, context);
+	await vm.runInContext(`applySystemFonts({ fonts: ['Fira Code', 'Menlo'] })`, context);
 	assert.equal(primary.value, 'Menlo');
 });
 

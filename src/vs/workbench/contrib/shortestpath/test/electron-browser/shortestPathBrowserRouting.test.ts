@@ -7,6 +7,7 @@ import { ITextEditorService } from '../../../../services/textfile/common/textEdi
 import { BrowserNewTabPlacementSettingId, BrowserViewWorkbenchService } from '../../../browserView/electron-browser/browserViewWorkbenchService.js';
 import { BrowserSourceEditorInput } from '../../../browserView/common/browserSourceEditorInput.js';
 import assert from 'assert';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
@@ -20,11 +21,13 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, IQuickPickItemButtonEvent, IQuickPickDidAcceptEvent, IQuickInputHideEvent, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorGroup, IEditorReplacement, IEditorGroupsService, IEditorPart, IEmbeddedEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { canOpenEditorsInNewWindow, EditorInputCapabilities, IUntypedEditorInput, EditorsOrder } from '../../../../common/editor.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { workbenchInstantiationService, TestFileEditorInput, TestEditorGroupView } from '../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
@@ -41,7 +44,17 @@ import { IShortestPathModeService, ShortestPathMode, shortestPathHome } from '..
 
 /** Exercise production routing without constructing the navigation presentation. */
 class TestModeService extends ShortestPathModeService {
-	protected override async create(): Promise<void> { this.createBrowserPart(document.createElement('div')); }
+	navigationCreated = false;
+	protected override createNavigation(): void {
+		this.navigationCreated = true;
+		if (this.restoreStartupMode) { super.createNavigation(); }
+	}
+	get browserPartCreated(): boolean { return !!this.browserPart; }
+	restoreStartupMode = false;
+	protected override async create(): Promise<void> {
+		this.createBrowserPart(document.createElement('div'));
+		if (this.restoreStartupMode) { this.restoreMode(); }
+	}
 	protected override applyMode(mode: ShortestPathMode): void { this.mode = mode; }
 	protected override renderTabs(): void { }
 	protected override refresh(): void { }
@@ -52,7 +65,7 @@ class TestModeService extends ShortestPathModeService {
 suite('ShortestPath browser routing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(createGate?: Promise<void>, createStarted?: () => void) {
+	function setup(createGate?: Promise<void>, createStarted?: () => void, restored?: Promise<void>, savedMode?: ShortestPathMode) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		const opened: { input: EditorInput; options: IEditorOptions | undefined; group: PreferredGroup | undefined }[] = [];
 		const untypedOpened: { input: IUntypedEditorInput; group: PreferredGroup | undefined }[] = [];
@@ -84,7 +97,7 @@ suite('ShortestPath browser routing', () => {
 			override isOpened(input: IResourceEditorInputIdentifier) { return opened.some(entry => entry.input === input); }
 			override async openEditor(input: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup) {
 				if (input instanceof EditorInput) {
-					const options = typeof optionsOrGroup === 'object' && !('id' in optionsOrGroup) ? optionsOrGroup : undefined;
+					const options = typeof optionsOrGroup === 'object' && !hasKey(optionsOrGroup, { id: true }) ? optionsOrGroup : undefined;
 					if (group === browserGroup) {
 						if (!browserInputs.includes(input)) { browserInputs.push(input); browserGroup.count = browserInputs.length; }
 						if (!options?.inactive || !browserGroup.activeEditor) { browserGroup.activeEditor = input; }
@@ -130,12 +143,45 @@ suite('ShortestPath browser routing', () => {
 			override registerOpenHandler() { return Disposable.None; }
 		});
 		instantiation.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
-			override async when() { }
+			override async when(phase: LifecyclePhase) { if (phase === LifecyclePhase.Restored) { await restored; } }
 		});
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'shortestpath.setup.completed': true }));
+		if (savedMode) {
+			instantiation.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+				override mainContainer = document.createElement('div');
+				override mainWindowNavigationContainer = document.createElement('div');
+				override focusPart() { }
+			});
+		}
+		if (savedMode) { instantiation.get(IStorageService).store('shortestpath.mode', savedMode, StorageScope.PROFILE, StorageTarget.MACHINE); }
 		const service = store.add(instantiation.createInstance(TestModeService));
+		service.restoreStartupMode = savedMode !== undefined;
 		instantiation.stub(IShortestPathModeService, service);
 		return { service, opened, untypedOpened, navigations, browserInputs, browserGroup, instantiation, known, handler: () => handler!, preferredCalls: () => preferredCalls };
+	}
+
+	test('navigation appears while editor restoration is pending and an early switch is retained', async () => {
+		const restored = new DeferredPromise<void>();
+		const { service } = setup(undefined, undefined, restored.p);
+		await Promise.resolve();
+		assert.deepStrictEqual({ navigation: service.navigationCreated, browser: service.browserPartCreated }, { navigation: true, browser: false });
+		const switching = service.switchMode('browse');
+		await restored.complete();
+		await switching;
+		assert.deepStrictEqual({ mode: service.mode, browser: service.browserPartCreated }, { mode: 'browse', browser: true });
+	});
+
+	for (const mode of ['browse', 'solve'] as const) {
+		test(`an early ${mode} click takes precedence over saved settings mode`, async () => {
+			const restored = new DeferredPromise<void>();
+			const { service } = setup(undefined, undefined, restored.p, 'settings');
+			await Promise.resolve();
+			const switching = service.switchMode(mode);
+			await restored.complete();
+			await switching;
+			await Promise.resolve();
+			assert.strictEqual(service.mode, mode);
+		});
 	}
 
 	for (const managed of [true, false]) {
@@ -356,7 +402,7 @@ suite('ShortestPath browser routing', () => {
 		const action = new OpenIntegratedBrowserAction();
 		await instantiation.invokeFunction(accessor => action.run(accessor, { url: 'https://example.com/A', openToSide: true }));
 		await instantiation.invokeFunction(accessor => action.run(accessor, { url: 'https://example.com/B', openInEditor: true }));
-		assert.deepStrictEqual(untypedOpened.map(({ input, group }) => ({ scheme: 'resource' in input ? input.resource?.scheme : undefined, options: input.options, group })), [
+		assert.deepStrictEqual(untypedOpened.map(({ input, group }) => ({ scheme: hasKey(input, { resource: true }) ? input.resource?.scheme : undefined, options: input.options, group })), [
 			{ scheme: 'vscode-browser', options: { viewState: { url: 'https://example.com/A' } }, group: SIDE_GROUP },
 			{ scheme: 'vscode-browser', options: { viewState: { url: 'https://example.com/B' } }, group: SIDE_GROUP },
 		]);
@@ -434,8 +480,10 @@ suite('ShortestPath browser routing', () => {
 		instantiation.stub(IBrowserViewWorkbenchService, 'getOrCreateLazy', (data: IBrowserEditorInputData) => store.add(instantiation.createInstance(BrowserEditorInput, data, async () => { throw new Error('No model needed'); })));
 		await instantiation.invokeFunction(accessor => new OpenIntegratedBrowserAction().run(accessor, { sourceEditor: source.resource.toString(), url: 'https://example.com/problem' }));
 		const pair = mainInputs[0] as BrowserSourceEditorInput;
-		assert.deepStrictEqual({ moved, source: pair.primary === source, dirty: pair.isDirty(), target: opened.at(-1)?.group === mainGroup,
-			pinned: (pair.secondary as BrowserEditorInput).associatedResource?.toString() },
+		assert.deepStrictEqual({
+			moved, source: pair.primary === source, dirty: pair.isDirty(), target: opened.at(-1)?.group === mainGroup,
+			pinned: (pair.secondary as BrowserEditorInput).associatedResource?.toString()
+		},
 			{ moved: true, source: true, dirty: true, target: true, pinned: 'https://example.com/problem' });
 	});
 
@@ -452,8 +500,10 @@ suite('ShortestPath browser routing', () => {
 		child.model = parent.model!;
 		const handled = handler().shouldOpenEditor(child, { type: 'user' }, { parentViewId: parent.id, auxiliaryWindow: { x: 0, y: 0, width: 600, height: 400 } });
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
-		assert.deepStrictEqual({ handled, mode: service.mode, owns: service.ownsBrowserTab(child), active: service.activeBrowser === child,
-			sourcePair: opened.some(entry => entry.input === pair), dirty: pair.isDirty() },
+		assert.deepStrictEqual({
+			handled, mode: service.mode, owns: service.ownsBrowserTab(child), active: service.activeBrowser === child,
+			sourcePair: opened.some(entry => entry.input === pair), dirty: pair.isDirty()
+		},
 			{ handled: false, mode: 'browse', owns: true, active: true, sourcePair: true, dirty: true });
 	});
 
@@ -524,8 +574,12 @@ suite('ShortestPath browser routing', () => {
 		source.setDirty();
 		const pair = store.add(instantiation.createInstance(BrowserSourceEditorInput, browser, source, 50));
 		inputs.push(pair);
+		// Access the private lookup to verify forced disposal clears the source pair.
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
 		assert.strictEqual(controller['_findEditorGroupForView'](browser.id), 7);
 		browser.dispose(true);
+		// Access the private lookup to verify forced disposal clears the source pair.
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
 		assert.strictEqual(controller['_findEditorGroupForView'](browser.id), undefined);
 		assert.deepStrictEqual({ restored: inputs[0] === source, dirty: source.isDirty(), sourceDisposed: source.isDisposed(), pairDisposed: pair.isDisposed() },
 			{ restored: true, dirty: true, sourceDisposed: false, pairDisposed: true });

@@ -36,8 +36,9 @@ export async function runEnvironmentSelfTest(options: {
 		});
 		if (!compiled) { return { success: false, reason: 'compile' }; }
 		const language = getLanguage(options.sourcePath);
+		const executable = language.skipCompile ? options.sourcePath : binary;
 		for (const [index, sample] of options.samples.entries()) {
-			const result = await executeAndJudgeTestCase(language, binary, {
+			const result = await executeAndJudgeTestCase(language, executable, {
 				id: index, input: sample.input, expectedOutput: sample.output,
 				failOnStderr: !getIgnoreSTDERRORPref(), maxOutputSize: 64 * 1024
 			});
@@ -46,7 +47,7 @@ export async function runEnvironmentSelfTest(options: {
 		}
 		// Confirm a deliberately wrong expected answer is rejected as WA.
 		const sample = options.samples[0];
-		const result = await executeAndJudgeTestCase(language, binary, {
+		const result = await executeAndJudgeTestCase(language, executable, {
 			id: -1, input: sample.input, expectedOutput: 'SHORTESTPATH_WRONG_ANSWER',
 			failOnStderr: !getIgnoreSTDERRORPref(), maxOutputSize: 64 * 1024
 		});
