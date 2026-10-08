@@ -1700,6 +1700,7 @@ with open(sys.argv[2], "r") as f:
                 >
                     {auxOpen && (
                         <AuxMenu
+                            onOpenDashboard={() => { setAuxOpen(false); sendMessageToVSCode({ command: 'open-dashboard' }); }}
                             projectUrl={projectUrl}
                             userGuideHref={userGuideHref}
                             catCompanionEnabled={!!webviewState.catCompanionEnabled}

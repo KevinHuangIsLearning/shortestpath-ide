@@ -496,3 +496,9 @@
 	border-radius: inherit !important;
 	overflow: hidden;
 }
+
+.shortestpath-mode-dashboard[aria-pressed="true"] .shortestpath-mode-icon { color: #73b8ff; }
+.monaco-workbench.vs .shortestpath-mode-dashboard[aria-pressed="true"] .shortestpath-mode-icon,
+.monaco-workbench.hc-light .shortestpath-mode-dashboard[aria-pressed="true"] .shortestpath-mode-icon { color: #0068b8; }
+.shortestpath-mode-switch .shortestpath-mode-dashboard[aria-pressed="true"],
+.shortestpath-mode-switch .shortestpath-mode-dashboard:focus-visible { background: var(--vscode-toolbar-hoverBackground); }

@@ -9,20 +9,22 @@ import type { IEditorOptions } from '../../../../platform/editor/common/editor.j
 import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import type { BrowserEditorInput } from '../../browserView/common/browserEditorInput.js';
 
-export type ShortestPathPageMode = 'snippets' | 'draw' | 'settings';
+export type ShortestPathPageMode = 'snippets' | 'draw' | 'settings' | 'dashboard';
 export type ShortestPathMode = 'browse' | 'solve' | ShortestPathPageMode;
 export const shortestPathPageCommands: Record<ShortestPathPageMode, string> = {
+	dashboard: 'judger.openDashboard',
 	snippets: 'shortestpath.configureCppSnippets',
 	draw: 'shortestpath.draw.open',
 	settings: 'shortestpath.openSettings',
 };
 
 export function isShortestPathPageMode(mode: string | undefined): mode is ShortestPathPageMode {
-	return mode === 'snippets' || mode === 'draw' || mode === 'settings';
+	return mode === 'dashboard' || mode === 'snippets' || mode === 'draw' || mode === 'settings';
 }
 
 /** Only adopt the dedicated mode page; companion sketchpads stay in editor groups. */
 export function getShortestPathPageMode(extensionId: string | undefined, viewType: string | undefined): ShortestPathPageMode | undefined {
+	if (extensionId?.toLowerCase() === 'shortestpath.judger' && viewType === 'judger.dashboard') { return 'dashboard'; }
 	if (extensionId?.toLowerCase() === 'shortestpath.shortestpath-draw' && viewType === 'shortestpath.draw') { return 'draw'; }
 	if (extensionId?.toLowerCase() !== 'shortestpath.shortestpath-setup') { return undefined; }
 	return viewType === 'shortestpath.cppSnippets' ? 'snippets' : viewType === 'shortestpath.settings' ? 'settings' : undefined;

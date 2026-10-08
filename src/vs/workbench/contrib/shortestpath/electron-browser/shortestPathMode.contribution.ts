@@ -50,6 +50,8 @@ const modeKey = 'shortestpath.mode';
 const tabsKey = 'shortestpath.browser.tabs';
 // allow-any-unicode-next-line
 const drawLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? '草稿' : localize('sp.draw', "Sketchpad");
+// allow-any-unicode-next-line
+const dashboardLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? '做题统计' : localize('sp.dashboard', "Dashboard");
 const drawTitle = localize2('sp.switchDraw', "Open Sketchpad");
 // allow-any-unicode-next-line
 if (getNLSLanguage()?.toLowerCase().startsWith('zh')) { drawTitle.value = '打开草稿'; }
@@ -90,6 +92,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private solveButton!: HTMLButtonElement;
 	private snippetsButton!: HTMLButtonElement;
 	private drawButton!: HTMLButtonElement;
+	private dashboardButton!: HTMLButtonElement;
 	private settingsButton!: HTMLButtonElement;
 	private pageSurface!: HTMLElement;
 	private resultBadge!: HTMLElement;
@@ -176,6 +179,8 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.snippetsButton.classList.add('shortestpath-mode-snippets');
 		this.drawButton = this.button(this.switcher, drawLabel, () => this.switchMode('draw'), 'pencil');
 		this.drawButton.classList.add('shortestpath-mode-draw');
+		this.dashboardButton = this.button(this.switcher, dashboardLabel, () => this.switchMode('dashboard'), 'dashboard');
+		this.dashboardButton.classList.add('shortestpath-mode-dashboard');
 		this.navigationActions = append(this.layoutService.mainWindowNavigationContainer!, $('.shortestpath-navigation-actions'));
 		// allow-any-unicode-next-line
 		this.settingsButton = this.button(this.navigationActions, localize('sp.settings', "设置"), () => this.switchMode('settings'), 'settings-gear');
@@ -238,7 +243,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 
 	private button(parent: HTMLElement, label: string, run: () => PromiseLike<unknown> | void, icon?: string, store: DisposableStore = this._store): HTMLButtonElement {
 		const button = append(parent, $('button', { type: 'button', 'aria-label': label })) as HTMLButtonElement;
-		if ((parent === this.switcher || parent === this.navigationActions) && (icon === 'globe' || icon === 'code' || icon === 'snippets' || icon === 'pencil' || icon === 'settings-gear')) {
+		if ((parent === this.switcher || parent === this.navigationActions) && (icon === 'globe' || icon === 'code' || icon === 'snippets' || icon === 'pencil' || icon === 'dashboard' || icon === 'settings-gear')) {
 			const svg = button.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'svg');
 			svg.classList.add('shortestpath-mode-icon');
 			svg.setAttribute('viewBox', '0 0 24 24');
@@ -247,13 +252,15 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			const path = button.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path.setAttribute('d', icon === 'globe'
 				? 'M6 4h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3ZM3 9h18M7 6.5h.01M10 6.5h.01'
-				: icon === 'snippets'
-					? 'M8 3h11a2 2 0 0 1 2 2v12M5 7h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2ZM8 11l-3 3 3 3M13 11l3 3-3 3'
-					: icon === 'pencil'
-						? 'M4 20l4.5-1 12-12a2.1 2.1 0 0 0-3-3l-12 12L4 20ZM15.5 6.5l3 3M5.5 16.5l3 3M12 20h8'
-						: icon === 'settings-gear'
-							? 'M9.5 2h5l.6 2.4 2.1 1.2 2.4-.7 2.5 4.3-1.8 1.6v2.4l1.8 1.6-2.5 4.3-2.4-.7-2.1 1.2-.6 2.4h-5l-.6-2.4-2.1-1.2-2.4.7-2.5-4.3 1.8-1.6v-2.4L1.9 9.2l2.5-4.3 2.4.7 2.1-1.2L9.5 2ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0'
-							: 'M6 4h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3ZM9 9l-3 3 3 3M15 9l3 3-3 3');
+				: icon === 'dashboard'
+					? 'M4 4h6v6H4V4ZM14 4h6v6h-6V4ZM4 14h6v6H4v-6ZM14 14h6v6h-6v-6Z'
+					: icon === 'snippets'
+						? 'M8 3h11a2 2 0 0 1 2 2v12M5 7h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2ZM8 11l-3 3 3 3M13 11l3 3-3 3'
+						: icon === 'pencil'
+							? 'M4 20l4.5-1 12-12a2.1 2.1 0 0 0-3-3l-12 12L4 20ZM15.5 6.5l3 3M5.5 16.5l3 3M12 20h8'
+							: icon === 'settings-gear'
+								? 'M9.5 2h5l.6 2.4 2.1 1.2 2.4-.7 2.5 4.3-1.8 1.6v2.4l1.8 1.6-2.5 4.3-2.4-.7-2.1 1.2-.6 2.4h-5l-.6-2.4-2.1-1.2-2.4.7-2.5-4.3 1.8-1.6v-2.4L1.9 9.2l2.5-4.3 2.4.7 2.1-1.2L9.5 2ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0'
+								: 'M6 4h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3ZM9 9l-3 3 3 3M15 9l3 3-3 3');
 			svg.append(path);
 			button.append(svg);
 		} else if (icon) { append(button, $(`span.codicon.codicon-${icon}`, { 'aria-hidden': 'true' })); }
@@ -320,11 +327,12 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.browserPart?.setVisible(mode === 'browse');
 		this.pageSurface.hidden = !isShortestPathPageMode(mode);
 		// allow-any-unicode-next-line
-		this.pageSurface.setAttribute('aria-label', mode === 'snippets' ? localize('sp.snippets', "代码片段") : mode === 'draw' ? drawLabel : localize('sp.settings', "设置"));
+		this.pageSurface.setAttribute('aria-label', mode === 'dashboard' ? dashboardLabel : mode === 'snippets' ? localize('sp.snippets', "代码片段") : mode === 'draw' ? drawLabel : localize('sp.settings', "设置"));
 		this.browseButton.setAttribute('aria-pressed', String(mode === 'browse'));
 		this.solveButton.setAttribute('aria-pressed', String(mode === 'solve'));
 		this.snippetsButton.setAttribute('aria-pressed', String(mode === 'snippets'));
 		this.drawButton.setAttribute('aria-pressed', String(mode === 'draw'));
+		this.dashboardButton.setAttribute('aria-pressed', String(mode === 'dashboard'));
 		this.settingsButton.setAttribute('aria-pressed', String(mode === 'settings'));
 		for (const [pageMode, input] of this.pages) {
 			if (mode === pageMode) { this.showPage(input); }
@@ -577,6 +585,7 @@ class ShortestPathModeContribution {
 registerWorkbenchContribution2(ShortestPathModeContribution.ID, ShortestPathModeContribution, WorkbenchPhase.BlockRestore);
 
 const modeTitles = {
+	dashboard: { ...localize2('sp.switchDashboard', "Open Dashboard"), value: dashboardLabel },
 	// allow-any-unicode-next-line
 	browse: localize2('sp.switchBrowse', "切换到浏览模式"),
 	// allow-any-unicode-next-line
@@ -587,7 +596,7 @@ const modeTitles = {
 	// allow-any-unicode-next-line
 	settings: localize2('sp.switchSettings', "打开设置"),
 };
-for (const mode of ['browse', 'solve', 'snippets', 'draw', 'settings'] as const) {
+for (const mode of ['browse', 'solve', 'snippets', 'draw', 'settings', 'dashboard'] as const) {
 	registerAction2(class extends Action2 {
 		constructor() { super({ id: `shortestpath.mode.${mode}`, title: modeTitles[mode], f1: true }); }
 		run(accessor: ServicesAccessor): Promise<void> { return accessor.get(IShortestPathModeService).switchMode(mode); }

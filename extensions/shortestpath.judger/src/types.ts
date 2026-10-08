@@ -116,8 +116,14 @@ export type OjTimer = {
 };
 
 export type Problem = {
+    importedFrom?: string;
+    importedUrl?: string;
+    workspaceRelativeSourcePath?: string;
     shortestPath?: boolean;
     timeSpentMs?: number;
+    dashboardTimeCapped?: boolean;
+    dashboardCreatedAtUnixMs?: number;
+    dashboardCompletion?: 'none' | 'partial' | 'accepted';
     storageRevision?: string;
     timeStartedAtUnixMs?: number;
     timeAcceptedAtUnixMs?: number;
@@ -343,6 +349,7 @@ export type CaseAction =
 export type CaseMode = 'choose' | 'toggle' | 'open' | 'empty';
 
 export type WebviewToVSEvent =
+    | { command: 'open-dashboard' }
     | { command: 'problem-actions'; problem: Problem }
     | { command: 'problem-patch'; srcPath: string; patch: Partial<Problem> }
     | { command: 'testcase-action'; problem: Problem; id: number; action: CaseAction; mode?: CaseMode; result?: RunResult | null }

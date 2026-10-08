@@ -97,6 +97,10 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
             async (message: WebviewToVSEvent) => {
                 globalThis.logger.log('Got from webview', message.command === 'drop-testcases' ? { command: message.command, srcPath: message.srcPath, fileCount: message.files?.length, paths: message.paths } : message);
                 switch (message.command) {
+                    case 'open-dashboard': {
+                        await vscode.commands.executeCommand('judger.openDashboard');
+                        break;
+                    }
                     case 'get-oj-timer': {
                         try {
                             const timer = await vscode.commands.executeCommand<import('../types').OjTimer | undefined>('shortestpath.oj.getTimerForJudger', message.url, message.srcPath);
@@ -370,7 +374,9 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                             if (method === 'ask') {
                                 const selection = await vscode.window.showQuickPick([
                                     { label: 'VJudge', value: 'vjudge' as const },
+                                    // allow-any-unicode-next-line
                                     { label: localize('judger.submit.native', '原 OJ'), value: 'native' as const },
+                                // allow-any-unicode-next-line
                                 ], { placeHolder: localize('judger.submit.chooseMethod', '选择提交方式') });
                                 if (!selection) { break; }
                                 method = selection.value;

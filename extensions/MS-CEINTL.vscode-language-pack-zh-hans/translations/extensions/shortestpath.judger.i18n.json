@@ -80,7 +80,6 @@
 			"judger.general.fileNameTemplateOverrides.description": "按 OJ 分别设置文件名模板覆盖。键为 OJ 简称（如 CF、AT、LG、HDU），未匹配时回退到 File Name Template。\n\n示例：{ \"CF\": \"{contestId}{problemId}.{ext}\", \"AT\": \"{contestId}{problemId}.{ext}\", \"LG\": \"{oj}/{problemId}.{ext}\" }",
 			"judger.general.autoShowJudge.description": "打开有关联题目的文件时自动显示评测视图。",
 			"judger.general.remoteServerAddress.description": "插件发送请求的远程服务器地址。（目前用于实时用户统计）",
-			"judger.general.shortestPathFixedTemplate.description": "为 ShortestPath OJ 导入使用固定的源码目录和文件名。关闭后使用 Judger 文件名模板及模板中的目录；保留已有绑定的解答文件。",
 			"judger.general.showLiveUserCount.description": "是否显示实时用户统计。",
 			"judger.companion.kattisError": "请确保 {0} 中存在 .kattisrc 和 submit.py",
 			"judger.companion.parseError": "解析来自 companion 的题目时出错 {0}。原始题目: {1}",
@@ -141,7 +140,11 @@
 			"judger.execution.outputRatioLimit.description": "当实际输出超过期望输出大小的指定倍数时判 OLE；0 表示关闭此检查。",
 			"judger.stressTest.generatorTimeLimit.description": "生成器时间限制（毫秒）。",
 			"judger.stressTest.bruteForceTimeLimit.description": "标程时间限制（毫秒）。",
-			"judger.language.cpp.Template.description": "C++ 代码模板。明确设为空字符串时创建空代码文件。"
+			"judger.language.cpp.Template.description": "C++ 代码模板。明确设为空字符串时创建空代码文件。",
+			"judger.general.shortestPathFixedTemplate.description": "为 ShortestPath OJ 导入使用固定的源码目录和文件名。关闭后使用 Judger 文件名模板及模板中的目录；保留已有绑定的解答文件。",
+			"judger.openDashboard.title": "做题 Dashboard",
+			"judger.dashboard.containerTitle": "做题统计",
+			"judger.dashboard.welcome": "查看做题热力图、单日 AC 纪录与单题耗时。\n[打开做题统计](command:judger.openDashboard)"
 		}
 	}
 }

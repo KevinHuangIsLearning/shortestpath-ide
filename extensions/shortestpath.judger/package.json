@@ -29,6 +29,11 @@
                     "id": "cph-judge-view-container",
                     "title": "%judger.judgeViewContainer.title%",
                     "icon": "dist/static/panel-view-icon.svg"
+                },
+                {
+                    "id": "shortestpath-dashboard",
+                    "title": "%judger.dashboard.containerTitle%",
+                    "icon": "dist/static/dashboard.svg"
                 }
             ]
         },
@@ -39,6 +44,12 @@
                     "id": "judger.judgeView",
                     "name": "%judger.judgeView.name%",
                     "when": "!shortestpath.oj.integratedLocalTests"
+                }
+            ],
+            "shortestpath-dashboard": [
+                {
+                    "id": "shortestpath.dashboard",
+                    "name": "%judger.dashboard.containerTitle%"
                 }
             ]
         },
@@ -64,6 +75,10 @@
             {
                 "command": "judger.installSubmissionScript",
                 "title": "%judger.installSubmissionScript.title%"
+            },
+            {
+                "command": "judger.openDashboard",
+                "title": "%judger.openDashboard.title%"
             }
         ],
         "menus": {
@@ -1463,7 +1478,13 @@
                     "description": "%judger.language.cpp.Template.description%"
                 }
             }
-        }
+        },
+        "viewsWelcome": [
+            {
+                "view": "shortestpath.dashboard",
+                "contents": "%judger.dashboard.welcome%"
+            }
+        ]
     },
     "scripts": {
         "webpack-production": "webpack --mode production",

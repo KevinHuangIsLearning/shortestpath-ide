@@ -143,7 +143,9 @@ export const saveProblem = (srcPath: string, problem: Problem, preserveRevision 
     const location = getProbSaveLocation(srcPath);
     const current = readStoredProblem(location);
     // A delayed webview save must not undo AC or restart a persisted timer.
+    const workspaceRoot = getSourceWorkspaceRoot(srcPath);
     const initialized = initializeProblemTimer({ ...problem,
+        workspaceRelativeSourcePath: workspaceRoot ? path.relative(workspaceRoot, srcPath) : undefined,
         storageRevision: preserveRevision ? current?.storageRevision : crypto.randomUUID(),
         timeStartedAtUnixMs: updateCompletion ? problem.timeStartedAtUnixMs : current?.timeStartedAtUnixMs ?? problem.timeStartedAtUnixMs,
         timeAcceptedAtUnixMs: updateCompletion ? problem.timeAcceptedAtUnixMs : current ? current.timeAcceptedAtUnixMs : problem.timeAcceptedAtUnixMs,

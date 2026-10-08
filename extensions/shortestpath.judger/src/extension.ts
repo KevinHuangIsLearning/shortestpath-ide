@@ -1,5 +1,6 @@
 // Dependencies read preferences while loading, before activate() runs.
 import './logger';
+import { registerDashboard } from './webview/DashboardView';
 import { registerIntegratedTestCommands } from './integratedTestCommands';
 import { usesIntegratedTests } from './integratedTests';
 import { runEnvironmentSelfTest } from './environmentSelfTest';
@@ -53,6 +54,7 @@ export const getJudgeViewProvider = () => {
 
 const registerCommands = (context: vscode.ExtensionContext) => {
     globalThis.logger.log('Registering commands');
+    registerDashboard(context);
     registerBrowserSubmission(context);
     context.subscriptions.push(vscode.commands.registerCommand('judger.selfTestEnvironment', runEnvironmentSelfTest));
     registerBrowserImport(context, (problem, sourceUrl) => handleNewProblem(problem, undefined, undefined, true, true, sourceUrl));
