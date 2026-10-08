@@ -181,7 +181,7 @@
     },
     "markdown.previewScripts": [
       {
-        "path": "./markdown-preview-out/index.js",
+        "path": "./webview-out/markdown/index.js",
         "type": "module"
       }
     ],
@@ -192,7 +192,7 @@
         "requiresMessaging": "optional",
         "entrypoint": {
           "extends": "vscode.markdown-it-renderer",
-          "path": "./notebook-out/index.js"
+          "path": "./webview-out/notebook/index.js"
         }
       }
     ],

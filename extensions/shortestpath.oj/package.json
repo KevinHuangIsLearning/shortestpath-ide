@@ -28,12 +28,12 @@
 		"onCommand:shortestpath.oj.showProblemForCph",
 		"onCommand:shortestpath.oj.submitProblem"
 	],
-	"main": "./out/extension.js",
+	"main": "./dist/extension.js",
 	"scripts": {
 		"clean": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
 		"compile": "npm run clean && node ../../node_modules/typescript/bin/tsc6 -p ./",
 		"test": "npm run compile && node --test out/test/*.test.js",
-		"vscode:prepublish": "npm run compile"
+		"vscode:prepublish": "npm run compile && node .esbuild.mts"
 	},
 	"contributes": {
 		"configuration": {

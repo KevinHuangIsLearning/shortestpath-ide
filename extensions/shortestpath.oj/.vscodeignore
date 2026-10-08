@@ -7,3 +7,12 @@ tsconfig.tsbuildinfo
 .DS_Store
 README_cn.md
 out/test/**
+# Runtime dependencies are included in the production bundle.
+node_modules/**
+out/**
+.esbuild.mts
+package-lock.json
+dist/metafile.json
+# These standalone browser scripts are loaded by the OJ Webviews.
+!out/problemView.js
+!out/styleHotReload.js

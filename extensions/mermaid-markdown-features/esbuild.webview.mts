@@ -34,48 +34,22 @@ const cssTextPlugin: Plugin = {
 	},
 };
 
-const mermaidMarkdownBuildOptions: Partial<esbuild.BuildOptions> = {
-	loader: {
-		'.ttf': 'dataurl',
+// Build all renderers together so Mermaid, icon packs, and diagram loaders are
+// emitted once. Keep each renderer as an independent entry point.
+await run({
+	entryPoints: {
+		'chat/index': path.join(chatSrcDir, 'index.ts'),
+		'chat/index-editor': path.join(chatSrcDir, 'index-editor.ts'),
+		'chat/codicon': path.join(rootDir, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
+		'markdown/index': path.join(previewSrcDir, 'markdown', 'index.ts'),
+		'notebook/index': path.join(previewSrcDir, 'notebook', 'index.ts'),
 	},
-	plugins: [cssTextPlugin],
-	splitting: true,
-};
-
-await Promise.all([
-	// Chat
-	run({
-		entryPoints: {
-			'index': path.join(chatSrcDir, 'index.ts'),
-			'index-editor': path.join(chatSrcDir, 'index-editor.ts'),
-			'codicon': path.join(rootDir, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
-		},
-		srcDir: chatSrcDir,
-		outdir: path.join(rootDir, 'chat-webview-out'),
-		additionalOptions: {
-			loader: {
-				'.ttf': 'dataurl',
-			},
-		}
-	}, process.argv),
-	// Markdown preview
-	run({
-		entryPoints: {
-			'index': path.join(previewSrcDir, 'markdown', 'index.ts'),
-		},
-		srcDir: previewSrcDir,
-		outdir: path.join(rootDir, 'markdown-preview-out'),
-		additionalOptions: mermaidMarkdownBuildOptions,
-	}, process.argv),
-	// Notebook
-	run({
-		entryPoints: {
-			'index': path.join(previewSrcDir, 'notebook', 'index.ts'),
-		},
-		srcDir: previewSrcDir,
-		outdir: path.join(rootDir, 'notebook-out'),
-		additionalOptions: {
-			...mermaidMarkdownBuildOptions,
-		},
-	}, process.argv),
-]);
+	srcDir: previewSrcDir,
+	outdir: path.join(rootDir, 'webview-out'),
+	additionalOptions: {
+		loader: { '.ttf': 'dataurl' },
+		plugins: [cssTextPlugin],
+		splitting: true,
+		chunkNames: 'shared/[name]-[hash]',
+	},
+}, process.argv);

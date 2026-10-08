@@ -22,7 +22,7 @@ $requiredFiles = @(
 	'resources\app\node_modules.asar.unpacked\node-pty\lib\worker\conoutSocketWorker.js',
 	'resources\app\node_modules.asar.unpacked\node-pty\lib\shared\conout.js',
 	'resources\app\node_modules.asar.unpacked\node-pty\package.json',
-	'resources\app\extensions\shortestpath.oj\out\extension.js'
+	'resources\app\extensions\shortestpath.oj\dist\extension.js'
 )
 
 foreach ($relativePath in $requiredFiles) {

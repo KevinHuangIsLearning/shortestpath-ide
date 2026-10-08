@@ -24,6 +24,7 @@ import * as i18n from './lib/i18n.ts';
 import { getProductionDependencies } from './lib/dependencies.ts';
 import { config } from './lib/electron.ts';
 import { createAsar } from './lib/asar.ts';
+import { minifyDependency } from './lib/minifyDependency.ts';
 import minimist from 'minimist';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
 import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
@@ -227,6 +228,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		ensureOSProxyResolverPlatformPackage(platform, arch);
 		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		const deps = es.merge(cleanedDeps, osProxyResolverPlatformPackage)
+			.pipe(es.mapSync((file: VinylFile) => {
+				if (sourceFolderName.endsWith('-min') && Buffer.isBuffer(file.contents)) {
+					file.contents = minifyDependency(file.relative, file.contents);
+				}
+				return file;
+			}))
 			.pipe(filter(['**', '!**/@github/copilot*/**', '!**/@vscode/copilot-api/**']))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(filter(shortestPathUnusedAIRuntimeExcludeFilter))

@@ -479,7 +479,11 @@ function doPackageLocalExtensionsStream(forWeb: boolean, native: boolean): Strea
 		result = localExtensionsStream;
 	} else {
 		// also include shared production node modules
-		const productionDependencies = getProductionDependencies('extensions/');
+		// The shared TypeScript SDK serves upstream's TypeScript extension. That
+		// extension is excluded from the OI distribution; retained extensions bundle
+		// their own runtime dependencies. Do not ship its unused compiler and libs.
+		const productionDependencies = getProductionDependencies('extensions/')
+			.filter(dependency => !excludedForOIDistribution.has('typescript-language-features') || path.basename(dependency) !== 'typescript');
 		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
 		if (dependenciesSrc.length) {

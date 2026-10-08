@@ -11,3 +11,8 @@ webpack.frontend.config.js
 .prettierrc.json
 .gitignore
 docs/
+# Companion is bundled into dist/static at build time.
+scripts/**
+static/**
+screenshots/**
+webpack.preview.config.js

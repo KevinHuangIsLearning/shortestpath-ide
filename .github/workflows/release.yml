@@ -175,7 +175,7 @@ jobs:
             'resources\app\extensions\shortestpath.judger\dist\extension.js',
             'resources\app\extensions\usernamehw.errorlens\dist\extension.js',
             'resources\app\extensions\shortestpath.setup\out\extension.js',
-            'resources\app\extensions\shortestpath.oj\out\extension.js',
+            'resources\app\extensions\shortestpath.oj\dist\extension.js',
             'resources\app\extensions\shortestpath.draw\dist\extension.js',
             'resources\app\extensions\shortestpath.draw\dist\webview.js',
             'resources\app\extensions\shortestpath.draw\dist\webview.css',
@@ -258,11 +258,12 @@ jobs:
       - name: Archive macOS application
         run: |
           app="../VSCode-darwin-arm64/ShortestPath IDE.app"
+          node build/lib/checkPackageSize.ts "$app" 500000000
           for entry in \
             "shortestpath.judger/dist/extension.js" \
             "usernamehw.errorlens/dist/extension.js" \
             "shortestpath.setup/out/extension.js" \
-            "shortestpath.oj/out/extension.js" \
+            "shortestpath.oj/dist/extension.js" \
             "shortestpath.draw/dist/extension.js" \
             "shortestpath.draw/dist/webview.js" \
             "shortestpath.draw/dist/webview.css" \
@@ -353,7 +354,7 @@ jobs:
             "shortestpath.judger/dist/extension.js" \
             "usernamehw.errorlens/dist/extension.js" \
             "shortestpath.setup/out/extension.js" \
-            "shortestpath.oj/out/extension.js" \
+            "shortestpath.oj/dist/extension.js" \
             "shortestpath.draw/dist/extension.js" \
             "shortestpath.draw/dist/webview.js" \
             "shortestpath.draw/dist/webview.css" \

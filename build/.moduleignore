@@ -193,6 +193,24 @@ prebuild-install/**/*
 
 **/*.ts
 
+# Codicon font generation inputs and the standalone icon gallery are development
+# assets. Retain the distributed font, stylesheet, metadata and attribution.
+@vscode/codicons/src/**
+@vscode/codicons/scripts/**
+@vscode/codicons/_iconCloud/**
+@vscode/codicons/preview.png
+@vscode/codicons/dist/codicon.html
+@vscode/codicons/dist/codicon.csv
+
+# Desktop telemetry uses dist/dist-esm; Web telemetry explicitly loads the two
+# unversioned minified bundles below. Keep all three runtime entrypoint families.
+@microsoft/1ds-core-js/bundle/**
+!@microsoft/1ds-core-js/bundle/ms.core.min.js
+@microsoft/1ds-post-js/bundle/**
+!@microsoft/1ds-post-js/bundle/ms.post.min.js
+@microsoft/applicationinsights-core-js/browser/**
+@microsoft/applicationinsights-core-js/dist/*.api.json
+
 # Exclude TS files that aren't needed by TS extension
 typescript/lib/tsc.js
 typescript/lib/typescriptServices.js

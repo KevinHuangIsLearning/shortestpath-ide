@@ -169,7 +169,7 @@ class MermaidPreview extends Disposable {
 		this._webviewPanel.webview.options = {
 			enableScripts: true,
 			localResourceRoots: [
-				vscode.Uri.joinPath(this._extensionUri, 'chat-webview-out')
+				vscode.Uri.joinPath(this._extensionUri, 'webview-out')
 			],
 		};
 
@@ -205,12 +205,12 @@ class MermaidPreview extends Disposable {
 	private _getHtml(): string {
 		const nonce = generateUuid();
 
-		const mediaRoot = vscode.Uri.joinPath(this._extensionUri, 'chat-webview-out');
+		const mediaRoot = vscode.Uri.joinPath(this._extensionUri, 'webview-out');
 		const scriptUri = this._webviewPanel.webview.asWebviewUri(
-			vscode.Uri.joinPath(mediaRoot, 'index-editor.js')
+			vscode.Uri.joinPath(mediaRoot, 'chat', 'index-editor.js')
 		);
 		const codiconsUri = this._webviewPanel.webview.asWebviewUri(
-			vscode.Uri.joinPath(mediaRoot, 'codicon.css')
+			vscode.Uri.joinPath(mediaRoot, 'chat', 'codicon.css')
 		);
 		const togglePanModeLabel = vscode.l10n.t('Toggle Pan Mode');
 		const zoomOutLabel = vscode.l10n.t('Zoom Out');
@@ -223,7 +223,7 @@ class MermaidPreview extends Disposable {
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<title>Mermaid Diagram</title>
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'nonce-${nonce}'; style-src ${this._webviewPanel.webview.cspSource} 'unsafe-inline'; font-src data:;" />
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src ${this._webviewPanel.webview.cspSource} 'nonce-${nonce}'; style-src ${this._webviewPanel.webview.cspSource} 'unsafe-inline'; font-src data:;" />
 				<link rel="stylesheet" type="text/css" href="${codiconsUri}">
 				<style>
 					html, body {

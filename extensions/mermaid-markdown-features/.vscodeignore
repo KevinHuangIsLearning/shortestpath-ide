@@ -6,3 +6,9 @@ package-lock.json
 tsconfig*.json
 **/*.tsbuildinfo
 .gitignore
+
+# Superseded by the shared multi-entry build.
+chat-webview-out/**
+markdown-preview-out/**
+notebook-out/**
+out/**

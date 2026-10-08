@@ -230,3 +230,7 @@ extensions/shortestpath.judger/static/userscripts/vjudge.user.js
 extensions/shortestpath.judger/scripts/test-userscript-bundle.js
 
 extensions/shortestpath.judger/webpack.preview.config.js
+
+# Existing build entrypoint and desktop extension-host test driver.
+extensions/shortestpath.draw/esbuild.mjs
+test/ide-bridge/host.cjs
