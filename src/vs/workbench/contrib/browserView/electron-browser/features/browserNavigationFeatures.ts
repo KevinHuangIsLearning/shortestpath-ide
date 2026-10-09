@@ -34,7 +34,7 @@ import {
 	resolveAddressBarInputType,
 } from '../../common/browserSearch.js';
 import {
-	BROWSER_EDITOR_ACTIVE,
+	BROWSER_PANE_ACTIVE,
 	BrowserActionCategory,
 	BrowserActionGroup,
 	BrowserEditor,
@@ -42,6 +42,7 @@ import {
 	BrowserWidgetLocation,
 	CONTEXT_BROWSER_FOCUSED,
 	CONTEXT_BROWSER_HAS_URL,
+	getBrowserEditor,
 	IBrowserEditorWidget,
 	IBrowserUrlSuggestionAction,
 } from '../browserEditor.js';
@@ -355,7 +356,7 @@ class GoBackAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.arrowLeft,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_BACK),
+			precondition: ContextKeyExpr.and(BROWSER_PANE_ACTIVE, CONTEXT_BROWSER_CAN_GO_BACK),
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
@@ -370,7 +371,7 @@ class GoBackAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	async run(accessor: ServicesAccessor, browserEditor = getBrowserEditor(accessor.get(IEditorService).activeEditorPane)): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.model?.goBack();
 		}
@@ -387,7 +388,7 @@ class GoForwardAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.arrowRight,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD),
+			precondition: ContextKeyExpr.and(BROWSER_PANE_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD),
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
@@ -402,7 +403,7 @@ class GoForwardAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	async run(accessor: ServicesAccessor, browserEditor = getBrowserEditor(accessor.get(IEditorService).activeEditorPane)): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.model?.goForward();
 		}
@@ -419,7 +420,7 @@ class ReloadAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.refresh,
 			f1: true,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: BROWSER_PANE_ACTIVE,
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
@@ -440,7 +441,7 @@ class ReloadAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	async run(accessor: ServicesAccessor, browserEditor = getBrowserEditor(accessor.get(IEditorService).activeEditorPane)): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.model?.reload();
 		}
@@ -457,7 +458,7 @@ class HardReloadAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.refresh,
 			f1: true,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: BROWSER_PANE_ACTIVE,
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
 				weight: KeybindingWeight.WorkbenchContrib + 75,
@@ -468,7 +469,7 @@ class HardReloadAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	async run(accessor: ServicesAccessor, browserEditor = getBrowserEditor(accessor.get(IEditorService).activeEditorPane)): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.model?.reload(true);
 		}
@@ -484,7 +485,7 @@ class FocusUrlInputAction extends Action2 {
 			title: localize2('browser.focusUrlInputAction', 'Focus URL Input'),
 			category: BrowserActionCategory,
 			f1: true,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: BROWSER_PANE_ACTIVE,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyL,
@@ -492,7 +493,7 @@ class FocusUrlInputAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	async run(accessor: ServicesAccessor, browserEditor = getBrowserEditor(accessor.get(IEditorService).activeEditorPane)): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			browserEditor.getContribution(BrowserNavigationFeatures)?.openUrlPicker();
 		}
@@ -510,7 +511,7 @@ class OpenInExternalBrowserAction extends Action2 {
 			icon: Codicon.linkExternal,
 			f1: true,
 			// Note: We do allow opening in an external browser even if there is an error page shown
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL),
+			precondition: ContextKeyExpr.and(BROWSER_PANE_ACTIVE, CONTEXT_BROWSER_HAS_URL),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Tools,
@@ -520,7 +521,7 @@ class OpenInExternalBrowserAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	async run(accessor: ServicesAccessor, browserEditor = getBrowserEditor(accessor.get(IEditorService).activeEditorPane)): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			const url = browserEditor.model?.url;
 			if (url) {

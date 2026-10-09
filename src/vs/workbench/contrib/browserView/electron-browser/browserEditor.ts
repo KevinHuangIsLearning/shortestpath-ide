@@ -12,7 +12,8 @@ import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from '
 import { IInstantiationService, IConstructorSignature, BrandedService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext } from '../../../common/editor.js';
+import { SideBySideEditor } from '../../../browser/parts/editor/sideBySideEditor.js';
+import { IEditorOpenContext, IEditorPane } from '../../../common/editor.js';
 import { BrowserSourceEditorInput } from '../common/browserSourceEditorInput.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -38,6 +39,26 @@ export const CONTEXT_BROWSER_HAS_ERROR = new RawContextKey<boolean>('browserHasE
 
 /** Context key expression matching when the browser editor is the active editor. */
 export const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
+
+/** Match a standalone browser or the browser's scoped context inside a composite editor. */
+export const BROWSER_PANE_ACTIVE = ContextKeyExpr.or(
+	BROWSER_EDITOR_ACTIVE,
+	CONTEXT_BROWSER_FOCUSED
+);
+
+/** Resolve the browser pane in a standalone tab or a source/problem pair. */
+export function getBrowserEditor(editorPane: IEditorPane | undefined): BrowserEditor | undefined {
+	if (editorPane instanceof BrowserEditor) {
+		return editorPane;
+	}
+	if (editorPane instanceof SideBySideEditor && editorPane.input instanceof BrowserSourceEditorInput) {
+		const browserPane = editorPane.getSecondaryEditorPane();
+		if (browserPane instanceof BrowserEditor) {
+			return browserPane;
+		}
+	}
+	return undefined;
+}
 
 /** Localized "Browser" category for command palette grouping. */
 export const BrowserActionCategory = localize2('browserCategory', "Browser");

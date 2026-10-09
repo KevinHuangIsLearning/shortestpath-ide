@@ -20,7 +20,7 @@ import { browserZoomFactors, browserZoomLabel, browserZoomAccessibilityLabel } f
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { BrowserZoomService, IBrowserZoomService, MATCH_WINDOW_ZOOM_LABEL } from '../../../browserView/common/browserZoomService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, IBrowserEditorWidget } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, getBrowserEditor, BrowserWidgetLocation, BROWSER_PANE_ACTIVE, BrowserActionCategory, BrowserActionGroup, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, IBrowserEditorWidget } from '../browserEditor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { getZoomLevel, onDidChangeZoomLevel } from '../../../../../base/browser/browser.js';
 import { zoomLevelToZoomFactor } from '../../../../../platform/window/common/window.js';
@@ -152,7 +152,7 @@ class ZoomInAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.zoomIn,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			precondition: ContextKeyExpr.and(BROWSER_PANE_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Zoom,
@@ -170,7 +170,7 @@ class ZoomInAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	async run(accessor: ServicesAccessor, browserEditor = getBrowserEditor(accessor.get(IEditorService).activeEditorPane)): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.getContribution(BrowserEditorZoomSupport)?.zoomIn();
 		}
@@ -187,7 +187,7 @@ class ZoomOutAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.zoomOut,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			precondition: ContextKeyExpr.and(BROWSER_PANE_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Zoom,
@@ -209,7 +209,7 @@ class ZoomOutAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	async run(accessor: ServicesAccessor, browserEditor = getBrowserEditor(accessor.get(IEditorService).activeEditorPane)): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.getContribution(BrowserEditorZoomSupport)?.zoomOut();
 		}
@@ -226,7 +226,7 @@ class ResetZoomAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.screenNormal,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			precondition: ContextKeyExpr.and(BROWSER_PANE_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Zoom,
@@ -243,7 +243,7 @@ class ResetZoomAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	async run(accessor: ServicesAccessor, browserEditor = getBrowserEditor(accessor.get(IEditorService).activeEditorPane)): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.getContribution(BrowserEditorZoomSupport)?.resetZoom();
 		}
