@@ -480,6 +480,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 
 	/* ---- Submission collapse/expand animation ---- */
 	document.addEventListener('click', event => {
+		if (event.defaultPrevented) { return; }
 		const target = event.target;
 		const link = target instanceof Element ? target.closest<HTMLAnchorElement>('a[href]') : null;
 		const href = link?.getAttribute('href');

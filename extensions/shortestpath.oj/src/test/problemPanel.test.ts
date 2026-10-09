@@ -136,6 +136,30 @@ test('webview HTTP links prevent the default external opener and forward literal
 	assert.deepEqual({ prevented, messages }, { prevented: 1, messages: [{ command: 'openUrl', url: 'https://shortestpath.cn/editorial/1?x=2&y=3' }] });
 });
 
+test('title clicks open the website once without also forwarding a generic link', () => {
+	const compiled = fs.readFileSync(path.resolve(__dirname, '../problemView.js'), 'utf8');
+	const titleStart = compiled.indexOf('document.querySelector(\'.title-line h1 a\')');
+	const titleEnd = compiled.indexOf('const timer =', titleStart);
+	const linkStart = compiled.indexOf('document.addEventListener(\'click\', event => {');
+	const linkPrefix = compiled.slice(compiled.indexOf('{', linkStart) + 1, compiled.indexOf('const summary', linkStart));
+	const messages: object[] = [];
+	let titleClick!: (event: object) => void;
+	class Element {
+		closest() { return { getAttribute: () => bindPayload.problem.url }; }
+	}
+	const context = vm.createContext({
+		Element,
+		vscode: { postMessage: (message: object) => messages.push(structuredClone(message)) },
+		document: { querySelector: () => ({ addEventListener: (_type: string, listener: typeof titleClick) => { titleClick = listener; } }) },
+	});
+	vm.runInContext(`${compiled.slice(titleStart, titleEnd)}; globalThis.linkClick = event => { ${linkPrefix} };`, context);
+	const event = { target: new Element(), defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+	titleClick(event);
+	context.linkClick(event);
+	assert.equal(event.defaultPrevented, true);
+	assert.deepEqual(messages, [{ command: 'openWebsite' }]);
+});
+
 test('website opener switches to browsing before opening the integrated URL', async () => {
 	const compiled = source();
 	const start = compiled.indexOf('async function openUrl(');
