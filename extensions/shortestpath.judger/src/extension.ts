@@ -34,17 +34,11 @@ import { createLatestTaskScheduler } from './webview/judgeLifecycle';
 
 let judgeViewProvider: JudgeViewProvider;
 let statusBarItem: vscode.StatusBarItem;
-let judgeVisibilityVersion = 0;
-let judgeIntegrated = false;
 export function updateJudgeVisibility(problem: Problem | undefined): void {
     const integrated = usesIntegratedTests(problem);
-    if (judgeIntegrated !== integrated) { judgeVisibilityVersion++; judgeIntegrated = integrated; }
-    const version = judgeVisibilityVersion;
-    const leaveJudge = integrated && judgeViewProvider?.isViewVisible();
-    void vscode.commands.executeCommand('setContext', 'shortestpath.oj.integratedLocalTests', integrated).then(() => {
-        if (leaveJudge && version === judgeVisibilityVersion) { return vscode.commands.executeCommand('workbench.view.explorer'); }
-        return undefined;
-    });
+    // Dirty-state changes also refresh the active tab. Visibility updates must
+    // never open a sidebar or move focus away from the source being edited.
+    void vscode.commands.executeCommand('setContext', 'shortestpath.oj.integratedLocalTests', integrated);
     if (integrated) { statusBarItem?.hide(); } else { statusBarItem?.show(); }
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toDisposable } from '../../common/lifecycle.js';
 import { ActionBar, prepareActions } from '../../browser/ui/actionbar/actionbar.js';
 import { Action, Separator } from '../../common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
@@ -61,6 +62,52 @@ suite('Actionbar', () => {
 		assert.strictEqual(actionbar.hasAction(a1), true);
 		actionbar.clear();
 		assert.strictEqual(actionbar.hasAction(a1), false);
+	});
+
+	suite('focus during action updates', () => {
+		function createActionBar() {
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const editor = document.createElement('input');
+			container.appendChild(editor);
+			const actionbar = store.add(new ActionBar(container));
+			const actions = [store.add(new Action('first', 'First')), store.add(new Action('second', 'Second'))];
+			actionbar.push(actions, { label: true });
+			actionbar.focus(1);
+			assert.ok(actionbar.isFocused(1));
+			return { actionbar, actions, editor };
+		}
+
+		test('rebuilding actions preserves focus within the action bar', () => {
+			const { actionbar, actions } = createActionBar();
+			actionbar.clear();
+			actionbar.push(actions, { label: true });
+			assert.ok(actionbar.isFocused(1));
+		});
+
+		test('rebuilding actions does not reclaim focus before the blur notification', () => {
+			const { actionbar, actions, editor } = createActionBar();
+			editor.focus();
+			actionbar.clear();
+			actionbar.push(actions, { label: true });
+			assert.strictEqual(document.activeElement, editor);
+		});
+
+		test('appending actions does not reclaim focus before the blur notification', () => {
+			const { actionbar, editor } = createActionBar();
+			editor.focus();
+			actionbar.push(store.add(new Action('third', 'Third')), { label: true });
+			assert.strictEqual(document.activeElement, editor);
+		});
+
+		test('rebuilding actions respects focus moved after clearing', () => {
+			const { actionbar, actions, editor } = createActionBar();
+			actionbar.clear();
+			editor.focus();
+			actionbar.push(actions, { label: true });
+			assert.strictEqual(document.activeElement, editor);
+		});
 	});
 
 	suite('ToggleActionViewItemProvider', () => {

@@ -3,6 +3,7 @@ import { sameTestcase } from '../testcasePresentation';
 import { isShortestPathProblem, setProblemCompletion } from '../problemTimer';
 import { webviewBootstrap } from '../webviewBootstrap';
 import { isIntegratedTestRunning } from '../integratedTestCommands';
+import { usesIntegratedTests } from '../integratedTests';
 import { problemLanguage } from '../problemOptions';
 import { stopTestcase } from '../testcaseCancellation';
 import { problemActions } from '../problemActions';
@@ -84,6 +85,11 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 
     public resolveWebviewView(webviewView: vscode.WebviewView) {
         this._view = webviewView;
+        webviewView.onDidDispose(() => {
+            if (this._view === webviewView) {
+                this._view = undefined;
+            }
+        });
 
         webviewView.webview.options = {
             // Allow scripts in the webview
@@ -709,6 +715,10 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 
     private focusIfNeeded = (message: VSToWebViewMessage) => {
         globalThis.logger.log(message.command);
+
+        if (usesIntegratedTests(this.currentProblem)) {
+            return;
+        }
 
         switch (message.command) {
             case 'waiting-for-submit':

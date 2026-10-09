@@ -55,6 +55,16 @@ suite('ToolBar', () => {
 		container.remove();
 	});
 
+	test('preserves focus on later actions when rebuilding the toolbar', () => {
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, { label: true }));
+		const actions = [store.add(new Action('first', 'First')), store.add(new Action('second', 'Second'))];
+		toolbar.setActions(actions);
+		toolbar.focus(1);
+		assert.strictEqual(document.activeElement, toolbar.getElement().querySelectorAll('.action-label')[1]);
+		toolbar.setActions(actions);
+		assert.strictEqual(document.activeElement, toolbar.getElement().querySelectorAll('.action-label')[1]);
+	});
+
 	test('keeps the last primary action shrinkable when overflow is inserted', () => {
 		const widths = new Map<string, number>([
 			['workbench.action.chat.attachContext', 22],

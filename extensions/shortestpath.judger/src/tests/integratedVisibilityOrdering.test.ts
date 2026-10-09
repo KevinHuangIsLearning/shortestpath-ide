@@ -7,29 +7,23 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 
-test('repeated SP updates keep the pending CPH exit, while switching to another judge cancels it', async () => {
+test('dirty-state and save refreshes never open or focus a sidebar, even with a stale visible Judge view', async () => {
 	const compiled = fs.readFileSync(path.resolve(__dirname, '../extension.js'), 'utf8');
 	const start = compiled.indexOf('function updateJudgeVisibility(');
 	const end = compiled.indexOf('const getJudgeViewProvider', start);
-	const finish: Array<() => void> = [];
 	const commands: string[] = [];
-	let visible = true;
 	const context = vm.createContext({
 		exports: {},
-		judgeVisibilityVersion: 0, judgeIntegrated: false,
-		judgeViewProvider: { isViewVisible: () => visible },
+		judgeViewProvider: { isViewVisible: () => true },
 		statusBarItem: { hide() { }, show() { } },
 		integratedTests_1: { usesIntegratedTests: (value: boolean) => value },
-		vscode: { commands: { executeCommand: (command: string) => { commands.push(command); return command === 'setContext' ? new Promise<void>(resolve => { finish.push(resolve); }) : Promise.resolve(); } } },
+		vscode: { commands: { executeCommand: (command: string) => { commands.push(command); return Promise.resolve(); } } },
 	});
 	vm.runInContext(`${compiled.slice(start, end)}; globalThis.update = updateJudgeVisibility;`, context);
-	context.update(true); visible = false; context.update(true);
-	finish.splice(0).forEach(resolve => resolve());
+	// The tab API emits updates both when typing makes a tab dirty and saving clears it.
+	for (const integrated of [true, true, true, false, true, true]) {
+		context.update(integrated);
+	}
 	await Promise.resolve();
-	expect(commands.filter(command => command === 'workbench.view.explorer')).toHaveLength(1);
-	commands.length = 0;
-	visible = true; context.update(true); context.update(false);
-	finish.splice(0).forEach(resolve => resolve());
-	await Promise.resolve();
-	expect(commands.filter(command => command === 'workbench.view.explorer')).toHaveLength(0);
+	expect(commands).toEqual(Array(6).fill('setContext'));
 });

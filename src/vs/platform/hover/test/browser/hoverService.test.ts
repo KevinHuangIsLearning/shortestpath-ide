@@ -529,6 +529,64 @@ suite('HoverService', () => {
 		}));
 	});
 
+	suite('focus restoration', () => {
+		function createFocusableElements() {
+			const target = document.createElement('button');
+			const editor = document.createElement('input');
+			fixture.append(target, editor);
+			target.focus();
+			return { target, editor };
+		}
+
+		test('typing outside a hover does not restore its previous focus', () => {
+			const { target, editor } = createFocusableElements();
+			const hover = showHover('Hover', target, { trapFocus: true, persistence: { hideOnKeyDown: true } });
+			editor.focus();
+			editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+			assertNotInDOM(hover);
+			assert.strictEqual(document.activeElement, editor);
+		});
+
+		test('closing a focused hover restores its previous focus', () => {
+			const { target } = createFocusableElements();
+			const hover = showHover('Hover', target, { trapFocus: true, persistence: { hideOnKeyDown: true } });
+			asHoverWidget(hover).focus();
+			assert.ok(asHoverWidget(hover).domNode.contains(document.activeElement));
+			asHoverWidget(hover).domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+			assertNotInDOM(hover);
+			assert.strictEqual(document.activeElement, target);
+		});
+
+		test('releasing Alt in a focused nested hover restores the original target', () => {
+			const { target } = createFocusableElements();
+			const parent = store.add(showHover('Parent', target, { trapFocus: true }));
+			const nestedTarget = document.createElement('button');
+			asHoverWidget(parent).domNode.appendChild(nestedTarget);
+			nestedTarget.focus();
+			const nested = store.add(showHover('Nested', nestedTarget, { trapFocus: true }));
+			asHoverWidget(nested).focus();
+			assert.ok(asHoverWidget(nested).domNode.contains(document.activeElement));
+			asHoverWidget(nested).domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', bubbles: true }));
+			target.dispatchEvent(new MouseEvent('mouseleave'));
+			nestedTarget.dispatchEvent(new MouseEvent('mouseleave'));
+			asHoverWidget(nested).domNode.dispatchEvent(new KeyboardEvent('keyup', { key: 'Alt', bubbles: true }));
+			assertNotInDOM(nested);
+			assertNotInDOM(parent);
+			assert.strictEqual(document.activeElement, target);
+		});
+
+		test('releasing Alt outside a hover does not restore its previous focus', () => {
+			const { target, editor } = createFocusableElements();
+			const hover = store.add(showHover('Hover', target, { trapFocus: true }));
+			target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', bubbles: true }));
+			target.dispatchEvent(new MouseEvent('mouseleave'));
+			editor.focus();
+			editor.dispatchEvent(new KeyboardEvent('keyup', { key: 'Alt', bubbles: true }));
+			assertNotInDOM(hover);
+			assert.strictEqual(document.activeElement, editor);
+		});
+	});
+
 	suite('nested hovers', () => {
 		test('should keep parent hover visible when nested hover is created', () => {
 			const parentHover = showHover('Parent');

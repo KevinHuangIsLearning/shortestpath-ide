@@ -562,10 +562,8 @@ export class HoverService extends Disposable implements IHoverService {
 			return;
 		}
 		if (hideOnKeyDown && (!this._currentHoverOptions?.trapFocus || e.key !== 'Tab')) {
-			// Find the entry for this hover to get its lastFocusedElementBeforeOpen
-			const stackEntry = this._hoverStack.find(entry => entry.hover === hover);
+			// Disposal restores focus only when the hover still owns it.
 			this._hideHoverAndDescendants(hover);
-			stackEntry?.lastFocusedElementBeforeOpen?.focus();
 		}
 	}
 
@@ -581,9 +579,7 @@ export class HoverService extends Disposable implements IHoverService {
 			// Hide all hovers if the mouse is not over any of them
 			const anyMouseIn = this._hoverStack.some(entry => entry.hover.isMouseIn);
 			if (!anyMouseIn) {
-				const topEntry = this._hoverStack[this._hoverStack.length - 1];
 				this._hideAllHovers();
-				topEntry?.lastFocusedElementBeforeOpen?.focus();
 			}
 		}
 	}

@@ -85,6 +85,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private readonly viewItemDisposables = this._register(new DisposableMap<IActionViewItem>());
 	private previouslyFocusedItem?: number;
 	protected focusedItem?: number;
+	private focusAfterClear?: Element | null;
 	private focusTracker: DOM.IFocusTracker;
 
 	// Trigger Key Tracking
@@ -349,6 +350,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	push(arg: IAction | ReadonlyArray<IAction>, options: IActionOptions = {}): void {
+		// Blur notifications are deferred, so the cached item alone does not establish focus ownership.
+		const restoreFocus = this.isFocused() || (this.focusAfterClear !== undefined && this.focusAfterClear === DOM.getActiveElement());
+		if (!restoreFocus) {
+			this.focusAfterClear = undefined;
+			this.focusedItem = undefined;
+		}
 		const actions: ReadonlyArray<IAction> = Array.isArray(arg) ? arg : [arg];
 
 		let index = types.isNumber(options.index) ? options.index : null;
@@ -421,6 +428,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 		if (typeof this.focusedItem === 'number') {
 			// After a clear actions might be re-added to simply toggle some actions. We should preserve focus #97128
 			this.focus(this.focusedItem);
+			if (this.isFocused()) {
+				this.focusAfterClear = undefined;
+			}
 		}
 		this.refreshRole();
 	}
@@ -447,9 +457,16 @@ export class ActionBar extends Disposable implements IActionRunner {
 			return;
 		}
 
+		const hadFocus = this.isFocused();
+		if (!hadFocus) {
+			this.focusedItem = undefined;
+		}
 		this._viewItems = dispose(this._viewItems);
 		this.viewItemDisposables.clearAndDisposeAll();
 		DOM.clearNode(this.actionsList);
+		// Removing the focused item moves focus to the document. Restore only while it stays there.
+		const activeElement = DOM.getActiveElement();
+		this.focusAfterClear = hadFocus && activeElement === this.domNode.ownerDocument.body ? activeElement : undefined;
 		this.refreshRole();
 	}
 
