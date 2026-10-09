@@ -32,11 +32,9 @@ import { assertUniqueWorkspaceProblemRecordFileNames, getWorkspaceProblemRecordF
 import { listProblemRecords, ProblemRecordFileSystem } from './workspaceProblemRecordStorage';
 import { migrateLegacyWorkspaceCache } from './workspaceProblemCacheMigration';
 import {
-	applyEditorialLikeResult,
 	applyEditorialLockRemaining,
 	applyAcceptedSubmission,
 	applyHintLockRemaining,
-	applyLikeResult,
 	applyProblemState,
 	EditorialResult,
 	findProblemRefForSourcePath,
@@ -71,7 +69,7 @@ const workspaceCacheLocationsMigrated = new Set<string>();
 let workspaceCacheStorageRoot: vscode.Uri | undefined;
 let workspaceCacheMutationTail = Promise.resolve();
 let workspaceCacheMigration: Promise<void> | undefined;
-let persistPendingSubmissionAttempts: () => Promise<void> = async () => {};
+let persistPendingSubmissionAttempts: () => Promise<void> = async () => { };
 
 async function openUrl(url: string): Promise<void> {
 	const commands = await vscode.commands.getCommands();
@@ -322,7 +320,7 @@ class ShortestPathOjProblemPanel {
 				this.render();
 			}).catch(error => console.error('Failed to load ShortestPath OJ cached content.', error));
 		} else {
-			this.state.problem = problem;
+			this.state.problem = this.preservePendingLikes(this.state, problem);
 			this.state.connected = connected;
 			this.state.statusMessage = connected ? '已连接题目网页。' : '正在重新连接…';
 			if (fromWebsite) {
@@ -350,7 +348,7 @@ class ShortestPathOjProblemPanel {
 		if (hasIncompatibleProblemState(this.state.problem)) {
 			return;
 		}
-		this.state.problem = applyProblemState(this.state.problem, state);
+		this.state.problem = this.preservePendingLikes(this.state, applyProblemState(this.state.problem, state));
 		this.state.hintRemainingReceivedAtMs?.clear();
 		if (capabilities) { this.state.problem.capabilities = capabilities; }
 		this.state.editorialRemainingReceivedAtMs = Date.now();
@@ -557,6 +555,47 @@ class ShortestPathOjProblemPanel {
 	reloadStyles(version: number): void {
 		void this.panel?.webview.postMessage({ type: 'reloadStyles', version });
 		void this.editorialPanel?.webview.postMessage({ type: 'reloadStyles', version });
+	}
+
+	private preservePendingLikes(state: ProblemPanelState, problem: ImportedProblem): ImportedProblem {
+		return {
+			...problem,
+			state: {
+				...problem.state,
+				hints: problem.state.hints.map(hint => {
+					const previous = state.problem.state.hints.find(item => item.id === hint.id);
+					if (!previous) { return hint; }
+					const likes = { ...hint.likes };
+					for (const target of ['question', 'answer'] as const) {
+						if (state.operationsInFlight.has(`like:${hint.id}:${target}`)) { likes[target] = previous.likes[target]; }
+					}
+					return { ...hint, likes };
+				}),
+			},
+		};
+	}
+
+	private updateLocalLike(state: ProblemPanelState, hintId: string, target: 'question' | 'answer', liked: boolean, count: number, confirmed = false, editorialLike = { liked, count }): void {
+		state.problem = {
+			...state.problem,
+			state: {
+				...state.problem.state,
+				hints: state.problem.state.hints.map(hint => hint.id === hintId
+					? { ...hint, likes: { ...hint.likes, [target]: { liked, count } } } : hint),
+			},
+		};
+		const updateEditorial = (editorial: EditorialResult | undefined): EditorialResult | undefined => {
+			if (editorial?.state !== 'available') { return editorial; }
+			return {
+				...editorial,
+				hints: editorial.hints.map(hint => hint.hintId === hintId ? {
+					...hint,
+					...(target === 'question' ? { questionLiked: editorialLike.liked, questionLikeCount: editorialLike.count } : { answerLiked: editorialLike.liked, answerLikeCount: editorialLike.count }),
+				} : hint),
+			};
+		};
+		if (confirmed) { state.cachedEditorial = updateEditorial(state.cachedEditorial ?? state.editorial); }
+		state.editorial = updateEditorial(state.editorial);
 	}
 
 	private refreshEditorialLike(hintId: string, target: 'question' | 'answer'): void {
@@ -948,22 +987,30 @@ class ShortestPathOjProblemPanel {
 					}
 					{
 						const operationKey = `like:${value.hintId}:${value.target}`;
-						if (!this.beginOperation(state, operationKey)) {
-							return;
-						}
+						if (state.operationsInFlight.has(operationKey)) { return; }
+						const hint = state.problem.state.hints.find(item => item.id === value.hintId);
+						const editorialHint = state.editorial?.state === 'available' ? state.editorial.hints.find(item => item.hintId === value.hintId) : undefined;
+						const previousHint = hint?.likes[value.target];
+						const previousEditorial = editorialHint
+							? { liked: value.target === 'question' ? editorialHint.questionLiked : editorialHint.answerLiked, count: value.target === 'question' ? editorialHint.questionLikeCount : editorialHint.answerLikeCount }
+							: undefined;
+						const previous = value.command === 'editorialLike' ? previousEditorial ?? previousHint : previousHint ?? previousEditorial;
+						if (!previous) { return; }
+						state.cachedEditorial ??= state.editorial;
+						this.updateLocalLike(state, value.hintId, value.target, value.liked, Math.max(0, previous.count + (previous.liked === value.liked ? 0 : value.liked ? 1 : -1)));
+						this.beginOperation(state, operationKey);
 						try {
 							const result = await this.actions.like(state.problem, value.hintId, value.target, value.liked);
-							if (this.state !== state) {
-								return;
-							}
-							state.problem = applyLikeResult(state.problem, result);
-							if (state.editorial?.state === 'available') {
-								state.editorial = applyEditorialLikeResult(state.editorial, result);
-								state.cachedEditorial = state.editorial;
-								void this.actions.saveEditorial(state.problem, state.editorial).catch(error => console.error('Failed to save ShortestPath OJ editorial likes.', error));
+							if (this.state !== state) { return; }
+							this.updateLocalLike(state, value.hintId, value.target, result.liked, value.target === 'question' ? result.questionLikeCount : result.answerLikeCount, true);
+							if (state.cachedEditorial?.state === 'available') {
+								void this.actions.saveEditorial(state.problem, state.cachedEditorial).catch(error => console.error('Failed to save ShortestPath OJ editorial likes.', error));
 							}
 							this.refreshEditorialLike(value.hintId, value.target);
-                            void this.panel?.webview.postMessage({ type: 'hintLike', hintId: value.hintId, target: value.target, liked: result.liked, count: value.target === 'question' ? result.questionLikeCount : result.answerLikeCount });
+							void this.panel?.webview.postMessage({ type: 'hintLike', hintId: value.hintId, target: value.target, liked: result.liked, count: value.target === 'question' ? result.questionLikeCount : result.answerLikeCount });
+						} catch (error) {
+							if (this.state === state) { this.updateLocalLike(state, value.hintId, value.target, (previousHint ?? previous).liked, (previousHint ?? previous).count, false, previousEditorial ?? previous); }
+							throw error;
 						} finally {
 							this.endOperation(state, operationKey);
 						}
@@ -1153,7 +1200,15 @@ class ShortestPathOjProblemPanel {
 			if (this.state !== state) {
 				return;
 			}
-			if ((value.command === 'like' || value.command === 'editorialLike') && typeof value.hintId === 'string') { void this.panel?.webview.postMessage({ type: 'hintLikeError', hintId: value.hintId, target: value.target }); }
+			if ((value.command === 'like' || value.command === 'editorialLike') && typeof value.hintId === 'string' && (value.target === 'question' || value.target === 'answer')) {
+				const hint = state.problem.state.hints.find(item => item.id === value.hintId);
+				const editorial = state.editorial?.state === 'available' ? state.editorial.hints.find(item => item.hintId === value.hintId) : undefined;
+				void this.panel?.webview.postMessage({
+					type: 'hintLikeError', hintId: value.hintId, target: value.target,
+					hintLikes: hint?.likes[value.target],
+					editorialLikes: editorial ? { liked: value.target === 'question' ? editorial.questionLiked : editorial.answerLiked, count: value.target === 'question' ? editorial.questionLikeCount : editorial.answerLikeCount } : undefined,
+				});
+			}
 			if (value.command === 'editorialLike' && typeof value.hintId === 'string') {
 				void this.editorialPanel?.webview.postMessage({ type: 'editorialLikeError', hintId: value.hintId, target: value.target });
 			}
@@ -1745,18 +1800,18 @@ async function ensureWorkspaceCacheLocationMigration(destination: vscode.Uri, so
 		mergeWorkspaceProblemCaches(incoming, legacy);
 		files.set(path.join(problemRecordRoot(source), legacyWorkspaceCacheFileName), workspaceCacheLegacyContents.get(legacy)!);
 	}
-    // Remove the published index only when every indexed record is recognized and copied.
-    try {
-        const indexPath = path.join(problemRecordRoot(source), 'oj-index.json');
-        const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(problemRecordUri(source, indexPath)));
-        const index = JSON.parse(content) as Array<{ problemRef: string; path: string }>;
-        if (Array.isArray(index) && index.every(entry => typeof entry.problemRef === 'string' && typeof entry.path === 'string'
-            && workspaceCacheRecordLocations.get(incoming)?.get(entry.problemRef) === path.resolve(problemRecordRoot(source), entry.path))) {
-            files.set(indexPath, content);
-        }
-    } catch (error) {
-        if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) { console.warn('Leaving unreadable OJ index unchanged.', error); }
-    }
+	// Remove the published index only when every indexed record is recognized and copied.
+	try {
+		const indexPath = path.join(problemRecordRoot(source), 'oj-index.json');
+		const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(problemRecordUri(source, indexPath)));
+		const index = JSON.parse(content) as Array<{ problemRef: string; path: string }>;
+		if (Array.isArray(index) && index.every(entry => typeof entry.problemRef === 'string' && typeof entry.path === 'string'
+			&& workspaceCacheRecordLocations.get(incoming)?.get(entry.problemRef) === path.resolve(problemRecordRoot(source), entry.path))) {
+			files.set(indexPath, content);
+		}
+	} catch (error) {
+		if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) { console.warn('Leaving unreadable OJ index unchanged.', error); }
+	}
 	if (files.size > 0) {
 		const current = await readWorkspaceProblemCacheFiles(destination);
 		mergeWorkspaceProblemCaches(current, incoming);
@@ -1847,23 +1902,23 @@ async function ensureWorkspaceCacheMigration(directory: vscode.Uri, source: vsco
 }
 
 function problemRecordRoot(directory: vscode.Uri): string {
-    return directory.scheme === 'file' ? directory.fsPath : directory.path;
+	return directory.scheme === 'file' ? directory.fsPath : directory.path;
 }
 
 function problemRecordUri(directory: vscode.Uri, file: string): vscode.Uri {
-    return directory.scheme === 'file' ? vscode.Uri.file(file) : directory.with({ path: file.replace(/\\/g, '/') });
+	return directory.scheme === 'file' ? vscode.Uri.file(file) : directory.with({ path: file.replace(/\\/g, '/') });
 }
 
 function problemRecordFileSystem(directory: vscode.Uri): ProblemRecordFileSystem {
-    const uri = (file: string) => problemRecordUri(directory, file);
-    return {
-        readDirectory: async file => vscode.workspace.fs.readDirectory(uri(file)),
-        readFile: async file => vscode.workspace.fs.readFile(uri(file)),
-        writeFile: async (file, contents) => vscode.workspace.fs.writeFile(uri(file), contents),
-        rename: async (from, to) => vscode.workspace.fs.rename(uri(from), uri(to), { overwrite: true }),
-        delete: async file => vscode.workspace.fs.delete(uri(file), { recursive: false, useTrash: false }),
-        isMissing: error => error instanceof vscode.FileSystemError && error.code === 'FileNotFound',
-    };
+	const uri = (file: string) => problemRecordUri(directory, file);
+	return {
+		readDirectory: async file => vscode.workspace.fs.readDirectory(uri(file)),
+		readFile: async file => vscode.workspace.fs.readFile(uri(file)),
+		writeFile: async (file, contents) => vscode.workspace.fs.writeFile(uri(file), contents),
+		rename: async (from, to) => vscode.workspace.fs.rename(uri(from), uri(to), { overwrite: true }),
+		delete: async file => vscode.workspace.fs.delete(uri(file), { recursive: false, useTrash: false }),
+		isMissing: error => error instanceof vscode.FileSystemError && error.code === 'FileNotFound',
+	};
 }
 
 async function readWorkspaceProblemCacheFiles(directory = getWorkspaceCacheDirectoryUri()): Promise<WorkspaceProblemCache> {
@@ -1888,11 +1943,11 @@ async function readWorkspaceProblemCacheFiles(directory = getWorkspaceCacheDirec
 		}
 		let needsRewrite = false;
 		const locations = new Map<string, string>();
-        workspaceCacheRecordLocations.set(cache, locations);
-        const entries = await listProblemRecords(problemRecordRoot(directory), problemRecordFileSystem(directory));
-        for (const entry of entries) {
-            const name = entry.name;
-            const type = vscode.FileType.File;
+		workspaceCacheRecordLocations.set(cache, locations);
+		const entries = await listProblemRecords(problemRecordRoot(directory), problemRecordFileSystem(directory));
+		for (const entry of entries) {
+			const name = entry.name;
+			const type = vscode.FileType.File;
 			if (type !== vscode.FileType.File || name === legacyWorkspaceCacheFileName || name === '.source-paths.json' || !name.endsWith('.json')) {
 				continue;
 			}
@@ -1912,7 +1967,7 @@ async function readWorkspaceProblemCacheFiles(directory = getWorkspaceCacheDirec
 				}
 				cache.problems[problem.ref] = problem;
 				recordContents.set(problem.ref, content);
-                locations.set(problem.ref, entry.file);
+				locations.set(problem.ref, entry.file);
 				if (typeof record.lastUsedAt === 'number' && Number.isFinite(record.lastUsedAt) && record.lastUsedAt >= 0) {
 					cache.lastUsedAt[problem.ref] = record.lastUsedAt;
 				} else {
@@ -2144,7 +2199,7 @@ async function submitProblem(
 ): Promise<void> {
 	if (problem.target?.kind === 'contest') {
 		const content = problem.publicContent;
-		const sourceUrl = content && 'source_url' in content ? content.source_url : undefined;
+		const sourceUrl = content && Object.hasOwn(content, 'source_url') ? (content as { source_url?: unknown }).source_url : undefined;
 		if (typeof sourceUrl === 'string' && /^https?:\/\//.test(sourceUrl)) {
 			await openUrl(sourceUrl);
 		}
@@ -2444,7 +2499,7 @@ function renderProblemViewSections(
 	// Verification notices block online controls without hiding cached content.
 	state = { ...state, connected: state.connected && !showLongRunningOperationNotice };
 	const { problem } = state;
-	const sourceUrl = problem.publicContent && 'source_url' in problem.publicContent ? problem.publicContent.source_url : undefined;
+	const sourceUrl = problem.publicContent && Object.hasOwn(problem.publicContent, 'source_url') ? (problem.publicContent as { source_url?: unknown }).source_url : undefined;
 	const canSubmit = problem.target?.kind === 'contest'
 		? typeof sourceUrl === 'string' && /^https?:\/\//.test(sourceUrl)
 		: state.connected && problem.capabilities.submission.enabled;
@@ -2703,9 +2758,9 @@ function renderHints(state: ProblemPanelState): string {
 const likeSvgOutlined = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-thumbs-up size-3.5" aria-hidden="true"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"></path><path d="M7 10v12"></path></svg>';
 const likeSvgFilled = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-thumbs-up size-3.5 fill-current" aria-hidden="true"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"></path><path d="M7 10v12"></path></svg>';
 
-function renderLikeButton(hintId: string, target: 'question' | 'answer', likes: { liked: boolean; count: number }, enabled: boolean, loading = false): string {
+function renderLikeButton(hintId: string, target: 'question' | 'answer', likes: { liked: boolean; count: number }, enabled: boolean, loading = false, editorial = false): string {
 	const label = `${likes.liked ? '取消点赞' : '点赞'}提示${target === 'question' ? '问题' : '答案'}，当前 ${likes.count} 赞`;
-	return `<button type="button" class="like-btn${likes.liked ? ' liked' : ''}" data-command="like" data-hint-id="${escapeAttribute(hintId)}" data-target="${target}" data-liked="${likes.liked}" data-like-enabled="${enabled}" aria-label="${escapeAttribute(label)}"${loading ? ' aria-busy="true"' : ''}${enabled && !loading ? '' : ' disabled'}><span class="like-icon like-icon-outline" aria-hidden="true">${likeSvgOutlined}</span><span class="like-icon like-icon-filled" aria-hidden="true">${likeSvgFilled}</span><span class="like-count" aria-hidden="true">${likes.count}</span></button>`;
+	return `<button type="button" class="like-btn${likes.liked ? ' liked' : ''}" data-command="like" data-like-context="${editorial ? 'editorial' : 'hint'}" data-hint-id="${escapeAttribute(hintId)}" data-target="${target}" data-liked="${likes.liked}" data-like-enabled="${enabled}" aria-label="${escapeAttribute(label)}"${loading ? ' aria-busy="true"' : ''}${enabled && !loading ? '' : ' disabled'}><span class="like-icon like-icon-outline" aria-hidden="true">${likeSvgOutlined}</span><span class="like-icon like-icon-filled" aria-hidden="true">${likeSvgFilled}</span><span class="like-count" aria-hidden="true">${likes.count}</span></button>`;
 }
 
 function renderHintContent(state: ProblemPanelState, hint: ProblemHint): string {
@@ -2745,8 +2800,8 @@ function renderEditorialTab(state: ProblemPanelState, requestInFlight: boolean):
 function renderEditorialContents(editorial: Extract<EditorialResult, { state: 'available' }>, problem: ImportedProblem, canLike: boolean, operationsInFlight: ReadonlySet<string> = new Set()): string {
 	const baseUrl = problem.url;
 	const hintsHtml = editorial.hints.map(hint => {
-		const qLike = renderLikeButton(hint.hintId, 'question', { liked: hint.questionLiked, count: hint.questionLikeCount }, canLike, operationsInFlight.has(`like:${hint.hintId}:question`));
-		const aLike = renderLikeButton(hint.hintId, 'answer', { liked: hint.answerLiked, count: hint.answerLikeCount }, canLike, operationsInFlight.has(`like:${hint.hintId}:answer`));
+		const qLike = renderLikeButton(hint.hintId, 'question', { liked: hint.questionLiked, count: hint.questionLikeCount }, canLike, operationsInFlight.has(`like:${hint.hintId}:question`), true);
+		const aLike = renderLikeButton(hint.hintId, 'answer', { liked: hint.answerLiked, count: hint.answerLikeCount }, canLike, operationsInFlight.has(`like:${hint.hintId}:answer`), true);
 		return `<article class="editorial-hint">
 <div class="editorial-hint-header"><span class="editorial-hint-title">提示 ${hint.seq}</span></div>
 <div class="editorial-hint-body">

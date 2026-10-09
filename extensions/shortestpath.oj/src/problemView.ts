@@ -5,7 +5,7 @@
 
 declare function acquireVsCodeApi(): { postMessage(message: object): void; setState(state: object): void };
 
-type HintLikeMessage = { type: 'hintLike' | 'hintLikeError'; hintId: string; target: 'question' | 'answer'; liked?: boolean; count?: number };
+type HintLikeMessage = { type: 'hintLike' | 'hintLikeError'; hintId: string; target: 'question' | 'answer'; liked?: boolean; count?: number; hintLikes?: { liked: boolean; count: number }; editorialLikes?: { liked: boolean; count: number } };
 
 type TimerState = {
 	elapsedMs: number;
@@ -352,7 +352,10 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		document.querySelectorAll<HTMLButtonElement>('[data-command="like"]').forEach(button => {
 			if (button.dataset.hintId !== message.hintId || button.dataset.target !== message.target) { return; }
 			if (message.type === 'hintLike' && typeof message.liked === 'boolean' && typeof message.count === 'number') { setHintLike(button, message.liked, message.count); }
-			else if (previous) { setHintLike(button, previous.liked, previous.count); }
+			else {
+				const restored = (button.dataset.likeContext === 'editorial' ? message.editorialLikes : message.hintLikes) ?? previous;
+				if (restored) { setHintLike(button, restored.liked, restored.count); }
+			}
 			button.disabled = button.dataset.likeEnabled === 'false';
 			button.removeAttribute('aria-busy');
 		});
@@ -682,7 +685,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 			button.disabled = true;
 			button.setAttribute('aria-busy', 'true');
 			vscode.postMessage({
-				command,
+				command: button.dataset.likeContext === 'editorial' ? 'editorialLike' : command,
 				hintId: button.dataset.hintId,
 				target: button.dataset.target,
 				liked: !liked,
