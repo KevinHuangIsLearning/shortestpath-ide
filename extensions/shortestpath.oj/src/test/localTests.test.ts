@@ -56,18 +56,30 @@ test('compiler errors and arbitrary test content are escaped, with external text
 	assert.match(html, /编译失败/);
 });
 
-test('running tests allow stopping, disable mutations, and interactive problems expose their supplied reason', () => {
+test('running tests allow stopping and disable mutations', () => {
 	const state = snapshot();
 	state.status = 'compiling';
-	const problem = parseProblemBindData(bindPayload);
 	const html = renderLocalTestsToolbar(state, false, helpers.text);
 	assert.match(html, /data-command="localTestRunAll"[^>]*disabled/);
 	assert.match(html, /data-command="localTestStop"[^>]*><svg/);
 	assert.match(html, /data-command="localTestNew"[^>]*disabled/);
+});
+
+test('unavailable local judging retains supplied samples without a snapshot or execution controls', () => {
+	const problem = parseProblemBindData(bindPayload);
 	problem.localTest = { enabled: false, reason: 'external <reason>' };
-	const disabled = renderLocalTests(state, problem, undefined, false, helpers);
-	assert.match(disabled, /data-i18n-ignore>external &lt;reason&gt;/);
-	assert.doesNotMatch(disabled, /data-command/);
+	problem.samples = [
+		{ input: '<input>\n', output: '<output>\n', explanation: 'sample explanation' },
+		{ input: 'second input', output: 'second output', explanation: '' },
+	];
+	for (const state of [undefined, snapshot()]) {
+		const html = renderLocalTests(state, problem, 'stale error', true, helpers);
+		for (const text of ['样例 1', '样例 2', '&lt;input&gt;\n', '&lt;output&gt;\n', 'second input', 'second output', 'sample explanation', '复制样例输入', '复制期望输出']) { assert.ok(html.includes(text)); }
+		assert.match(html, /<pre data-i18n-ignore><code>&lt;input&gt;/);
+		assert.doesNotMatch(html, /data-command|textarea|stale error|external|正在加载/);
+	}
+	problem.samples = [];
+	assert.equal(renderLocalTests(undefined, problem, undefined, false, helpers), '');
 });
 
 test('local test snapshots reject malformed identities, test fields, and status', () => {

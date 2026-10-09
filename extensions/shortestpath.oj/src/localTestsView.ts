@@ -93,7 +93,14 @@ function comparedOutput(value: string, other: string, failed: boolean, e: ViewHe
 /** Ordinary samples and custom tests share execution, but supplied samples are immutable. */
 export function renderLocalTests(snapshot: LocalTestsSnapshot | undefined, problem: ImportedProblem, error: string | undefined, pending: boolean, helpers: ViewHelpers): string {
 	const { escape: e, text: t } = helpers;
-	if (problem.localTest?.enabled === false) { return `<p class="warning" data-i18n-ignore>${e(problem.localTest.reason)}</p>`; }
+	const displayOnly = problem.localTest?.enabled === false;
+	if (displayOnly) {
+		// The statement already shows the local judging notice. Samples remain readable without a Judger snapshot.
+		snapshot = {
+			sourcePath: '', status: 'idle', diagnostics: '',
+			tests: problem.samples.map((sample, index) => ({ id: index + 1, input: sample.input, output: sample.output, origin: 'sample', sampleIndex: index })),
+		};
+	}
 	if (!snapshot) {
 		return `<p role="status">${t(error ?? '正在加载本地测试…')}</p>${error ? `<button type="button" data-command="localTestLoad">${t('重试')}</button>` : ''}`;
 	}
@@ -123,8 +130,9 @@ export function renderLocalTests(snapshot: LocalTestsSnapshot | undefined, probl
 		const requested = snapshot.runMode === 'all' || snapshot.runTestId === test.id;
 		const expand = requested && snapshot.runId ? `${snapshot.runId}:${test.id}` : '';
 		const collapse = snapshot.runMode === 'all' && result?.pass === true ? `${snapshot.runId}:${test.id}:passed` : '';
-		return `<details data-persist-key="card:${test.id}" data-auto-expand-key="${expand}" data-auto-collapse-key="${collapse}"${collapse ? '' : ' open'} class="sample local-test ${resultClass}${official ? ' official' : ' custom'}" data-test-id="${test.id}"><summary class="local-test-heading"><h3>${title}</h3><span class="local-test-result ${resultClass}" role="status">${label ? t(label) : ''}${result && Number.isFinite(result.time) ? ` · ${result.time.toFixed(1)} ms` : ''}</span><div class="local-tests-actions">${button('localTestRun', '运行', 'run', 'run', attributes)}${official ? '' : button('localTestSave', '保存用例', 'save', 'save', attributes) + button('localTestDelete', '删除', 'delete', 'delete', attributes)}</div></summary>${io('输入', test.input, e(test.input), 'input')}${output}${diagnostics}${checker}${sample?.explanation.trim() ? `<div class="sample-explanation" data-render-math data-i18n-ignore>${helpers.markdown(sample.explanation, problem.url)}</div>` : ''}</details>`;
+		return `<details data-persist-key="card:${test.id}" data-auto-expand-key="${expand}" data-auto-collapse-key="${collapse}"${collapse ? '' : ' open'} class="sample local-test ${resultClass}${official ? ' official' : ' custom'}" data-test-id="${test.id}"><summary class="local-test-heading"><h3>${title}</h3><span class="local-test-result ${resultClass}" role="status">${label ? t(label) : ''}${result && Number.isFinite(result.time) ? ` · ${result.time.toFixed(1)} ms` : ''}</span><div class="local-tests-actions">${displayOnly ? '' : button('localTestRun', '运行', 'run', 'run', attributes)}${official ? '' : button('localTestSave', '保存用例', 'save', 'save', attributes) + button('localTestDelete', '删除', 'delete', 'delete', attributes)}</div></summary>${io('输入', test.input, e(test.input), 'input')}${output}${diagnostics}${checker}${sample?.explanation.trim() ? `<div class="sample-explanation" data-render-math data-i18n-ignore>${helpers.markdown(sample.explanation, problem.url)}</div>` : ''}</details>`;
 	}).join('');
+	if (displayOnly) { return tests; }
 	const add = `<details class="local-test-add" data-persist-key="add-test"><summary class="local-test-add-heading" title="${t('添加用例')}" aria-label="${t('添加用例')}">${icon('add')}<h3 class="local-test-add-title">${t('添加用例')}</h3></summary><div class="io-block"><div class="io-header"><h4>${t('输入')}</h4></div><textarea name="local-new-input" data-local-input aria-label="${t('输入')}" data-i18n-ignore spellcheck="false"${disabled}></textarea></div><div class="local-test-output-grid"><div class="io-block expected"><div class="io-header"><h4>${t('期望输出')}</h4></div><textarea name="local-new-output" data-local-output aria-label="${t('期望输出')}" data-i18n-ignore spellcheck="false"${disabled}></textarea></div></div><div class="local-test-add-actions">${button('localTestAdd', '添加', 'save', 'save')}</div></details>`;
 	const message = error ?? (snapshot.error ? localTestErrorMessage(snapshot.error) : undefined);
 	const compile = snapshot.diagnostics ? `<details class="local-test-diagnostics" data-persist-key="compile-diagnostics"${snapshot.error ? ' open' : ''}><summary>${t('编译及运行信息')}</summary><pre data-i18n-ignore>${e(snapshot.diagnostics)}</pre></details>` : '';
