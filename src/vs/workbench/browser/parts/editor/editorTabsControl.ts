@@ -625,9 +625,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected get tabHeight() {
 		const isCompact = this.groupsView.partOptions.tabHeight === 'compact';
-		// ShortestPath keeps a compact strip with 4px above a 30px (26px compact) tab.
+		// ShortestPath tabs meet the strip's top edge without a vertical gutter.
 		if (this.parent.classList.contains('tabs') && this.parent.closest('.shortestpath-dual-mode') && !this.parent.closest('.modal-editor-part')) {
-			return isCompact ? 30 : 34;
+			return isCompact ? 26 : 30;
 		}
 		// In modern multi-tab mode the tabs-and-actions-container gains extra
 		// padding (tabs.css), so the total height differs from the base values.

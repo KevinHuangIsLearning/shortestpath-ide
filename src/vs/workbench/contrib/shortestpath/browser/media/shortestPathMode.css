@@ -84,12 +84,12 @@
 
 /* Use the same Chrome-style strip as browsing while keeping native tab behavior. */
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs {
-	--editor-group-tab-height: 34px !important;
+	--editor-group-tab-height: 30px !important;
 	background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-tab-inactiveBackground)) !important;
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs.compact-height {
-	--editor-group-tab-height: 30px !important;
+	--editor-group-tab-height: 26px !important;
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
@@ -112,8 +112,7 @@
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab {
 	margin: 0;
 	min-height: var(--editor-group-tab-height) !important;
-	border-block: var(--vscode-spacing-size40, 4px) solid transparent !important;
-	border-bottom-width: 0 !important;
+	border-block: 0 !important;
 	border-right: 0 !important;
 	border-radius: var(--vscode-cornerRadius-xLarge, 12px) var(--vscode-cornerRadius-xLarge, 12px) 0 0;
 	background-color: transparent !important;
@@ -137,7 +136,7 @@
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.active):hover > .tab-fill {
-	inset: 0 var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px);
+	inset: var(--vscode-spacing-size20, 2px);
 	border-radius: var(--vscode-cornerRadius-xLarge, 12px);
 	background-color: var(--vscode-tab-hoverBackground, var(--vscode-toolbar-hoverBackground)) !important;
 }
@@ -172,7 +171,7 @@
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-label {
 	position: relative;
 	z-index: 1;
-	line-height: calc(var(--editor-group-tab-height) - var(--vscode-spacing-size40, 4px));
+	line-height: var(--editor-group-tab-height);
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab > :is(.tab-border-top-container, .tab-border-bottom-container, .tab-fade-hider) {
@@ -210,7 +209,7 @@
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tabs-bar-add-tab {
-	padding-top: var(--vscode-spacing-size60, 6px);
+	padding-top: var(--vscode-spacing-size20, 2px);
 	box-sizing: border-box;
 	height: var(--editor-group-tab-height);
 	background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-tab-inactiveBackground));
@@ -224,6 +223,11 @@
 	height: 28px;
 	border-radius: 50%;
 	font-size: 20px;
+}
+
+.monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs.compact-height .tabs-container > .tabs-bar-add-tab .action-label {
+	width: 24px;
+	height: 24px;
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .sticky-tabs-background {
