@@ -293,6 +293,11 @@ export default defineConfig(
 		]
 		}
 	},
+	// This inherited CPH file has no upstream copyright header.
+	{
+		files: ['extensions/shortestpath.judger/src/webview/editorChange.ts'],
+		rules: { 'header/header': 'off' },
+	},
 	// Disallow bracket notation for property names that can use dot notation.
 	{
 		files: [

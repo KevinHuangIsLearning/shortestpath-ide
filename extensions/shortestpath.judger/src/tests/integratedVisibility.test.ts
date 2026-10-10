@@ -15,6 +15,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getJudgeViewProvider, updateJudgeVisibility } from '../extension';
 import { getProblemForDocument } from '../utils';
+import { Problem } from '../types';
 import { getProblem } from '../parser';
 import { editorChanged, editorClosed, updateActiveTabJudgeVisibility, refreshActiveJudgeTab } from '../webview/editorChange';
 
@@ -22,6 +23,11 @@ describe('integrated tests editor visibility', () => {
 	const provider = { problemPath: undefined as string | undefined, isViewUninitialized: () => true, extensionToJudgeViewMessage: jest.fn() };
 	beforeEach(() => {
 		jest.clearAllMocks();
+		if (provider.problemPath) { editorClosed(editor(provider.problemPath).document); }
+		provider.problemPath = undefined;
+		provider.extensionToJudgeViewMessage.mockReset();
+		(vscode.window.tabGroups.all as unknown as { tabs: { input: unknown }[] }[]) = [];
+		(vscode.window.tabGroups.activeTabGroup as unknown as { activeTab: { input: unknown } | undefined }).activeTab = undefined;
 		globalThis.logger = { ...console };
 		(getJudgeViewProvider as jest.Mock).mockReturnValue(provider);
 	});
@@ -64,6 +70,46 @@ describe('integrated tests editor visibility', () => {
 		}
 		expect(updateJudgeVisibility).not.toHaveBeenCalled();
 	});
+	test('same-named paired sources refresh their own tests on every path switch', () => {
+		const group = vscode.window.tabGroups.activeTabGroup as unknown as { activeTab: { input: unknown } };
+		const first = { name: 'main', srcPath: '/first/main.cpp', url: '', tests: [{ id: 1, input: 'first', output: '1' }] };
+		const second = { ...first, srcPath: '/second/main.cpp', tests: [{ id: 1, input: 'second', output: '2' }] };
+		(vscode.window.tabGroups.all as unknown as { tabs: { input: unknown }[] }[]) = [
+			{ tabs: [first, second].map(problem => ({ input: { uri: { scheme: 'file', fsPath: problem.srcPath } } })) },
+		];
+		provider.extensionToJudgeViewMessage.mockImplementation(message => { provider.problemPath = message.problem?.srcPath; });
+		for (const problem of [first, second, first]) {
+			(getProblem as jest.Mock).mockReturnValue(problem);
+			group.activeTab = { input: { uri: { scheme: 'file', fsPath: problem.srcPath } } };
+			refreshActiveJudgeTab();
+		}
+		expect(provider.extensionToJudgeViewMessage.mock.calls.map(([message]) => message)).toEqual(
+			[first, second, first].map(problem => ({ command: 'new-problem', problem })),
+		);
+		jest.clearAllMocks();
+		refreshActiveJudgeTab();
+		expect(provider.extensionToJudgeViewMessage).not.toHaveBeenCalled();
+		editorClosed(editor(first.srcPath).document);
+		provider.problemPath = undefined;
+		provider.extensionToJudgeViewMessage.mockReset();
+	});
+	test.each(['editor-first', 'tab-first'])('same-named source switches refresh once when both events fire: %s', async order => {
+		const group = vscode.window.tabGroups.activeTabGroup as unknown as { activeTab: { input: unknown } };
+		const first = { name: 'main', srcPath: '/workspace/a/main.cpp', url: '', tests: [{ id: 1, input: 'a', output: '1' }] } as Problem;
+		const second = { ...first, srcPath: '/workspace/b/main.cpp', tests: [{ id: 1, input: 'b', output: '2' }] };
+		provider.extensionToJudgeViewMessage.mockImplementation(message => { provider.problemPath = message.problem?.srcPath; });
+		for (const problem of [first, second, first]) {
+			(getProblem as jest.Mock).mockReturnValue(problem);
+			(getProblemForDocument as jest.Mock).mockReturnValue(problem);
+			group.activeTab = { input: { uri: { scheme: 'file', fsPath: problem.srcPath } } };
+			(vscode.window.tabGroups.all as unknown as { tabs: { input: unknown }[] }[]) = [{ tabs: [first, second].map(value => ({ input: { uri: { scheme: 'file', fsPath: value.srcPath } } })) }];
+			if (order === 'editor-first') { await editorChanged(editor(problem.srcPath)); refreshActiveJudgeTab(); }
+			else { refreshActiveJudgeTab(); await editorChanged(editor(problem.srcPath)); }
+		}
+		expect(provider.extensionToJudgeViewMessage.mock.calls.map(([message]) => message)).toEqual(
+			[first, second, first].map(problem => ({ command: 'new-problem', problem })),
+		);
+	});
 	test('tab, group and close events share the complete settled refresh', () => {
 		const source = fs.readFileSync(path.resolve(__dirname, '../../src/extension.ts'), 'utf8');
 		expect(source).toMatch(/onDidCloseTextDocument\(\(e\) => \{\s*editorClosed\(e\);\s*tabChangeScheduler.schedule\(refreshActiveJudgeTab\)/);
@@ -76,7 +122,7 @@ describe('integrated tests editor visibility', () => {
 		(getProblem as jest.Mock).mockReturnValue(sp);
 		(vscode.window.tabGroups.activeTabGroup as unknown as { activeTab: { input: unknown } }).activeTab = { input: { uri: { scheme: 'file', fsPath: '/paired.cpp' } } };
 		provider.problemPath = '/closed.cpp';
-		provider.extensionToJudgeViewMessage.mockImplementation(() => updateJudgeVisibility(undefined));
+		provider.extensionToJudgeViewMessage.mockImplementation(message => updateJudgeVisibility(message.problem));
 		refreshActiveJudgeTab();
 		expect(provider.extensionToJudgeViewMessage).toHaveBeenCalledWith({ command: 'new-problem', problem: undefined });
 		expect(updateJudgeVisibility).toHaveBeenLastCalledWith(sp);

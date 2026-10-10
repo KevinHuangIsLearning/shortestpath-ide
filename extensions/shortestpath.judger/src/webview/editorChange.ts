@@ -5,7 +5,8 @@ import { usesIntegratedTests } from '../integratedTests';
 import { getProblemForDocument } from '../utils';
 import { getAutoShowJudgePref, getDefaultOnlineJudge } from '../preferences';
 import { setOnlineJudgeEnv } from '../compiler';
-import { getRefreshSourcePath, shouldClearJudgeForActiveDocument } from './judgeLifecycle';
+import { getRefreshSourcePath, JudgeDocument, shouldClearJudgeForActiveDocument } from './judgeLifecycle';
+import { Problem } from '../types';
 
 let lastActiveSourcePath: string | undefined;
 
@@ -14,7 +15,7 @@ export const updateActiveTabJudgeVisibility = () => {
     const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
     const uri = (input as { uri?: vscode.Uri } | undefined)?.uri;
     if (uri && !shouldClearJudgeForActiveDocument({ fileName: uri.fsPath, uri })) {
-        updateJudgeVisibility(getProblem(uri.fsPath) ?? undefined);
+        refreshJudgeForSource({ fileName: uri.fsPath, uri }, getProblem(uri.fsPath) ?? undefined);
     }
 };
 
@@ -36,11 +37,16 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
     }
 
     if (!shouldClearJudgeForActiveDocument(e.document)) {
-        updateJudgeVisibility(getProblemForDocument(e.document));
+        refreshJudgeForSource(e.document, getProblemForDocument(e.document));
     }
+};
+
+/** Text editors and paired source tabs share the same path-based refresh. */
+const refreshJudgeForSource = (document: JudgeDocument, problem: Problem | undefined) => {
+    updateJudgeVisibility(problem);
 
     const sourcePath = getRefreshSourcePath(
-        e.document,
+        document,
         getJudgeViewProvider().problemPath,
         lastActiveSourcePath,
     );
@@ -54,8 +60,6 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
     lastActiveSourcePath = sourcePath;
 
     setOnlineJudgeEnv(getDefaultOnlineJudge()); // reset the non-debug mode set in webview as configured.
-
-    const problem = getProblemForDocument(e.document);
 
     if (problem === undefined) {
         getJudgeViewProvider().extensionToJudgeViewMessage({

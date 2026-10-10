@@ -109,6 +109,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/shortestpath.judger/src/parser.ts',
 	'!extensions/shortestpath.judger/src/types.ts',
 	'!extensions/shortestpath.judger/src/webview/JudgeView.ts',
+	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
 	'!extensions/shortestpath.judger/src/webview/frontend/App.tsx',
 	'!extensions/shortestpath.judger/src/webview/translations.ts',
 	'!extensions/shortestpath.judger/webpack.frontend.config.js',
@@ -209,6 +210,8 @@ export const indentationFilter = Object.freeze<string[]>([
 
 export const copyrightFilter = Object.freeze<string[]>([
 	'**',
+	// This inherited CPH file has no upstream copyright header.
+	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
 	'!**/*.desktop',
 	'!**/*.json',
 	'!**/*.jsonc',
@@ -271,6 +274,8 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'extensions/**/*.ts',
+	// Preserve the formatting of this inherited CPH file.
+	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
