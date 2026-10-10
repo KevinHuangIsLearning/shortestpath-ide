@@ -1,0 +1,124 @@
+{
+    "cancelFixButton": "Aufhebung der Fixierung",
+    "compiler": {
+        "common": {
+            "error": "Es ist ein unbekannter Fehler aufgetreten. Bitte versuchen Sie es erneut."
+        },
+        "official": {
+            "getResultError": "Bei der Abfrage eines Laufergebnisses ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut!",
+            "pushError": "Beim Übertragen des Codes an den AtCoder-Server ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut!"
+        }
+    },
+    "customTestBlock": {
+        "add": "neu gebaut",
+        "DontShowDiff": "Unstimmigkeiten nicht angezeigt",
+        "onlyCustom": "Nur benutzerdefinierte Daten testen",
+        "title": "Benutzerdefinierte Testdaten (automatische Speicherung)"
+    },
+    "exitFullscreenButton": "Vollbild verlassen",
+    "fixToBottomButton": "Am Boden befestigt",
+    "fixToRightButton": "An der rechten Seite befestigt",
+    "fullscreenButton": "Vollbild",
+    "lsp": {
+        "connect": "Erstellen einer LSP-Verbindung……",
+        "connected": "LSP verbunden",
+        "error": "LSP-Verbindung unterbrochen",
+        "waitingAnswer": "Warten auf Initialisierungsbestätigung……"
+    },
+    "resultBlock": {
+        "diff": "Vergleich von Unterschieden：",
+        "diffNote": "Erläuterung：Wenn es mehr als eine mögliche Antwort auf die Frage gibt, kann Ihre Antwort nicht falsch sein.",
+        "state": "Status：",
+        "title": {
+            "custom": "Benutzerdefinierte Muster",
+            "sample": "Beispiel Titel"
+        }
+    },
+    "runTestButton": {
+        "error": "Alle durchgefallen",
+        "initial": "Beispieltest",
+        "partial": "Teilweise angenommen",
+        "running": "im Test",
+        "success": "Alle bestanden"
+    },
+    "langSetup": {
+        "pinned": "常用语言",
+        "others": "其他语言",
+        "showAll": "Alle anzeigen"
+    },
+    "submitButton": "Abschicken (Strg+Eingabe)",
+    "moreSettings": {
+        "title": "Mehr Einstellungen",
+        "tip": "Änderungen werden automatisch gespeichert",
+        "fontSizeInput": {
+            "helpText": "Einstellen der Schriftgröße des Code-Editors",
+            "label": "Schriftgröße",
+            "placeholder": "Bitte geben Sie eine Schriftgröße ein"
+        },
+        "validator": {
+            "helpText": "Verwenden Sie den angegebenen Checker, um zu prüfen, ob die Ergebnisse des Probelaufs mit den erwarteten Ergebnissen übereinstimmen",
+            "label": "Prüfer für Testergebnisse",
+            "messagePrefix": "：Siehe",
+            "options": {
+                "ignoreWhitespace": "Leerzeichen am Zeilenende und Zeilenumbrüche am Textende werden ignoriert",
+                "ncmp": "ncmp - gleicht 64-Bit-Ganzzahlen ab",
+                "nyesno": "nyesno - entspricht JA und NEIN, Groß- und Kleinschreibung wird nicht berücksichtigt",
+                "rcmp4": "rcmp4 - gleicht Fließkommazahlen mit einem maximal zulässigen Fehler von 1e-4 ab",
+                "rcmp6": "rcmp6 - gleicht Fließkommazahlen mit einem maximal zulässigen Fehler von 1e-6 ab",
+                "rcmp9": "rcmp9 - gleicht Fließkommazahlen mit einem maximal zulässigen Fehler von 1e-9 ab",
+                "strict": "strenge Konsistenz",
+                "wcmp": "wcmp - Zeichenkette abgleichen"
+            }
+        },
+        "checkMessage": {
+            "ignoreWhitespace": {
+                "correct": "richtig",
+                "mismatch": "nicht übereinstimmen"
+            },
+            "strict": {
+                "correct": "richtig",
+                "mismatch": "nicht übereinstimmen"
+            },
+            "ncmp": {
+                "differ": "{{count}}{{expected}}{{actual}}Die Anzahl der Ziffern ist unterschiedlich - erwartet: ' ', tatsächlich: ' '.",
+                "longerExpected": "{{expectedLength}} {{actualLength}} Erwartete längere Sequenz [Länge = ], enthält tatsächlich Elemente",
+                "longerActual": "{{actualLength}} {{expectedLength}} tatsächlich eine längere Sequenz [Länge = ] enthält, von der erwartet wird, dass sie Elemente enthält",
+                "correctFew": "{{count}}{{numbers}}Zahlen: \" \"",
+                "correctMany": "{{count}} Zahlen"
+            },
+            "rcmp": {
+                "differ": "{{n}}{{expected}}{{actual}}{{error}}Die Zahl ist unterschiedlich - erwartet: ' ', tatsächlich: ' ', Fehler: ' '.",
+                "single": "{{actual}}{{expected}}{{error}}Gefunden ' ', Erwartet ' ', Fehler ' '",
+                "total": "{{count}} Zahlen",
+                "invalidNumber": "{{index}}{{expected}}{{actual}}Ungültige Zahl - Erwartet: ' ', Tatsächlich: ' '",
+                "lengthMismatch": "{{expectedLength}} {{actualLength}} Unterschiedliche Anzahl von erwarteten und tatsächlichen Zahlen - Erwartete: , Tatsächliche:"
+            },
+            "wcmp": {
+                "wordsDiffer": "{{count}}{{expected}}{{actual}}Die Wörter sind unterschiedlich - erwartet: ' ', tatsächlich: ' '.",
+                "extraTokensInParticipant": "Die eigentliche Ausgabe enthält zusätzliche Wörter",
+                "unexpectedEOF": "Erwarten Sie, dass die Ausgabe zusätzliche Wörter enthält",
+                "singleToken": "{{token}}\" \"",
+                "tokenCount": "{{count}}Wörter"
+            },
+            "nyesno": {
+                "expectedInAnswer": "{{YES}} {{NO}} {{token}} {{index}}{{ending}} oder sollte in der erwarteten Ausgabe stehen, aber gefunden [page token]",
+                "expectedInOutput": "{{YES}} {{NO}} {{token}} {{index}}{{ending}} Oder sollte in der eigentlichen Ausgabe stehen, aber gefunden [page token]",
+                "mismatch": "\n {{expected}}\n {{actual}} {{index}}{{ending}} Unstimmigkeit Erwartet: Tatsächlich: [page token]",
+                "longerInAnswer": "{{expectedLength}} {{actualLength}} Es wurde erwartet, dass die Ausgabe mehr Token enthält [length = ], aber die tatsächliche Ausgabe enthielt nur Token",
+                "longerInOutput": "{{actualLength}} {{expectedLength}} Die tatsächliche Ausgabe enthält mehr Token [Länge = ], aber die erwartete Ausgabe enthält nur Token",
+                "emptyOutput": "leere Ausgabe",
+                "summary": "{{index}} {{yesCount}} {{noCount}}Die Anzahl der Token: ja ist , nein ist"
+            }
+        },
+        "langSetup": {
+            "title": "语言设置",
+            "searchPlaceholder": "搜索并添加常用语言",
+            "addBtnTitle": "erhöhen",
+            "noPinned": "暂无常用语言，请在下方搜索添加",
+            "setDefaultTitle": "设置为默认语言",
+            "removeTitle": "移除",
+            "noLangDetected": "未检测到编程语言，请在下方搜索添加",
+            "noMatchAlert": "未找到匹配的编程语言"
+        }
+    }
+}

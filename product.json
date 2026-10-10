@@ -38,6 +38,9 @@
 	"nodejsArtifactFeed": "",
 	"electronArtifactFeed": "",
 	"urlProtocol": "shortestpath",
+	"extensionEnabledApiProposals": {
+		"shortestpath.shortestpath-ojbetter": ["browser"]
+	},
 	"trustedExtensionProtocolHandlers": [
 		"shortestpath.shortestpath-oj"
 	],

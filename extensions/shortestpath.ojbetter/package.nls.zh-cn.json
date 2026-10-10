@@ -1,0 +1,6 @@
+{
+	"displayName": "内置浏览器 OJBetter",
+	"description": "为内置浏览器提供 AtCoder Better 和 Codeforces Better 增强功能。",
+	"atcoder": "在内置浏览器启用 AtCoder Better。修改后请刷新已打开的页面。通过网站上的 Better 设置按钮配置具体功能。",
+	"codeforces": "在内置浏览器启用 Codeforces Better。修改后请刷新已打开的页面。通过网站上的 Better 设置按钮配置具体功能。"
+}

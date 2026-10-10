@@ -1,0 +1,1526 @@
+{
+	"commit": "860106c63ef7bb7d4ec5dcd709f80a9f9a6f1a46",
+	"scripts": {
+		"atcoder": {
+			"file": "vendor/atcoder-better.user.js.txt",
+			"name": "Atcoder Better!",
+			"version": "1.25.1",
+			"requires": [
+				"vendor/turndown.min.js.txt",
+				"vendor/markdown-it.js.txt",
+				"vendor/crypto-js.min.js.txt",
+				"vendor/chroma.min.js.txt",
+				"vendor/xterm.js.txt",
+				"vendor/dexie.min.js.txt",
+				"vendor/i18next.min.js.txt",
+				"vendor/i18nextHttpBackend.min.js.txt",
+				"vendor/jquery-i18next.min.js.txt",
+				"vendor/highlight.min.js.txt",
+				"vendor/dialog-polyfill.min.js.txt"
+			],
+			"resources": {
+				"acwing_cpp_code_completer": "vendor/acwing_cpp_code_completer-0.0.11.json.txt",
+				"wandboxlist": "vendor/list.json.txt",
+				"xtermcss": "vendor/xterm.min.css.txt",
+				"selectpagecss": "vendor/selectpage.css.txt",
+				"dialogpolyfillcss": "vendor/dialog-polyfill.min.css.txt"
+			}
+		},
+		"codeforces": {
+			"file": "vendor/codeforces-better.user.js.txt",
+			"name": "Codeforces Better!",
+			"version": "1.87.1",
+			"requires": [
+				"vendor/turndown.min.js.txt",
+				"vendor/markdown-it.js.txt",
+				"vendor/crypto-js.min.js.txt",
+				"vendor/chroma.min.js.txt",
+				"vendor/xterm.js.txt",
+				"vendor/dexie.min.js.txt",
+				"vendor/i18next.min.js.txt",
+				"vendor/i18nextHttpBackend.min.js.txt",
+				"vendor/jquery-i18next.min.js.txt",
+				"vendor/highlight.min.js.txt",
+				"vendor/dialog-polyfill.min.js.txt"
+			],
+			"resources": {
+				"acwing_cpp_code_completer": "vendor/acwing_cpp_code_completer-0.0.11.json.txt",
+				"wandboxlist": "vendor/list.json.txt",
+				"xtermcss": "vendor/xterm.min.css.txt",
+				"selectpagecss": "vendor/selectpage.css.txt",
+				"dialogpolyfillcss": "vendor/dialog-polyfill.min.css.txt"
+			}
+		}
+	},
+	"assets": {
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/turndown/7.2.0/turndown.min.js": {
+			"file": "vendor/turndown.min.js.txt",
+			"sha256": "fd0e2aa0785c13c39fa1ddc0b3b19520e541b69801c1369ea4aabfe7913a0dea",
+			"integrity": "sha512-sJzEecN5Nk8cq81zKtGq6/z9Z/r3q38zV9enY75IVxiG7ybtlNUt864sL4L1Kf36bYIwxTMVKQOtU4VhD7hGrw=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/markdown-it/13.0.2/markdown-it.js": {
+			"file": "vendor/markdown-it.js.txt",
+			"sha256": "cfd2d33cc8aaed57d6cdb01176d1cf45901d73a3ae28e83d3e1e7331b7910057",
+			"integrity": "sha512-2LtYcLGnCbAWz9nDIrfG2pHFiFu9n+3oGecQlzLuYsLgen/oxiYscGWnDST9J9EZanlsQkDD0ZP2n/6peDuALQ=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/crypto-js/4.2.0/crypto-js.min.js": {
+			"file": "vendor/crypto-js.min.js.txt",
+			"sha256": "769a555de553babc35a3338f344dd7aa16260c93cea2c7db290707c90484e7cc",
+			"integrity": "sha512-a+SUDuwNzXDvz4XrIcXHuCf089/iJAoN4lmrXJg18XnduKK6YlDHNRalv4yd1N40OKI80tFidF+rqTFKGPoWFQ=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/chroma-js/2.4.2/chroma.min.js": {
+			"file": "vendor/chroma.min.js.txt",
+			"sha256": "a19aa0df3b7974028724b2666d8311a226acedc65a90947c7bc56eecb9a367ad",
+			"integrity": "sha512-zInFF17qBFVvvvFpIfeBzo7Tj7+rQxLeTJDmbxjBz5/zIr89YVbTNelNhdTT+/DCrxoVzBeUPVFJsczKbB7sew=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/xterm/5.5.0/xterm.js": {
+			"file": "vendor/xterm.js.txt",
+			"sha256": "1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495",
+			"integrity": "sha512-Gujw5GajF5is3nMoGv9X+tCMqePLL/60qvAv1LofUZTV9jK8ENbM9L+maGmOsNzuZaiuyc/fpph1KT9uR5w3CQ=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/dexie/4.0.7/dexie.min.js": {
+			"file": "vendor/dexie.min.js.txt",
+			"sha256": "03337c3ff922434111a698fc4c3a28da72d20fe543859ebae1a1421e42106f1e",
+			"integrity": "sha512-882VotT07mOQRzqIxsyxHzJX0XUaoeee3qXp4THg1A0KI0XFnWFAaLFQm0x6OW3pHSIipVZW+gzQ1w9b6uvkVw=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/i18next/23.11.5/i18next.min.js": {
+			"file": "vendor/i18next.min.js.txt",
+			"sha256": "9861e2df7a3a4d60502468fc6319c928696b3b7c39796c5fef248ed805beea0d",
+			"integrity": "sha512-3RSGkmT48HnO+hlmzGYDx5/w2LIBX0O5hSuYX6KWAxmvVlSjFgoxIaWa2tlMExheGvt3lLyxeTsXfpC47yb8CQ=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/i18next-http-backend/2.5.2/i18nextHttpBackend.min.js": {
+			"file": "vendor/i18nextHttpBackend.min.js.txt",
+			"sha256": "9f4abd83b14b09903d896e82cbd676f616e95649b676750b8ec7ae79b5a796cf",
+			"integrity": "sha512-bBb+wrGRTx4MvHpksYb1Iv5oJ1o8ineCqpc0cnTgdJQhuAFJJ93SEVXxUOCptvt0vAqYdjzWO5emorYUBt6Ceg=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/jquery-i18next/1.2.1/jquery-i18next.min.js": {
+			"file": "vendor/jquery-i18next.min.js.txt",
+			"sha256": "568d70ac78e7cb88500cf03d4b0054a46fc405ac21bd4bac76a4476f721aef1f",
+			"integrity": "sha512-79RgNpOyaf8AvNEUdanuk1x6g53UPoB6Fh2uogMkOMGADBG6B0DCzxc+dDktXkVPg2rlxGvPeAFKoZxTycVooQ=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/highlight.js/11.9.0/highlight.min.js": {
+			"file": "vendor/highlight.min.js.txt",
+			"sha256": "837a6fa5b0c736b52bbde2b2b6190f305da3fc9ed41681db5321507057b5c846",
+			"integrity": "sha512-D9gUyxqja7hBtkWpPWGt9wfbfaMGVt9gnyCvYa+jojwwPHLCzUm5i8rpk7vD7wNee9bA35eYIjobYPaQuKS1MQ=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/dialog-polyfill/0.5.6/dialog-polyfill.min.js": {
+			"file": "vendor/dialog-polyfill.min.js.txt",
+			"sha256": "644e9d156c289902691291aa7e1388f2821965b08c177b075291e3fa3c6464dd",
+			"integrity": "sha512-qUIG93zKzcLBVD5RGRbx2PBmbVRu+tJIl+EPLTus0z8I1AMru9sQYdlf6cBacSzYmZVncB9rcc8rYBnazqgrxA=="
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/acwing_cpp_code_completer-0.0.11.json": {
+			"file": "vendor/acwing_cpp_code_completer-0.0.11.json.txt",
+			"sha256": "552424e4401fba900953d2fd3fa71804e2c93cf04180a4d9aab12cf4b47e653f",
+			"integrity": "sha512-DQVpao4qMMExToRdid0g/S0nbO/C9hwCECjI5aW8A0g7nvi8hEcD2Lw3QIqdJBV7haP15oJOocfwuiw7ryTO9w=="
+		},
+		"https://wandbox.org/api/list.json": {
+			"file": "vendor/list.json.txt",
+			"sha256": "bfec919fd107d03ecdeaa3ca200694e61dad3a9f315187da888bbe460bbef0a1",
+			"integrity": null
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/xterm/5.5.0/xterm.min.css": {
+			"file": "vendor/xterm.min.css.txt",
+			"sha256": "97377c0c258e109358121823f5790146c714989366481f90e554c42277efb500",
+			"integrity": "sha512-XpXUuzg5afNt1bsgnrOesXP70TLH8tXYYK5sK+Y0UV+YBvJn9EfRFYWy4HT3TVDfH0nl1CO0lwOxIrt2gk9qjg=="
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/css/selectpage.css": {
+			"file": "vendor/selectpage.css.txt",
+			"sha256": "42a0d9e93b7e347234ffce8fb3f8e42840425adc0c5431577ec84c7fe53f08bf",
+			"integrity": "sha512-cRXJfA2tEcAxHEKylJfxteY17N7j9fia3waahHOVnvl63uVZT9OQ7jjjpofZMVZ4JSX3BRET+mI8UvKnsXd3NA=="
+		},
+		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/dialog-polyfill/0.5.6/dialog-polyfill.min.css": {
+			"file": "vendor/dialog-polyfill.min.css.txt",
+			"sha256": "8c06ee177c2c8700b9e92049132da55d6f48219264e44b597e28728f298d4fc1",
+			"integrity": "sha512-J2+1q+RsZuJXabBfH1q/fgRr6jMy9By5SwVLk7bScEW7NFJkMUXxfeOyyxtDe6fsaJ4jsciexSlGrPYn9YbBIg=="
+		},
+		"https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js": {
+			"file": "vendor/jquery.min.js.txt",
+			"sha256": "fc9a93dd241f6b045cbff0481cf4e1901becd0e12fb45166a8f17f95823f0b1a",
+			"integrity": null
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/js/selectpage.min.js": {
+			"file": "vendor/selectpage.min.js.txt",
+			"sha256": "70cc070f1f76058e67f3863e5f66c3e4863644316b588e341234c80c27ba0e97",
+			"integrity": "sha512-HhBheWc9nbTuTG0oVYtY9c3nkJAAiuk899lycOtB8NALvp20CNOjlYdTAYbRy9/0zXnLl0LZpiwhfLZurvK1XQ=="
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/subs/atcoder-better.json": {
+			"file": "vendor/resources/subs/atcoder-better.json",
+			"sha256": "602e7cac4023fba8da05a153bccf53d7c8dbd350faa6b6b6ba8fbe59078b1339"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/subs/codeforces-better.json": {
+			"file": "vendor/resources/subs/codeforces-better.json",
+			"sha256": "eb2e761ff9c33fe83259e8ba7a6f1cd67cd885ad7c85c23c1e72364bd0172ec9"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/resources/locales/atcoder-better/settings.json",
+			"sha256": "f750e44a00edcc7b1a9950cbac99c8877313fca936c1ed7b67e9f2eaefd17f71"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/resources/locales/atcoder-better/comments.json",
+			"sha256": "da00dc5051339d5ea389f32d93586d797d51fe736184ccae6f39adbd5528814c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/resources/locales/atcoder-better/config.json",
+			"sha256": "7d8ec9026274358dcff1c1bd2ace2a796ac797c9f589029b4da0357147265a8c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/resources/locales/atcoder-better/common.json",
+			"sha256": "d1038b3f4d406a55a0a96d43d13cccd14e20f978d99d98e1cc29236109cad678"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/resources/locales/atcoder-better/translator.json",
+			"sha256": "ce742b909d4105aa7a3295fe6c944fea2694e8e79fc4c6a0037d1fb919bb65f2"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/resources/locales/atcoder-better/alert.json",
+			"sha256": "298e71c5f497bfa7adc087a135b33db0a3857049cb51073cc3e15d0dda949eaf"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/resources/locales/atcoder-better/dialog.json",
+			"sha256": "4936f481ac1204ac2a7370447701d11a37add84bc2e673cd0232bdebbc4db67d"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "0d4cf8f79e383dbec88f9a5e127940a35efce181a97a08ffb515d7697786febf"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/resources/locales/atcoder-better/button.json",
+			"sha256": "0dfde1c021326d343c815dac784fe4409835a963a3ad518170cf0b8d4b4d67e3"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/resources/locales/atcoder-better/announce.json",
+			"sha256": "276b491397821002ccad4b46f204e27456201adb6b9cc287da26b6c0f66744b3"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "12925352aa6f0dca446512f4e955375f8e88c905132d1dcf5ebbf1c7fbeb4c2f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/resources/locales/codeforces-better/settings.json",
+			"sha256": "9acee47de8e361cbdc7b417821aebb019a6f74fdfc383d9c5e4516743d76844c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/resources/locales/codeforces-better/comments.json",
+			"sha256": "da00dc5051339d5ea389f32d93586d797d51fe736184ccae6f39adbd5528814c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/resources/locales/codeforces-better/config.json",
+			"sha256": "7d8ec9026274358dcff1c1bd2ace2a796ac797c9f589029b4da0357147265a8c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/resources/locales/codeforces-better/common.json",
+			"sha256": "d1038b3f4d406a55a0a96d43d13cccd14e20f978d99d98e1cc29236109cad678"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/resources/locales/codeforces-better/translator.json",
+			"sha256": "ce742b909d4105aa7a3295fe6c944fea2694e8e79fc4c6a0037d1fb919bb65f2"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/resources/locales/codeforces-better/alert.json",
+			"sha256": "66e8955154f0f126013700fbddcd8ffa07d96f28a0df4e08eaadb8d68dfba854"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/resources/locales/codeforces-better/dialog.json",
+			"sha256": "7a80d877da5a17033c2d45c58ae893b0a51825d301643187a1460cbd28e7fe93"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "0d4cf8f79e383dbec88f9a5e127940a35efce181a97a08ffb515d7697786febf"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/resources/locales/codeforces-better/button.json",
+			"sha256": "7bb55964a916a70635a5c48dbbfdc26d329d622b233f3b5050eebf539d6a07c8"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/resources/locales/codeforces-better/announce.json",
+			"sha256": "f3f5124cd939de907c07ac0a3788a22da9bbaefa190c459d3773ae9faeb52778"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "bf37c87d53a85a4bdfb957c3182eb1d040d81063912d279cc3a0021faa40e892"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/subs/atcoder-better.json": {
+			"file": "vendor/i18n/zh-Hant/resources/subs/atcoder-better.json",
+			"sha256": "2895e7d34638985b5ece33a4d4d0e19e97f4b12eda4d4da4b95313e4b308db59"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/subs/codeforces-better.json": {
+			"file": "vendor/i18n/zh-Hant/resources/subs/codeforces-better.json",
+			"sha256": "13c8cbc33e7383efe6a6db1b98d1d428b2feaf90e8672846b840299c7c12af13"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/settings.json",
+			"sha256": "719b7fe4ef2ac6425360aa1970abcb6c9666ae833b9494d75643a5dcef903ebe"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/comments.json",
+			"sha256": "052efc4dc2defdd24bfce533a777b6191f6edddf8ebee35871b6da5157e2dd6f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/config.json",
+			"sha256": "ca3982d250749e543e5a7cb73a81c5846af15020698a2067c787e6f41a9e1ccc"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/common.json",
+			"sha256": "05c18a619f875d1b80df725f126dc9bb0e8a666a56c93ba415bf51e48f8dd99f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/translator.json",
+			"sha256": "cdde068f0adc241a7bed59d4cbce71e117d8ee8941a794d47b7f16c452a5606f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/alert.json",
+			"sha256": "fcfcc5ad0d3c687cc40d55f21025ccbe2877e05c1277689d4b90fcb508fe45e2"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/dialog.json",
+			"sha256": "91c96ffc8a06716dfd61b5edf6768fa85db8363d0691534de79d0c78ec53d01a"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "53dc053c8af36802e4c704948f6e196f296cdd51cec6ef21a40ee178133ea720"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/button.json",
+			"sha256": "e2b2021843025bf0efd89c5a45d96d85faa4e9415c3335fede61ede790025901"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/announce.json",
+			"sha256": "c2d9dfaca9ada1b96a070cb660e2888421b10e270a237a1745e1196676786dc6"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "639e6d1a1c37d68113b0923af6b0e3b658806a921153a713d0393f8e1b89bf93"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/settings.json",
+			"sha256": "dbab5a7e9c4c3e7d99d143a0c381c73ff68dd01000fbfc27400e31577ff80246"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/comments.json",
+			"sha256": "052efc4dc2defdd24bfce533a777b6191f6edddf8ebee35871b6da5157e2dd6f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/config.json",
+			"sha256": "ca3982d250749e543e5a7cb73a81c5846af15020698a2067c787e6f41a9e1ccc"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/common.json",
+			"sha256": "05c18a619f875d1b80df725f126dc9bb0e8a666a56c93ba415bf51e48f8dd99f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/translator.json",
+			"sha256": "cdde068f0adc241a7bed59d4cbce71e117d8ee8941a794d47b7f16c452a5606f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/alert.json",
+			"sha256": "4d3c5f352d6dae99c74478e805cbc1cd7405f80dc795a9e476086f89c0b6cde4"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/dialog.json",
+			"sha256": "5904ff22b334c3c3be5952720342b2efdcf7e1e9394a5d7727077ce41415f261"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "53dc053c8af36802e4c704948f6e196f296cdd51cec6ef21a40ee178133ea720"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/button.json",
+			"sha256": "42b3353020e9ca8a1cf4fadf85a0ae0eb0c8c732dfa3fe4a5d78ff9dd7b7e523"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/announce.json",
+			"sha256": "b9520313dcc7eafe4b1770b8d5fde14a5360c242db161718a0a794bc1aba6d3e"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/zh-Hant/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/i18n/zh-Hant/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "b777bc5dd2e2ca37d1df636e3f5481a4ed5b9cebe8ffa87032001e7bb81739b3"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/subs/atcoder-better.json": {
+			"file": "vendor/i18n/ja/resources/subs/atcoder-better.json",
+			"sha256": "f29572c23549992b7dd216fd05ec96c20b3b9c5123ea5654e5b3e9748dadada4"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/subs/codeforces-better.json": {
+			"file": "vendor/i18n/ja/resources/subs/codeforces-better.json",
+			"sha256": "e1b4d81a8ce999942995f9d04780b8232d3f3f991f9f747f8f6b308e355fd05f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/settings.json",
+			"sha256": "da0e0522812e9a35e26f0e5ccd9d6bcfac78bc31724460b1b448c0edb07c0f26"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/comments.json",
+			"sha256": "381f15a770286218eb48e65202d0ba9bf5037847c1c2c318eb12f3fa6203d5e1"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/config.json",
+			"sha256": "d1cb148defb28be35bea8ba6c29b0589bb6ddd24d05de2c4b580127961278049"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/common.json",
+			"sha256": "16eeb53b99d8297b549d31c7a93fe49723a3b9fe17e8863ba4602cf292b3b004"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/translator.json",
+			"sha256": "92aa813b107e3dc08b2c2b09257ec44b7aafb84153337371f9c544a47b022567"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/alert.json",
+			"sha256": "384b2ef982c204681b5d6b16f151511ade6411d900778e147e5af8d25e612d65"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/dialog.json",
+			"sha256": "c9c3903679b41dd84cfd70038585feff8848fa453708ab9f88a7460962ae4c84"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "dae3c89b59b73a95231f1154ece7dee6f01fd4751569f39babeb07830c97feb9"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/button.json",
+			"sha256": "b1f200a38acf026550638ff409698f914f681454692eee29ecc42cc6d19b8d3e"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/announce.json",
+			"sha256": "6d0aa592229a3e9dc96038dd0b68cb4f8addc101599ac8f884df1a6910a19154"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/i18n/ja/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "1864ba928bb0982e655d260ba276d17187896993a3152e67af3c6e964d2dcf7e"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/settings.json",
+			"sha256": "1c234753d2439c5574be7af52d67903fbbdf9a6aa98affe24548d06fb4ce870b"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/comments.json",
+			"sha256": "381f15a770286218eb48e65202d0ba9bf5037847c1c2c318eb12f3fa6203d5e1"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/config.json",
+			"sha256": "d1cb148defb28be35bea8ba6c29b0589bb6ddd24d05de2c4b580127961278049"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/common.json",
+			"sha256": "dc8adf5c290e4723344be69fd89c542e741b6c4da6e8636b3b5f67d61658e35c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/translator.json",
+			"sha256": "92aa813b107e3dc08b2c2b09257ec44b7aafb84153337371f9c544a47b022567"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/alert.json",
+			"sha256": "aa9651668ad1d84cf3c96378c807bdc648b21c65585c1f0ff09dae56ed92475c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/dialog.json",
+			"sha256": "be6addaaa0a7fe698f938dba74def02949708a488304724994317262571c5b98"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "dae3c89b59b73a95231f1154ece7dee6f01fd4751569f39babeb07830c97feb9"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/button.json",
+			"sha256": "f715684809c3b1ac17611cd49b597ca799940f6bf584ee447d93d78877a8b8aa"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/announce.json",
+			"sha256": "d0121d74aefa73856d8e4cdbb054eeca0f93b308516b92c5b2b57e17a3770dbd"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ja/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/i18n/ja/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "6d842d5a303a3052223191986793418fe444063fc9a4547fd22a917d2f8d6f05"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/subs/atcoder-better.json": {
+			"file": "vendor/i18n/it/resources/subs/atcoder-better.json",
+			"sha256": "9df8c81ed282841ebe8e6818a77ae7590dc37203f238a5226b6e65c6b9a36430"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/subs/codeforces-better.json": {
+			"file": "vendor/i18n/it/resources/subs/codeforces-better.json",
+			"sha256": "20610194b377810df3af20d804f54e2cb7e0201c4e17fb9623479c8f05af166c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/settings.json",
+			"sha256": "5bb17d8d7086176f7371f48b97625e4a4e523111b90948b266901d40c573093f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/comments.json",
+			"sha256": "e9612a21c3264bf63a1d094bb1779aa04cf2064fdee3706e385b7fee4eb534b1"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/config.json",
+			"sha256": "caa7bbb77fd1dd8ec180578d392779b76937807557d74a27e568c9d3846371fb"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/common.json",
+			"sha256": "30b53b93861a5abaab7306b7164e710374cb1ae7bcfc11c2583812d1f5af6d1f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/translator.json",
+			"sha256": "6fbeaf482777233dc8e7cae852b3bebd286525d6d707329b9aec2a2e090c0691"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/alert.json",
+			"sha256": "8bdd3fef20f5f86916cdbad0808c07480a7d8403e3825dc619b8468f1a817170"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/dialog.json",
+			"sha256": "596a4b814d755ff2fdd69402d1ad1aececdb421e64d1955434f4143e67ce161a"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "d4d48bc80f8b58bf1874a7d9f709316d64977e6ea9c0e98887c0072dd76d27c3"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/button.json",
+			"sha256": "06175277e847f4aa52a541291b41bbe443b45a216082854e32150f08104ce5af"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/announce.json",
+			"sha256": "3c870706beb970221d2a25b5d348f4071919d1a2f641d7d2f52c4edf036eeb65"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/i18n/it/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "71e33e33f3ffcef71c7d7c3052a11d9d3525922c011c68d84678fbe346da70e2"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/settings.json",
+			"sha256": "a1efabbc2ced33b492bac4f281b2f6e6f7013bebaf712267806c0dcd55862c97"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/comments.json",
+			"sha256": "e9612a21c3264bf63a1d094bb1779aa04cf2064fdee3706e385b7fee4eb534b1"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/config.json",
+			"sha256": "caa7bbb77fd1dd8ec180578d392779b76937807557d74a27e568c9d3846371fb"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/common.json",
+			"sha256": "30b53b93861a5abaab7306b7164e710374cb1ae7bcfc11c2583812d1f5af6d1f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/translator.json",
+			"sha256": "6fbeaf482777233dc8e7cae852b3bebd286525d6d707329b9aec2a2e090c0691"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/alert.json",
+			"sha256": "819f5bbadaf49d7aae235a85455f980c047258ac8f0d4f808a12a4496dcd5943"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/dialog.json",
+			"sha256": "a87663cf9ab038d4bca770b317002ecce6c11e486982deccac8c98fd9d92d901"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "d4d48bc80f8b58bf1874a7d9f709316d64977e6ea9c0e98887c0072dd76d27c3"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/button.json",
+			"sha256": "0fc94b8df8638002e72748ee250100287b9aeb432c8e8444ef05efaf42912a81"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/announce.json",
+			"sha256": "497524ea0fd9cb03ad74540580d16a7126f28ae5748d211847b5d76017757194"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/it/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/i18n/it/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "7f775e6ed2fbccc77b367acbbba3119b3bfb594b438fdbd6dfeb01ef3a4e7c87"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/subs/atcoder-better.json": {
+			"file": "vendor/i18n/pt/resources/subs/atcoder-better.json",
+			"sha256": "db22ee5027251039cd287853cc9d387415d46e3fc30fc275215663911f7229c0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/subs/codeforces-better.json": {
+			"file": "vendor/i18n/pt/resources/subs/codeforces-better.json",
+			"sha256": "0c3a9d211086433e98b44ab2b23d049412183f0efad6ffb937a6f0f2dae4d584"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/settings.json",
+			"sha256": "3a607ea5d06f66880a30c3f4527dce2a4cd9b6b6a6c543da15e5b56dad01dc8e"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/comments.json",
+			"sha256": "c2c84daf34c7910d41eb9bdb61aeaaaa20beb232e8d543c8c553b86d61f8097f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/config.json",
+			"sha256": "1a7335ca6c97905c9c49fd7cc2948e2531d0b57a5b47425898edc1f8087b2a26"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/common.json",
+			"sha256": "d08d93ba8b8e672961f5d3a349ce7d28d8dd5c83ea4a5451651ff7d6ad97701a"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/translator.json",
+			"sha256": "d1bf1b4eab00ccf6e3752bcbd185e5980f33d6efddb1916605f9e5c80799cc3b"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/alert.json",
+			"sha256": "40fca0ce06eb270d572ab8064d3755d06258f4113885036b39dd3830cd7f02d3"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/dialog.json",
+			"sha256": "27dff3c1713eab8f180ba63c6abffca07c74f831da114f2e135a1e964dc26b70"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "c3785a55bb2217d70f1872a4efe36327fd211136ac1a98014e4d71018be12719"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/button.json",
+			"sha256": "a4699338721dc9832b649fe5f6f17d6916fb4cfbd8460cf2110326c1e7294ead"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/announce.json",
+			"sha256": "a142a8d5738e51297ed04b10e662adbe1844ab3ba866628acfad3943326c1631"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/i18n/pt/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "f286ec56160d7f83541520a0edef037676ab469202f7e8d0f9680af6b04f2c26"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/settings.json",
+			"sha256": "f5e3731cc01daa09acbb87ddd5f357892ab9128fd4af267e6aaecd1cfb4c4f10"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/comments.json",
+			"sha256": "c2c84daf34c7910d41eb9bdb61aeaaaa20beb232e8d543c8c553b86d61f8097f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/config.json",
+			"sha256": "1a7335ca6c97905c9c49fd7cc2948e2531d0b57a5b47425898edc1f8087b2a26"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/common.json",
+			"sha256": "d08d93ba8b8e672961f5d3a349ce7d28d8dd5c83ea4a5451651ff7d6ad97701a"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/translator.json",
+			"sha256": "d1bf1b4eab00ccf6e3752bcbd185e5980f33d6efddb1916605f9e5c80799cc3b"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/alert.json",
+			"sha256": "2c02f7e2fec97ab3d0633610988bdc3e3db9675e0617ceccdfb91caa4158bcc3"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/dialog.json",
+			"sha256": "7921e2f3942496cb4ad9a06b3ba55e611d9dd0e28a97df97b37968f4aeff979e"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "c3785a55bb2217d70f1872a4efe36327fd211136ac1a98014e4d71018be12719"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/button.json",
+			"sha256": "868a02e079581f69356f48a6a642c90b3bc28b3000f0a57aaf5ff91ff157b565"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/announce.json",
+			"sha256": "788bcb3bc76731d8153725460c301dd7fa82c51c3376b6fe3e70accb105b40e0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/pt/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/i18n/pt/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "8341612de543e961843fee630a4ddf816bbb31cb806386bedf058f09fa636b3b"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/subs/atcoder-better.json": {
+			"file": "vendor/i18n/hi/resources/subs/atcoder-better.json",
+			"sha256": "b7820a1a4d97fa93f9a43b0454a40afb357c80ce6e8f62d0597e51dd9a9df9dd"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/subs/codeforces-better.json": {
+			"file": "vendor/i18n/hi/resources/subs/codeforces-better.json",
+			"sha256": "592c330ec2ed244538d29d3c81fb644cb3740387487698635c7c7bcdd40fb3b4"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/settings.json",
+			"sha256": "50dfd85ff3fb74d41257de2d1a31061870c7752d346a431140bf594505831a9b"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/comments.json",
+			"sha256": "6f8f2c2ad9aed488d4afa0700960d8d79a308a29ad311785d60d60444c371aa0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/config.json",
+			"sha256": "d8225b79092f638e43a37f16c265551ada01475e269f3752007884249ed60476"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/common.json",
+			"sha256": "819eac724059c274ef4b6871b5e60e71fc68999ab26b978404e2aa8301fac537"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/translator.json",
+			"sha256": "0c7f0b2a0368848ec05737d51d979cb2004cca6b718e3f520566b49ef0fc2561"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/alert.json",
+			"sha256": "6542a2b691f8f78869557c9de7149fda44b4c30a3b6e1931e9aa14a3f18c32d1"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/dialog.json",
+			"sha256": "477763db0d70f2969eafa2ce78aa91d667b84c6357fa62f3d9cf14a29210e26d"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "7b6ee276ca1fbb3315ce1c67b70d73580258987aeeb53a4f95837d1f608f8a3d"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/button.json",
+			"sha256": "36205c726f0632a71126f77dd4d470c697c25d464e8bb16f69218c4f0fd1b5fb"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/announce.json",
+			"sha256": "e36d07d73349fe5fb61d6593e96b562d0bc51d58e4372d367d0041edf5f20938"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/i18n/hi/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "7cf89c9a78d312c6ea5906357b1bffef05937bbc13461702710e0b336c00a48e"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/settings.json",
+			"sha256": "078c6d151b13dff9a5d4898c698e180cb4825d57ade36de664c3e89d27f83e3a"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/comments.json",
+			"sha256": "6f8f2c2ad9aed488d4afa0700960d8d79a308a29ad311785d60d60444c371aa0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/config.json",
+			"sha256": "d8225b79092f638e43a37f16c265551ada01475e269f3752007884249ed60476"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/common.json",
+			"sha256": "819eac724059c274ef4b6871b5e60e71fc68999ab26b978404e2aa8301fac537"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/translator.json",
+			"sha256": "0c7f0b2a0368848ec05737d51d979cb2004cca6b718e3f520566b49ef0fc2561"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/alert.json",
+			"sha256": "4437fa55d6be38ea2a91b71254d4a17ee8f79edc3fea5607c3df5cbb68046dc6"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/dialog.json",
+			"sha256": "9e3abe63be9663aa59d9a2b0412571eb1031e0ff8f72f9059440256cf17b080f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "7b6ee276ca1fbb3315ce1c67b70d73580258987aeeb53a4f95837d1f608f8a3d"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/button.json",
+			"sha256": "6c7640700761a4ffc336feed8ced86c3f799eff4a039682350f7b7551aafe9c8"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/announce.json",
+			"sha256": "fb1a280385c06f8a7cbc2e3f1e0f8d30c1d2f06a79f5a6c286f1b16bef26b682"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/hi/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/i18n/hi/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "3577f36619312763eae01b8b61df1be3d846d2faa22e71fdf62d8709f72c8a15"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/subs/atcoder-better.json": {
+			"file": "vendor/i18n/de/resources/subs/atcoder-better.json",
+			"sha256": "af34934ab07e181522730a95d97ff0e01e799fccc4bcd410512cdab2dd7bf9c6"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/subs/codeforces-better.json": {
+			"file": "vendor/i18n/de/resources/subs/codeforces-better.json",
+			"sha256": "a352176657e9c2eb7c4b0776729775181cdd632347d08507002dcc81730ae07c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/settings.json",
+			"sha256": "cf389061d4871053d2b798bdd3e30911ea530dddbec417d1585fddd210cfb6f5"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/comments.json",
+			"sha256": "3e49fad349e79d36abf80790232a915587637a4c42811786ffeaf7d62e8db663"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/config.json",
+			"sha256": "eb17ececfc84a385e4fa3264f6e947b47b23691d33f79a3bc8f41a5a3e9902d5"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/common.json",
+			"sha256": "eeb0481228e444832c6365a4060a3d4cd7e11c2ecf240f13b44ccea4aa2e2510"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/translator.json",
+			"sha256": "ab25f42cca4054a6cd53bedd473991b5aeeac277aa235e320a94ac9a70d03083"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/alert.json",
+			"sha256": "2c55c286650b4618e4e25a8dd9520f150f601cb424e79c33c743134045d51bc3"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/dialog.json",
+			"sha256": "be335b000a5a3136258ebc6ff336b44e90b89d96ac6a14f606365f8d6da14d81"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "1d7c1de81ee8f9cbf4934d4b38c285a51f5fc0d8e438d63caed5865a0fe040d1"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/button.json",
+			"sha256": "1821925a77991aa4891273c55d97456fee76b33a5648f47611a0cd13c24b9248"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/announce.json",
+			"sha256": "9765524f16e84bc88d692f048dc618910a65f0dfacca23a2da4dda03c3363473"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/i18n/de/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "91c549f2fa9688f0658029332614fa1080b14003ee20c3f6d8168494fc849e4c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/settings.json",
+			"sha256": "cc408f84f7e4956373a69e6f4bb52cb4d6d171f93a23c40f22c7bd07ad5d1728"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/comments.json",
+			"sha256": "3e49fad349e79d36abf80790232a915587637a4c42811786ffeaf7d62e8db663"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/config.json",
+			"sha256": "eb17ececfc84a385e4fa3264f6e947b47b23691d33f79a3bc8f41a5a3e9902d5"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/common.json",
+			"sha256": "eeb0481228e444832c6365a4060a3d4cd7e11c2ecf240f13b44ccea4aa2e2510"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/translator.json",
+			"sha256": "ab25f42cca4054a6cd53bedd473991b5aeeac277aa235e320a94ac9a70d03083"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/alert.json",
+			"sha256": "c4439f70c09ceb43f1c390eac575adf9beea2a38d3c8d034ef8053acdac40445"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/dialog.json",
+			"sha256": "a1a796c1e11739b223dfbfac6dcb33d61e2e582f22b0418a5c045dc492e84c16"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "1d7c1de81ee8f9cbf4934d4b38c285a51f5fc0d8e438d63caed5865a0fe040d1"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/button.json",
+			"sha256": "01e3cf750ec6683fa765d9ff78712dba8958c90e90da446e8b3ee03ed8bb4556"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/announce.json",
+			"sha256": "aec3406e4db72f269503ae9db7ccbeaf65a9aa61c24bd8fdd0597a18deaf3f7b"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/de/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/i18n/de/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "b5ce713ac0b8720a90c535d54b72a703630f841f49770c6b5fae52871eead563"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/subs/atcoder-better.json": {
+			"file": "vendor/i18n/ko/resources/subs/atcoder-better.json",
+			"sha256": "5929d18617c2e170dc6f68ef802fec14183dbfff6f7f513ac8f54dacbdbcf5ba"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/subs/codeforces-better.json": {
+			"file": "vendor/i18n/ko/resources/subs/codeforces-better.json",
+			"sha256": "53d7e9dc4e35b2a61604cd901789fe197b1f352e1b743da43fb9a52e39385615"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/settings.json",
+			"sha256": "883404da4560f9479a56ff5a5bdff056064e314b350326b20e612d5d58fb84a4"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/comments.json",
+			"sha256": "81d613002aeb0f5045c97e82ad15ace10e00c64876de09aa6bfeecbb73ab6388"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/config.json",
+			"sha256": "932f6964e85201b72ea479bc1d35bbe2f431f8441a4eb4e78013745bae04d997"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/common.json",
+			"sha256": "4ef9e691dabec4a4825dbfa53f69e31c3f168bc9667a47d72ae59bc662e2de89"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/translator.json",
+			"sha256": "6e15e8d8b7751e4776ee8a0cd64ffcd22ca14a44d0a530652132ef0235d636da"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/alert.json",
+			"sha256": "f65169cf31d43eec190caeb6620215c73385a826a74e421435cd7cf063684e7c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/dialog.json",
+			"sha256": "25ef0ca7ec085cb66b0738cf00f6030cb1629b959f336651b084297ed2a1d673"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "65dc99118f42ad5e9c2e149d72e72130b2daf4326d3d3984b5c18c8815e057e0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/button.json",
+			"sha256": "7ac8af677112bebe6b935c220dfbca67ec48c45efd93f0028b26279f9f4069dc"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/announce.json",
+			"sha256": "2da757c96f2495bfb3a3746f1080e15ccf4f65daa639760832fd1558b5d87c1b"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/i18n/ko/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "afa088a70b5cd2fc10dc6aa0cfd6ce483a0c7e977ecfb1d3cf3713b913ea221a"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/settings.json",
+			"sha256": "0eaa4f74870e1c6f69afde1b3282661027b7df4e96a34dff088f479cfa0eea4f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/comments.json",
+			"sha256": "81d613002aeb0f5045c97e82ad15ace10e00c64876de09aa6bfeecbb73ab6388"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/config.json",
+			"sha256": "932f6964e85201b72ea479bc1d35bbe2f431f8441a4eb4e78013745bae04d997"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/common.json",
+			"sha256": "4ef9e691dabec4a4825dbfa53f69e31c3f168bc9667a47d72ae59bc662e2de89"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/translator.json",
+			"sha256": "6e15e8d8b7751e4776ee8a0cd64ffcd22ca14a44d0a530652132ef0235d636da"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/alert.json",
+			"sha256": "086edca138ee7b2676746b72b62044ffa1e3703f95539b6455736a0c5db6bf24"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/dialog.json",
+			"sha256": "3163ed8e278794a4549ae2c3cba2357ce9a989fb7c7153d61abf8a2ec7a87066"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "65dc99118f42ad5e9c2e149d72e72130b2daf4326d3d3984b5c18c8815e057e0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/button.json",
+			"sha256": "1f2e7528f7dbae74dff56a59368fef7393c3d19886f257714484b8c9c15c7328"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/announce.json",
+			"sha256": "55bd708e80fd234b37a2dc41bd04555bb977518aa816c9997cf5b95ca4e76be7"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/ko/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/i18n/ko/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "65370b44bf227cb3ff4027f46d1c5862e96566c9c8a636b57971031529d813a4"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/subs/atcoder-better.json": {
+			"file": "vendor/i18n/fr/resources/subs/atcoder-better.json",
+			"sha256": "5eab6a71df6bfbae4c3c38b35d102c7c0d4f6636a864b26b41929918c2df3028"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/subs/codeforces-better.json": {
+			"file": "vendor/i18n/fr/resources/subs/codeforces-better.json",
+			"sha256": "f4ebe35026f10aff5458c8fcbf21cf6a3987cecdf4569a9a3ada5d5d234e9a90"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/settings.json",
+			"sha256": "5390bae69255aed2b7b2274ce74e6ba19f2125a87c367e59b643bae5d63e0821"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/comments.json",
+			"sha256": "c9fb5e7437b2a61a0f25b76801be8d3f00b64759bc88bd5f3509734eb0156385"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/config.json",
+			"sha256": "81a8bc399977899c3ff9f0f6da17448f97313de91740ed6fcf3c8f4b9ed7831f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/common.json",
+			"sha256": "cb0b5d6359ffe02a4ea2726fbcdf8f09f1810aa5d6fa4544fc98561ee8d55b4c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/translator.json",
+			"sha256": "b9f330894a84de734f134ead12c964fbcc9e6cf1fa8059937b2df436ff3eae4b"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/alert.json",
+			"sha256": "76330ab5fbcd92f3a465a60b5b7c7b8bea245d4938ea3a350ad1221becb4d524"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/dialog.json",
+			"sha256": "490ad5d94914f6e77a5efcc2b39686db801046f3473b8f107575b030e7c02ca2"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "3b3b6e0e4610355101a16d66d32848e8c52c83194ee3297317cf50d69a6c23a5"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/button.json",
+			"sha256": "be309d605820e472911a0b58105d7e99c6e03031f3cb7b6f4ea8c98d695bce11"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/announce.json",
+			"sha256": "ca4d040f69cac043edbb38e6cac0978624ac290ca74426a25562bcade264894f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/i18n/fr/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "93a4b82ccb15ef336715ee2daa60cb7f8f37aa07e38ac62367bd29c29858fa4f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/settings.json",
+			"sha256": "f03910066e6937e8186347d27d7fa8cb610e6a8c2cf3e686c4c2872b598caa9d"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/comments.json",
+			"sha256": "c9fb5e7437b2a61a0f25b76801be8d3f00b64759bc88bd5f3509734eb0156385"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/config.json",
+			"sha256": "81a8bc399977899c3ff9f0f6da17448f97313de91740ed6fcf3c8f4b9ed7831f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/common.json",
+			"sha256": "cb0b5d6359ffe02a4ea2726fbcdf8f09f1810aa5d6fa4544fc98561ee8d55b4c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/translator.json",
+			"sha256": "b9f330894a84de734f134ead12c964fbcc9e6cf1fa8059937b2df436ff3eae4b"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/alert.json",
+			"sha256": "271f469be5fff58e5ae6474d176248f119dc9b9c1a6c9ae47f79ee89bfa54f09"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/dialog.json",
+			"sha256": "7650a899418d69d318705fa54e5eee5669e4fc75daf86095c76ed5c4959a1356"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "3b3b6e0e4610355101a16d66d32848e8c52c83194ee3297317cf50d69a6c23a5"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/button.json",
+			"sha256": "cf99dfeebb8a7926af76a52bd0d52be729959b1f406ab7ada6362cd0a17951c1"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/announce.json",
+			"sha256": "e635b346de6a2ee0c4d9ea2757f343594a67afddd32a56ac4e6a95f673b0a7b4"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/fr/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/i18n/fr/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "ddbd1d8f4d4045464ed4cda0dc8354bf71ce75483379e4f43fd776af0c916609"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/subs/atcoder-better.json": {
+			"file": "vendor/i18n/es/resources/subs/atcoder-better.json",
+			"sha256": "c5a947463e322611f21247a86d1c1597b6ee6781fcf6e3a4bb02671b8d9c0438"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/subs/codeforces-better.json": {
+			"file": "vendor/i18n/es/resources/subs/codeforces-better.json",
+			"sha256": "8de6ad8bc7e8177581ec7e9228aaf2945d1af0c5954930eaf95498ce3fb73555"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/settings.json",
+			"sha256": "f8f80fa1d214a1c205dab740d26e62983f27b54f7a08371c63823524c28c364e"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/comments.json",
+			"sha256": "535cacc62780581d5ea0813caf67911c85ba4b9058351c35d98b84c8b24e6b15"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/config.json",
+			"sha256": "dbd473c59f3301ce6f47fa8a994e6c87e4e531d6d1661bb91ab79a3886173aee"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/common.json",
+			"sha256": "cfb4bf2e3154a214c986dcf80dcb884e24755efb585cd3ea3ecc52e0b51ee9e0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/translator.json",
+			"sha256": "96cd20e1c9492bf6de4f6e602c231f16b3dfa099a781e3e25f2fb7f81ade3235"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/alert.json",
+			"sha256": "f67c96f01354ebd763a5b4a2b5daeac4dace1dd34aae48d8aec654fd65f5e4d7"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/dialog.json",
+			"sha256": "080404f129f524b02dfb436fbbc65b31ee25810d562cd760a3ea16ff00b63775"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "39b1f40817a5f126723c5a8fb880df91371b1322cfc41e1bcaae6fa2faa50283"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/button.json",
+			"sha256": "cb29735979793bbeefa1e9039f1fbe3ff7c0897e393e96222bff13d41759f7a4"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/announce.json",
+			"sha256": "f8c21e55e7e12c44b6bccb4477c4cf2dca272f55098444fa04b7f4d1c3245879"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/i18n/es/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "492a206b2eb9f0cb30a34164e61cf79127e4a4ce583177e2a56786190389ffb9"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/settings.json",
+			"sha256": "e69ff308115b576e3a60c435116e68b2da6b74ec5f4ee60d162a8f8b5c72a0d3"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/comments.json",
+			"sha256": "535cacc62780581d5ea0813caf67911c85ba4b9058351c35d98b84c8b24e6b15"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/config.json",
+			"sha256": "dbd473c59f3301ce6f47fa8a994e6c87e4e531d6d1661bb91ab79a3886173aee"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/common.json",
+			"sha256": "cfb4bf2e3154a214c986dcf80dcb884e24755efb585cd3ea3ecc52e0b51ee9e0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/translator.json",
+			"sha256": "96cd20e1c9492bf6de4f6e602c231f16b3dfa099a781e3e25f2fb7f81ade3235"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/alert.json",
+			"sha256": "6157f27111eea9135335aa22c4493df43a282837731069035e533fb5e38034cf"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/dialog.json",
+			"sha256": "c167f1e871d2f11a7faca4460bc705d76386cb3cc3b8028ee08ce0721ebc5b93"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "39b1f40817a5f126723c5a8fb880df91371b1322cfc41e1bcaae6fa2faa50283"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/button.json",
+			"sha256": "2e3d45d51b394a94bdb25c7ca804359698b55e0d324d64b77ba0856c712002bb"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/announce.json",
+			"sha256": "4830ddbcadf995d45a31bed08af2ed6f82e4b76838fa3e029b16a75578c170ad"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/es/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/i18n/es/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "2e78cfbc2290517c2eca003fac2056d8d41ede2ec35cb3310cd07ed312c82774"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/subs/atcoder-better.json": {
+			"file": "vendor/i18n/en/resources/subs/atcoder-better.json",
+			"sha256": "cb58b6266fe32b6b9c4d4f5d326eca6742fab0140390fc222c3c2c97c8490f04"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/subs/codeforces-better.json": {
+			"file": "vendor/i18n/en/resources/subs/codeforces-better.json",
+			"sha256": "c120864b300ce49a8259b5f4e56a11e3337a41caa9ae5616d4ba83231bdfdca3"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/settings.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/settings.json",
+			"sha256": "284ff8bc21e60f0fef7fd9c56e5bc260f9f147af501d7883f59dcc30be8196e0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/comments.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/comments.json",
+			"sha256": "c42b4fcad2f3857ed34d495f9f6c1fdaef2e9289665e279408ce2dca2de6bc65"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/config.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/config.json",
+			"sha256": "e9d325773e9a4bd06c5564360700e92c5ec3014c214269c56243fbb8ed65cbc0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/common.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/common.json",
+			"sha256": "ceabec82652d583d8289608ea3ec85a69bc516119e9103acdbda68c21169372a"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/translator.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/translator.json",
+			"sha256": "8df04443c3d3d492f09f4a625ef1d9f7d198175120c717ce522dee4bcc73c6ec"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/alert.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/alert.json",
+			"sha256": "03ee8c2b3168a305cb7f214ae9c26a9d058eaf3dae816a5743138b0f1b6454ba"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/dialog.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/dialog.json",
+			"sha256": "c306b6c75ba6d0ef2961a3564a39d3855dcaebc7b24d07c98f64ea7d3d4346e5"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/logMessage.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/logMessage.json",
+			"sha256": "36ac612ef41ca3104bb74e5a7be58eb983d7ddea7bea67fd88160a89298e88b7"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/button.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/button.json",
+			"sha256": "829052b295853e354207f7e3c024ceba3aeb76eda4847fbac5167a62af1326af"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/announce.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/announce.json",
+			"sha256": "40990b8975a1efb99a20ba198a00f3d2aee20a89e0c227406bfbecb2aa81bd9e"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/atcoder-better/codeEditor.json": {
+			"file": "vendor/i18n/en/resources/locales/atcoder-better/codeEditor.json",
+			"sha256": "3cfa33a2ac265a74a0c18b8b46d49942e5d3a685844a7df0f4a443e657a1c52c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/settings.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/settings.json",
+			"sha256": "bb66f946e4a951a5213b0fe2bf51daea4c5cabebe32318f061cf67342f54d090"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/comments.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/comments.json",
+			"sha256": "c42b4fcad2f3857ed34d495f9f6c1fdaef2e9289665e279408ce2dca2de6bc65"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/config.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/config.json",
+			"sha256": "e9d325773e9a4bd06c5564360700e92c5ec3014c214269c56243fbb8ed65cbc0"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/common.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/common.json",
+			"sha256": "d23141bc36e54ad0bd729e39e417ce379897557f688cf534cc2f2f9fb3eb821e"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/translator.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/translator.json",
+			"sha256": "8df04443c3d3d492f09f4a625ef1d9f7d198175120c717ce522dee4bcc73c6ec"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/alert.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/alert.json",
+			"sha256": "20c12429dd2048e16052eade731f28dd66e4ba4dc1bdae95a5641fa831de121a"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/dialog.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/dialog.json",
+			"sha256": "4a12a837520a4c2a869e0c249f5fe256af08c0b5785bb74be55b0112530d982f"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/logMessage.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/logMessage.json",
+			"sha256": "36ac612ef41ca3104bb74e5a7be58eb983d7ddea7bea67fd88160a89298e88b7"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/button.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/button.json",
+			"sha256": "a5e4d2e9a3f3e574a980be3e1d6739174061e82f7cd6c88a50b8be892183198c"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/announce.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/announce.json",
+			"sha256": "f713a19e70dcaa6935e7b7b664fb2a4c73db29cbca7ba2814091adcdfaa26e28"
+		},
+		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/codeEditor.json": {
+			"file": "vendor/i18n/en/resources/locales/codeforces-better/codeEditor.json",
+			"sha256": "652646467d0cf3a943530b5cf54e132c4f48bf22b5b379a79f6308fde219050f"
+		}
+	},
+	"files": {
+		"ThirdPartyNotices.txt": "e48d618b39c72615de963f6ebe57d6c7c3574a5a403547bca10589963a5a6c12",
+		"vendor/KaTeX-LICENSE": "766ccc1f306c885aa45542a9846bbd0a505b27a0374f146778171c2254ce18e3",
+		"vendor/LICENSE-@xterm-xterm.txt": "b569f629d00f2626a8100df2a1798210535621e42164dfd426a6fe5aac7b0ccd",
+		"vendor/LICENSE-chroma-js.txt": "c266032eef15ef0c01e7b0cca314b2944399d357f18d591e6ca72699d667cd23",
+		"vendor/LICENSE-crypto-js.txt": "f729d14b7e1bf8adca0dcc38b93b929d14d53fcd5db56c3d1c9b2daa7aa69396",
+		"vendor/LICENSE-dexie.txt": "cb5e8e7e5f4a3988e1063c142c60dc2df75605f4c46515e776e3aca6df976e14",
+		"vendor/LICENSE-dialog-polyfill.txt": "c9a5bd7c8cc1267ddacdc5228c68ecd811cf6d74286e9141bc80d8af2eb1a025",
+		"vendor/LICENSE-highlight.js.txt": "6c081431591d9df696c82dc598fe1423765b8a299b200ed00b281afd0f64c490",
+		"vendor/LICENSE-i18next-http-backend.txt": "4c9292737f1f40dfe854e8fc3b8ae1aa555fba597246740105b7d004cfab1713",
+		"vendor/LICENSE-i18next.txt": "c83b2035d5a4740f8739869a994acc24559e2946219b15091922b52e7b2a7287",
+		"vendor/LICENSE-jquery-i18next.txt": "94478bb543535dc401c3147e76fd05b0758d197ba715d73d8aac8a12b25e005c",
+		"vendor/LICENSE-jquery.txt": "d4db9ebe6f29f5168eac45ad713f055623ac5d0dcd5ba92da23d650ae012020d",
+		"vendor/LICENSE-markdown-it.txt": "792c48c5a849a15fdf9e37e8bcf9e6d1dd13b32b46c642a748a0a46a9919d473",
+		"vendor/LICENSE-selectpage.txt": "9f22975ae39a97aabc0314addf938b4b03aa6340da5b548196f7817ad1dd27e7",
+		"vendor/LICENSE-turndown.txt": "a055e3a15db4b4cbb5af381230eba085603126d7d5d8c4dae45ee85b877a9729",
+		"vendor/Monaco-LICENSE": "33e4ff1a06ef62ba21788ea162564ee8165269a24a9ce6ef301837447eab0ac6",
+		"vendor/Monaco-ThirdPartyNotices.txt": "790537262fc78a764e121e6b92b959bcd3f5c310b47d9d9b9e92e17fe0af5336",
+		"vendor/OJBetter-LICENSE": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+		"vendor/acwing_cpp_code_completer-0.0.11.json.txt": "552424e4401fba900953d2fd3fa71804e2c93cf04180a4d9aab12cf4b47e653f",
+		"vendor/atcoder-better.user.js.txt": "ac54e910d52ff40df1e9f25173a79cb2046eb4b9a1849bc1dcf5b6e07d79aa26",
+		"vendor/chroma.min.js.txt": "a19aa0df3b7974028724b2666d8311a226acedc65a90947c7bc56eecb9a367ad",
+		"vendor/codeforces-better.user.js.txt": "f72ccf03d3875c0475eaf81af5f5ba3ec01357be036aaaeedfbc0dd49e3267cb",
+		"vendor/crypto-js.min.js.txt": "769a555de553babc35a3338f344dd7aa16260c93cea2c7db290707c90484e7cc",
+		"vendor/dexie.min.js.txt": "03337c3ff922434111a698fc4c3a28da72d20fe543859ebae1a1421e42106f1e",
+		"vendor/dialog-polyfill.min.css.txt": "8c06ee177c2c8700b9e92049132da55d6f48219264e44b597e28728f298d4fc1",
+		"vendor/dialog-polyfill.min.js.txt": "644e9d156c289902691291aa7e1388f2821965b08c177b075291e3fa3c6464dd",
+		"vendor/highlight.min.js.txt": "837a6fa5b0c736b52bbde2b2b6190f305da3fc9ed41681db5321507057b5c846",
+		"vendor/i18n/de/resources/locales/atcoder-better/alert.json": "2c55c286650b4618e4e25a8dd9520f150f601cb424e79c33c743134045d51bc3",
+		"vendor/i18n/de/resources/locales/atcoder-better/announce.json": "9765524f16e84bc88d692f048dc618910a65f0dfacca23a2da4dda03c3363473",
+		"vendor/i18n/de/resources/locales/atcoder-better/button.json": "1821925a77991aa4891273c55d97456fee76b33a5648f47611a0cd13c24b9248",
+		"vendor/i18n/de/resources/locales/atcoder-better/codeEditor.json": "91c549f2fa9688f0658029332614fa1080b14003ee20c3f6d8168494fc849e4c",
+		"vendor/i18n/de/resources/locales/atcoder-better/comments.json": "3e49fad349e79d36abf80790232a915587637a4c42811786ffeaf7d62e8db663",
+		"vendor/i18n/de/resources/locales/atcoder-better/common.json": "eeb0481228e444832c6365a4060a3d4cd7e11c2ecf240f13b44ccea4aa2e2510",
+		"vendor/i18n/de/resources/locales/atcoder-better/config.json": "eb17ececfc84a385e4fa3264f6e947b47b23691d33f79a3bc8f41a5a3e9902d5",
+		"vendor/i18n/de/resources/locales/atcoder-better/dialog.json": "be335b000a5a3136258ebc6ff336b44e90b89d96ac6a14f606365f8d6da14d81",
+		"vendor/i18n/de/resources/locales/atcoder-better/logMessage.json": "1d7c1de81ee8f9cbf4934d4b38c285a51f5fc0d8e438d63caed5865a0fe040d1",
+		"vendor/i18n/de/resources/locales/atcoder-better/settings.json": "cf389061d4871053d2b798bdd3e30911ea530dddbec417d1585fddd210cfb6f5",
+		"vendor/i18n/de/resources/locales/atcoder-better/translator.json": "ab25f42cca4054a6cd53bedd473991b5aeeac277aa235e320a94ac9a70d03083",
+		"vendor/i18n/de/resources/locales/codeforces-better/alert.json": "c4439f70c09ceb43f1c390eac575adf9beea2a38d3c8d034ef8053acdac40445",
+		"vendor/i18n/de/resources/locales/codeforces-better/announce.json": "aec3406e4db72f269503ae9db7ccbeaf65a9aa61c24bd8fdd0597a18deaf3f7b",
+		"vendor/i18n/de/resources/locales/codeforces-better/button.json": "01e3cf750ec6683fa765d9ff78712dba8958c90e90da446e8b3ee03ed8bb4556",
+		"vendor/i18n/de/resources/locales/codeforces-better/codeEditor.json": "b5ce713ac0b8720a90c535d54b72a703630f841f49770c6b5fae52871eead563",
+		"vendor/i18n/de/resources/locales/codeforces-better/comments.json": "3e49fad349e79d36abf80790232a915587637a4c42811786ffeaf7d62e8db663",
+		"vendor/i18n/de/resources/locales/codeforces-better/common.json": "eeb0481228e444832c6365a4060a3d4cd7e11c2ecf240f13b44ccea4aa2e2510",
+		"vendor/i18n/de/resources/locales/codeforces-better/config.json": "eb17ececfc84a385e4fa3264f6e947b47b23691d33f79a3bc8f41a5a3e9902d5",
+		"vendor/i18n/de/resources/locales/codeforces-better/dialog.json": "a1a796c1e11739b223dfbfac6dcb33d61e2e582f22b0418a5c045dc492e84c16",
+		"vendor/i18n/de/resources/locales/codeforces-better/logMessage.json": "1d7c1de81ee8f9cbf4934d4b38c285a51f5fc0d8e438d63caed5865a0fe040d1",
+		"vendor/i18n/de/resources/locales/codeforces-better/settings.json": "cc408f84f7e4956373a69e6f4bb52cb4d6d171f93a23c40f22c7bd07ad5d1728",
+		"vendor/i18n/de/resources/locales/codeforces-better/translator.json": "ab25f42cca4054a6cd53bedd473991b5aeeac277aa235e320a94ac9a70d03083",
+		"vendor/i18n/de/resources/subs/atcoder-better.json": "af34934ab07e181522730a95d97ff0e01e799fccc4bcd410512cdab2dd7bf9c6",
+		"vendor/i18n/de/resources/subs/codeforces-better.json": "a352176657e9c2eb7c4b0776729775181cdd632347d08507002dcc81730ae07c",
+		"vendor/i18n/en/resources/locales/atcoder-better/alert.json": "03ee8c2b3168a305cb7f214ae9c26a9d058eaf3dae816a5743138b0f1b6454ba",
+		"vendor/i18n/en/resources/locales/atcoder-better/announce.json": "40990b8975a1efb99a20ba198a00f3d2aee20a89e0c227406bfbecb2aa81bd9e",
+		"vendor/i18n/en/resources/locales/atcoder-better/button.json": "829052b295853e354207f7e3c024ceba3aeb76eda4847fbac5167a62af1326af",
+		"vendor/i18n/en/resources/locales/atcoder-better/codeEditor.json": "3cfa33a2ac265a74a0c18b8b46d49942e5d3a685844a7df0f4a443e657a1c52c",
+		"vendor/i18n/en/resources/locales/atcoder-better/comments.json": "c42b4fcad2f3857ed34d495f9f6c1fdaef2e9289665e279408ce2dca2de6bc65",
+		"vendor/i18n/en/resources/locales/atcoder-better/common.json": "ceabec82652d583d8289608ea3ec85a69bc516119e9103acdbda68c21169372a",
+		"vendor/i18n/en/resources/locales/atcoder-better/config.json": "e9d325773e9a4bd06c5564360700e92c5ec3014c214269c56243fbb8ed65cbc0",
+		"vendor/i18n/en/resources/locales/atcoder-better/dialog.json": "c306b6c75ba6d0ef2961a3564a39d3855dcaebc7b24d07c98f64ea7d3d4346e5",
+		"vendor/i18n/en/resources/locales/atcoder-better/logMessage.json": "36ac612ef41ca3104bb74e5a7be58eb983d7ddea7bea67fd88160a89298e88b7",
+		"vendor/i18n/en/resources/locales/atcoder-better/settings.json": "284ff8bc21e60f0fef7fd9c56e5bc260f9f147af501d7883f59dcc30be8196e0",
+		"vendor/i18n/en/resources/locales/atcoder-better/translator.json": "8df04443c3d3d492f09f4a625ef1d9f7d198175120c717ce522dee4bcc73c6ec",
+		"vendor/i18n/en/resources/locales/codeforces-better/alert.json": "20c12429dd2048e16052eade731f28dd66e4ba4dc1bdae95a5641fa831de121a",
+		"vendor/i18n/en/resources/locales/codeforces-better/announce.json": "f713a19e70dcaa6935e7b7b664fb2a4c73db29cbca7ba2814091adcdfaa26e28",
+		"vendor/i18n/en/resources/locales/codeforces-better/button.json": "a5e4d2e9a3f3e574a980be3e1d6739174061e82f7cd6c88a50b8be892183198c",
+		"vendor/i18n/en/resources/locales/codeforces-better/codeEditor.json": "652646467d0cf3a943530b5cf54e132c4f48bf22b5b379a79f6308fde219050f",
+		"vendor/i18n/en/resources/locales/codeforces-better/comments.json": "c42b4fcad2f3857ed34d495f9f6c1fdaef2e9289665e279408ce2dca2de6bc65",
+		"vendor/i18n/en/resources/locales/codeforces-better/common.json": "d23141bc36e54ad0bd729e39e417ce379897557f688cf534cc2f2f9fb3eb821e",
+		"vendor/i18n/en/resources/locales/codeforces-better/config.json": "e9d325773e9a4bd06c5564360700e92c5ec3014c214269c56243fbb8ed65cbc0",
+		"vendor/i18n/en/resources/locales/codeforces-better/dialog.json": "4a12a837520a4c2a869e0c249f5fe256af08c0b5785bb74be55b0112530d982f",
+		"vendor/i18n/en/resources/locales/codeforces-better/logMessage.json": "36ac612ef41ca3104bb74e5a7be58eb983d7ddea7bea67fd88160a89298e88b7",
+		"vendor/i18n/en/resources/locales/codeforces-better/settings.json": "bb66f946e4a951a5213b0fe2bf51daea4c5cabebe32318f061cf67342f54d090",
+		"vendor/i18n/en/resources/locales/codeforces-better/translator.json": "8df04443c3d3d492f09f4a625ef1d9f7d198175120c717ce522dee4bcc73c6ec",
+		"vendor/i18n/en/resources/subs/atcoder-better.json": "cb58b6266fe32b6b9c4d4f5d326eca6742fab0140390fc222c3c2c97c8490f04",
+		"vendor/i18n/en/resources/subs/codeforces-better.json": "c120864b300ce49a8259b5f4e56a11e3337a41caa9ae5616d4ba83231bdfdca3",
+		"vendor/i18n/es/resources/locales/atcoder-better/alert.json": "f67c96f01354ebd763a5b4a2b5daeac4dace1dd34aae48d8aec654fd65f5e4d7",
+		"vendor/i18n/es/resources/locales/atcoder-better/announce.json": "f8c21e55e7e12c44b6bccb4477c4cf2dca272f55098444fa04b7f4d1c3245879",
+		"vendor/i18n/es/resources/locales/atcoder-better/button.json": "cb29735979793bbeefa1e9039f1fbe3ff7c0897e393e96222bff13d41759f7a4",
+		"vendor/i18n/es/resources/locales/atcoder-better/codeEditor.json": "492a206b2eb9f0cb30a34164e61cf79127e4a4ce583177e2a56786190389ffb9",
+		"vendor/i18n/es/resources/locales/atcoder-better/comments.json": "535cacc62780581d5ea0813caf67911c85ba4b9058351c35d98b84c8b24e6b15",
+		"vendor/i18n/es/resources/locales/atcoder-better/common.json": "cfb4bf2e3154a214c986dcf80dcb884e24755efb585cd3ea3ecc52e0b51ee9e0",
+		"vendor/i18n/es/resources/locales/atcoder-better/config.json": "dbd473c59f3301ce6f47fa8a994e6c87e4e531d6d1661bb91ab79a3886173aee",
+		"vendor/i18n/es/resources/locales/atcoder-better/dialog.json": "080404f129f524b02dfb436fbbc65b31ee25810d562cd760a3ea16ff00b63775",
+		"vendor/i18n/es/resources/locales/atcoder-better/logMessage.json": "39b1f40817a5f126723c5a8fb880df91371b1322cfc41e1bcaae6fa2faa50283",
+		"vendor/i18n/es/resources/locales/atcoder-better/settings.json": "f8f80fa1d214a1c205dab740d26e62983f27b54f7a08371c63823524c28c364e",
+		"vendor/i18n/es/resources/locales/atcoder-better/translator.json": "96cd20e1c9492bf6de4f6e602c231f16b3dfa099a781e3e25f2fb7f81ade3235",
+		"vendor/i18n/es/resources/locales/codeforces-better/alert.json": "6157f27111eea9135335aa22c4493df43a282837731069035e533fb5e38034cf",
+		"vendor/i18n/es/resources/locales/codeforces-better/announce.json": "4830ddbcadf995d45a31bed08af2ed6f82e4b76838fa3e029b16a75578c170ad",
+		"vendor/i18n/es/resources/locales/codeforces-better/button.json": "2e3d45d51b394a94bdb25c7ca804359698b55e0d324d64b77ba0856c712002bb",
+		"vendor/i18n/es/resources/locales/codeforces-better/codeEditor.json": "2e78cfbc2290517c2eca003fac2056d8d41ede2ec35cb3310cd07ed312c82774",
+		"vendor/i18n/es/resources/locales/codeforces-better/comments.json": "535cacc62780581d5ea0813caf67911c85ba4b9058351c35d98b84c8b24e6b15",
+		"vendor/i18n/es/resources/locales/codeforces-better/common.json": "cfb4bf2e3154a214c986dcf80dcb884e24755efb585cd3ea3ecc52e0b51ee9e0",
+		"vendor/i18n/es/resources/locales/codeforces-better/config.json": "dbd473c59f3301ce6f47fa8a994e6c87e4e531d6d1661bb91ab79a3886173aee",
+		"vendor/i18n/es/resources/locales/codeforces-better/dialog.json": "c167f1e871d2f11a7faca4460bc705d76386cb3cc3b8028ee08ce0721ebc5b93",
+		"vendor/i18n/es/resources/locales/codeforces-better/logMessage.json": "39b1f40817a5f126723c5a8fb880df91371b1322cfc41e1bcaae6fa2faa50283",
+		"vendor/i18n/es/resources/locales/codeforces-better/settings.json": "e69ff308115b576e3a60c435116e68b2da6b74ec5f4ee60d162a8f8b5c72a0d3",
+		"vendor/i18n/es/resources/locales/codeforces-better/translator.json": "96cd20e1c9492bf6de4f6e602c231f16b3dfa099a781e3e25f2fb7f81ade3235",
+		"vendor/i18n/es/resources/subs/atcoder-better.json": "c5a947463e322611f21247a86d1c1597b6ee6781fcf6e3a4bb02671b8d9c0438",
+		"vendor/i18n/es/resources/subs/codeforces-better.json": "8de6ad8bc7e8177581ec7e9228aaf2945d1af0c5954930eaf95498ce3fb73555",
+		"vendor/i18n/fr/resources/locales/atcoder-better/alert.json": "76330ab5fbcd92f3a465a60b5b7c7b8bea245d4938ea3a350ad1221becb4d524",
+		"vendor/i18n/fr/resources/locales/atcoder-better/announce.json": "ca4d040f69cac043edbb38e6cac0978624ac290ca74426a25562bcade264894f",
+		"vendor/i18n/fr/resources/locales/atcoder-better/button.json": "be309d605820e472911a0b58105d7e99c6e03031f3cb7b6f4ea8c98d695bce11",
+		"vendor/i18n/fr/resources/locales/atcoder-better/codeEditor.json": "93a4b82ccb15ef336715ee2daa60cb7f8f37aa07e38ac62367bd29c29858fa4f",
+		"vendor/i18n/fr/resources/locales/atcoder-better/comments.json": "c9fb5e7437b2a61a0f25b76801be8d3f00b64759bc88bd5f3509734eb0156385",
+		"vendor/i18n/fr/resources/locales/atcoder-better/common.json": "cb0b5d6359ffe02a4ea2726fbcdf8f09f1810aa5d6fa4544fc98561ee8d55b4c",
+		"vendor/i18n/fr/resources/locales/atcoder-better/config.json": "81a8bc399977899c3ff9f0f6da17448f97313de91740ed6fcf3c8f4b9ed7831f",
+		"vendor/i18n/fr/resources/locales/atcoder-better/dialog.json": "490ad5d94914f6e77a5efcc2b39686db801046f3473b8f107575b030e7c02ca2",
+		"vendor/i18n/fr/resources/locales/atcoder-better/logMessage.json": "3b3b6e0e4610355101a16d66d32848e8c52c83194ee3297317cf50d69a6c23a5",
+		"vendor/i18n/fr/resources/locales/atcoder-better/settings.json": "5390bae69255aed2b7b2274ce74e6ba19f2125a87c367e59b643bae5d63e0821",
+		"vendor/i18n/fr/resources/locales/atcoder-better/translator.json": "b9f330894a84de734f134ead12c964fbcc9e6cf1fa8059937b2df436ff3eae4b",
+		"vendor/i18n/fr/resources/locales/codeforces-better/alert.json": "271f469be5fff58e5ae6474d176248f119dc9b9c1a6c9ae47f79ee89bfa54f09",
+		"vendor/i18n/fr/resources/locales/codeforces-better/announce.json": "e635b346de6a2ee0c4d9ea2757f343594a67afddd32a56ac4e6a95f673b0a7b4",
+		"vendor/i18n/fr/resources/locales/codeforces-better/button.json": "cf99dfeebb8a7926af76a52bd0d52be729959b1f406ab7ada6362cd0a17951c1",
+		"vendor/i18n/fr/resources/locales/codeforces-better/codeEditor.json": "ddbd1d8f4d4045464ed4cda0dc8354bf71ce75483379e4f43fd776af0c916609",
+		"vendor/i18n/fr/resources/locales/codeforces-better/comments.json": "c9fb5e7437b2a61a0f25b76801be8d3f00b64759bc88bd5f3509734eb0156385",
+		"vendor/i18n/fr/resources/locales/codeforces-better/common.json": "cb0b5d6359ffe02a4ea2726fbcdf8f09f1810aa5d6fa4544fc98561ee8d55b4c",
+		"vendor/i18n/fr/resources/locales/codeforces-better/config.json": "81a8bc399977899c3ff9f0f6da17448f97313de91740ed6fcf3c8f4b9ed7831f",
+		"vendor/i18n/fr/resources/locales/codeforces-better/dialog.json": "7650a899418d69d318705fa54e5eee5669e4fc75daf86095c76ed5c4959a1356",
+		"vendor/i18n/fr/resources/locales/codeforces-better/logMessage.json": "3b3b6e0e4610355101a16d66d32848e8c52c83194ee3297317cf50d69a6c23a5",
+		"vendor/i18n/fr/resources/locales/codeforces-better/settings.json": "f03910066e6937e8186347d27d7fa8cb610e6a8c2cf3e686c4c2872b598caa9d",
+		"vendor/i18n/fr/resources/locales/codeforces-better/translator.json": "b9f330894a84de734f134ead12c964fbcc9e6cf1fa8059937b2df436ff3eae4b",
+		"vendor/i18n/fr/resources/subs/atcoder-better.json": "5eab6a71df6bfbae4c3c38b35d102c7c0d4f6636a864b26b41929918c2df3028",
+		"vendor/i18n/fr/resources/subs/codeforces-better.json": "f4ebe35026f10aff5458c8fcbf21cf6a3987cecdf4569a9a3ada5d5d234e9a90",
+		"vendor/i18n/hi/resources/locales/atcoder-better/alert.json": "6542a2b691f8f78869557c9de7149fda44b4c30a3b6e1931e9aa14a3f18c32d1",
+		"vendor/i18n/hi/resources/locales/atcoder-better/announce.json": "e36d07d73349fe5fb61d6593e96b562d0bc51d58e4372d367d0041edf5f20938",
+		"vendor/i18n/hi/resources/locales/atcoder-better/button.json": "36205c726f0632a71126f77dd4d470c697c25d464e8bb16f69218c4f0fd1b5fb",
+		"vendor/i18n/hi/resources/locales/atcoder-better/codeEditor.json": "7cf89c9a78d312c6ea5906357b1bffef05937bbc13461702710e0b336c00a48e",
+		"vendor/i18n/hi/resources/locales/atcoder-better/comments.json": "6f8f2c2ad9aed488d4afa0700960d8d79a308a29ad311785d60d60444c371aa0",
+		"vendor/i18n/hi/resources/locales/atcoder-better/common.json": "819eac724059c274ef4b6871b5e60e71fc68999ab26b978404e2aa8301fac537",
+		"vendor/i18n/hi/resources/locales/atcoder-better/config.json": "d8225b79092f638e43a37f16c265551ada01475e269f3752007884249ed60476",
+		"vendor/i18n/hi/resources/locales/atcoder-better/dialog.json": "477763db0d70f2969eafa2ce78aa91d667b84c6357fa62f3d9cf14a29210e26d",
+		"vendor/i18n/hi/resources/locales/atcoder-better/logMessage.json": "7b6ee276ca1fbb3315ce1c67b70d73580258987aeeb53a4f95837d1f608f8a3d",
+		"vendor/i18n/hi/resources/locales/atcoder-better/settings.json": "50dfd85ff3fb74d41257de2d1a31061870c7752d346a431140bf594505831a9b",
+		"vendor/i18n/hi/resources/locales/atcoder-better/translator.json": "0c7f0b2a0368848ec05737d51d979cb2004cca6b718e3f520566b49ef0fc2561",
+		"vendor/i18n/hi/resources/locales/codeforces-better/alert.json": "4437fa55d6be38ea2a91b71254d4a17ee8f79edc3fea5607c3df5cbb68046dc6",
+		"vendor/i18n/hi/resources/locales/codeforces-better/announce.json": "fb1a280385c06f8a7cbc2e3f1e0f8d30c1d2f06a79f5a6c286f1b16bef26b682",
+		"vendor/i18n/hi/resources/locales/codeforces-better/button.json": "6c7640700761a4ffc336feed8ced86c3f799eff4a039682350f7b7551aafe9c8",
+		"vendor/i18n/hi/resources/locales/codeforces-better/codeEditor.json": "3577f36619312763eae01b8b61df1be3d846d2faa22e71fdf62d8709f72c8a15",
+		"vendor/i18n/hi/resources/locales/codeforces-better/comments.json": "6f8f2c2ad9aed488d4afa0700960d8d79a308a29ad311785d60d60444c371aa0",
+		"vendor/i18n/hi/resources/locales/codeforces-better/common.json": "819eac724059c274ef4b6871b5e60e71fc68999ab26b978404e2aa8301fac537",
+		"vendor/i18n/hi/resources/locales/codeforces-better/config.json": "d8225b79092f638e43a37f16c265551ada01475e269f3752007884249ed60476",
+		"vendor/i18n/hi/resources/locales/codeforces-better/dialog.json": "9e3abe63be9663aa59d9a2b0412571eb1031e0ff8f72f9059440256cf17b080f",
+		"vendor/i18n/hi/resources/locales/codeforces-better/logMessage.json": "7b6ee276ca1fbb3315ce1c67b70d73580258987aeeb53a4f95837d1f608f8a3d",
+		"vendor/i18n/hi/resources/locales/codeforces-better/settings.json": "078c6d151b13dff9a5d4898c698e180cb4825d57ade36de664c3e89d27f83e3a",
+		"vendor/i18n/hi/resources/locales/codeforces-better/translator.json": "0c7f0b2a0368848ec05737d51d979cb2004cca6b718e3f520566b49ef0fc2561",
+		"vendor/i18n/hi/resources/subs/atcoder-better.json": "b7820a1a4d97fa93f9a43b0454a40afb357c80ce6e8f62d0597e51dd9a9df9dd",
+		"vendor/i18n/hi/resources/subs/codeforces-better.json": "592c330ec2ed244538d29d3c81fb644cb3740387487698635c7c7bcdd40fb3b4",
+		"vendor/i18n/it/resources/locales/atcoder-better/alert.json": "8bdd3fef20f5f86916cdbad0808c07480a7d8403e3825dc619b8468f1a817170",
+		"vendor/i18n/it/resources/locales/atcoder-better/announce.json": "3c870706beb970221d2a25b5d348f4071919d1a2f641d7d2f52c4edf036eeb65",
+		"vendor/i18n/it/resources/locales/atcoder-better/button.json": "06175277e847f4aa52a541291b41bbe443b45a216082854e32150f08104ce5af",
+		"vendor/i18n/it/resources/locales/atcoder-better/codeEditor.json": "71e33e33f3ffcef71c7d7c3052a11d9d3525922c011c68d84678fbe346da70e2",
+		"vendor/i18n/it/resources/locales/atcoder-better/comments.json": "e9612a21c3264bf63a1d094bb1779aa04cf2064fdee3706e385b7fee4eb534b1",
+		"vendor/i18n/it/resources/locales/atcoder-better/common.json": "30b53b93861a5abaab7306b7164e710374cb1ae7bcfc11c2583812d1f5af6d1f",
+		"vendor/i18n/it/resources/locales/atcoder-better/config.json": "caa7bbb77fd1dd8ec180578d392779b76937807557d74a27e568c9d3846371fb",
+		"vendor/i18n/it/resources/locales/atcoder-better/dialog.json": "596a4b814d755ff2fdd69402d1ad1aececdb421e64d1955434f4143e67ce161a",
+		"vendor/i18n/it/resources/locales/atcoder-better/logMessage.json": "d4d48bc80f8b58bf1874a7d9f709316d64977e6ea9c0e98887c0072dd76d27c3",
+		"vendor/i18n/it/resources/locales/atcoder-better/settings.json": "5bb17d8d7086176f7371f48b97625e4a4e523111b90948b266901d40c573093f",
+		"vendor/i18n/it/resources/locales/atcoder-better/translator.json": "6fbeaf482777233dc8e7cae852b3bebd286525d6d707329b9aec2a2e090c0691",
+		"vendor/i18n/it/resources/locales/codeforces-better/alert.json": "819f5bbadaf49d7aae235a85455f980c047258ac8f0d4f808a12a4496dcd5943",
+		"vendor/i18n/it/resources/locales/codeforces-better/announce.json": "497524ea0fd9cb03ad74540580d16a7126f28ae5748d211847b5d76017757194",
+		"vendor/i18n/it/resources/locales/codeforces-better/button.json": "0fc94b8df8638002e72748ee250100287b9aeb432c8e8444ef05efaf42912a81",
+		"vendor/i18n/it/resources/locales/codeforces-better/codeEditor.json": "7f775e6ed2fbccc77b367acbbba3119b3bfb594b438fdbd6dfeb01ef3a4e7c87",
+		"vendor/i18n/it/resources/locales/codeforces-better/comments.json": "e9612a21c3264bf63a1d094bb1779aa04cf2064fdee3706e385b7fee4eb534b1",
+		"vendor/i18n/it/resources/locales/codeforces-better/common.json": "30b53b93861a5abaab7306b7164e710374cb1ae7bcfc11c2583812d1f5af6d1f",
+		"vendor/i18n/it/resources/locales/codeforces-better/config.json": "caa7bbb77fd1dd8ec180578d392779b76937807557d74a27e568c9d3846371fb",
+		"vendor/i18n/it/resources/locales/codeforces-better/dialog.json": "a87663cf9ab038d4bca770b317002ecce6c11e486982deccac8c98fd9d92d901",
+		"vendor/i18n/it/resources/locales/codeforces-better/logMessage.json": "d4d48bc80f8b58bf1874a7d9f709316d64977e6ea9c0e98887c0072dd76d27c3",
+		"vendor/i18n/it/resources/locales/codeforces-better/settings.json": "a1efabbc2ced33b492bac4f281b2f6e6f7013bebaf712267806c0dcd55862c97",
+		"vendor/i18n/it/resources/locales/codeforces-better/translator.json": "6fbeaf482777233dc8e7cae852b3bebd286525d6d707329b9aec2a2e090c0691",
+		"vendor/i18n/it/resources/subs/atcoder-better.json": "9df8c81ed282841ebe8e6818a77ae7590dc37203f238a5226b6e65c6b9a36430",
+		"vendor/i18n/it/resources/subs/codeforces-better.json": "20610194b377810df3af20d804f54e2cb7e0201c4e17fb9623479c8f05af166c",
+		"vendor/i18n/ja/resources/locales/atcoder-better/alert.json": "384b2ef982c204681b5d6b16f151511ade6411d900778e147e5af8d25e612d65",
+		"vendor/i18n/ja/resources/locales/atcoder-better/announce.json": "6d0aa592229a3e9dc96038dd0b68cb4f8addc101599ac8f884df1a6910a19154",
+		"vendor/i18n/ja/resources/locales/atcoder-better/button.json": "b1f200a38acf026550638ff409698f914f681454692eee29ecc42cc6d19b8d3e",
+		"vendor/i18n/ja/resources/locales/atcoder-better/codeEditor.json": "1864ba928bb0982e655d260ba276d17187896993a3152e67af3c6e964d2dcf7e",
+		"vendor/i18n/ja/resources/locales/atcoder-better/comments.json": "381f15a770286218eb48e65202d0ba9bf5037847c1c2c318eb12f3fa6203d5e1",
+		"vendor/i18n/ja/resources/locales/atcoder-better/common.json": "16eeb53b99d8297b549d31c7a93fe49723a3b9fe17e8863ba4602cf292b3b004",
+		"vendor/i18n/ja/resources/locales/atcoder-better/config.json": "d1cb148defb28be35bea8ba6c29b0589bb6ddd24d05de2c4b580127961278049",
+		"vendor/i18n/ja/resources/locales/atcoder-better/dialog.json": "c9c3903679b41dd84cfd70038585feff8848fa453708ab9f88a7460962ae4c84",
+		"vendor/i18n/ja/resources/locales/atcoder-better/logMessage.json": "dae3c89b59b73a95231f1154ece7dee6f01fd4751569f39babeb07830c97feb9",
+		"vendor/i18n/ja/resources/locales/atcoder-better/settings.json": "da0e0522812e9a35e26f0e5ccd9d6bcfac78bc31724460b1b448c0edb07c0f26",
+		"vendor/i18n/ja/resources/locales/atcoder-better/translator.json": "92aa813b107e3dc08b2c2b09257ec44b7aafb84153337371f9c544a47b022567",
+		"vendor/i18n/ja/resources/locales/codeforces-better/alert.json": "aa9651668ad1d84cf3c96378c807bdc648b21c65585c1f0ff09dae56ed92475c",
+		"vendor/i18n/ja/resources/locales/codeforces-better/announce.json": "d0121d74aefa73856d8e4cdbb054eeca0f93b308516b92c5b2b57e17a3770dbd",
+		"vendor/i18n/ja/resources/locales/codeforces-better/button.json": "f715684809c3b1ac17611cd49b597ca799940f6bf584ee447d93d78877a8b8aa",
+		"vendor/i18n/ja/resources/locales/codeforces-better/codeEditor.json": "6d842d5a303a3052223191986793418fe444063fc9a4547fd22a917d2f8d6f05",
+		"vendor/i18n/ja/resources/locales/codeforces-better/comments.json": "381f15a770286218eb48e65202d0ba9bf5037847c1c2c318eb12f3fa6203d5e1",
+		"vendor/i18n/ja/resources/locales/codeforces-better/common.json": "dc8adf5c290e4723344be69fd89c542e741b6c4da6e8636b3b5f67d61658e35c",
+		"vendor/i18n/ja/resources/locales/codeforces-better/config.json": "d1cb148defb28be35bea8ba6c29b0589bb6ddd24d05de2c4b580127961278049",
+		"vendor/i18n/ja/resources/locales/codeforces-better/dialog.json": "be6addaaa0a7fe698f938dba74def02949708a488304724994317262571c5b98",
+		"vendor/i18n/ja/resources/locales/codeforces-better/logMessage.json": "dae3c89b59b73a95231f1154ece7dee6f01fd4751569f39babeb07830c97feb9",
+		"vendor/i18n/ja/resources/locales/codeforces-better/settings.json": "1c234753d2439c5574be7af52d67903fbbdf9a6aa98affe24548d06fb4ce870b",
+		"vendor/i18n/ja/resources/locales/codeforces-better/translator.json": "92aa813b107e3dc08b2c2b09257ec44b7aafb84153337371f9c544a47b022567",
+		"vendor/i18n/ja/resources/subs/atcoder-better.json": "f29572c23549992b7dd216fd05ec96c20b3b9c5123ea5654e5b3e9748dadada4",
+		"vendor/i18n/ja/resources/subs/codeforces-better.json": "e1b4d81a8ce999942995f9d04780b8232d3f3f991f9f747f8f6b308e355fd05f",
+		"vendor/i18n/ko/resources/locales/atcoder-better/alert.json": "f65169cf31d43eec190caeb6620215c73385a826a74e421435cd7cf063684e7c",
+		"vendor/i18n/ko/resources/locales/atcoder-better/announce.json": "2da757c96f2495bfb3a3746f1080e15ccf4f65daa639760832fd1558b5d87c1b",
+		"vendor/i18n/ko/resources/locales/atcoder-better/button.json": "7ac8af677112bebe6b935c220dfbca67ec48c45efd93f0028b26279f9f4069dc",
+		"vendor/i18n/ko/resources/locales/atcoder-better/codeEditor.json": "afa088a70b5cd2fc10dc6aa0cfd6ce483a0c7e977ecfb1d3cf3713b913ea221a",
+		"vendor/i18n/ko/resources/locales/atcoder-better/comments.json": "81d613002aeb0f5045c97e82ad15ace10e00c64876de09aa6bfeecbb73ab6388",
+		"vendor/i18n/ko/resources/locales/atcoder-better/common.json": "4ef9e691dabec4a4825dbfa53f69e31c3f168bc9667a47d72ae59bc662e2de89",
+		"vendor/i18n/ko/resources/locales/atcoder-better/config.json": "932f6964e85201b72ea479bc1d35bbe2f431f8441a4eb4e78013745bae04d997",
+		"vendor/i18n/ko/resources/locales/atcoder-better/dialog.json": "25ef0ca7ec085cb66b0738cf00f6030cb1629b959f336651b084297ed2a1d673",
+		"vendor/i18n/ko/resources/locales/atcoder-better/logMessage.json": "65dc99118f42ad5e9c2e149d72e72130b2daf4326d3d3984b5c18c8815e057e0",
+		"vendor/i18n/ko/resources/locales/atcoder-better/settings.json": "883404da4560f9479a56ff5a5bdff056064e314b350326b20e612d5d58fb84a4",
+		"vendor/i18n/ko/resources/locales/atcoder-better/translator.json": "6e15e8d8b7751e4776ee8a0cd64ffcd22ca14a44d0a530652132ef0235d636da",
+		"vendor/i18n/ko/resources/locales/codeforces-better/alert.json": "086edca138ee7b2676746b72b62044ffa1e3703f95539b6455736a0c5db6bf24",
+		"vendor/i18n/ko/resources/locales/codeforces-better/announce.json": "55bd708e80fd234b37a2dc41bd04555bb977518aa816c9997cf5b95ca4e76be7",
+		"vendor/i18n/ko/resources/locales/codeforces-better/button.json": "1f2e7528f7dbae74dff56a59368fef7393c3d19886f257714484b8c9c15c7328",
+		"vendor/i18n/ko/resources/locales/codeforces-better/codeEditor.json": "65370b44bf227cb3ff4027f46d1c5862e96566c9c8a636b57971031529d813a4",
+		"vendor/i18n/ko/resources/locales/codeforces-better/comments.json": "81d613002aeb0f5045c97e82ad15ace10e00c64876de09aa6bfeecbb73ab6388",
+		"vendor/i18n/ko/resources/locales/codeforces-better/common.json": "4ef9e691dabec4a4825dbfa53f69e31c3f168bc9667a47d72ae59bc662e2de89",
+		"vendor/i18n/ko/resources/locales/codeforces-better/config.json": "932f6964e85201b72ea479bc1d35bbe2f431f8441a4eb4e78013745bae04d997",
+		"vendor/i18n/ko/resources/locales/codeforces-better/dialog.json": "3163ed8e278794a4549ae2c3cba2357ce9a989fb7c7153d61abf8a2ec7a87066",
+		"vendor/i18n/ko/resources/locales/codeforces-better/logMessage.json": "65dc99118f42ad5e9c2e149d72e72130b2daf4326d3d3984b5c18c8815e057e0",
+		"vendor/i18n/ko/resources/locales/codeforces-better/settings.json": "0eaa4f74870e1c6f69afde1b3282661027b7df4e96a34dff088f479cfa0eea4f",
+		"vendor/i18n/ko/resources/locales/codeforces-better/translator.json": "6e15e8d8b7751e4776ee8a0cd64ffcd22ca14a44d0a530652132ef0235d636da",
+		"vendor/i18n/ko/resources/subs/atcoder-better.json": "5929d18617c2e170dc6f68ef802fec14183dbfff6f7f513ac8f54dacbdbcf5ba",
+		"vendor/i18n/ko/resources/subs/codeforces-better.json": "53d7e9dc4e35b2a61604cd901789fe197b1f352e1b743da43fb9a52e39385615",
+		"vendor/i18n/pt/resources/locales/atcoder-better/alert.json": "40fca0ce06eb270d572ab8064d3755d06258f4113885036b39dd3830cd7f02d3",
+		"vendor/i18n/pt/resources/locales/atcoder-better/announce.json": "a142a8d5738e51297ed04b10e662adbe1844ab3ba866628acfad3943326c1631",
+		"vendor/i18n/pt/resources/locales/atcoder-better/button.json": "a4699338721dc9832b649fe5f6f17d6916fb4cfbd8460cf2110326c1e7294ead",
+		"vendor/i18n/pt/resources/locales/atcoder-better/codeEditor.json": "f286ec56160d7f83541520a0edef037676ab469202f7e8d0f9680af6b04f2c26",
+		"vendor/i18n/pt/resources/locales/atcoder-better/comments.json": "c2c84daf34c7910d41eb9bdb61aeaaaa20beb232e8d543c8c553b86d61f8097f",
+		"vendor/i18n/pt/resources/locales/atcoder-better/common.json": "d08d93ba8b8e672961f5d3a349ce7d28d8dd5c83ea4a5451651ff7d6ad97701a",
+		"vendor/i18n/pt/resources/locales/atcoder-better/config.json": "1a7335ca6c97905c9c49fd7cc2948e2531d0b57a5b47425898edc1f8087b2a26",
+		"vendor/i18n/pt/resources/locales/atcoder-better/dialog.json": "27dff3c1713eab8f180ba63c6abffca07c74f831da114f2e135a1e964dc26b70",
+		"vendor/i18n/pt/resources/locales/atcoder-better/logMessage.json": "c3785a55bb2217d70f1872a4efe36327fd211136ac1a98014e4d71018be12719",
+		"vendor/i18n/pt/resources/locales/atcoder-better/settings.json": "3a607ea5d06f66880a30c3f4527dce2a4cd9b6b6a6c543da15e5b56dad01dc8e",
+		"vendor/i18n/pt/resources/locales/atcoder-better/translator.json": "d1bf1b4eab00ccf6e3752bcbd185e5980f33d6efddb1916605f9e5c80799cc3b",
+		"vendor/i18n/pt/resources/locales/codeforces-better/alert.json": "2c02f7e2fec97ab3d0633610988bdc3e3db9675e0617ceccdfb91caa4158bcc3",
+		"vendor/i18n/pt/resources/locales/codeforces-better/announce.json": "788bcb3bc76731d8153725460c301dd7fa82c51c3376b6fe3e70accb105b40e0",
+		"vendor/i18n/pt/resources/locales/codeforces-better/button.json": "868a02e079581f69356f48a6a642c90b3bc28b3000f0a57aaf5ff91ff157b565",
+		"vendor/i18n/pt/resources/locales/codeforces-better/codeEditor.json": "8341612de543e961843fee630a4ddf816bbb31cb806386bedf058f09fa636b3b",
+		"vendor/i18n/pt/resources/locales/codeforces-better/comments.json": "c2c84daf34c7910d41eb9bdb61aeaaaa20beb232e8d543c8c553b86d61f8097f",
+		"vendor/i18n/pt/resources/locales/codeforces-better/common.json": "d08d93ba8b8e672961f5d3a349ce7d28d8dd5c83ea4a5451651ff7d6ad97701a",
+		"vendor/i18n/pt/resources/locales/codeforces-better/config.json": "1a7335ca6c97905c9c49fd7cc2948e2531d0b57a5b47425898edc1f8087b2a26",
+		"vendor/i18n/pt/resources/locales/codeforces-better/dialog.json": "7921e2f3942496cb4ad9a06b3ba55e611d9dd0e28a97df97b37968f4aeff979e",
+		"vendor/i18n/pt/resources/locales/codeforces-better/logMessage.json": "c3785a55bb2217d70f1872a4efe36327fd211136ac1a98014e4d71018be12719",
+		"vendor/i18n/pt/resources/locales/codeforces-better/settings.json": "f5e3731cc01daa09acbb87ddd5f357892ab9128fd4af267e6aaecd1cfb4c4f10",
+		"vendor/i18n/pt/resources/locales/codeforces-better/translator.json": "d1bf1b4eab00ccf6e3752bcbd185e5980f33d6efddb1916605f9e5c80799cc3b",
+		"vendor/i18n/pt/resources/subs/atcoder-better.json": "db22ee5027251039cd287853cc9d387415d46e3fc30fc275215663911f7229c0",
+		"vendor/i18n/pt/resources/subs/codeforces-better.json": "0c3a9d211086433e98b44ab2b23d049412183f0efad6ffb937a6f0f2dae4d584",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/alert.json": "fcfcc5ad0d3c687cc40d55f21025ccbe2877e05c1277689d4b90fcb508fe45e2",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/announce.json": "c2d9dfaca9ada1b96a070cb660e2888421b10e270a237a1745e1196676786dc6",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/button.json": "e2b2021843025bf0efd89c5a45d96d85faa4e9415c3335fede61ede790025901",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/codeEditor.json": "639e6d1a1c37d68113b0923af6b0e3b658806a921153a713d0393f8e1b89bf93",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/comments.json": "052efc4dc2defdd24bfce533a777b6191f6edddf8ebee35871b6da5157e2dd6f",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/common.json": "05c18a619f875d1b80df725f126dc9bb0e8a666a56c93ba415bf51e48f8dd99f",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/config.json": "ca3982d250749e543e5a7cb73a81c5846af15020698a2067c787e6f41a9e1ccc",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/dialog.json": "91c96ffc8a06716dfd61b5edf6768fa85db8363d0691534de79d0c78ec53d01a",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/logMessage.json": "53dc053c8af36802e4c704948f6e196f296cdd51cec6ef21a40ee178133ea720",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/settings.json": "719b7fe4ef2ac6425360aa1970abcb6c9666ae833b9494d75643a5dcef903ebe",
+		"vendor/i18n/zh-Hant/resources/locales/atcoder-better/translator.json": "cdde068f0adc241a7bed59d4cbce71e117d8ee8941a794d47b7f16c452a5606f",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/alert.json": "4d3c5f352d6dae99c74478e805cbc1cd7405f80dc795a9e476086f89c0b6cde4",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/announce.json": "b9520313dcc7eafe4b1770b8d5fde14a5360c242db161718a0a794bc1aba6d3e",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/button.json": "42b3353020e9ca8a1cf4fadf85a0ae0eb0c8c732dfa3fe4a5d78ff9dd7b7e523",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/codeEditor.json": "b777bc5dd2e2ca37d1df636e3f5481a4ed5b9cebe8ffa87032001e7bb81739b3",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/comments.json": "052efc4dc2defdd24bfce533a777b6191f6edddf8ebee35871b6da5157e2dd6f",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/common.json": "05c18a619f875d1b80df725f126dc9bb0e8a666a56c93ba415bf51e48f8dd99f",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/config.json": "ca3982d250749e543e5a7cb73a81c5846af15020698a2067c787e6f41a9e1ccc",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/dialog.json": "5904ff22b334c3c3be5952720342b2efdcf7e1e9394a5d7727077ce41415f261",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/logMessage.json": "53dc053c8af36802e4c704948f6e196f296cdd51cec6ef21a40ee178133ea720",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/settings.json": "dbab5a7e9c4c3e7d99d143a0c381c73ff68dd01000fbfc27400e31577ff80246",
+		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/translator.json": "cdde068f0adc241a7bed59d4cbce71e117d8ee8941a794d47b7f16c452a5606f",
+		"vendor/i18n/zh-Hant/resources/subs/atcoder-better.json": "2895e7d34638985b5ece33a4d4d0e19e97f4b12eda4d4da4b95313e4b308db59",
+		"vendor/i18n/zh-Hant/resources/subs/codeforces-better.json": "13c8cbc33e7383efe6a6db1b98d1d428b2feaf90e8672846b840299c7c12af13",
+		"vendor/i18next.min.js.txt": "9861e2df7a3a4d60502468fc6319c928696b3b7c39796c5fef248ed805beea0d",
+		"vendor/i18nextHttpBackend.min.js.txt": "9f4abd83b14b09903d896e82cbd676f616e95649b676750b8ec7ae79b5a796cf",
+		"vendor/iconfont.data.txt": "532c1ba29465bc0cfa86ca448d35bc858c9b7359b8f5dfa1df16627996ee3323",
+		"vendor/iconfont.woff2": "1b0b02858020c13042826686d39a8cb58e053dd7ccbfbf9fdb796b4485ddb02f",
+		"vendor/jquery-i18next.min.js.txt": "568d70ac78e7cb88500cf03d4b0054a46fc405ac21bd4bac76a4476f721aef1f",
+		"vendor/jquery.min.js.txt": "fc9a93dd241f6b045cbff0481cf4e1901becd0e12fb45166a8f17f95823f0b1a",
+		"vendor/katex-auto-render.min.js.txt": "bb53eb953394531aae36fdd537065c4244eb8542901a3ce914601d932675b8ac",
+		"vendor/katex.css.txt": "906373cb6dc7f580513977e5e8ddaac8ffcb5bb9f9b10e6b7802feeea908e689",
+		"vendor/katex.min.js.txt": "e8d885505949f3a5f4abdd5dd0d53696bd1371ad26ffbf4f310dcd77c8cdae89",
+		"vendor/list.json.txt": "bfec919fd107d03ecdeaa3ca200694e61dad3a9f315187da888bbe460bbef0a1",
+		"vendor/markdown-it.js.txt": "cfd2d33cc8aaed57d6cdb01176d1cf45901d73a3ae28e83d3e1e7331b7910057",
+		"vendor/monaco-css.worker.js.txt": "eb844ae9ce3d4da296561ffc12c327ec521b99972c27946b17b78b21800f0efe",
+		"vendor/monaco-editor.worker.js.txt": "1130dbcdebaaae7acf347d3bce64b1bb9a41eec1d6de7fe5876353647b585fb5",
+		"vendor/monaco-html.worker.js.txt": "112c7f56ca4efb50a944f1874b282cd2e6a5251919c607235ad4b2cf0288eabf",
+		"vendor/monaco-json.worker.js.txt": "6c2af20502afd2db179be503a3122a810c9780fd3ea6026a2254719a6388652f",
+		"vendor/monaco-typescript.worker.js.txt": "4016eee2fb1ecac0d5e92fe36dafaa81d33e742a2cd741f8a6e984023a2f21c6",
+		"vendor/monaco.css.txt": "e405aa0383267b18313db6ac85384486304ddfb4bb3bd80d546025420b2b02e3",
+		"vendor/monaco.js.txt": "7ab3eab03756e3b158cdb877ada0164ca019fb0f55b89817010bca3260419f98",
+		"vendor/resources/locales/atcoder-better/alert.json": "298e71c5f497bfa7adc087a135b33db0a3857049cb51073cc3e15d0dda949eaf",
+		"vendor/resources/locales/atcoder-better/announce.json": "276b491397821002ccad4b46f204e27456201adb6b9cc287da26b6c0f66744b3",
+		"vendor/resources/locales/atcoder-better/button.json": "0dfde1c021326d343c815dac784fe4409835a963a3ad518170cf0b8d4b4d67e3",
+		"vendor/resources/locales/atcoder-better/codeEditor.json": "12925352aa6f0dca446512f4e955375f8e88c905132d1dcf5ebbf1c7fbeb4c2f",
+		"vendor/resources/locales/atcoder-better/comments.json": "da00dc5051339d5ea389f32d93586d797d51fe736184ccae6f39adbd5528814c",
+		"vendor/resources/locales/atcoder-better/common.json": "d1038b3f4d406a55a0a96d43d13cccd14e20f978d99d98e1cc29236109cad678",
+		"vendor/resources/locales/atcoder-better/config.json": "7d8ec9026274358dcff1c1bd2ace2a796ac797c9f589029b4da0357147265a8c",
+		"vendor/resources/locales/atcoder-better/dialog.json": "4936f481ac1204ac2a7370447701d11a37add84bc2e673cd0232bdebbc4db67d",
+		"vendor/resources/locales/atcoder-better/logMessage.json": "0d4cf8f79e383dbec88f9a5e127940a35efce181a97a08ffb515d7697786febf",
+		"vendor/resources/locales/atcoder-better/settings.json": "f750e44a00edcc7b1a9950cbac99c8877313fca936c1ed7b67e9f2eaefd17f71",
+		"vendor/resources/locales/atcoder-better/translator.json": "ce742b909d4105aa7a3295fe6c944fea2694e8e79fc4c6a0037d1fb919bb65f2",
+		"vendor/resources/locales/codeforces-better/alert.json": "66e8955154f0f126013700fbddcd8ffa07d96f28a0df4e08eaadb8d68dfba854",
+		"vendor/resources/locales/codeforces-better/announce.json": "f3f5124cd939de907c07ac0a3788a22da9bbaefa190c459d3773ae9faeb52778",
+		"vendor/resources/locales/codeforces-better/button.json": "7bb55964a916a70635a5c48dbbfdc26d329d622b233f3b5050eebf539d6a07c8",
+		"vendor/resources/locales/codeforces-better/codeEditor.json": "bf37c87d53a85a4bdfb957c3182eb1d040d81063912d279cc3a0021faa40e892",
+		"vendor/resources/locales/codeforces-better/comments.json": "da00dc5051339d5ea389f32d93586d797d51fe736184ccae6f39adbd5528814c",
+		"vendor/resources/locales/codeforces-better/common.json": "d1038b3f4d406a55a0a96d43d13cccd14e20f978d99d98e1cc29236109cad678",
+		"vendor/resources/locales/codeforces-better/config.json": "7d8ec9026274358dcff1c1bd2ace2a796ac797c9f589029b4da0357147265a8c",
+		"vendor/resources/locales/codeforces-better/dialog.json": "7a80d877da5a17033c2d45c58ae893b0a51825d301643187a1460cbd28e7fe93",
+		"vendor/resources/locales/codeforces-better/logMessage.json": "0d4cf8f79e383dbec88f9a5e127940a35efce181a97a08ffb515d7697786febf",
+		"vendor/resources/locales/codeforces-better/settings.json": "9acee47de8e361cbdc7b417821aebb019a6f74fdfc383d9c5e4516743d76844c",
+		"vendor/resources/locales/codeforces-better/translator.json": "ce742b909d4105aa7a3295fe6c944fea2694e8e79fc4c6a0037d1fb919bb65f2",
+		"vendor/resources/subs/atcoder-better.json": "602e7cac4023fba8da05a153bccf53d7c8dbd350faa6b6b6ba8fbe59078b1339",
+		"vendor/resources/subs/codeforces-better.json": "eb2e761ff9c33fe83259e8ba7a6f1cd67cd885ad7c85c23c1e72364bd0172ec9",
+		"vendor/selectpage.css.txt": "42a0d9e93b7e347234ffce8fb3f8e42840425adc0c5431577ec84c7fe53f08bf",
+		"vendor/selectpage.min.js.txt": "70cc070f1f76058e67f3863e5f66c3e4863644316b588e341234c80c27ba0e97",
+		"vendor/turndown.min.js.txt": "fd0e2aa0785c13c39fa1ddc0b3b19520e541b69801c1369ea4aabfe7913a0dea",
+		"vendor/xterm.js.txt": "1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495",
+		"vendor/xterm.min.css.txt": "97377c0c258e109358121823f5790146c714989366481f90e554c42277efb500"
+	},
+	"monaco": {
+		"version": "0.49.0",
+		"source": "https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.49.0.tgz",
+		"sha256": "30720db63e62d664fd737a586c56d2919592d75ecc63cccfbe90b2e7b74bbd36",
+		"bundler": "esbuild 0.28.1"
+	},
+	"katexVersion": "0.16.22"
+}

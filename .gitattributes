@@ -10,3 +10,5 @@ ThirdPartyNotices.txt eol=crlf
 *.rtf -text
 resources/oi-defaults/toolchains/*.zip binary
 **/*.json linguist-language=jsonc
+# Keep pinned OJBetter assets byte-identical for SHA-256/SRI verification.
+extensions/shortestpath.ojbetter/resources/** -text -whitespace

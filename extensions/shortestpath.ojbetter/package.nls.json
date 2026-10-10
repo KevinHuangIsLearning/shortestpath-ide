@@ -1,0 +1,6 @@
+{
+	"displayName": "OJBetter for Integrated Browser",
+	"description": "Built-in AtCoder Better and Codeforces Better enhancements for the integrated browser.",
+	"atcoder": "Enable AtCoder Better in the integrated browser. Reload open pages after changing this setting. Configure its features with the Better settings button on the website.",
+	"codeforces": "Enable Codeforces Better in the integrated browser. Reload open pages after changing this setting. Configure its features with the Better settings button on the website."
+}

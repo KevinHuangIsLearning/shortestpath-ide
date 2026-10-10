@@ -1,0 +1,28 @@
+{
+	"name": "shortestpath-ojbetter",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "shortestpath",
+	"license": "GPL-3.0-or-later",
+	"engines": { "vscode": "^1.129.0" },
+	"categories": ["Other"],
+	"activationEvents": ["onStartupFinished"],
+	"enabledApiProposals": ["browser"],
+	"capabilities": { "untrustedWorkspaces": { "supported": true }, "virtualWorkspaces": true },
+	"main": "./out/extension.js",
+	"scripts": {
+		"compile": "node ../../node_modules/typescript/bin/tsc6 -p ./",
+		"test": "npm run compile && node --test out/test/*.test.js",
+		"vscode:prepublish": "npm run compile"
+	},
+	"contributes": {
+		"configuration": {
+			"title": "OJBetter",
+			"properties": {
+				"shortestpath.ojbetter.atcoder": { "type": "boolean", "default": true, "scope": "application", "description": "%atcoder%" },
+				"shortestpath.ojbetter.codeforces": { "type": "boolean", "default": true, "scope": "application", "description": "%codeforces%" }
+			}
+		}
+	}
+}

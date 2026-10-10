@@ -24,6 +24,8 @@ export const all = Object.freeze<string[]>([
 	'test/**/*',
 	'!cli/**/*',
 	'!out*/**',
+	// Immutable OJBetter and library payloads retain upstream formatting and licenses.
+	'!extensions/shortestpath.ojbetter/resources/vendor/**',
 	// Unmodified Dark Reader detector sources retain upstream formatting and license.
 	'!resources/vendor/darkreader/src/**',
 	'!extensions/**/out*/**',

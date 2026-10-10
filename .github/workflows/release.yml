@@ -179,6 +179,10 @@ jobs:
             'resources\app\extensions\shortestpath.draw\dist\extension.js',
             'resources\app\extensions\shortestpath.draw\dist\webview.js',
             'resources\app\extensions\shortestpath.draw\dist\webview.css',
+            'resources\app\extensions\shortestpath.ojbetter\out\extension.js',
+            'resources\app\extensions\shortestpath.ojbetter\resources\manifest.json',
+            'resources\app\extensions\shortestpath.ojbetter\resources\vendor\atcoder-better.user.js.txt',
+            'resources\app\extensions\shortestpath.ojbetter\resources\vendor\codeforces-better.user.js.txt',
             'resources\app\extensions\danielpinto8zz6.c-cpp-compile-run\dist\extension.js',
             'resources\app\extensions\llvm-vs-code-extensions.vscode-clangd\out\bundle.js'
           )
@@ -188,6 +192,9 @@ jobs:
               throw "Required extension entry file was not packaged: $entry"
             }
           }
+          $ojBetterRoot = Join-Path $destination 'resources\app\extensions\shortestpath.ojbetter'
+          node -e "const p=require('node:path'); const r=process.argv[1]; new (require(p.join(r,'out/assets.js')).Assets)(p.join(r,'resources'));" $ojBetterRoot
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled OJBetter assets failed checksum validation.' }
           $localePath = Join-Path $destination 'locales'
           $locales = @(Get-ChildItem -LiteralPath $localePath -Filter '*.pak' -File)
           $unexpectedLocales = @($locales | Where-Object Name -NotIn @('en-US.pak', 'zh-CN.pak'))
@@ -267,6 +274,10 @@ jobs:
             "shortestpath.draw/dist/extension.js" \
             "shortestpath.draw/dist/webview.js" \
             "shortestpath.draw/dist/webview.css" \
+            "shortestpath.ojbetter/out/extension.js" \
+            "shortestpath.ojbetter/resources/manifest.json" \
+            "shortestpath.ojbetter/resources/vendor/atcoder-better.user.js.txt" \
+            "shortestpath.ojbetter/resources/vendor/codeforces-better.user.js.txt" \
             "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
             "llvm-vs-code-extensions.vscode-clangd/out/bundle.js"; do
             test -f "$app/Contents/Resources/app/extensions/$entry" || {
@@ -274,6 +285,7 @@ jobs:
               exit 1
             }
           done
+          node -e "const p=require('node:path'); const r=process.argv[1]; new (require(p.join(r,'out/assets.js')).Assets)(p.join(r,'resources'));" "$app/Contents/Resources/app/extensions/shortestpath.ojbetter"
           test ! -e "$app/Contents/Resources/app/resources/oi-defaults/toolchains/mingw64-ucrt-15.2.0-r8.tar.zst"
           locale_dir="$app/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources"
           test -f "$locale_dir/en.lproj/locale.pak"
@@ -358,6 +370,10 @@ jobs:
             "shortestpath.draw/dist/extension.js" \
             "shortestpath.draw/dist/webview.js" \
             "shortestpath.draw/dist/webview.css" \
+            "shortestpath.ojbetter/out/extension.js" \
+            "shortestpath.ojbetter/resources/manifest.json" \
+            "shortestpath.ojbetter/resources/vendor/atcoder-better.user.js.txt" \
+            "shortestpath.ojbetter/resources/vendor/codeforces-better.user.js.txt" \
             "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
             "llvm-vs-code-extensions.vscode-clangd/out/bundle.js"; do
             test -f "$app/resources/app/extensions/$entry" || {
@@ -365,6 +381,7 @@ jobs:
               exit 1
             }
           done
+          node -e "const p=require('node:path'); const r=process.argv[1]; new (require(p.join(r,'out/assets.js')).Assets)(p.join(r,'resources'));" "$app/resources/app/extensions/shortestpath.ojbetter"
           mkdir -p artifacts
           tar -czf artifacts/ShortestPath-IDE-linux-x64.tar.gz \
             -C .. --transform 's,^VSCode-linux-x64,ShortestPath-IDE-linux-x64,' VSCode-linux-x64

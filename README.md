@@ -28,6 +28,12 @@ Automatic detection of a site’s built-in dark theme is enabled by default, pre
 
 The settings are `workbench.browser.darkReader.mode` (`auto`, `on`, or `off`) and `workbench.browser.darkReader.excludedHosts` (exact hostnames; subdomains are independent). The official Dark Reader API engine is bundled locally.
 
+### AtCoder and Codeforces browser enhancements
+
+The integrated browser bundles **Atcoder Better! 1.25.1** and **Codeforces Better! 1.87.1** from [OJBetter](https://github.com/beijixiaohu/OJBetter). Open either website in the integrated browser to use its Better settings panel for website localization, statement translation, themes, and editor options. Both integrations are enabled by default; use `shortestpath.ojbetter.atcoder` or `shortestpath.ojbetter.codeforces` in IDE settings to disable one, then refresh existing pages.
+
+Scripts and runtime resources are bundled locally and update with the IDE. Translation, online compilation, and LSP still depend on their configured external services. See the [OJBetter integration README](extensions/shortestpath.ojbetter/README.md) for details.
+
 ### ShortestPath OJ integration
 
 ShortestPath IDE includes the **ShortestPath OJ integration** extension. On a supported problem page at [ShortestPath OJ](https://shortestpath.cn/), use the website's IDE-integration entry while the IDE is running. The browser and IDE then communicate only through a local connection (`127.0.0.1:21474`).
@@ -99,6 +105,7 @@ ShortestPath IDE is licensed under [GPL-3.0-or-later](LICENSE). Open-source comp
 | [Code - OSS](https://github.com/microsoft/vscode) | Upstream editor codebase | [MIT](licenses/MIT-VSCode.txt) |
 | [Dark Reader](https://github.com/darkreader/darkreader) | Dark themes for integrated browser pages | MIT |
 | [Competitive Programming Helper Plus](https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus) | Contest problem and testing workflow | GPL-3.0-or-later |
+| [OJBetter](https://github.com/beijixiaohu/OJBetter) | AtCoder and Codeforces integrated-browser enhancements | [GPL-3.0](extensions/shortestpath.ojbetter/resources/vendor/OJBetter-LICENSE) |
 | [Error Lens](https://github.com/usernamehw/vscode-error-lens) | Inline diagnostic highlighting | MIT |
 | [C/C++ Compile Run](https://github.com/danielpinto8zz6/c-cpp-compile-run) | C/C++ compile-and-run support | GPL-3.0 |
 | [vscode-clangd](https://github.com/clangd/vscode-clangd) | clangd editor integration | MIT |

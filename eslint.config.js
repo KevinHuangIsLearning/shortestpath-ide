@@ -173,6 +173,7 @@ export default defineConfig(
 			'build/lib/test/moduleIgnore.test.ts',
 			'build/lib/test/oiPackageContents.test.ts',
 			'extensions/shortestpath.oj/.esbuild.mts',
+			'extensions/shortestpath.ojbetter/src/**/*.ts',
 			'build/lib/darwinBundleVersion.ts',
 			'build/lib/electronLocales.ts',
 			'build/lib/test/darwinBundleVersion.test.ts',

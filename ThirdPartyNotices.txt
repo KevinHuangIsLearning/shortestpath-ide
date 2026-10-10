@@ -10,6 +10,31 @@ transitive dependency notices below.
 
 ---------------------------------------------------------
 
+OJBetter — Atcoder Better! 1.25.1 / Codeforces Better! 1.87.1
+https://github.com/beijixiaohu/OJBetter
+
+Upstream author (userscript metadata): 北极小狐
+Bundled revision: 860106c63ef7bb7d4ec5dcd709f80a9f9a6f1a46
+License: GNU General Public License v3.0 (upstream declares GPL3)
+License text: extensions/shortestpath.ojbetter/resources/vendor/OJBetter-LICENSE
+Original userscripts: extensions/shortestpath.ojbetter/resources/vendor/atcoder-better.user.js.txt
+                     extensions/shortestpath.ojbetter/resources/vendor/codeforces-better.user.js.txt
+Integration source: extensions/shortestpath.ojbetter/src/
+Adaptation notes: extensions/shortestpath.ojbetter/README.md
+
+Bundled runtime libraries retain their original licenses:
+- MIT: jQuery 3.7.1, Turndown 7.2.0, markdown-it 13.0.2, CryptoJS 4.2.0,
+  xterm 5.5.0, i18next 23.11.5, i18next-http-backend 2.5.2,
+  jquery-i18next 1.2.1, SelectPage 2.19.0, Monaco Editor 0.49.0, KaTeX 0.16.22.
+- BSD-3-Clause: highlight.js 11.9.0 and dialog-polyfill 0.5.6.
+- BSD-3-Clause and Apache-2.0 (ColorBrewer material): chroma-js 2.4.2.
+- Apache-2.0: Dexie 4.0.7.
+Full library copyright and license texts: extensions/shortestpath.ojbetter/resources/ThirdPartyNotices.txt
+Additional Monaco notices: extensions/shortestpath.ojbetter/resources/vendor/Monaco-ThirdPartyNotices.txt
+Pinned asset provenance and checksums: extensions/shortestpath.ojbetter/resources/manifest.json
+
+---------------------------------------------------------
+
 Code - OSS
 https://github.com/microsoft/vscode
 

@@ -28,6 +28,12 @@ ShortestPath IDE 是一个面向算法竞赛（OI / ICPC）的开源集成开发
 
 对应设置为 `workbench.browser.darkReader.mode`（`auto`、`on`、`off`）和 `workbench.browser.darkReader.excludedHosts`（精确主机名，子域名独立匹配）。Dark Reader 官方 API 引擎随 IDE 本地捆绑。
 
+### AtCoder 与 Codeforces 浏览增强
+
+内置浏览器捆绑了 [OJBetter](https://github.com/beijixiaohu/OJBetter) 的 **Atcoder Better! 1.25.1** 和 **Codeforces Better! 1.87.1**。在内置浏览器中打开两站，即可通过页面的 Better 设置面板使用网站本地化、题面翻译、主题和编辑器选项。两项集成默认开启；可通过 IDE 设置 `shortestpath.ojbetter.atcoder`、`shortestpath.ojbetter.codeforces` 分别关闭，之后刷新已有页面。
+
+脚本与运行资源随 IDE 本地打包和更新；翻译、在线编译及 LSP 仍依赖配置的外部服务。详见 [OJBetter 集成说明](extensions/shortestpath.ojbetter/README.md)。
+
 ### ShortestPath OJ 互通
 
 ShortestPath IDE 内置 **ShortestPath OJ 集成**扩展。保持 IDE 运行后，在 [ShortestPath OJ](https://shortestpath.cn/) 的受支持题目页面使用网站提供的 IDE 互通入口，即可与本机 IDE 建立连接；通信只经过本机 `127.0.0.1:21474`。
@@ -92,6 +98,7 @@ ShortestPath IDE 的仓库许可证为 [GPL-3.0-or-later](LICENSE)。本项目�
 | [Code - OSS](https://github.com/microsoft/vscode) | 上游编辑器代码库 | [MIT](licenses/MIT-VSCode.txt) |
 | [Dark Reader](https://github.com/darkreader/darkreader) | 内置浏览器网页深色主题 | MIT |
 | [Competitive Programming Helper Plus](https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus) | 竞赛题目与测试工作流 | GPL-3.0-or-later |
+| [OJBetter](https://github.com/beijixiaohu/OJBetter) | AtCoder 与 Codeforces 内置浏览器增强 | [GPL-3.0](extensions/shortestpath.ojbetter/resources/vendor/OJBetter-LICENSE) |
 | [Error Lens](https://github.com/usernamehw/vscode-error-lens) | 行内诊断信息高亮 | MIT |
 | [C/C++ Compile Run](https://github.com/danielpinto8zz6/c-cpp-compile-run) | C/C++ 编译运行支持 | GPL-3.0 |
 | [vscode-clangd](https://github.com/clangd/vscode-clangd) | clangd 编辑器集成 | MIT |

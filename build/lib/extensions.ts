@@ -52,6 +52,7 @@ export const prebuiltOIDistributionExtensions = new Set([
 	'danielpinto8zz6.c-cpp-compile-run',
 	'shortestpath.judger',
 	'shortestpath.draw',
+	'shortestpath.ojbetter',
 	'usernamehw.errorlens',
 	'jeff-hykin.better-cpp-syntax',
 	'llvm-vs-code-extensions.vscode-clangd',
