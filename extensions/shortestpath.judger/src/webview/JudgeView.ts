@@ -737,6 +737,20 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
         }
     };
 
+    public async refreshSourceLifecycle(deleted: string[], renamed: { oldPath: string; newPath: string }[]): Promise<void> {
+        for (const source of [...deleted, ...renamed.map(item => item.oldPath)]) { this.recentProblems.delete(source); }
+        this.messageBuffer = this.messageBuffer.filter(message => !('srcPath' in message) || !deleted.includes(message.srcPath));
+        const source = this.problemPath;
+        if (!source) { return; }
+        if (deleted.includes(source)) {
+            killRunning();
+            await this.extensionToJudgeViewMessage({ command: 'new-problem', problem: undefined });
+        } else {
+            const moved = renamed.find(item => item.oldPath === source);
+            if (moved) { await this.extensionToJudgeViewMessage({ command: 'new-problem', problem: getProblem(moved.newPath) ?? undefined }); }
+        }
+    }
+
     public async refreshBrowserSubmission(): Promise<void> {
         if (!this.currentProblem) { return; }
         let submission: ReturnType<typeof getBrowserSubmission>;

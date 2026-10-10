@@ -14,8 +14,9 @@ export function dashboardContains(root: string, file: string): boolean {
 }
 
 /** Read metadata only: never load samples, migrate files or rewrite legacy records. */
-export async function readDashboard(roots: string[], saveLocation?: string): Promise<{ records: DashboardRecord[]; skipped: number }> {
+export async function readDashboard(roots: string[], saveLocation?: string, includeBackups = false): Promise<{ records: DashboardRecord[]; skipped: number }> {
 	const selected = new Map<string, { record: DashboardRecord; rank: number; modified: number }>();
+	const all: DashboardRecord[] = [];
 	let skipped = 0;
 	for (const root of roots) {
 		const manifests: string[] = [], sources = new Map<string, string>();
@@ -38,11 +39,12 @@ export async function readDashboard(roots: string[], saveLocation?: string): Pro
 			}
 		};
 		await walk(root);
+		if (saveLocation && !dashboardContains(root, path.resolve(saveLocation)) && path.resolve(saveLocation) !== path.resolve(root)) { await walk(path.resolve(saveLocation)); }
 		const modern = new Set(manifests.filter(file => path.basename(file) === 'problem.json').map(file => path.dirname(file).slice(0, -'.judger'.length)));
 		const storageDirectory = saveLocation ? path.resolve(saveLocation) : path.join(root, '.shortestpath');
 		const storageNames = [...new Set(manifests.filter(file => path.dirname(path.basename(file) === 'problem.json' ? path.dirname(file) : file) === storageDirectory).map(file => path.basename(file) === 'problem.json' ? path.basename(path.dirname(file)).slice(0, -'.judger'.length) : path.basename(file)))].filter(name => /^\..+_[a-f0-9]{32}\.prob$/.test(name));
 		for (const manifest of manifests) {
-			if (modern.has(manifest)) { continue; }
+			if (!includeBackups && modern.has(manifest)) { continue; }
 			try {
 				const stat = await fs.lstat(manifest);
 				if (!stat.isFile() || stat.isSymbolicLink()) { throw new Error('Invalid manifest'); }
@@ -52,23 +54,26 @@ export async function readDashboard(roots: string[], saveLocation?: string): Pro
 				const metadata = versioned ? stored?.problem : stored;
 				if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) || !Object.keys(metadata).some(key => ['name', 'url', 'srcPath', 'workspaceRelativeSourcePath', 'timeAcceptedAtUnixMs', 'timePartialAcceptedAtUnixMs', 'timeSpentMs', 'timeStartedAtUnixMs', 'local', 'group', 'importedFrom', 'importedUrl', 'tests'].includes(key))) { throw new Error('Invalid metadata'); }
 				const text = (key: string): string => typeof metadata[key] === 'string' ? metadata[key] : '';
+				// Shared custom storage must never assign another workspace's record to this root.
+				if (includeBackups && !dashboardContains(root, manifest) && path.isAbsolute(text('srcPath')) && !dashboardContains(root, text('srcPath'))) { continue; }
 				const legacyName = versioned ? path.basename(path.dirname(manifest)).slice(0, -'.judger'.length) : path.basename(manifest);
 				const encodedName = /^\..+_[a-f0-9]{32}\.prob$/.test(legacyName);
 				const candidate = sources.get(legacyName) ?? (text('workspaceRelativeSourcePath') ? path.resolve(root, text('workspaceRelativeSourcePath')) : text('srcPath') ? path.resolve(root, text('srcPath')) : '');
 				let source = candidate;
 				let sourceAvailable = false;
+				let sourceMissing = false;
 				if (source && dashboardContains(root, source)) {
 					try {
 						sourceAvailable = dashboardContains(await fs.realpath(root), await fs.realpath(source)) && (await fs.stat(source)).isFile();
 						if (!sourceAvailable) { source = ''; }
-					} catch { /* Missing source does not invalidate historical statistics. */ }
+					} catch (error) { sourceMissing = (error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR'; }
 				} else { source = ''; }
 				const birth = (versioned ? (await fs.stat(path.dirname(manifest))).birthtimeMs : stat.birthtimeMs) || stat.mtimeMs;
 				const started = metadata.timeStartedAtUnixMs;
 				const createdFallback = typeof started === 'number' && Number.isFinite(started) && started > 0 && !Number.isNaN(new Date(started).getTime()) ? Math.min(birth, started) : birth;
 				const record: DashboardRecord = {
 					name: text('name') || path.basename(source || legacyName).replace(/^\.(.+)_[a-f0-9]{32}\.prob$/, '$1').replace(/\.prob$/, ''),
-					url: text('url'), group: text('group'), srcPath: source, recordId: manifest, recordFingerprint: crypto.createHash('sha256').update(contents).digest('hex'), sourceAvailable,
+					url: text('url'), group: text('group'), srcPath: source, recordId: manifest, recordFingerprint: crypto.createHash('sha256').update(contents).digest('hex'), sourceAvailable, sourceMissing,
 					interactive: false, timeLimit: 0, memoryLimit: 0,
 					createdAtUnixMs: typeof metadata.dashboardCreatedAtUnixMs === 'number' && Number.isFinite(metadata.dashboardCreatedAtUnixMs) && metadata.dashboardCreatedAtUnixMs > 0 && !Number.isNaN(new Date(metadata.dashboardCreatedAtUnixMs).getTime()) ? metadata.dashboardCreatedAtUnixMs : createdFallback,
 					dashboardTimeCapped: metadata.dashboardTimeCapped === true,
@@ -80,6 +85,7 @@ export async function readDashboard(roots: string[], saveLocation?: string): Pro
 					const value = metadata[key];
 					if (typeof value === 'number' && Number.isFinite(value) && value >= 0 && (key === 'timeSpentMs' || !Number.isNaN(new Date(value).getTime()))) { record[key] = value; }
 				}
+				all.push(record);
 				const canonical = encodedName && path.dirname(versioned ? path.dirname(manifest) : manifest) === storageDirectory;
 				const rank = (versioned ? 2 : 0) + (canonical ? 4 : 0);
 				// Storage filenames retain the source identity after fields or source files disappear.
@@ -100,5 +106,5 @@ export async function readDashboard(roots: string[], saveLocation?: string): Pro
 			} catch { skipped++; }
 		}
 	}
-	return { records: [...selected.values()].map(value => value.record), skipped };
+	return { records: includeBackups ? all : [...selected.values()].map(value => value.record), skipped };
 }

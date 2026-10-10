@@ -22,11 +22,11 @@ export function DashboardHighlights({ data }: { data: DashboardData }) {
 		{ value: String(data.totals.accepted), label: t('dashboardAccepted') },
 		{ value: data.highlights.peakDates.join(', ') || '—', label: t('dashboardPeakDay') },
 		{ value: data.highlights.peakCount ? t('dashboardCount').replace('{count}', String(data.highlights.peakCount)) : '—', label: t('dashboardPeakCount') },
-		{ value: data.highlights.longest ? formatDashboardDuration(data.highlights.longest.elapsedMs) : '—', label: t('dashboardLongest'), detail: data.highlights.longest?.name },
+		{ value: data.highlights.longest ? formatDashboardDuration(data.highlights.longest.elapsedMs) : '—', label: t('dashboardLongest'), note: t('dashboardLongestNote'), detail: data.highlights.longest?.name },
 		{ value: String(data.totals.partial), label: t('dashboardPartial') },
 	];
 	return <section className='dashboard-totals' aria-label={t('dashboard')}>
-		{metrics.map(metric => <div key={metric.label} className='dashboard-metric'><strong title={metric.detail}>{metric.value}</strong><span>{metric.label}</span>{metric.detail && <small data-i18n-ignore>{metric.detail}</small>}</div>)}
+		{metrics.map(metric => <div key={metric.label} className='dashboard-metric'><strong title={metric.detail}>{metric.value}</strong><span>{metric.label}</span>{metric.detail && <small data-i18n-ignore>{metric.detail}</small>}{metric.note && <small>{metric.note}</small>}</div>)}
 	</section>;
 }
 export function DashboardHeatmap({ days, selected, onSelect }: { days: DashboardData['days']; selected: string; onSelect(date: string): void }) {

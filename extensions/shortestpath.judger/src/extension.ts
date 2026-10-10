@@ -1,5 +1,6 @@
 // Dependencies read preferences while loading, before activate() runs.
 import './logger';
+import { registerSourceLifecycle } from './registerSourceLifecycle';
 import { registerDashboard } from './webview/DashboardView';
 import { registerIntegratedTestCommands } from './integratedTestCommands';
 import { usesIntegratedTests } from './integratedTests';
@@ -153,6 +154,13 @@ export async function activate(context: vscode.ExtensionContext) {
     statusBarItem.command = 'judger.runTestCases';
 
     registerCommands(context);
+    registerSourceLifecycle(context, async result => {
+        await judgeViewProvider.refreshSourceLifecycle(result.deleted, result.renamed);
+        try { await vscode.commands.executeCommand('shortestpath.oj.sourceFilesChanged', result); } catch { /* OJ may not be installed or active. */ }
+        await vscode.commands.executeCommand('judger.refreshDashboard');
+    }, async () => {
+        if (vscode.extensions.getExtension('shortestpath.oj')) { await vscode.commands.executeCommand('shortestpath.oj.prepareSourceFilesChange'); }
+    });
     registerProblemDocuments(context, problem => { void judgeViewProvider.extensionToJudgeViewMessage({ command: 'new-problem', problem, onlyIfActive: true }); });
     const companion = setupCompanionServer();
     if (companion) { context.subscriptions.push(new vscode.Disposable(() => companion.close())); }

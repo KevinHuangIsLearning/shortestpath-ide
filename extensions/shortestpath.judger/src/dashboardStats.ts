@@ -7,10 +7,10 @@ import { elapsedProblemTime } from './problemTimer';
 
 export const DASHBOARD_TIME_LIMIT_MS = 5 * 60 * 60 * 1000;
 export type DashboardCompletion = 'none' | 'partial' | 'accepted';
-export type DashboardRecord = Omit<Problem, 'tests'> & { serverAccepted?: boolean; serverRunning?: boolean; serverElapsedMs?: number; originalUrl?: string; recordId?: string; recordFingerprint?: string; sourceAvailable?: boolean; createdAtUnixMs?: number; dashboardTimeCapped?: boolean; dashboardCompletion?: DashboardCompletion };
+export type DashboardRecord = Omit<Problem, 'tests'> & { serverAccepted?: boolean; serverRunning?: boolean; serverElapsedMs?: number; originalUrl?: string; recordId?: string; recordFingerprint?: string; sourceAvailable?: boolean; sourceMissing?: boolean; createdAtUnixMs?: number; dashboardTimeCapped?: boolean; dashboardCompletion?: DashboardCompletion };
 export type DashboardStatus = 'accepted' | 'partial' | 'pending' | 'unmarked';
 export type DashboardProblem = {
-	id: string; name: string; url: string; srcPath: string; group: string; sourceAvailable?: boolean; recordId?: string; recordFingerprint?: string; createdAtUnixMs?: number; timeCapped?: boolean; creationActivity?: boolean; clockRunning?: boolean;
+	id: string; name: string; url: string; srcPath: string; group: string; sourceAvailable?: boolean; recordId?: string; recordFingerprint?: string; createdAtUnixMs?: number; timeCapped?: boolean; manuallyMarked?: boolean; creationActivity?: boolean; clockRunning?: boolean;
 	source: string; importedFrom: string; status: DashboardStatus;
 	date?: string; elapsedMs: number; stateSource: 'local' | 'server';
 };
@@ -77,7 +77,7 @@ export function buildDashboard(records: DashboardRecord[], year?: number, filter
 		const id = dashboardIdentity(record);
 		const problem: DashboardProblem = {
 			id, name: record.name, url: record.originalUrl || record.url, srcPath: record.srcPath, group: record.group, sourceAvailable: record.sourceAvailable,
-			recordId: record.recordId, recordFingerprint: record.recordFingerprint, createdAtUnixMs: created, timeCapped: capped, creationActivity, clockRunning: server && !marked ? record.serverRunning === true : created !== undefined || record.timeStartedAtUnixMs !== undefined,
+			recordId: record.recordId, recordFingerprint: record.recordFingerprint, createdAtUnixMs: created, timeCapped: capped, manuallyMarked: record.dashboardTimeCapped === true, creationActivity, clockRunning: server && !marked ? record.serverRunning === true : created !== undefined || record.timeStartedAtUnixMs !== undefined,
 			source: record.local ? 'local' : dashboardDomain(record.originalUrl || record.url) || 'unknown',
 			importedFrom: record.importedFrom || dashboardDomain(record.importedUrl || '') || (dashboardDomain(record.url) === 'vjudge.net' ? 'vjudge.net' : 'unknown'),
 			status: accepted ? 'accepted' : partial ? 'partial' : unmarked ? 'unmarked' : 'pending',
@@ -100,7 +100,7 @@ export function buildDashboard(records: DashboardRecord[], year?: number, filter
 	for (const problem of problems) { if (problem.status === 'accepted' && problem.date) { acceptedCounts.set(problem.date, acceptedCounts.get(problem.date)! + 1); } }
 	const peakCount = Math.max(0, ...acceptedCounts.values());
 	const completed = problems.filter(problem => problem.status === 'accepted' || problem.status === 'partial');
-	const longest = completed.reduce<DashboardProblem | undefined>((result, problem) => !result || problem.elapsedMs > result.elapsedMs ? problem : result, undefined);
+	const longest = completed.filter(problem => !problem.manuallyMarked).reduce<DashboardProblem | undefined>((result, problem) => !result || problem.elapsedMs > result.elapsedMs ? problem : result, undefined);
 	return {
 		revision: 0, nextRefreshMs: [...merged.values()].filter(problem => problem.status === 'pending' && problem.clockRunning).reduce<number | undefined>((delay, problem) => Math.min(delay ?? DASHBOARD_TIME_LIMIT_MS, DASHBOARD_TIME_LIMIT_MS - problem.elapsedMs), undefined), days, sources, problems, highlights: { peakCount, peakDates: peakCount ? days.filter(day => acceptedCounts.get(day.date) === peakCount).map(day => day.date) : [], longest }, totals: {
 			accepted: problems.filter(problem => problem.status === 'accepted').length,

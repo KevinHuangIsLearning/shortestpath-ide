@@ -21,6 +21,8 @@
 	},
 	"activationEvents": [
 		"onCommand:shortestpath.oj.getTimerForJudger",
+		"onCommand:shortestpath.oj.sourceFilesChanged",
+		"onCommand:shortestpath.oj.prepareSourceFilesChange",
 		"onStartupFinished",
 		"onUri",
 		"onCommand:shortestpath.oj.openIntegratedBrowser",

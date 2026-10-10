@@ -23,8 +23,10 @@ export function registerDashboard(context: vscode.ExtensionContext): void {
 		getChildren: () => [],
 	}));
 	let panel: vscode.WebviewPanel | undefined;
+	let refresh: (() => Promise<void>) | undefined;
+	context.subscriptions.push(vscode.commands.registerCommand('judger.refreshDashboard', () => refresh?.()));
 	context.subscriptions.push(vscode.commands.registerCommand('judger.openDashboard', () => {
-		if (panel) { panel.reveal(); return; }
+		if (panel) { const alreadyActive = panel.active; panel.reveal(); if (alreadyActive) { void refresh?.(); } return; }
 		const current = vscode.window.createWebviewPanel('judger.dashboard', localize('judger.dashboard.title', 'Problem Dashboard'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'dist')] });
 		panel = current;
 		let revision = 0, disposed = false;
@@ -54,6 +56,13 @@ export function registerDashboard(context: vscode.ExtensionContext): void {
 				await current.webview.postMessage({ command: 'dashboard-data', data });
 			} catch { if (!disposed && version === revision) { await current.webview.postMessage({ command: 'dashboard-error' }); } }
 		};
+		refresh = () => load(selection.year, selection.filter, selection.range);
+		let active = current.active;
+		subscriptions.push(current.onDidChangeViewState(() => {
+			const activated = current.active && !active;
+			active = current.active;
+			if (activated) { void load(selection.year, selection.filter, selection.range); }
+		}));
 		subscriptions.push(current.webview.onDidReceiveMessage(async message => {
 			if (!message || typeof message !== 'object') { return; }
 			if (message.command === 'dashboard-load') {
@@ -96,7 +105,7 @@ export function registerDashboard(context: vscode.ExtensionContext): void {
 			} catch { await vscode.window.showErrorMessage(message.command === 'dashboard-set-completion' ? localize('judger.dashboard.updateFailed', 'Unable to update completion. Refresh Dashboard and retry.') : localize('judger.dashboard.openFailed', 'Unable to open the selected problem. Refresh Dashboard and retry.')); }
 		}));
 		subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => { problems.clear(); revision++; void current.webview.postMessage({ command: 'dashboard-reload' }); }));
-		current.onDidDispose(() => { disposed = true; revision++; panel = undefined; subscriptions.forEach(item => item.dispose()); });
+		current.onDidDispose(() => { disposed = true; revision++; panel = undefined; refresh = undefined; subscriptions.forEach(item => item.dispose()); });
 		const nonce = crypto.randomBytes(16).toString('hex');
 		const script = current.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'dist', 'dashboard.module.js'));
 		const style = current.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'dist', 'dashboard.css'));

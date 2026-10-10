@@ -101,3 +101,17 @@ test('period filters include pending creation dates and exclude records created 
 	const data = buildDashboard([record({ createdAtUnixMs: now.getTime() - 1000 }), record({ url: 'https://oj.test/older', createdAtUnixMs: new Date(2023, 0, 1).getTime() })], undefined, {}, now, { start: '2024-03-01', end: '2024-03-01' });
 	expect(data.problems.map(problem => problem.status)).toEqual(['pending']);
 });
+
+
+test('longest excludes manual five-hour marks without changing activity or AC totals', () => {
+	const created = new Date(2024, 1, 29, 12).getTime();
+	const manual = record({ createdAtUnixMs: created, dashboardTimeCapped: true, dashboardCompletion: 'accepted' });
+	const partial = record({ url: 'https://oj.test/partial', createdAtUnixMs: created, dashboardTimeCapped: true, dashboardCompletion: 'partial' });
+	const normal = record({ url: 'https://oj.test/normal', timeAcceptedAtUnixMs: now.getTime(), timeSpentMs: 10000 });
+	const data = buildDashboard([manual, partial, normal], 2024, {}, now);
+	expect(data.highlights.longest?.id).toBe('https://oj.test/normal');
+	expect(data.highlights.longest?.elapsedMs).toBe(10000);
+	expect(data.totals).toEqual({ accepted: 2, partial: 1, unknown: 0 });
+	expect(data.days.find(day => day.date === '2024-02-29')?.count).toBe(2);
+	expect(buildDashboard([manual, partial], 2024, {}, now).highlights.longest).toBeUndefined();
+});

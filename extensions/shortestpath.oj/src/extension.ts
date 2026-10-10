@@ -27,6 +27,7 @@ import { ImportAction, LocalBridgeHandlers, OutcomeUnknownError, ShortestPathOjL
 import { mergeSubmissionHistory, sanitizeSubmissionHistoryEntry, SubmissionHistoryEntry, toSubmissionHistoryEntry } from './submissionHistory';
 import { isValidSourcePath, encodeSourcePath } from './sourcePath';
 import { appendPreviousStatementVersion, canReuseProblemSource, hasProblemStatementChanged, ProblemStatementSnapshot, sanitizeProblemStatementVersions } from './problemStatementVersion';
+import { applySourceFileChanges, SourceFileChanges } from './sourceFileChanges';
 import { formatElapsedTimer } from './timerDisplay';
 import { assertUniqueWorkspaceProblemRecordFileNames, getWorkspaceProblemRecordFileName, getWorkspaceProblemCacheEvictions, touchWorkspaceProblemCache, getWorkspaceProblemRecoveryContext, readWorkspaceProblemRecoveryContext, WorkspaceProblemRecoveryContext } from './workspaceProblemCache';
 import { listProblemRecords, ProblemRecordFileSystem } from './workspaceProblemRecordStorage';
@@ -443,6 +444,13 @@ class ShortestPathOjProblemPanel {
 				this.render();
 			} catch (error) { console.warn('Failed to restore ShortestPath observations.', error); }
 		}
+	}
+
+	rebindSourcePath(sourcePath: string): void {
+		if (!this.state) { return; }
+		this.state.sourcePath = sourcePath;
+		this.state.localTests = undefined;
+		this.render();
 	}
 
 	getTimerForJudger(url: string, sourcePath: string): ProblemState['timer'] | undefined {
@@ -1370,6 +1378,14 @@ class ShortestPathOjProblemPanels {
 		}
 	}
 
+	sourceFilesChanged(changes: SourceFileChanges): void {
+		for (const [source, child] of [...this.panels]) {
+			const renamed = changes.renamed.find(item => item.oldPath === source);
+			if (renamed) { this.panels.delete(source); child.rebindSourcePath(renamed.newPath); this.panels.set(renamed.newPath, child); }
+			else if (changes.deleted.includes(source)) { child.dispose(); this.panels.delete(source); if (this.active === child) { this.active = undefined; this.actions.stopRecovery(); } }
+		}
+	}
+
 	// Switching files hides the whole composite tab through the workbench, without closing it.
 	async hideProblemForCph(_problemRef: string, _sourcePath?: string): Promise<void> { }
 	updateProblemState(...args: Parameters<ShortestPathOjProblemPanel['updateProblemState']>): void { for (const child of this.panels.values()) { child.updateProblemState(...args); } }
@@ -1705,6 +1721,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowserDirect', async () => {
 		await openUrl('https://shortestpath.cn/login');
 	}));
+	// Migrate problem-owned snapshots before Judger moves or deletes their directories.
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.prepareSourceFilesChange', async () => { await readWorkspaceProblemCache(); }));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.sourceFilesChanged', async (changes: SourceFileChanges) => {
+		if (!changes || !Array.isArray(changes.deleted) || !Array.isArray(changes.renamed)) { return; }
+		const roots = vscode.workspace.workspaceFolders?.filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath) ?? [];
+		const inside = (source: string) => typeof source === 'string' && roots.some(root => { const relative = path.relative(root, source); return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative); });
+		const deleted: string[] = [], renamed: SourceFileChanges['renamed'] = [];
+		for (const source of changes.deleted) { if (inside(source)) { try { await fs.stat(source); } catch (error) { if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) { deleted.push(source); } } } }
+		for (const item of changes.renamed) { if (item && item.oldPath !== item.newPath && inside(item.oldPath) && inside(item.newPath)) { try { await validateWorkspaceSourcePath(item.newPath); renamed.push(item); } catch { /* Invalid destinations cannot rebind a cached source. */ } } }
+		const valid = { deleted, renamed };
+		panel.sourceFilesChanged(valid);
+		await mutateWorkspaceProblemCache(async cache => {
+			for (const ref of applySourceFileChanges(cache, valid)) {
+				const location = workspaceCacheRecordLocations.get(cache)?.get(ref);
+				if (location && location !== getWorkspaceProblemRecordUri(ref).fsPath) { try { await vscode.workspace.fs.delete(problemRecordUri(getWorkspaceCacheDirectoryUri(), location)); } catch (error) { if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) { throw error; } } }
+				try { await vscode.workspace.fs.delete(getWorkspaceProblemRecordUri(ref)); } catch (error) { if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) { throw error; } }
+				workspaceCacheRecordContents.get(cache)?.delete(ref);
+				workspaceCacheRecordLocations.get(cache)?.delete(ref);
+				for (const key of hintAnswerCache.keys()) { if (key.startsWith(`${ref}/`)) { hintAnswerCache.delete(key); } }
+			}
+		}, true);
+	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.getTimerForJudger', async (url: string, sourcePath: string) => {
 		const activeTimer = panel.getTimerForJudger(url, sourcePath);
 		if (activeTimer) { return activeTimer; }
@@ -1818,9 +1856,9 @@ async function ensureWorkspaceCacheLocationMigration(destination: vscode.Uri, so
 		// Keep every migrated snapshot until the initiating operation records its selected problem.
 		await writeWorkspaceProblemCache(current, false, destination);
 		const expected = new Map<string, string>([['.source-paths.json', workspaceCacheSourceContents.get(current)!]]);
-		for (const [ref, content] of workspaceCacheRecordContents.get(current) ?? []) { expected.set(getWorkspaceProblemRecordFileName(ref), content); }
+		for (const [ref, content] of workspaceCacheRecordContents.get(current) ?? []) { expected.set(workspaceCacheRecordLocations.get(current)?.get(ref) ?? getWorkspaceProblemRecordFileName(ref), content); }
 		for (const [name, content] of expected) {
-			const saved = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(destination, name)));
+			const saved = new TextDecoder().decode(await vscode.workspace.fs.readFile(problemRecordUri(destination, path.resolve(problemRecordRoot(destination), name))));
 			if (saved !== content) { throw new Error('cache_relocation_verification_failed'); }
 		}
 		// A second IDE may still be writing the project cache. Never remove changed source data.
@@ -2130,7 +2168,8 @@ async function writeWorkspaceProblemCache(cache: WorkspaceProblemCache, enforceL
 		};
 		const content = `${JSON.stringify(record, undefined, '\t')}\n`;
 		if (recordContents.get(problemRef) !== content) {
-			await vscode.workspace.fs.writeFile(getWorkspaceProblemRecordUri(problemRef, directory), new TextEncoder().encode(content));
+			const location = workspaceCacheRecordLocations.get(cache)?.get(problemRef);
+			await vscode.workspace.fs.writeFile(location ? problemRecordUri(directory, location) : getWorkspaceProblemRecordUri(problemRef, directory), new TextEncoder().encode(content));
 			recordContents.set(problemRef, content);
 		}
 	}));
