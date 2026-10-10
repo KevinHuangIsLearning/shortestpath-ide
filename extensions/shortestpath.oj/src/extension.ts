@@ -2696,9 +2696,9 @@ function getSelectedStatementProblem(problem: ImportedProblem, previousStatement
 }
 
 const ratingOptions: { value: Rating; label: string; icon: string }[] = [
-	{ value: 'good', label: '好', icon: '🤩' },
-	{ value: 'neutral', label: '一般', icon: '🙂' },
-	{ value: 'bad', label: '差', icon: '💩' },
+	{ value: 'good', label: '夯', icon: '😄' },
+	{ value: 'neutral', label: '普', icon: '🙂' },
+	{ value: 'bad', label: '拉', icon: '💩' },
 ];
 
 function renderRatingControls(state: ProblemPanelState): string {
@@ -2707,7 +2707,7 @@ function renderRatingControls(state: ProblemPanelState): string {
 	const buttons = ratingOptions.map(option => {
 		const count = data?.counts[option.value];
 		const label = localizeFormat('{0}，{1} 人', localize(option.label), String(count ?? 0));
-		return `<button type="button" class="rating-option rating-${option.value}" data-command="rateProblem" data-rating="${option.value}" title="${escapeAttribute(localize(option.label))}" aria-label="${escapeAttribute(label)}" aria-pressed="${data?.rating === option.value}"${state.connected && rating?.canRate() ? '' : ' disabled'}${rating?.saving ? ' aria-disabled="true"' : ''}><span aria-hidden="true">${option.icon}</span><span>${count ?? '—'}</span></button>`;
+		return `<button type="button" class="rating-option rating-${option.value}" data-command="rateProblem" data-rating="${option.value}" title="${escapeAttribute(localize(option.label))}" aria-label="${escapeAttribute(label)}" aria-pressed="${data?.rating === option.value}"${state.connected && rating?.canRate() ? '' : ' disabled'}${rating?.saving ? ' aria-disabled="true"' : ''}><span aria-hidden="true">${option.icon}</span><span class="rating-label">${escapeHtml(localize(option.label))}</span><span class="rating-count">${count ?? '—'}</span></button>`;
 	}).join('');
 	const selected = ratingOptions.find(option => option.value === data?.rating);
 	const message = !state.connected ? localize('连接恢复后可评价')
@@ -2723,7 +2723,7 @@ function renderProblemRating(state: ProblemPanelState): string {
 }
 
 function renderRatingPrompt(state: ProblemPanelState): string {
-	return `<div class="modal rating-modal" role="dialog" aria-modal="true" aria-labelledby="rating-dialog-title" aria-describedby="rating-dialog-description"><div class="modal-header"><h3 id="rating-dialog-title">${localize('首次 AC，恭喜！')}</h3><button type="button" class="modal-close" data-command="dismissRating" aria-label="${localize('关闭')}">×</button></div><div class="modal-body"><p id="rating-dialog-description">${localize('这道题体验如何？留下你的评价吧。')}</p>${renderRatingControls(state)}<button type="button" class="rating-later" data-command="dismissRating">${localize('稍后再说')}</button></div></div>`;
+	return `<div class="modal rating-modal" role="dialog" aria-modal="true" aria-labelledby="rating-dialog-title" aria-describedby="rating-dialog-description"><div class="rating-intro"><span class="rating-celebration" aria-hidden="true">🎉</span><div><h3 id="rating-dialog-title">${localize('首次 AC，恭喜！')}</h3><p id="rating-dialog-description">${localize('这道题体验如何？留下你的评价吧。')}</p></div></div><div class="modal-body"><h4 class="rating-heading">${localize('题目评价')}</h4>${renderRatingControls(state)}</div><button type="button" class="rating-later" data-command="dismissRating">${localize('稍后再说')}</button></div>`;
 }
 
 function renderHints(state: ProblemPanelState): string {

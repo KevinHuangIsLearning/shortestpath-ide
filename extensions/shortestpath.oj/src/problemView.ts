@@ -197,7 +197,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		buttons.forEach((button, index) => {
 			const next = nextButtons[index];
 			if (button === document.activeElement && next.disabled) {
-				section.querySelector<HTMLButtonElement>('.rating-summary, .modal-close')?.focus();
+				section.querySelector<HTMLButtonElement>('.rating-summary, .rating-later')?.focus();
 			}
 			syncAttributes(button, next);
 			const count = button.lastElementChild;
@@ -209,7 +209,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		const nextError = template.content.querySelector<HTMLElement>('.error');
 		if (error?.outerHTML !== nextError?.outerHTML) {
 			if (error?.contains(document.activeElement)) {
-				section.querySelector<HTMLButtonElement>('.rating-summary, .modal-close')?.focus();
+				section.querySelector<HTMLButtonElement>('.rating-summary, .rating-later')?.focus();
 			}
 			error?.remove();
 			if (nextError) { status.after(nextError); }

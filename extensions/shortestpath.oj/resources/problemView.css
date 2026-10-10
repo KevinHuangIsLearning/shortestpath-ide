@@ -1728,7 +1728,7 @@ body {
 
 .rating-popover {
 	white-space: normal;
-	width: 280px;
+	width: 320px;
 }
 
 .rating-popover .tag-popover-content {
@@ -1756,14 +1756,16 @@ body {
 
 .rating-options {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 8px;
 	margin-top: 12px;
 }
 
 .rating-option {
 	align-items: center;
-	background: var(--vscode-editorWidget-background);
-	border: 1px solid var(--rating-color);
+	background: color-mix(in srgb, var(--rating-color) 8%, var(--vscode-editorWidget-background));
+	border: 1px solid color-mix(in srgb, var(--rating-color) 45%, transparent);
+	border-radius: 12px;
 	color: var(--vscode-foreground);
 	display: flex;
 	flex: 1;
@@ -1781,7 +1783,7 @@ body {
 }
 
 .rating-good { --rating-color: var(--vscode-testing-iconPassed); }
-.rating-neutral { --rating-color: var(--vscode-charts-yellow); }
+.rating-neutral { --rating-color: var(--vscode-charts-blue); }
 .rating-bad { --rating-color: var(--vscode-charts-orange); }
 
 .rating-option[aria-pressed="true"] {
@@ -1790,22 +1792,99 @@ body {
 	outline-offset: 1px;
 }
 
+.rating-label {
+	font-weight: 600;
+}
+
+.rating-count {
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.85em;
+}
+
 .rating-status {
 	color: var(--vscode-descriptionForeground);
 	margin: 10px 0;
 }
 
 #oj-rating-prompt {
-	max-width: 400px;
+	max-width: 460px;
 	width: 100%;
 }
 
 .rating-modal {
+	border-radius: 20px;
+	overflow: auto;
 	width: 100%;
 }
 
+.rating-modal > * {
+	flex-shrink: 0;
+}
+
+.rating-intro {
+	align-items: flex-start;
+	display: flex;
+	gap: 18px;
+	padding: 24px 28px 12px;
+}
+
+.rating-celebration {
+	align-items: center;
+	background: color-mix(in srgb, var(--vscode-testing-iconPassed) 15%, transparent);
+	border: 4px solid color-mix(in srgb, var(--vscode-testing-iconPassed) 65%, transparent);
+	border-radius: 50%;
+	display: flex;
+	flex: 0 0 40px;
+	font-size: 24px;
+	height: 40px;
+	justify-content: center;
+}
+
+.rating-intro > div {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.rating-intro h3 {
+	font-size: 1.2em;
+	margin: 4px 0 12px;
+}
+
+.rating-intro p {
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+	margin: 0;
+}
+
+.rating-modal .modal-body {
+	overflow: visible;
+	padding: 12px 28px 24px;
+}
+
+.rating-heading {
+	font-size: 1em;
+	margin: 0 0 16px;
+}
+
+.rating-modal .rating-options {
+	gap: 10px;
+	margin-top: 0;
+}
+
+.rating-modal .rating-status {
+	margin-bottom: 0;
+}
+
 .rating-later {
-	margin-top: 12px;
+	background: color-mix(in srgb, var(--vscode-foreground) 3%, transparent);
+	border: 0;
+	border-top: 1px solid var(--vscode-widget-border);
+	border-radius: 0;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+	font: inherit;
+	font-weight: 600;
+	padding: 24px;
 	width: 100%;
 }
 

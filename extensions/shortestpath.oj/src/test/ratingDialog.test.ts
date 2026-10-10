@@ -152,7 +152,7 @@ test('saving, success and failure patch rating controls without replacing the fo
 	let currentError: typeof error | undefined;
 	const summary: Element & { focus(): void } = Object.assign(new Element(), { focus() { document.activeElement = summary; } });
 	const section = {
-		querySelector: (selector: string) => selector === '.rating-options' ? options : selector === '.rating-status' ? status : selector === '.error' ? currentError : summary,
+		querySelector: (selector: string) => selector === '.rating-options' ? options : selector === '.rating-status' ? status : selector === '.error' ? currentError : selector === '.rating-summary, .rating-later' ? summary : null,
 	};
 	const current = Object.assign(options, { querySelectorAll: () => [button] });
 	Object.assign(status, { after: (value: typeof error) => { currentError = value; } });
@@ -200,7 +200,7 @@ test('saving, success and failure patch rating controls without replacing the fo
 test('header popovers stay inside both viewport edges after wrapping or resizing', () => {
 	const source = fs.readFileSync(path.resolve(__dirname, '../problemView.js'), 'utf8');
 	const start = source.indexOf('const updateTagPopoverDirection');
-	const end = source.indexOf("document.addEventListener('pointerover'", start);
+	const end = source.indexOf('document.addEventListener(\'pointerover\'', start);
 	let opensRight = false;
 	let shift = '';
 	let resize!: () => void;
