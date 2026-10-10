@@ -53,6 +53,8 @@ type SimpleSettingsState = {
 	autoSave: string;
 	displayLanguage: string;
 	useExtensionMarketplace: boolean;
+	atcoderBetterEnabled: boolean;
+	codeforcesBetterEnabled: boolean;
 	shortestPathCppSubmissionLanguage: string;
 	defaultSubmitMethod: string;
 	themes: ThemeOption[];
@@ -601,7 +603,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('workbench.colorTheme')
 			|| event.affectsConfiguration('window.autoDetectColorScheme')
 			|| event.affectsConfiguration('files.autoSave')
-			|| event.affectsConfiguration('shortestpath.useExtensionMarketplace'))) {
+			|| event.affectsConfiguration('shortestpath.useExtensionMarketplace')
+			|| event.affectsConfiguration('shortestpath.ojbetter'))) {
 			void panel.webview.postMessage({ type: 'state', value: getState() });
 		}
 	});
@@ -648,6 +651,8 @@ function getState(): SimpleSettingsState {
 		autoSave: files.get<string>('autoSave') ?? 'off',
 		displayLanguage: vscode.env.language,
 		useExtensionMarketplace: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('useExtensionMarketplace') ?? false,
+		atcoderBetterEnabled: vscode.workspace.getConfiguration('shortestpath.ojbetter', null).get<boolean>('atcoder') ?? true,
+		codeforcesBetterEnabled: vscode.workspace.getConfiguration('shortestpath.ojbetter', null).get<boolean>('codeforces') ?? true,
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'cpp20',
 		defaultSubmitMethod: vscode.workspace.getConfiguration('judger.general', null).get<string>('defaultSubmitMethod') ?? 'ask',
 		themes: getThemeOptions(colorTheme)
@@ -708,6 +713,8 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global),
 		settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.useExtensionMarketplace', value.useExtensionMarketplace === true, vscode.ConfigurationTarget.Global),
+		settings.update('shortestpath.ojbetter.atcoder', value.atcoderBetterEnabled === true, vscode.ConfigurationTarget.Global),
+		settings.update('shortestpath.ojbetter.codeforces', value.codeforcesBetterEnabled === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global),
 		settings.update('judger.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global)
 	]);
@@ -797,6 +804,10 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 <section class="card" data-category="tools" hidden><h3>提交与评测</h3>
 <div class="row"><div><label>Judger 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 Judger 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 Judger</button></div><div class="row"><div><label>Judger 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 Judger 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div><div class="row"><div><label for="shortestPathCppSubmissionLanguage">ShortestPath OJ 提交语言</label><div class="hint">“每次询问”会在 C++ 提交前选择 C++14 或 C++20。</div></div><select id="shortestPathCppSubmissionLanguage"><option value="ask">每次询问</option><option value="cpp14">C++14</option><option value="cpp20">C++20</option></select></div>
 <div class="row"><div><label for="defaultSubmitMethod">Judger 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div>
+</section>
+<section class="card" data-category="tools" hidden><h3>内置浏览器</h3>
+<div class="row"><div><label for="atcoderBetterEnabled">AtCoder Better</label><div class="hint">在 AtCoder 页面启用 Better 浏览增强。更改后刷新已有页面；详细选项在页面的 Better 设置中调整。</div></div><label class="toggle"><input id="atcoderBetterEnabled" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="codeforcesBetterEnabled">Codeforces Better</label><div class="hint">在 Codeforces 页面启用 Better 浏览增强。更改后刷新已有页面；详细选项在页面的 Better 设置中调整。</div></div><label class="toggle"><input id="codeforcesBetterEnabled" type="checkbox"><span>启用</span></label></div>
 </section>
 <section class="card" data-category="tools" hidden><h3>应用管理</h3>
 <div class="row"><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox"><span>启用</span></label></div><div class="row"><div><label>初始配置</label><div class="hint">检查编译环境并配置编辑器、模版和代码存放目录。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div>
@@ -1006,9 +1017,11 @@ function apply(state) {
   byId('autoDetectColorScheme').checked = !!state.autoDetectColorScheme;
   byId('autoSave').value = state.autoSave;
 	byId('useExtensionMarketplace').checked = !!state.useExtensionMarketplace;
+	byId('atcoderBetterEnabled').checked = !!state.atcoderBetterEnabled;
+	byId('codeforcesBetterEnabled').checked = !!state.codeforcesBetterEnabled;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, cppTemplate: byId('cppTemplate').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked }; }
+function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, cppTemplate: byId('cppTemplate').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily), textarea').forEach(control => {

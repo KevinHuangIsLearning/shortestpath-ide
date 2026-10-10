@@ -30,7 +30,7 @@ The settings are `workbench.browser.darkReader.mode` (`auto`, `on`, or `off`) an
 
 ### AtCoder and Codeforces browser enhancements
 
-The integrated browser bundles **Atcoder Better! 1.25.1** and **Codeforces Better! 1.87.1** from [OJBetter](https://github.com/beijixiaohu/OJBetter). Open either website in the integrated browser to use its Better settings panel for website localization, statement translation, themes, and editor options. Both integrations are enabled by default; use `shortestpath.ojbetter.atcoder` or `shortestpath.ojbetter.codeforces` in IDE settings to disable one, then refresh existing pages.
+The integrated browser bundles **Atcoder Better! 1.25.1** and **Codeforces Better! 1.87.1** from [OJBetter](https://github.com/beijixiaohu/OJBetter). Open either website in the integrated browser to use its Better settings panel for website localization, statement translation, themes, and editor options. Both integrations are enabled by default; use `shortestpath.ojbetter.atcoder` or `shortestpath.ojbetter.codeforces` under **Settings → Tools → Integrated Browser** to disable one, then refresh existing pages.
 
 Scripts and runtime resources are bundled locally and update with the IDE. Translation, online compilation, and LSP still depend on their configured external services. See the [OJBetter integration README](extensions/shortestpath.ojbetter/README.md) for details.
 

@@ -2,7 +2,7 @@
 
 内置浏览器打开 AtCoder 或 Codeforces 时自动启用 Better。页面中的 **Atcoder Better! 设置** / **Codeforces Better! 设置** 控制网站本地化、题面翻译、主题、代码块和编辑器等上游功能。
 
-IDE 设置 `shortestpath.ojbetter.atcoder`、`shortestpath.ojbetter.codeforces` 默认开启。更改开关后刷新已有页面。两个网站分别保存偏好，不占用网站的 localStorage；上游设置面板的保存和自动刷新会等待持久化完成。
+自定义设置页面的 **工具 → 内置浏览器** 提供两个开关，对应 `shortestpath.ojbetter.atcoder`、`shortestpath.ojbetter.codeforces`，默认开启。更改开关后刷新已有页面。两个网站分别保存偏好，不占用网站的 localStorage；上游设置面板的保存和自动刷新会等待持久化完成。
 
 ## 固定资源与许可
 

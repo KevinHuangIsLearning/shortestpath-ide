@@ -30,7 +30,7 @@ ShortestPath IDE 是一个面向算法竞赛（OI / ICPC）的开源集成开发
 
 ### AtCoder 与 Codeforces 浏览增强
 
-内置浏览器捆绑了 [OJBetter](https://github.com/beijixiaohu/OJBetter) 的 **Atcoder Better! 1.25.1** 和 **Codeforces Better! 1.87.1**。在内置浏览器中打开两站，即可通过页面的 Better 设置面板使用网站本地化、题面翻译、主题和编辑器选项。两项集成默认开启；可通过 IDE 设置 `shortestpath.ojbetter.atcoder`、`shortestpath.ojbetter.codeforces` 分别关闭，之后刷新已有页面。
+内置浏览器捆绑了 [OJBetter](https://github.com/beijixiaohu/OJBetter) 的 **Atcoder Better! 1.25.1** 和 **Codeforces Better! 1.87.1**。在内置浏览器中打开两站，即可通过页面的 Better 设置面板使用网站本地化、题面翻译、主题和编辑器选项。两项集成默认开启；可在 **设置 → 工具 → 内置浏览器** 中分别关闭（对应 `shortestpath.ojbetter.atcoder`、`shortestpath.ojbetter.codeforces`），之后刷新已有页面。
 
 脚本与运行资源随 IDE 本地打包和更新；翻译、在线编译及 LSP 仍依赖配置的外部服务。详见 [OJBetter 集成说明](extensions/shortestpath.ojbetter/README.md)。
 

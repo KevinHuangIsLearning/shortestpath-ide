@@ -33,7 +33,7 @@ test('settings groups preserve each control and expose only the three left navig
 	assert.deepStrictEqual(controls, {
 		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
 		compiler: ['cppStandard', 'compilerFlags', 'executableCleanupEnabled', 'executableCleanupDelaySeconds', 'toolchainDiagnostics'],
-		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'defaultSubmitMethod', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
+		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'defaultSubmitMethod', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
 	});
 	const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 	assert.equal(new Set(ids).size, ids.length);
@@ -169,6 +169,7 @@ test('font preview applies current tokens literally and rejects old responses af
 function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () => [[{ text: 'int', style: 'color:blue' }]], compilerCommands: Record<string, string> = {}) {
 	const updates: string[] = [];
 	const savedFlags: Record<string, string> = {};
+	const savedValues: Record<string, string | number | boolean> = {};
 	const commands: string[] = [];
 	const messages: Array<Record<string, unknown>> = [];
 	let receive!: (message: Record<string, unknown>) => Promise<void>;
@@ -189,7 +190,9 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 		ViewColumn: { Active: 1 }, ConfigurationTarget: { Global: 1 }, env: { language: 'en' }, extensions: { all: [] },
 		window: { createWebviewPanel: () => panel, onDidChangeActiveColorTheme(handler: () => void) { onTheme = handler; return listener(); } },
 		workspace: {
-			getConfiguration: () => ({ get: (key: string) => compilerCommands[key], async update(key: string, value: string | number | boolean) {
+			getConfiguration: (section?: string) => ({ get: (key: string) => savedValues[section ? section + '.' + key : key] ?? compilerCommands[key], async update(key: string, value: string | number | boolean, target: number) {
+				assert.equal(target, vscode.ConfigurationTarget.Global);
+				savedValues[key] = value;
 				updates.push(key);
 				if ((key === 'judger.language.cpp.Args' || key === 'c-cpp-compile-run.cpp-flags') && typeof value === 'string') { savedFlags[key] = value; }
 			} }),
@@ -210,7 +213,7 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 		}
 	});
 	exports.open!({ subscriptions: [], globalState: { get: () => undefined } });
-	return { receive, onTheme, onConfiguration, onDispose, commands, updates, savedFlags, messages, disposedListeners: () => disposedListeners };
+	return { receive, onTheme, onConfiguration, onDispose, commands, updates, savedFlags, savedValues, panel, messages, disposedListeners: () => disposedListeners };
 }
 
 test('saving custom compiler options retains junction flags for each configured compiler', async () => {
@@ -269,4 +272,22 @@ test('Error Lens toggle controls the extension enable setting', async () => {
 	assert.equal((host.messages.find(message => message.type === 'state')?.value as { errorLensEnabled: boolean }).errorLensEnabled, true);
 	await host.receive({ type: 'save', value: { errorLensEnabled: false } });
 	assert.deepStrictEqual(host.updates.filter(key => key.startsWith('errorLens.')), ['errorLens.enabled']);
+});
+
+
+test('Better switches in custom settings preserve independent values and refresh from configuration', async () => {
+	const host = createSettingsHost();
+	const state = () => {
+		host.onConfiguration({ affectsConfiguration: key => key === 'shortestpath.ojbetter' });
+		return host.messages.at(-1)!.value as Record<string, unknown>;
+	};
+	assert.equal(state().atcoderBetterEnabled, true);
+	assert.equal(state().codeforcesBetterEnabled, true);
+	for (const [atcoderBetterEnabled, codeforcesBetterEnabled] of [[false, true], [true, false]]) {
+		await host.receive({ type: 'save', value: { ...state(), cppTemplate: '', atcoderBetterEnabled, codeforcesBetterEnabled } });
+		assert.equal(host.savedValues['shortestpath.ojbetter.atcoder'], atcoderBetterEnabled);
+		assert.equal(host.savedValues['shortestpath.ojbetter.codeforces'], codeforcesBetterEnabled);
+		assert.equal(state().atcoderBetterEnabled, atcoderBetterEnabled);
+		assert.equal(state().codeforcesBetterEnabled, codeforcesBetterEnabled);
+	}
 });

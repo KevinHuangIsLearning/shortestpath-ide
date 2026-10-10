@@ -70,6 +70,8 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/**/snippets/**',
 	'!extensions/**/colorize-fixtures/**',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
+	// Setup translation dictionaries intentionally contain localized strings.
+	'!extensions/shortestpath.setup/src/localization.ts',
 	'!extensions/shortestpath.setup/src/simpleSettings.ts',
 	'!extensions/shortestpath.setup/src/extension.ts',
 	'!extensions/shortestpath.setup/src/gettingStarted.ts',
