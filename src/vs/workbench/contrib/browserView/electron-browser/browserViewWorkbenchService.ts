@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { browserDarkReaderModeSetting, browserDarkReaderDetectDarkThemeSetting, browserDarkReaderExcludedHostsSetting, BrowserDarkReaderMode } from '../../../../platform/browserView/common/browserDarkReader.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
@@ -151,7 +153,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			) {
 				this.notificationService.info(localize('browser.networkFilteringEnabled', "Agent access to browser tabs was revoked because network filtering was enabled."));
 			}
-			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
+			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId) || e.affectsConfiguration(browserDarkReaderModeSetting) || e.affectsConfiguration(browserDarkReaderExcludedHostsSetting) || e.affectsConfiguration(browserDarkReaderDetectDarkThemeSetting)) {
 				this._updateWindowConfiguration();
 			}
 		}));
@@ -501,7 +503,13 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	private _updateWindowConfiguration(): void {
+		const darkReaderMode = this.configurationService.getValue<BrowserDarkReaderMode>(browserDarkReaderModeSetting) ?? 'auto';
 		void this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
+			darkReader: {
+				detectDarkTheme: this.configurationService.getValue<boolean>(browserDarkReaderDetectDarkThemeSetting) !== false,
+				enabled: darkReaderMode === 'on' || (darkReaderMode === 'auto' && isDark(this.themeService.getColorTheme().type)),
+				excludedHosts: this.configurationService.getValue<string[]>(browserDarkReaderExcludedHostsSetting) ?? [],
+			},
 			theme: this._getTheme(),
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),

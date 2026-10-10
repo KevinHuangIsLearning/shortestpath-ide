@@ -409,6 +409,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				if (didThemeChange) {
 					view.inspector.setTheme(config.theme);
 				}
+				if (config.darkReader) {
+					view.darkReader.setConfiguration(config.darkReader);
+				}
 				if (didProxyChange) {
 					view.session.remote.acquire(view.id, config.proxyInfo);
 				}
@@ -489,6 +492,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this.browserViews.set(id, view);
 		if (windowConfiguration?.theme) {
 			view.inspector.setTheme(windowConfiguration.theme);
+		}
+
+		if (windowConfiguration?.darkReader) {
+			view.darkReader.setConfiguration(windowConfiguration.darkReader);
 		}
 
 		Event.once(view.onDidClose)(() => {

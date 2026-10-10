@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { writeDarkReaderPreload } from './next/darkReader.ts';
 import { EventEmitter } from 'events';
 EventEmitter.defaultMaxListeners = 100;
 
@@ -30,12 +31,14 @@ task.task(task.define('transpile-client-esbuild', task.series(
 	task.define('esbuild-out-build', () => runEsbuildTranspile('out', false)),
 )));
 
+const darkReaderPreloadTask = task.define('compile-browser-dark-reader', () => writeDarkReaderPreload('src', 'out'));
+
 // Transpile only
-const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out')));
+const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out'), darkReaderPreloadTask));
 task.task(transpileClientTask);
 
 // Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out')));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out'), darkReaderPreloadTask));
 task.task(compileClientTask);
 
 const watchClientTask = task.define('watch-client', task.parallel(compilation.watchTypeCheckTask('src'), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask));

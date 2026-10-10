@@ -722,7 +722,10 @@ async function watch(): Promise<void> {
 				try {
 					if (tsFiles.length > 0) {
 						console.log(`[watch] Transpiling ${tsFiles.length} file(s)...`);
-						await mapWithConcurrency(tsFiles, MAX_CONCURRENT_FILE_OPERATIONS, srcPath => {
+						await mapWithConcurrency(tsFiles, MAX_CONCURRENT_FILE_OPERATIONS, async srcPath => {
+							if (path.basename(srcPath) === 'darkReaderScript.ts') {
+								await transpileFile(path.join(path.dirname(srcPath), 'preload-darkReader.ts'), path.join(REPO_ROOT, outDir, 'vs/platform/browserView/electron-browser/preload-darkReader.js'));
+							}
 							const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
 							const destPath = path.join(REPO_ROOT, outDir, relativePath.replace(/\.ts$/, '.js'));
 							return transpileFile(srcPath, destPath);

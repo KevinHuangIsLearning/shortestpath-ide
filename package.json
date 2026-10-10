@@ -12,6 +12,7 @@
   "private": true,
   "scripts": {
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
+    "test-browser-dark-reader": "node build/next/testDarkReader.ts",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",
@@ -134,6 +135,7 @@
     "@xterm/headless": "^6.1.0-beta.303",
     "@xterm/xterm": "^6.1.0-beta.304",
     "chrome-remote-interface": "^0.33.0",
+    "darkreader": "4.9.133",
     "detect-libc": "^2.1.2",
     "foundry-local-sdk": "1.2.3",
     "http-proxy-agent": "^7.0.0",

@@ -20,6 +20,14 @@ ShortestPath IDE 是一个面向算法竞赛（OI / ICPC）的开源集成开发
 - **自动格式化**：默认保存 / 粘贴即格式化（clang-format），可一键配置
 - **可配置的 C++ 代码片段**：开局少敲几行模板代码
 
+### 内置浏览器 Dark Reader
+
+内置浏览器的 HTTP / HTTPS 网页默认通过 Dark Reader 跟随 IDE 主题。点击浏览器工具栏的 **Dark Reader**，可以选择「跟随 IDE 主题」「开启」「关闭」，也可以单独禁用当前站点。设置立即生效，重启后保留。
+
+默认开启网页原生深色主题检测，检测到后保留网站自己的外观。可在 Dark Reader 菜单或通过 `workbench.browser.darkReader.detectDarkTheme` 开关此功能。
+
+对应设置为 `workbench.browser.darkReader.mode`（`auto`、`on`、`off`）和 `workbench.browser.darkReader.excludedHosts`（精确主机名，子域名独立匹配）。Dark Reader 官方 API 引擎随 IDE 本地捆绑。
+
 ### ShortestPath OJ 互通
 
 ShortestPath IDE 内置 **ShortestPath OJ 集成**扩展。保持 IDE 运行后，在 [ShortestPath OJ](https://shortestpath.cn/) 的受支持题目页面使用网站提供的 IDE 互通入口，即可与本机 IDE 建立连接；通信只经过本机 `127.0.0.1:21474`。
@@ -82,6 +90,7 @@ ShortestPath IDE 的仓库许可证为 [GPL-3.0-or-later](LICENSE)。本项目�
 | 项目 | 用途 | 许可证 |
 | --- | --- | --- |
 | [Code - OSS](https://github.com/microsoft/vscode) | 上游编辑器代码库 | [MIT](licenses/MIT-VSCode.txt) |
+| [Dark Reader](https://github.com/darkreader/darkreader) | 内置浏览器网页深色主题 | MIT |
 | [Competitive Programming Helper Plus](https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus) | 竞赛题目与测试工作流 | GPL-3.0-or-later |
 | [Error Lens](https://github.com/usernamehw/vscode-error-lens) | 行内诊断信息高亮 | MIT |
 | [C/C++ Compile Run](https://github.com/danielpinto8zz6/c-cpp-compile-run) | C/C++ 编译运行支持 | GPL-3.0 |

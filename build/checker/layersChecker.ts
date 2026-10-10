@@ -61,7 +61,7 @@ export const RULES: IRule[] = [
 
 	// Browser view preload script
 	{
-		target: '**/vs/platform/browserView/electron-browser/preload-browserView.ts',
+		target: '**/vs/platform/browserView/electron-browser/preload{,-darkReader,-browserView}.ts',
 		disallowedTypes: NATIVE_TYPES,
 	},
 

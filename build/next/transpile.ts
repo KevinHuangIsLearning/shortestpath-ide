@@ -7,6 +7,7 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createNLSCollector, finalizeNLS, nlsPlugin, postProcessNLS } from './nls-plugin.ts';
+import { buildDarkReaderPreload } from './darkReader.ts';
 import { adjustSourceMap } from './private-to-property.ts';
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
@@ -29,6 +30,14 @@ const transformOptions: esbuild.TransformOptions = {
 };
 
 export async function transpileFile(srcPath: string, destPath: string): Promise<void> {
+	if (path.basename(srcPath) === 'preload-darkReader.ts') {
+		const result = await buildDarkReaderPreload(srcPath, destPath, false);
+		await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+		for (const file of result.outputFiles) {
+			await fs.promises.writeFile(file.path, file.contents);
+		}
+		return;
+	}
 	const source = await fs.promises.readFile(srcPath, 'utf-8');
 	const result = await esbuild.transform(source, {
 		...transformOptions,
@@ -42,6 +51,14 @@ export async function transpileFile(srcPath: string, destPath: string): Promise<
 /** Generate matching indexed calls and metadata for localized desktop development. */
 export async function transpileLocalizedFiles(srcDir: string, outDir: string, files: readonly string[]): Promise<void> {
 	srcDir = await fs.promises.realpath(srcDir);
+	const preload = 'vs/platform/browserView/electron-browser/preload-darkReader.ts';
+	if (files.includes(preload)) {
+		await transpileFile(path.join(srcDir, preload), path.join(outDir, preload.replace(/\.ts$/, '.js')));
+		files = files.filter(file => file !== preload);
+	}
+	if (files.length === 0) {
+		return;
+	}
 	const collector = createNLSCollector();
 	const result = await esbuild.build({
 		entryPoints: files.map(file => path.join(srcDir, file)),
@@ -126,6 +143,9 @@ export async function mapWithConcurrency<T, R>(items: readonly T[], concurrency:
 }
 
 export async function applyIncrementalClientChanges(repoRoot: string, outDir: string, changedPaths: readonly string[]): Promise<void> {
+	if (changedPaths.some(file => file.endsWith('/darkReaderScript.ts'))) {
+		changedPaths = [...changedPaths, 'src/vs/platform/browserView/electron-browser/preload-darkReader.ts'];
+	}
 	const destinations = new Set<string>();
 	for (const changedPath of changedPaths) {
 		if (!changedPath.startsWith('src/')) {

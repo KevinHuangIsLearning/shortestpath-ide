@@ -7,6 +7,7 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { BuildTarget } from './resources.ts';
+import { buildDarkReaderPreload } from './darkReader.ts';
 import { rewriteSourceMappingURL } from './source-map-url.ts';
 
 /**
@@ -16,6 +17,7 @@ const desktopStandaloneFiles = [
 	'vs/base/parts/sandbox/electron-browser/preload.ts',
 	'vs/base/parts/sandbox/electron-browser/preload-aux.ts',
 	'vs/platform/browserView/electron-browser/preload-browserView.ts',
+	'vs/platform/browserView/electron-browser/preload-darkReader.ts',
 ];
 
 export async function compileStandaloneFiles(srcDir: string, outDir: string, target: BuildTarget, minify: boolean, sourceMapBaseUrl?: string): Promise<void> {
@@ -33,7 +35,9 @@ export async function compileStandaloneFiles(srcDir: string, outDir: string, tar
 		const entryPath = path.resolve(srcDir, file);
 		const outPath = path.resolve(outDir, file.replace(/\.ts$/, '.js'));
 
-		const result = await esbuild.build({
+		const result = file.endsWith('/preload-darkReader.ts')
+			? await buildDarkReaderPreload(entryPath, outPath, minify)
+			: await esbuild.build({
 			entryPoints: [entryPath],
 			outfile: outPath,
 			bundle: false,

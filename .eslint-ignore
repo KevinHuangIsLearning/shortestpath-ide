@@ -61,3 +61,6 @@
 # Vendored third-party libraries
 src/vs/base/common/lit-html/**
 src/vs/base/common/signals-core/**
+
+# Unmodified upstream Dark Reader detector sources retain their own style and license.
+resources/vendor/darkreader/src/**

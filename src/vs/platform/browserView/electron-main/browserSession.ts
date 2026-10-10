@@ -338,6 +338,10 @@ export class BrowserSession {
 			type: 'frame',
 			filePath: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath
 		});
+		this.electronSession.registerPreloadScript({
+			type: 'frame',
+			filePath: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-darkReader.js').fsPath
+		});
 		this.electronSession.protocol.handle(Schemas.file, request => {
 			const filePath = normalize(URI.parse(request.url).fsPath);
 			if (!BrowserSession._trustAllFiles && !BrowserSession._trustedFileRoots.findSubstr(filePath)) {

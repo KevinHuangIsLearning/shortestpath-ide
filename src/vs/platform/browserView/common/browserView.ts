@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IBrowserDarkReaderConfiguration } from './browserDarkReader.js';
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
@@ -154,6 +155,7 @@ export interface IBrowserViewTheme {
 export interface IBrowserViewWindowConfiguration {
 	/** Theme variables for injected UI. */
 	readonly theme: IBrowserViewTheme;
+	readonly darkReader?: IBrowserDarkReaderConfiguration;
 	/** Map of command ID to accelerator label for context menus. */
 	readonly keybindings: { [commandId: string]: string };
 

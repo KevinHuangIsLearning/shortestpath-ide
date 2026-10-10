@@ -8,6 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, BrowserViewNavigationPolicy, matchesBrowserViewAudience, IBrowserViewHost } from '../common/browserView.js';
+import { BrowserViewDarkReader } from './browserViewDarkReader.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -56,6 +57,7 @@ export class BrowserView extends Disposable {
 	readonly debugger: BrowserViewDebugger;
 	readonly emulator: BrowserViewEmulator;
 	readonly inspector: BrowserViewInspector;
+	readonly darkReader: BrowserViewDarkReader;
 
 	private _ownerWindow: ICodeWindow;
 	private _owner: IBrowserViewOwner;
@@ -240,6 +242,7 @@ export class BrowserView extends Disposable {
 		this.debugger = new BrowserViewDebugger(this);
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
+		this.darkReader = this._register(new BrowserViewDarkReader(this._view.webContents, this.logService));
 
 		const fireRemoteStatus = () => this._onDidChangeRemoteStatus.fire(this.session.remote.isRemote);
 		this._register(this.session.remote.onDidStart(fireRemoteStatus));

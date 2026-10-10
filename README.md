@@ -20,6 +20,14 @@ ShortestPath IDE is an open-source integrated development environment for compet
 - **Auto-formatting**: format on save and on paste by default (clang-format), configurable in one click
 - **Configurable C++ snippets**: less boilerplate before the first keystroke of a solution
 
+### Dark Reader in the integrated browser
+
+HTTP and HTTPS pages in the integrated browser use Dark Reader, following the IDE theme by default. Open **Dark Reader** from the browser toolbar to choose **Follow IDE Theme**, **On**, or **Off**, or disable it for the current site. Changes apply immediately and are saved across restarts.
+
+Automatic detection of a site’s built-in dark theme is enabled by default, preserving the site’s own appearance. Toggle it in the Dark Reader menu or with `workbench.browser.darkReader.detectDarkTheme`.
+
+The settings are `workbench.browser.darkReader.mode` (`auto`, `on`, or `off`) and `workbench.browser.darkReader.excludedHosts` (exact hostnames; subdomains are independent). The official Dark Reader API engine is bundled locally.
+
 ### ShortestPath OJ integration
 
 ShortestPath IDE includes the **ShortestPath OJ integration** extension. On a supported problem page at [ShortestPath OJ](https://shortestpath.cn/), use the website's IDE-integration entry while the IDE is running. The browser and IDE then communicate only through a local connection (`127.0.0.1:21474`).
@@ -89,6 +97,7 @@ ShortestPath IDE is licensed under [GPL-3.0-or-later](LICENSE). Open-source comp
 | Project | Purpose | License |
 | --- | --- | --- |
 | [Code - OSS](https://github.com/microsoft/vscode) | Upstream editor codebase | [MIT](licenses/MIT-VSCode.txt) |
+| [Dark Reader](https://github.com/darkreader/darkreader) | Dark themes for integrated browser pages | MIT |
 | [Competitive Programming Helper Plus](https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus) | Contest problem and testing workflow | GPL-3.0-or-later |
 | [Error Lens](https://github.com/usernamehw/vscode-error-lens) | Inline diagnostic highlighting | MIT |
 | [C/C++ Compile Run](https://github.com/danielpinto8zz6/c-cpp-compile-run) | C/C++ compile-and-run support | GPL-3.0 |

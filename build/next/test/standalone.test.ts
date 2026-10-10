@@ -18,7 +18,7 @@ import type Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import { filter, gulp } from '../../lib/gulp/facade.ts';
 import { compileStandaloneFiles } from '../standalone.ts';
-import { transpileFile } from '../transpile.ts';
+import { applyIncrementalClientChanges, transpileFile, transpileLocalizedFiles } from '../transpile.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 const srcDir = path.join(repoRoot, 'src');
@@ -38,9 +38,35 @@ const preloads = [
 		markers: ['isTrusted', 'exposeInMainWorld(', 'getBoundingClientRect(', '_onPicked('],
 	},
 ];
+const darkReaderPreload = 'vs/platform/browserView/electron-browser/preload-darkReader.js';
 const javascriptFiles = preloads.map(({ file }) => file.replace(/\.ts$/, '.js')).sort();
 
 suite('standalone preloads', () => {
+	test('development builds emit the complete Dark Reader sandbox payload', async t => {
+		const outDir = path.join(await temporaryDirectory(t), 'out');
+		const outPath = path.join(outDir, darkReaderPreload);
+		await transpileFile(path.join(srcDir, darkReaderPreload.replace(/\.js$/, '.ts')), outPath);
+		const output = await fs.promises.readFile(outPath, 'utf8');
+		new vm.Script(output);
+		assert.ok(output.includes('shortestPathDarkReaderBridge'));
+		assert.ok(output.includes('Dark Reader Ltd.'));
+		assert.ok(!output.includes('require("darkreader")'));
+		assert.ok(!output.includes('DARK_READER_SCRIPT'));
+	});
+	for (const mode of ['localized', 'incremental'] as const) {
+		test(`${mode} builds keep the Dark Reader payload self-contained`, async t => {
+			const outDir = path.join(await temporaryDirectory(t), 'out');
+			if (mode === 'localized') {
+				await transpileLocalizedFiles(srcDir, outDir, [darkReaderPreload.replace(/\.js$/, '.ts')]);
+			} else {
+				await applyIncrementalClientChanges(repoRoot, path.relative(repoRoot, outDir), ['src/vs/platform/browserView/electron-browser/darkReaderScript.ts']);
+			}
+			const output = await fs.promises.readFile(path.join(outDir, darkReaderPreload), 'utf8');
+			new vm.Script(output);
+			assert.match(output, /shortestPathDarkReaderBridge/);
+			assert.doesNotMatch(output, /DARK_READER_SCRIPT|require\("darkreader"\)/);
+		});
+	}
 	for (const minify of [false, true]) {
 		for (const { mode, baseUrl } of [
 			{ mode: 'local', baseUrl: undefined },
@@ -52,7 +78,7 @@ suite('standalone preloads', () => {
 				const outDir = path.join(await temporaryDirectory(t), 'out');
 				await compileStandaloneFiles(srcDir, outDir, 'desktop', minify, baseUrl);
 
-				assert.deepStrictEqual(await outputFiles(outDir), javascriptFiles.flatMap(file => [file, `${file}.map`]).sort());
+				assert.deepStrictEqual(await outputFiles(outDir), [...javascriptFiles, darkReaderPreload].flatMap(file => [file, `${file}.map`]).sort());
 				const results = await Promise.all(preloads.map(async ({ file, markers }) => {
 					const entryPath = path.join(srcDir, file);
 					const outPath = path.join(outDir, file.replace(/\.ts$/, '.js'));
@@ -138,7 +164,7 @@ suite('standalone preloads', () => {
 		const outDir = path.join(root, 'out');
 		const packagedOut = path.join(root, 'package', 'out');
 		await compileStandaloneFiles(srcDir, outDir, 'desktop', true, sourceMapBaseUrl);
-		const finalContents = await Promise.all(javascriptFiles.map(file => fs.promises.readFile(path.join(outDir, file))));
+		const finalContents = await Promise.all([...javascriptFiles, darkReaderPreload].map(file => fs.promises.readFile(path.join(outDir, file))));
 		const uploadedPaths: string[] = [];
 
 		// Match upload-sourcemaps.ts: select maps relative to the output root and insert core/.
@@ -161,7 +187,7 @@ suite('standalone preloads', () => {
 			gulp.dest(packagedOut),
 		);
 
-		const packagedContents = await Promise.all(javascriptFiles.map(file => fs.promises.readFile(path.join(packagedOut, file))));
+		const packagedContents = await Promise.all([...javascriptFiles, darkReaderPreload].map(file => fs.promises.readFile(path.join(packagedOut, file))));
 		assert.deepStrictEqual({
 			uploadedPaths: uploadedPaths.sort(),
 			packagedFiles: await outputFiles(packagedOut),
@@ -169,11 +195,11 @@ suite('standalone preloads', () => {
 			checksums: packagedContents.map(checksum),
 			unchangedBytes: packagedContents.map((contents, index) => contents.equals(finalContents[index])),
 		}, {
-			uploadedPaths: javascriptFiles.map(file => `core/${file}.map`),
-			packagedFiles: javascriptFiles,
-			comments: javascriptFiles.map(file => `//# sourceMappingURL=${sourceMapRoot}/core/${file}.map`),
+			uploadedPaths: [...javascriptFiles, darkReaderPreload].map(file => `core/${file}.map`),
+			packagedFiles: [...javascriptFiles, darkReaderPreload],
+			comments: [...javascriptFiles, darkReaderPreload].map(file => `//# sourceMappingURL=${sourceMapRoot}/core/${file}.map`),
 			checksums: finalContents.map(checksum),
-			unchangedBytes: javascriptFiles.map(() => true),
+			unchangedBytes: [...javascriptFiles, darkReaderPreload].map(() => true),
 		});
 
 		const preloadIndex = javascriptFiles.indexOf('vs/base/parts/sandbox/electron-browser/preload.js');

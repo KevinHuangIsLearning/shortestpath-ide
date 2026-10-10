@@ -24,6 +24,8 @@ export const all = Object.freeze<string[]>([
 	'test/**/*',
 	'!cli/**/*',
 	'!out*/**',
+	// Unmodified Dark Reader detector sources retain upstream formatting and license.
+	'!resources/vendor/darkreader/src/**',
 	'!extensions/**/out*/**',
 	'!extensions/**/*-out/**',
 	'!test/**/out/**',
