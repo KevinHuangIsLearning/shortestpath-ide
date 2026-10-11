@@ -1,5 +1,17 @@
 {
 	"displayName": "ShortestPath 草稿",
 	"description": "离线 Excalidraw 草稿板，用于推演编程题思路。",
-	"command.open": "打开草稿"
+	"command.open": "打开草稿",
+	"view.files": "草稿文件",
+	"command.newFile": "新建画图",
+	"command.newFolder": "新建文件夹",
+	"command.rename": "重命名",
+	"command.move": "移动",
+	"command.delete": "删除",
+	"command.openFile": "打开画图",
+	"command.clear": "清空画图",
+	"command.import": "导入画图",
+	"command.export": "导出画图",
+	"command.openBeside": "与代码并排",
+	"command.openMode": "打开草稿模式"
 }

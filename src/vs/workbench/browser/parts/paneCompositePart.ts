@@ -516,6 +516,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private async doOpenPaneComposite(id: string, focus?: boolean): Promise<PaneComposite | undefined> {
+		// Check after extension registration as the active mode may change while awaiting it.
+		if (this.partId === Parts.SIDEBAR_PART && this.contextKeyService.getContextKeyValue('shortestpath.drawMode') === true && id !== 'workbench.view.extension.shortestpath-draw') {
+			return this.openPaneComposite('workbench.view.extension.shortestpath-draw', focus);
+		}
 		if (this.blockOpening) {
 			// Workaround against a potential race condition when calling
 			// `setPartHidden` we may end up in `openPaneComposite` again.

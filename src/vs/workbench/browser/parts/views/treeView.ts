@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderFileNameInput } from '../../fileNameInput.js';
 import { DataTransfers, IDragAndDropData } from '../../../../base/browser/dnd.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import * as cssJs from '../../../../base/browser/cssValue.js';
@@ -38,14 +39,14 @@ import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '..
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyChangeEvent, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -1240,6 +1241,7 @@ interface ITreeExplorerTemplateData {
 	readonly checkboxContainer: HTMLElement;
 	checkbox?: TreeItemCheckbox;
 	readonly actionBar: ActionBar;
+	readonly editing: MutableDisposable<IDisposable>;
 }
 
 class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData> {
@@ -1271,6 +1273,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse', undefined, {}));
@@ -1280,6 +1284,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			this.updateCheckboxes(items);
 		}));
 		this._register(this.contextKeyService.onDidChangeContext(e => this.onDidChangeContext(e)));
+		this._register(CommandsRegistry.registerCommand(`_workbench.treeView.editItem.${treeViewId}`, (_accessor, id: string, value: string, isDirectory: boolean, invalidNames: string[], errorMessage: string) => this.editItem(id, value, isDirectory, invalidNames, errorMessage)));
 	}
 
 	get templateId(): string {
@@ -1301,7 +1306,31 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			actionViewItemProvider: this.actionViewItemProvider
 		});
 
-		return { resourceLabel, icon, checkboxContainer, actionBar, container };
+		return { resourceLabel, icon, checkboxContainer, actionBar, container, editing: new MutableDisposable<IDisposable>() };
+	}
+
+	/** Built-in file trees reuse Explorer's row input, including keyboard and blur behavior. */
+	private editItem(id: string, value: string, isDirectory: boolean, invalidNames: string[], errorMessage: string): Promise<string | undefined> {
+		if (typeof id !== 'string' || typeof value !== 'string' || !Array.isArray(invalidNames) || invalidNames.some(name => typeof name !== 'string') || typeof errorMessage !== 'string') { return Promise.resolve(undefined); }
+		const template = this._renderedElements.get(`1/${id}`)?.[0]?.rendered;
+		if (!template) { return Promise.resolve(undefined); }
+		template.editing.clear();
+		return new Promise(resolve => {
+			const store = new DisposableStore();
+			template.editing.value = store;
+			const label = template.resourceLabel.element;
+			const previousDisplay = label.style.display;
+			label.style.display = 'none';
+			const host = DOM.append(template.container, DOM.$('.custom-tree-name-input'));
+			host.style.display = 'flex'; host.style.flex = '1'; host.style.minWidth = '0';
+			DOM.append(host, template.icon.cloneNode(true));
+			let finished = false;
+			store.add(toDisposable(() => { label.style.display = previousDisplay; host.remove(); if (!finished) { finished = true; resolve(undefined); } }));
+			store.add(renderFileNameInput(host, value, isDirectory, {
+				validationMessage: name => !name.trim() || name !== name.trim() || name.length > 128 || /[\\/\x00-\x1f]/.test(name) || name === '.' || name === '..' || invalidNames.includes(name.toLowerCase()) ? { content: errorMessage, severity: Severity.Error } : null,
+				onFinish: async (name, success) => { finished = true; template.editing.clear(); resolve(success ? name : undefined); },
+			}, this.contextViewService, this.contextMenuService));
+		});
 	}
 
 	private getHover(label: string | IMarkdownString | undefined, resource: URI | null, node: ITreeItem): string | IManagedHoverTooltipMarkdownString | undefined {
@@ -1395,6 +1424,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	renderElement(element: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
+		templateData.editing.clear();
 		const node = element.element;
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : (resource ? { label: basename(resource) } : undefined);
@@ -1616,6 +1646,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
+		templateData.editing.clear();
 		const itemRenders = this._renderedElements.get(resource.element.handle) ?? [];
 		const renderedIndex = itemRenders.findIndex(renderedItem => templateData === renderedItem.rendered);
 
@@ -1630,6 +1661,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	disposeTemplate(templateData: ITreeExplorerTemplateData): void {
+		templateData.editing.dispose();
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
 	}

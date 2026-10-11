@@ -94,6 +94,8 @@ export class PaneCompositeBar extends Disposable {
 	private static readonly extensionMarketplaceContextKey = 'shortestpath.extensionMarketplaceEnabled';
 	private static readonly extensionsViewContainerId = 'workbench.view.extensions';
 	private static readonly cphViewContainerId = 'workbench.view.extension.cph-judge-view-container';
+	private static readonly drawingContextKey = 'shortestpath.drawMode';
+	private static readonly drawingViewContainerId = 'workbench.view.extension.shortestpath-draw';
 	private static readonly integratedLocalTestsContextKey = 'shortestpath.oj.integratedLocalTests';
 
 	private static readonly shortestPathDefaultActivityContainers = new Set([
@@ -243,6 +245,9 @@ export class PaneCompositeBar extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.contextKeyService.onDidChangeContext(event => {
+			if (this.isShortestPathActivityBar && event.affectsSome(new Set([PaneCompositeBar.drawingContextKey]))) {
+				for (const container of this.viewDescriptorService.getViewContainersByLocation(this.location)) { this.showOrHideViewContainer(container); }
+			}
 			if (event.affectsSome(new Set([PaneCompositeBar.integratedLocalTestsContextKey]))) {
 				const cph = this.viewDescriptorService.getViewContainerById(PaneCompositeBar.cphViewContainerId);
 				if (cph && this.viewDescriptorService.getViewContainerLocation(cph) === this.location) { this.showOrHideViewContainer(cph); }
@@ -347,6 +352,7 @@ export class PaneCompositeBar extends Disposable {
 	private onDidViewContainerVisible(id: string): void {
 		const viewContainer = this.getViewContainer(id);
 		if (viewContainer) {
+			if (this.isHiddenByDrawingMode(id)) { this.hideComposite(id); return; }
 
 			// Update the composite bar by adding
 			this.addComposite(viewContainer);
@@ -417,7 +423,7 @@ export class PaneCompositeBar extends Disposable {
 
 			// Active
 			const visibleViewContainer = this.paneCompositePart.getActivePaneComposite();
-			if (visibleViewContainer?.getId() === viewContainer.id) {
+			if (visibleViewContainer?.getId() === viewContainer.id && !this.isHiddenByDrawingMode(viewContainer.id)) {
 				this.compositeBar.activateComposite(viewContainer.id);
 			}
 
@@ -500,9 +506,16 @@ export class PaneCompositeBar extends Disposable {
 		}
 	}
 
+	private isHiddenByDrawingMode(id: string): boolean {
+		if (!this.isShortestPathActivityBar) { return false; }
+		return this.contextKeyService.getContextKeyValue(PaneCompositeBar.drawingContextKey) === true
+			? id !== PaneCompositeBar.drawingViewContainerId : id === PaneCompositeBar.drawingViewContainerId;
+	}
+
 	private shouldBeHidden(viewContainerOrId: string | ViewContainer, cachedViewContainer?: ICachedViewContainer): boolean {
 		const viewContainer = isString(viewContainerOrId) ? this.getViewContainer(viewContainerOrId) : viewContainerOrId;
 		const viewContainerId = isString(viewContainerOrId) ? viewContainerOrId : viewContainerOrId.id;
+		if (this.isHiddenByDrawingMode(viewContainerId)) { return true; }
 		if (this.isShortestPathActivityBar && viewContainerId === PaneCompositeBar.cphViewContainerId && this.contextKeyService.getContextKeyValue(PaneCompositeBar.integratedLocalTestsContextKey) === true) {
 			return true;
 		}
@@ -661,6 +674,14 @@ export class PaneCompositeBar extends Disposable {
 			}
 		}
 
+		// Shared pin changes from another window must still respect this window's mode.
+		if (this.isShortestPathActivityBar) {
+			for (const item of newCompositeItems) {
+				const container = this.getViewContainer(item.id);
+				if (container) { item.visible = !this.shouldBeHidden(container); }
+				else if (this.isHiddenByDrawingMode(item.id)) { item.visible = false; }
+			}
+		}
 		this.compositeBar.setCompositeBarItems(newCompositeItems);
 	}
 

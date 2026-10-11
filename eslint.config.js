@@ -165,6 +165,9 @@ export default defineConfig(
 	{
 		files: [
 			'extensions/shortestpath.oj/src/**/*.ts',
+			'extensions/shortestpath.draw/src/drawingFiles.ts',
+			'extensions/shortestpath.draw/src/drawingTree.ts',
+			'extensions/shortestpath.draw/src/test/drawingFiles.test.ts',
 			'extensions/shortestpath.setup/src/**/*.ts',
 			'build/lib/checkPackageSize.ts',
 			'build/lib/minifyDependency.ts',

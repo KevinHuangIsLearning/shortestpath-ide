@@ -1,5 +1,17 @@
 {
 	"displayName": "ShortestPath Sketchpad",
 	"description": "An offline Excalidraw sketchpad for working through programming problems.",
-	"command.open": "Open Sketchpad"
+	"command.open": "Open Sketchpad",
+	"view.files": "Sketchpad Files",
+	"command.newFile": "New Drawing",
+	"command.newFolder": "New Folder",
+	"command.rename": "Rename",
+	"command.move": "Move",
+	"command.delete": "Delete",
+	"command.openFile": "Open Drawing",
+	"command.clear": "Clear Drawing",
+	"command.import": "Import Drawing",
+	"command.export": "Export Drawing",
+	"command.openBeside": "Draw beside Code",
+	"command.openMode": "Open Sketchpad Mode"
 }

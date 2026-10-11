@@ -131,9 +131,9 @@ suite('ShortestPath standalone page surface', () => {
 		const navigation = append(workbench, $('.workbench-navigation.compact-navigation'));
 		append(navigation, $('button.shortestpath-navigation-hint'));
 		const modes = append(navigation, $('.shortestpath-mode-switch'));
-		const browse = append(modes, $('button', { 'aria-pressed': 'true', 'aria-label': 'Browse' }));
+		const browse = append(modes, $<HTMLButtonElement>('button', { 'aria-pressed': 'true', 'aria-label': 'Browse' }));
 		append(browse, $('svg.shortestpath-mode-icon'));
-		const solve = append(modes, $('button', { 'aria-pressed': 'false', 'aria-label': 'Solve' }));
+		const solve = append(modes, $<HTMLButtonElement>('button', { 'aria-pressed': 'false', 'aria-label': 'Solve' }));
 		append(solve, $('svg.shortestpath-mode-icon'));
 		append(navigation, $('button.shortestpath-navigation-hint.shortestpath-navigation-hint-right'));
 		store.add(registerNavigationSwipe(navigation, () => { }, [browse, solve]));
@@ -175,6 +175,66 @@ suite('ShortestPath standalone page surface', () => {
 			[workspaceEditor, browserEditor, modalEditor, header, close, content, workspaceWebview, modalWebview].map(element => mainWindow.getComputedStyle(element).visibility),
 			['hidden', 'visible', 'visible', 'visible', 'visible', 'visible', 'hidden', 'visible']
 		);
+	});
+
+	test('Sketchpad keeps the native sidebar and Activity Bar visible while other standalone pages hide them', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.shortestpath-dual-mode.shortestpath-page-mode.shortestpath-draw-mode'));
+		store.add(toDisposable(() => workbench.remove()));
+		const sidebar = append(workbench, $('.part.sidebar'));
+		const activitybar = append(workbench, $('.part.activitybar'));
+		const editor = append(workbench, $('.part.editor'));
+		const page = append(workbench, $('.shortestpath-page-space'));
+		const drawing = append(page, $('.shortestpath-drawing-space.part.editor.embedded-editor-part'));
+		const drawingOverlay = append(workbench, $('.webview-overlay-content.shortestpath-draw-webview'));
+		const companionOverlay = append(workbench, $('.webview-overlay-content'));
+		assert.deepStrictEqual([drawing, drawingOverlay, companionOverlay].map(element => mainWindow.getComputedStyle(element).visibility), ['visible', 'visible', 'hidden']);
+		const visibility = () => [sidebar, activitybar, editor].map(element => mainWindow.getComputedStyle(element).visibility);
+		assert.deepStrictEqual(visibility(), ['visible', 'visible', 'hidden']);
+		workbench.classList.remove('shortestpath-draw-mode');
+		assert.deepStrictEqual(visibility(), ['hidden', 'hidden', 'hidden']);
+		assert.strictEqual(mainWindow.getComputedStyle(page).visibility, 'visible');
+		assert.strictEqual(mainWindow.getComputedStyle(drawing).visibility, 'hidden');
+	});
+
+	test('Sketchpad rounds the workspace perimeter while keeping sidebar and tab seams square', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.shortestpath-dual-mode.shortestpath-page-mode.shortestpath-draw-mode'));
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-cornerRadius-large', '12px');
+		const page = append(workbench, $('.shortestpath-page-space'));
+		page.style.borderRadius = '0 12px 12px 0';
+		const drawing = append(page, $('.shortestpath-drawing-space.part.editor.embedded-editor-part'));
+		const content = append(drawing, $('.content'));
+		const overlay = append(workbench, $('.webview-overlay-content.shortestpath-draw-webview.webview-overlay-outer-right.webview-overlay-outer-bottom'));
+		assert.strictEqual(mainWindow.getComputedStyle(page).marginLeft, '0px');
+		assert.strictEqual(mainWindow.getComputedStyle(page).zIndex, 'auto');
+		assert.strictEqual(mainWindow.getComputedStyle(drawing).borderRadius, '0px 12px 12px 0px');
+		assert.strictEqual(mainWindow.getComputedStyle(content).borderRadius, '0px 12px 12px 0px');
+		assert.strictEqual(mainWindow.getComputedStyle(overlay).borderRadius, '0px 0px 12px');
+		overlay.classList.remove('webview-overlay-outer-right');
+		overlay.classList.add('webview-overlay-outer-left');
+		assert.strictEqual(mainWindow.getComputedStyle(overlay).borderRadius, '0px 0px 0px 12px');
+		overlay.classList.add('webview-overlay-outer-right');
+		assert.strictEqual(mainWindow.getComputedStyle(overlay).borderRadius, '0px 0px 12px 12px');
+	});
+
+	test('Sketchpad canvas stays below the sidebar resize handle at a joined seam', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.shortestpath-dual-mode.shortestpath-page-mode.shortestpath-draw-mode'));
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.style.cssText = 'position:relative;width:600px;height:400px;z-index:1';
+		const page = append(workbench, $('.shortestpath-page-space'));
+		page.style.cssText = 'left:200px;top:35px';
+		const drawing = append(page, $('.shortestpath-drawing-space.part.editor.embedded-editor-part'));
+		const overlay = store.add(new OverlayLayoutElement());
+		append(workbench, overlay.root);
+		overlay.content.classList.add('webview-overlay-content', 'shortestpath-draw-webview');
+		overlay.setAnchorElement(drawing);
+		const sash = append(workbench, $('.monaco-sash.primary-sidebar-sash'));
+		sash.style.cssText = 'position:absolute;left:198px;top:35px;width:4px;height:360px;z-index:35';
+		const bounds = sash.getBoundingClientRect();
+		assert.strictEqual(mainWindow.document.elementFromPoint(bounds.left + 2, bounds.top + 100), sash);
+		assert.strictEqual(mainWindow.getComputedStyle(overlay.content).zIndex, '2');
+		const canvas = overlay.content.getBoundingClientRect();
+		assert.strictEqual(mainWindow.document.elementFromPoint(canvas.left + 20, canvas.top + 100), overlay.content);
 	});
 
 	test('page content keeps the browser perimeter when compact layout is applied', () => {

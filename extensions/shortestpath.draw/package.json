@@ -5,10 +5,23 @@
 	"version": "0.1.0",
 	"publisher": "shortestpath",
 	"license": "GPL-3.0-or-later",
-	"engines": { "vscode": "^1.129.0" },
-	"categories": ["Visualization"],
-	"capabilities": { "untrustedWorkspaces": { "supported": true } },
-	"activationEvents": ["onCommand:shortestpath.draw.open", "onWebviewPanel:shortestpath.draw", "onWebviewPanel:shortestpath.draw.companion"],
+	"engines": {
+		"vscode": "^1.129.0"
+	},
+	"categories": [
+		"Visualization"
+	],
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"activationEvents": [
+		"onCommand:shortestpath.draw.open",
+		"onCommand:shortestpath.draw.restoreTabs",
+		"onWebviewPanel:shortestpath.draw",
+		"onWebviewPanel:shortestpath.draw.companion"
+	],
 	"main": "./dist/extension.js",
 	"scripts": {
 		"typecheck": "node ../../node_modules/typescript/bin/tsc6 -p tsconfig.json --noEmit && node ../../node_modules/typescript/bin/tsc6 -p tsconfig.webview.json --noEmit",
@@ -17,7 +30,180 @@
 		"vscode:prepublish": "npm run typecheck && node esbuild.mjs"
 	},
 	"contributes": {
-		"commands": [{ "command": "shortestpath.draw.open", "title": "%command.open%" }]
+		"commands": [
+			{
+				"command": "shortestpath.draw.open",
+				"title": "%command.open%"
+			},
+			{
+				"command": "shortestpath.draw.newFile",
+				"title": "%command.newFile%",
+				"icon": "$(new-file)"
+			},
+			{
+				"command": "shortestpath.draw.newFolder",
+				"title": "%command.newFolder%",
+				"icon": "$(new-folder)"
+			},
+			{
+				"command": "shortestpath.draw.rename",
+				"title": "%command.rename%",
+				"icon": "$(edit)"
+			},
+			{
+				"command": "shortestpath.draw.move",
+				"title": "%command.move%",
+				"icon": "$(arrow-right)"
+			},
+			{
+				"command": "shortestpath.draw.delete",
+				"title": "%command.delete%",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "shortestpath.draw.openFile",
+				"title": "%command.openFile%"
+			},
+			{
+				"command": "shortestpath.draw.clear",
+				"title": "%command.clear%",
+				"icon": "$(clear-all)"
+			},
+			{
+				"command": "shortestpath.draw.import",
+				"title": "%command.import%",
+				"icon": "$(import)"
+			},
+			{
+				"command": "shortestpath.draw.export",
+				"title": "%command.export%",
+				"icon": "$(export)"
+			},
+			{
+				"command": "shortestpath.draw.openBeside",
+				"title": "%command.openBeside%",
+				"icon": "$(layout-sidebar-right)"
+			},
+			{
+				"command": "shortestpath.draw.openMode",
+				"title": "%command.openMode%",
+				"icon": "$(pencil)"
+			}
+		],
+		"views": {
+			"shortestpath-draw": [
+				{
+					"id": "shortestpath.draw.files",
+					"name": "%view.files%"
+				}
+			]
+		},
+		"menus": {
+			"view/title": [
+				{
+					"command": "shortestpath.draw.newFile",
+					"when": "view == shortestpath.draw.files",
+					"group": "navigation@1"
+				},
+				{
+					"command": "shortestpath.draw.newFolder",
+					"when": "view == shortestpath.draw.files",
+					"group": "navigation@2"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "shortestpath.draw.newFile",
+					"when": "view == shortestpath.draw.files",
+					"group": "1_manage@1"
+				},
+				{
+					"command": "shortestpath.draw.newFolder",
+					"when": "view == shortestpath.draw.files",
+					"group": "1_manage@2"
+				},
+				{
+					"command": "shortestpath.draw.rename",
+					"when": "view == shortestpath.draw.files",
+					"group": "1_manage@3"
+				},
+				{
+					"command": "shortestpath.draw.move",
+					"when": "view == shortestpath.draw.files",
+					"group": "1_manage@4"
+				},
+				{
+					"command": "shortestpath.draw.delete",
+					"when": "view == shortestpath.draw.files",
+					"group": "1_manage@5"
+				},
+				{
+					"command": "shortestpath.draw.clear",
+					"when": "view == shortestpath.draw.files && viewItem == file",
+					"group": "2_drawing@1"
+				},
+				{
+					"command": "shortestpath.draw.import",
+					"when": "view == shortestpath.draw.files && viewItem == file",
+					"group": "2_drawing@2"
+				},
+				{
+					"command": "shortestpath.draw.export",
+					"when": "view == shortestpath.draw.files && viewItem == file",
+					"group": "2_drawing@3"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "shortestpath.draw.openBeside",
+					"when": "activeWebviewPanelId == shortestpath.draw",
+					"group": "navigation@1"
+				},
+				{
+					"command": "shortestpath.draw.openMode",
+					"when": "activeWebviewPanelId == shortestpath.draw.companion",
+					"group": "navigation@1"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "shortestpath.draw.clear",
+					"when": "activeWebviewPanelId == shortestpath.draw || activeWebviewPanelId == shortestpath.draw.companion"
+				},
+				{
+					"command": "shortestpath.draw.import",
+					"when": "activeWebviewPanelId == shortestpath.draw || activeWebviewPanelId == shortestpath.draw.companion"
+				},
+				{
+					"command": "shortestpath.draw.export",
+					"when": "activeWebviewPanelId == shortestpath.draw || activeWebviewPanelId == shortestpath.draw.companion"
+				},
+				{
+					"command": "shortestpath.draw.openBeside",
+					"when": "activeWebviewPanelId == shortestpath.draw || activeWebviewPanelId == shortestpath.draw.companion"
+				},
+				{
+					"command": "shortestpath.draw.openMode",
+					"when": "activeWebviewPanelId == shortestpath.draw || activeWebviewPanelId == shortestpath.draw.companion"
+				}
+			]
+		},
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "shortestpath-draw",
+					"title": "%view.files%",
+					"icon": "$(pencil)"
+				}
+			]
+		},
+		"keybindings": [
+			{
+				"command": "shortestpath.draw.rename",
+				"key": "f2",
+				"when": "focusedView == shortestpath.draw.files && !inputFocus"
+			}
+		]
 	},
 	"devDependencies": {
 		"@excalidraw/excalidraw": "0.18.1",

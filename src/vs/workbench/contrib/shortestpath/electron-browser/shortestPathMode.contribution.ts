@@ -39,6 +39,8 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { GroupsOrder, IEditorGroup, IEmbeddedEditorPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -55,9 +57,11 @@ import { registerNavigationExpansion, registerNavigationSwipe } from '../browser
 import { shouldRevealSolveEditor } from '../browser/shortestPathEditorMode.js';
 
 const browsingContext = new RawContextKey<boolean>('shortestpath.browsing', false);
+const drawingContext = new RawContextKey<boolean>('shortestpath.drawMode', false);
 const pageContext = new RawContextKey<boolean>('shortestpath.page', false);
 const modeKey = 'shortestpath.mode';
 const tabsKey = 'shortestpath.browser.tabs';
+const drawingTabsKey = 'shortestpath.draw.tabs';
 const verticalTabsKey = 'shortestpath.browser.verticalTabs';
 // allow-any-unicode-next-line
 const drawLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? '草稿' : localize('sp.draw', "Sketchpad");
@@ -93,6 +97,11 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private readonly browserGroupStores = this._register(new DisposableMap<number, DisposableStore>());
 	private readonly openingTabs = new Set<string>();
 	protected browserPart: IEmbeddedEditorPart | undefined;
+	protected drawingPart: IEmbeddedEditorPart | undefined;
+	private restoringDrawingTabs = false;
+	private readonly drawingTabStores = this._register(new DisposableMap<WebviewInput, DisposableStore>());
+	private readonly drawingEditorOptions = new WeakMap<EditorInput, IEditorOptions>();
+	private readonly drawingGroupStores = this._register(new DisposableMap<number, DisposableStore>());
 	private readonly groupTabBars = new Map<number, ShortestPathBrowserTabBar>();
 	private readonly newTabPicker = this._register(new MutableDisposable<ShortestPathBrowserNewTabOverlay>());
 	private readonly browserTabOptions = this._register(new MutableDisposable<IDisposable>());
@@ -117,6 +126,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private previousPageButton: HTMLButtonElement | undefined;
 	private nextPageButton: HTMLButtonElement | undefined;
 	private pageSurface!: HTMLElement;
+	private drawingSurface!: HTMLElement;
 	private resultBadge!: HTMLElement;
 	private switcher!: HTMLElement;
 	private navigationActions!: HTMLElement;
@@ -124,6 +134,9 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private returnFocus: HTMLElement | undefined;
 	private readonly browsing;
 	private readonly pageMode;
+	private readonly drawing;
+	private drawingSidebar: { id: string; visible: boolean } | undefined;
+	private sidebarTransition: Promise<void> = Promise.resolve();
 	private readonly nativeBrowsers: IBrowserViewService;
 
 	constructor(
@@ -141,11 +154,13 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		@ICommandService private readonly commands: ICommandService,
 		@IWebviewWorkbenchService webviews: IWebviewWorkbenchService,
 		@IContextMenuService private readonly contextMenu: IContextMenuService,
+		@IPaneCompositePartService private readonly paneComposites: IPaneCompositePartService,
 	) {
 		super();
 		this.nativeBrowsers = ProxyChannel.toService<IBrowserViewService>(mainProcess.getChannel(ipcBrowserViewChannelName));
 		this.browsing = browsingContext.bindTo(contextKeys);
 		this.pageMode = pageContext.bindTo(contextKeys);
+		this.drawing = drawingContext.bindTo(contextKeys);
 		this.ready = lifecycle.when(LifecyclePhase.Ready).then(async () => {
 			if (this.stopped) { return; }
 			// Show navigation with the workbench shell; native tabs still restore later.
@@ -157,6 +172,8 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			onDidChange: this.changeActive.event,
 			getActiveWebview: () => isShortestPathPageMode(this.mode) ? this.pages.get(this.mode) : undefined,
 			getViewState: input => {
+				const drawingGroup = this.drawingPart?.groups.find(group => group.contains(input));
+				if (drawingGroup) { return { visible: this.mode === 'draw' && drawingGroup.activeEditor === input, active: this.mode === 'draw' && this.drawingPart?.activeGroup === drawingGroup && drawingGroup.activeEditor === input }; }
 				for (const [mode, page] of this.pages) {
 					if (input === page) { return { visible: this.mode === mode, active: this.mode === mode }; }
 				}
@@ -177,7 +194,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 				return false;
 			}
 		}));
-		this._register(this.storage.onWillSaveState(() => this.saveTabs()));
+		this._register(this.storage.onWillSaveState(() => { this.saveTabs(); this.saveDrawingTabs(); }));
 	}
 
 	protected createNavigation(): void {
@@ -226,6 +243,8 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		const root = this.layoutService.mainContainer;
 		this.pageSurface = append(root, $('section.shortestpath-page-space'));
 		this.pageSurface.hidden = true;
+		this.drawingSurface = append(this.pageSurface, $('.shortestpath-drawing-space'));
+		this.createDrawingPart(this.drawingSurface);
 		// allow-any-unicode-next-line
 		this.surface = append(root, $('section.shortestpath-browser-space', { 'aria-label': localize('sp.browser', "网页浏览") }));
 		this.surface.hidden = true;
@@ -235,9 +254,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.createBrowserPart(this.browserHost);
 		this.setVerticalTabs(false);
 		this._register(this.favorites.onDidChange(() => this.updateTabBar()));
-		this._register(this.layoutService.onDidLayoutMainContainer(() => this.layout()));
-		this._register(this.layoutService.onDidChangePartVisibility(() => this.layout()));
-		this._register(onDidChangeZoomLevel(() => this.layout()));
+		this.registerLayoutListeners();
 		this._register(addDisposableListener(mainWindow, 'focus', () => this.refresh()));
 		this._register(this.editors.onWillOpenEditor(event => this.revealEditorMode(event)));
 		this.layout();
@@ -257,6 +274,20 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.activeBrowser = [...this.tabs.values()][state.active];
 		if (this.activeBrowser) { await this.openInBrowserPart(this.activeBrowser, true, false); }
 		this.renderTabs();
+		const drawingState = this.storage.get(drawingTabsKey, StorageScope.WORKSPACE);
+		if (drawingState) {
+			try {
+				const saved = JSON.parse(drawingState) as { ids?: unknown; active?: unknown };
+				if (Array.isArray(saved.ids) && saved.ids.every(id => typeof id === 'string')) {
+					const ids = [...new Set(saved.ids as string[])];
+					const ordered = ids.filter(id => id !== saved.active);
+					if (typeof saved.active === 'string' && ids.includes(saved.active)) { ordered.push(saved.active); }
+					this.restoringDrawingTabs = true;
+					await this.commands.executeCommand('shortestpath.draw.restoreTabs', ordered);
+				}
+			} catch (error) { onUnexpectedError(error); }
+			finally { this.restoringDrawingTabs = false; }
+		}
 		this.restoreMode();
 	}
 
@@ -348,8 +379,12 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 				}
 				if (this.mode === mode) {
 					const page = this.pages.get(mode);
-					if (page) { this.showPage(page); page.webview.focus(); }
-					else { this.applyMode('solve'); }
+					if (page) {
+						this.showPage(page);
+						if (mode === 'draw') { await this.sidebarTransition; }
+						if (this.mode === mode) { if (mode === 'draw') { this.drawingPart?.activeGroup.focus(); } page.webview.focus(); }
+					}
+					else if (mode !== 'draw') { this.applyMode('solve'); }
 				}
 			} catch (error) {
 				if (this.mode === mode) { this.applyMode('solve'); }
@@ -366,8 +401,13 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 
 	/** Reveal the owning surface before a foreground editor is opened there. */
 	protected revealEditorMode(event: IEditorWillOpenEvent): void {
+		if (this.drawingPart?.groups.some(group => group.id === event.groupId)) { this.drawingEditorOptions.set(event.editor, event.options ?? {}); }
 		if (!shouldRevealSolveEditor(event)) { return; }
-		if (this.browserPart?.groups.some(group => group.id === event.groupId)) {
+		if (this.drawingPart?.groups.some(group => group.id === event.groupId)) {
+			if (event.editor instanceof WebviewInput && getShortestPathPageMode(event.editor.extension?.id.value, event.editor.webview.providedViewType) === 'draw') {
+				if (this.mode !== 'draw') { this.applyMode('draw'); }
+			} else { void this.switchMode('solve').catch(onUnexpectedError); }
+		} else if (this.browserPart?.groups.some(group => group.id === event.groupId)) {
 			if (this.mode !== 'browse') { this.applyMode('browse'); }
 		} else if (this.mode !== 'solve' && this.editorGroups.mainPart.groups.some(group => group.id === event.groupId)) {
 			void this.switchMode('solve').catch(onUnexpectedError);
@@ -375,6 +415,10 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	}
 
 	protected applyMode(mode: ShortestPathMode): void {
+		if (mode === 'draw' && this.mode !== 'draw' && !this.drawingSidebar) {
+			const active = this.paneComposites.getActivePaneComposite(ViewContainerLocation.Sidebar)?.getId();
+			this.drawingSidebar = { id: active && active !== 'workbench.view.extension.shortestpath-draw' ? active : 'workbench.view.explorer', visible: this.layoutService.isVisible(Parts.SIDEBAR_PART) };
+		}
 		if (this.mode === 'solve' && mode !== 'solve') {
 			const active = mainWindow.document.activeElement;
 			this.returnFocus = active instanceof mainWindow.HTMLElement && !this.switcher.contains(active) && !this.navigationActions.contains(active) ? active : undefined;
@@ -383,12 +427,15 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.requestedMode = mode;
 		this.browsing.set(mode === 'browse');
 		this.pageMode.set(isShortestPathPageMode(mode));
+		this.drawing.set(mode === 'draw');
 		this.layoutService.mainContainer.classList.toggle('shortestpath-browsing', mode === 'browse');
 		this.layoutService.mainContainer.classList.toggle('shortestpath-page-mode', isShortestPathPageMode(mode));
+		this.layoutService.mainContainer.classList.toggle('shortestpath-draw-mode', mode === 'draw');
 		this.surface.hidden = mode !== 'browse';
 		this.surface.inert = mode !== 'browse';
 		this.browserPart?.setVisible(mode === 'browse');
 		this.pageSurface.hidden = !isShortestPathPageMode(mode);
+		this.drawingPart?.setVisible(mode === 'draw');
 		// allow-any-unicode-next-line
 		this.pageSurface.setAttribute('aria-label', mode === 'dashboard' ? dashboardLabel : mode === 'snippets' ? localize('sp.snippets', "代码片段") : mode === 'draw' ? drawLabel : localize('sp.settings', "设置"));
 		this.browseButton.setAttribute('aria-pressed', String(mode === 'browse'));
@@ -400,20 +447,58 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.updateNavigationHints();
 		for (const [pageMode, input] of this.pages) {
 			if (mode === pageMode) { this.showPage(input); }
-			else { input.webview.release(this); }
+			else if (pageMode !== 'draw') { input.webview.release(this); }
 		}
 		for (const part of [Parts.EDITOR_PART, Parts.SIDEBAR_PART, Parts.PANEL_PART, Parts.ACTIVITYBAR_PART, Parts.AUXILIARYBAR_PART, Parts.STATUSBAR_PART]) {
 			const element = this.layoutService.getContainer(mainWindow, part);
-			if (element) { element.inert = mode !== 'solve'; }
+			if (element) { element.inert = mode !== 'solve' && !(mode === 'draw' && (part === Parts.SIDEBAR_PART || part === Parts.ACTIVITYBAR_PART)); }
 		}
 		this.storage.store(modeKey, mode, StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.changeActive.fire();
-		this.refresh();
+		this.layout();
+		if (mode === 'draw' || mode === 'solve') { void this.synchronizeDrawingSidebar(mode).catch(onUnexpectedError); }
+	}
+
+	/** Serialize native sidebar activation so a late open cannot override the current mode. */
+	protected synchronizeDrawingSidebar(mode: ShortestPathMode): Promise<void> {
+		const transition = this.sidebarTransition.then(async () => {
+			if (this.stopped || this.mode !== mode) { return; }
+			if (mode === 'draw') {
+				await this.commands.executeCommand('shortestpath.draw.files.focus');
+			} else if (mode === 'solve' && this.drawingSidebar) {
+				const previous = this.drawingSidebar;
+				await this.paneComposites.openPaneComposite(previous.id, ViewContainerLocation.Sidebar, false);
+				if (this.mode === 'solve') {
+					this.drawingSidebar = undefined;
+					if (!previous.visible) { this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART); }
+				}
+			}
+		});
+		this.sidebarTransition = transition.catch(onUnexpectedError);
+		return transition;
 	}
 
 	private adoptPage(input: WebviewInput, preserveFocus: boolean): boolean {
 		const mode = getShortestPathPageMode(input.extension?.id.value, input.webview.providedViewType);
 		if (!mode) { return true; }
+		if (mode === 'draw') {
+			if (!this.drawingTabStores.has(input)) {
+				const store = new DisposableStore();
+				this.drawingTabStores.set(input, store);
+				store.add(input.webview.onDidUpdateState(() => this.saveDrawingTabs()));
+				store.add(input.onWillDispose(() => { this.drawingTabStores.deleteAndDispose(input); }));
+			}
+			const pending = this.pendingPages.has(mode);
+			void this.ready.then(async () => {
+				if (this.stopped || input.isDisposed() || !this.drawingPart) { return; }
+				if (!preserveFocus && (!pending || this.mode === mode)) { this.applyMode(mode); }
+				const group = this.drawingPart.groups.find(group => group.contains(input)) ?? this.drawingPart.activeGroup;
+				await this.editors.openEditor(input, { pinned: true, preserveFocus: preserveFocus || this.mode !== 'draw' }, group);
+				this.refreshDrawingTabs();
+				this.drawingPart.setVisible(this.mode === 'draw');
+			}).catch(onUnexpectedError);
+			return false;
+		}
 		if (this.pages.get(mode) !== input) {
 			const previous = this.pages.get(mode);
 			this.pages.set(mode, input);
@@ -442,6 +527,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	}
 
 	private showPage(input: WebviewInput): void {
+		if (getShortestPathPageMode(input.extension?.id.value, input.webview.providedViewType) === 'draw') { return; }
 		input.claim(this, mainWindow, undefined);
 		input.webview.container.classList.add('shortestpath-page-webview');
 		// The fixed page bounds already constrain the webview. A clipping root would
@@ -543,13 +629,73 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		}
 		await this.openInBrowserPart(input, preserveFocus);
 		this.changeActive.fire();
-		this.refresh();
+		this.layout();
 		if (!preserveFocus && this.mode === 'browse' && this.activeBrowser === input) { this.browserPart?.activeGroup.focus(); }
 	}
 
-	protected createBrowserPart(container: HTMLElement): void {
-		const part = this.browserPart = this._register(this.editorGroups.createEmbeddedEditorPart(container));
+	/** Both surfaces use the same native editor groups and tab strip as Solve. */
+	private createTabbedPart(container: HTMLElement): IEmbeddedEditorPart {
+		const part = this._register(this.editorGroups.createEmbeddedEditorPart(container));
 		this._register(part.enforcePartOptions({ showTabs: 'multiple', enablePreview: false, closeEmptyGroups: true, pinnedTabsOnSeparateRow: false, wrapTabs: false }));
+		return part;
+	}
+
+	protected createDrawingPart(container: HTMLElement): void {
+		const part = this.drawingPart = this.createTabbedPart(container);
+		this._register(addDisposableListener(container, EventType.DBLCLICK, event => {
+			if (this.mode === 'draw' && isHTMLElement(event.target) && event.target.classList.contains('tabs-container')) {
+				EventHelper.stop(event, true);
+				void this.commands.executeCommand('shortestpath.draw.newFile').catch(onUnexpectedError);
+			}
+		}, true));
+		const track = (group: IEditorGroup) => {
+			const store = new DisposableStore();
+			this.drawingGroupStores.set(group.id, store);
+			store.add(group.onDidModelChange(() => this.refreshDrawingTabs()));
+			store.add(group.onDidActiveEditorChange(() => this.refreshDrawingTabs()));
+			store.add(group.onDidCloseEditor(() => queueMicrotask(() => { if (!this.stopped) { this.refreshDrawingTabs(); } })));
+		};
+		part.groups.forEach(track);
+		this._register(part.onDidAddGroup(track));
+		this._register(part.onDidRemoveGroup(group => { this.drawingGroupStores.deleteAndDispose(group.id); this.refreshDrawingTabs(); }));
+		this._register(part.onDidChangeActiveGroup(() => this.refreshDrawingTabs()));
+		part.setVisible(false);
+	}
+
+	private refreshDrawingTabs(): void {
+		const part = this.drawingPart;
+		if (!part || this.stopped) { return; }
+		const active = part.activeGroup.activeEditor;
+		if (active instanceof WebviewInput && getShortestPathPageMode(active.extension?.id.value, active.webview.providedViewType) === 'draw') { this.pages.set('draw', active); }
+		else { this.pages.delete('draw'); }
+		for (const group of part.groups) {
+			for (const input of group.editors) {
+				if (input instanceof WebviewInput && getShortestPathPageMode(input.extension?.id.value, input.webview.providedViewType) === 'draw') { input.webview.container.classList.add('shortestpath-draw-webview'); }
+				else {
+					queueMicrotask(() => {
+						if (!this.stopped && group.contains(input)) { group.moveEditor(input, this.editorGroups.mainPart.activeGroup, { ...(this.drawingEditorOptions.get(input) ?? { preserveFocus: true }), pinned: true }); }
+					});
+				}
+			}
+		}
+		this.changeActive.fire();
+		this.saveDrawingTabs();
+	}
+
+	private saveDrawingTabs(): void {
+		if (!this.drawingPart || this.stopped || this.restoringDrawingTabs) { return; }
+		const id = (input: EditorInput | null | undefined): string | undefined => {
+			if (!(input instanceof WebviewInput)) { return undefined; }
+			try { const state = JSON.parse(input.webview.state ?? '{}') as { fileId?: unknown }; return typeof state.fileId === 'string' ? state.fileId : undefined; } catch { return undefined; }
+		};
+		const editors = this.drawingPart.getGroups(GroupsOrder.GRID_APPEARANCE).flatMap(group => group.editors);
+		const ids = editors.map(id).filter((value): value is string => !!value);
+		if (editors.length && ids.length !== editors.length) { return; }
+		this.storage.store(drawingTabsKey, JSON.stringify({ ids: [...new Set(ids)], active: id(this.drawingPart.activeGroup.activeEditor) }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	protected createBrowserPart(container: HTMLElement): void {
+		const part = this.browserPart = this.createTabbedPart(container);
 		// Native editor tabs create an untitled file on an empty-strip double-click.
 		// Route this gesture before that handler runs in the browsing surface.
 		this._register(addDisposableListener(container, EventType.DBLCLICK, event => {
@@ -620,6 +766,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.saveTabs();
 		void this.ensureBrowserTab().catch(onUnexpectedError);
 	}
+
 
 	private createTabBar(container: HTMLElement, group: IEditorGroup, vertical: boolean): IDisposable {
 		const favoriteKey = (key: string) => key.startsWith('favorite:') ? `${group.id}|${key}` : key;
@@ -819,6 +966,14 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		return this.emptyTabPromise;
 	}
 
+	protected registerLayoutListeners(): void {
+		this._register(this.layoutService.onDidLayoutMainContainer(() => this.layout()));
+		this._register(this.layoutService.onDidChangePartVisibility(() => this.layout()));
+		// Sash drags resize the editor without resizing the workbench container.
+		this._register(this.editorGroups.mainPart.onDidLayout(() => this.layout()));
+		this._register(onDidChangeZoomLevel(() => this.layout()));
+	}
+
 	private layout(): void {
 		if (!this.surface) { return; }
 		const navigation = (this.layoutService.mainWindowNavigationLayoutContainer ?? this.layoutService.mainWindowNavigationContainer)!.getBoundingClientRect();
@@ -828,7 +983,22 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.surface.style.top = `${this.layoutService.mainContainerOffset.top}px`;
 		this.surface.style.left = `${navigation.right - root.left}px`;
 		this.pageSurface.style.top = this.surface.style.top;
-		this.pageSurface.style.left = this.surface.style.left;
+		const editorContainer = this.layoutService.getContainer(mainWindow, Parts.EDITOR_PART);
+		const editor = editorContainer?.getBoundingClientRect();
+		this.pageSurface.style.left = this.mode === 'draw' && editor ? `${editor.left - root.left}px` : this.surface.style.left;
+		this.pageSurface.style.right = this.mode === 'draw' && editor ? `${root.right - editor.right}px` : '';
+		if (this.mode === 'draw') {
+			const drawingContainer = this.drawingSurface;
+			if (editorContainer) { this.pageSurface.style.borderRadius = mainWindow.getComputedStyle(editorContainer).borderRadius; }
+			const bounds = this.pageSurface.getBoundingClientRect();
+			this.drawingPart?.layout(bounds.width, bounds.height, bounds.top, bounds.left);
+			// Embedded layout clears its floating edges, so apply the shared perimeter afterwards.
+			if (editorContainer && drawingContainer) {
+				for (const edge of ['left', 'right', 'top', 'bottom']) {
+					drawingContainer.classList.toggle(`floating-editor-outer-${edge}`, editorContainer.classList.contains(`floating-editor-outer-${edge}`));
+				}
+			}
+		} else { this.pageSurface.style.borderRadius = ''; }
 		this.refresh();
 	}
 
@@ -862,7 +1032,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.saveTabs();
 		this.stopped = true;
 		this.browserPart?.setVisible(false);
-		for (const input of [...this.pages.values()]) { input.dispose(); }
+		for (const [mode, input] of this.pages) { if (mode !== 'draw') { input.dispose(); } }
 		this.surface?.remove();
 		this.pageSurface?.remove();
 		this.switcher?.remove();

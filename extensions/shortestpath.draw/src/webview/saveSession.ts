@@ -11,13 +11,15 @@ export type SaveStatus = 'saved' | 'saving' | 'failed';
 export class SaveSession {
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private revision = 0;
+	private interacting = false;
 	private queued: DraftSnapshot | undefined;
 	private lastSent: DraftSnapshot | undefined;
 	private lastSaved: DraftSnapshot | undefined;
+	fileId: string | undefined;
 	status: SaveStatus = 'saved';
 	onStatus: (status: SaveStatus) => void = () => { };
 
-	constructor(private readonly post: (message: ClientMessage) => void, private readonly delay = 200) { }
+	constructor(private readonly post: (message: ClientMessage) => void, private readonly delay = 1000) { }
 
 	accept(snapshot: DraftSnapshot, notify = true): void {
 		this.cancelTimer();
@@ -34,8 +36,14 @@ export class SaveSession {
 		if (previous?.scene === snapshot.scene && previous.library === snapshot.library) { return; }
 		this.queued = snapshot;
 		this.setStatus('saving');
-		// Do not postpone a save forever during a long drag or freehand stroke.
-		if (!this.timer) { this.timer = setTimeout(() => this.flush(), this.delay); }
+		this.activity();
+	}
+
+	/** Postpone the trailing save until the user has stopped interacting. */
+	activity(interacting = this.interacting): void {
+		this.interacting = interacting;
+		this.cancelTimer();
+		if (this.queued && !interacting) { this.timer = setTimeout(() => this.flush(), this.delay); }
 	}
 
 	flush(): void {
@@ -44,7 +52,7 @@ export class SaveSession {
 		const snapshot = this.queued;
 		this.queued = undefined;
 		this.lastSent = snapshot;
-		this.post({ type: 'save', snapshot, revision: ++this.revision });
+		this.post({ type: 'save', snapshot, revision: ++this.revision, ...(this.fileId ? { fileId: this.fileId } : {}) });
 	}
 
 	acknowledge(revision: number, error?: string): void {

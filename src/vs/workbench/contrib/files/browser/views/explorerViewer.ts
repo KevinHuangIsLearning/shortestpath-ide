@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderFileNameInput } from '../../../../browser/fileNameInput.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import * as glob from '../../../../../base/common/glob.js';
 import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
 import { IProgressService, ProgressLocation, } from '../../../../../platform/progress/common/progress.js';
-import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from '../../../../../base/browser/ui/tree/tree.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -21,10 +21,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExplorerFindProviderActive, IFilesConfiguration, UndoConfirmLevel } from '../../common/files.js';
 import { dirname, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
-import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { localize } from '../../../../../nls.js';
-import { createSingleCallFunction } from '../../../../../base/common/functional.js';
-import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { equals, deepClone } from '../../../../../base/common/objects.js';
 import * as path from '../../../../../base/common/path.js';
 import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
@@ -60,8 +57,7 @@ import { WebFileSystemAccess } from '../../../../../platform/files/browser/webFi
 import { IgnoreFile } from '../../../../services/search/common/ignoreFile.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
-import { defaultCountBadgeStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { defaultCountBadgeStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IExplorerFileContribution, explorerFileContribRegistry } from '../explorerFileContrib.js';
@@ -1056,115 +1052,20 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// hack: hide label
 		(label.element.firstElementChild as HTMLElement).style.display = 'none';
 
-		// Input field for name
-		const inputBox = new InputBox(label.element, this.contextViewService, {
-			validationOptions: {
-				validation: (value) => {
-					const message = editableData.validationMessage(value);
-					if (!message || message.severity !== Severity.Error) {
-						return null;
-					}
-
-					return {
-						content: message.content,
-						formatContent: true,
-						type: MessageType.ERROR
-					};
-				}
+		const store = new DisposableStore();
+		store.add(label);
+		store.add(toDisposable(() => label.element.remove()));
+		store.add(renderFileNameInput(label.element, value, stat.isDirectory, {
+			validationMessage: editableData.validationMessage,
+			onFinish: async (name, success) => {
+				label.element.style.display = 'none';
+				store.dispose();
+				await editableData.onFinish(name, success);
 			},
-			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel."),
-			inputBoxStyles: defaultInputBoxStyles,
-		});
-
-		const lastDot = value.lastIndexOf('.');
-		let currentSelectionState = 'prefix';
-
-		inputBox.value = value;
-		inputBox.focus();
-		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
-
-		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
-			label.element.style.display = 'none';
-			const value = inputBox.value;
-			dispose(toDispose);
-			label.element.remove();
-			if (finishEditing) {
-				editableData.onFinish(value, success);
-			}
-		});
-
-		const showInputBoxNotification = () => {
-			if (inputBox.isInputValid()) {
-				const message = editableData.validationMessage(inputBox.value);
-				if (message) {
-					inputBox.showMessage({
-						content: message.content,
-						formatContent: true,
-						type: message.severity === Severity.Info ? MessageType.INFO : message.severity === Severity.Warning ? MessageType.WARNING : MessageType.ERROR
-					});
-				} else {
-					inputBox.hideMessage();
-				}
-			}
-		};
-		showInputBoxNotification();
-
-		const toDispose = [
-			inputBox,
-			inputBox.onDidChange(value => {
-				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
-			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				if (e.equals(KeyCode.F2)) {
-					const dotIndex = inputBox.value.lastIndexOf('.');
-					if (stat.isDirectory || dotIndex === -1) {
-						return;
-					}
-					if (currentSelectionState === 'prefix') {
-						currentSelectionState = 'all';
-						inputBox.select({ start: 0, end: inputBox.value.length });
-					} else if (currentSelectionState === 'all') {
-						currentSelectionState = 'suffix';
-						inputBox.select({ start: dotIndex + 1, end: inputBox.value.length });
-					} else {
-						currentSelectionState = 'prefix';
-						inputBox.select({ start: 0, end: dotIndex });
-					}
-				} else if (e.equals(KeyCode.Enter)) {
-					if (!inputBox.validate()) {
-						done(true, true);
-					}
-				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
-				}
-			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
-				showInputBoxNotification();
-			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, async () => {
-				while (true) {
-					await timeout(0);
-
-					const ownerDocument = inputBox.inputElement.ownerDocument;
-					if (!ownerDocument.hasFocus()) {
-						break;
-					} if (DOM.isActiveElement(inputBox.inputElement)) {
-						return;
-					} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
-						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
-					} else {
-						break;
-					}
-				}
-
-				done(inputBox.isInputValid(), true);
-			}),
-			label
-		];
-
-		return toDisposable(() => {
-			done(false, false);
-		});
+		}, this.contextViewService, this.contextMenuService, name => {
+			label.setFile(joinPath(parent, name || ' '), labelOptions);
+		}));
+		return store;
 	}
 
 	disposeElement(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {

@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -27,11 +27,12 @@ import { IMainProcessService } from '../../../../../platform/ipc/common/mainProc
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { canOpenEditorsInNewWindow, EditorInputCapabilities, IUntypedEditorInput, EditorsOrder, IEditorWillOpenEvent } from '../../../../common/editor.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { workbenchInstantiationService, TestFileEditorInput, TestEditorGroupView } from '../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
+import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../../webviewPanel/browser/webviewWorkbenchService.js';
 import { ShortestPathModeService } from '../../electron-browser/shortestPathMode.contribution.js';
 import { OpenIntegratedBrowserAction, QuickOpenBrowserAction } from '../../../browserView/electron-browser/features/browserTabManagementFeatures.js';
@@ -111,6 +112,176 @@ suite('ShortestPath browser routing', () => {
 		}
 	});
 
+	test('Sketchpad follows sidebar sash layout without a window resize and shares solving perimeter corners', () => {
+		const root = document.createElement('div');
+		root.style.cssText = 'position:relative;width:600px;height:400px';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const element = (style: string) => {
+			const child = document.createElement('div');
+			child.style.cssText = style;
+			root.appendChild(child);
+			return child;
+		};
+		const navigation = element('position:absolute;left:0;top:0;width:48px;height:35px');
+		const editor = element('position:absolute;left:200px;top:35px;width:400px;height:365px;border-radius:0 16px 16px 0');
+		editor.classList.add('floating-editor-outer-right', 'floating-editor-outer-top', 'floating-editor-outer-bottom');
+		const surface = element('position:absolute;right:0;bottom:0');
+		const pageSurface = element('position:absolute;right:0;bottom:0');
+		const drawing = document.createElement('div');
+		drawing.className = 'shortestpath-drawing-space';
+		pageSurface.appendChild(drawing);
+		const editorLayout = store.add(new Emitter<void>());
+		const sizes: number[][] = [];
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			mode: 'draw', surface, pageSurface, drawingSurface: drawing,
+			_register: (disposable: IDisposable) => store.add(disposable),
+			layoutService: {
+				mainContainer: root, mainWindowNavigationLayoutContainer: navigation, mainContainerOffset: { top: 35, quickPickTop: 6 },
+				onDidLayoutMainContainer: Event.None, onDidChangePartVisibility: Event.None,
+				getContainer: (_window: Window, part: Parts) => part === Parts.EDITOR_PART ? editor : undefined,
+			},
+			editorGroups: { mainPart: { onDidLayout: editorLayout.event } },
+			drawingPart: {
+				layout: (...size: number[]) => {
+					sizes.push(size);
+					for (const edge of ['left', 'right', 'top', 'bottom']) { drawing.classList.remove(`floating-editor-outer-${edge}`); }
+				}
+			},
+			refresh: () => { },
+		}) as { registerLayoutListeners(): void };
+		service.registerLayoutListeners();
+		editorLayout.fire();
+		assert.strictEqual(pageSurface.getBoundingClientRect().left, editor.getBoundingClientRect().left);
+		assert.strictEqual(pageSurface.style.borderRadius, '0px 16px 16px 0px');
+		assert.ok(drawing.classList.contains('floating-editor-outer-right'));
+		assert.ok(!drawing.classList.contains('floating-editor-outer-left'));
+		const firstWidth = pageSurface.getBoundingClientRect().width;
+		for (const left of [300, 100, 250]) {
+			editor.style.left = `${left}px`;
+			editor.style.width = `${600 - left}px`;
+			editorLayout.fire();
+			const bounds = pageSurface.getBoundingClientRect();
+			assert.strictEqual(bounds.left, editor.getBoundingClientRect().left);
+			assert.strictEqual(bounds.width, editor.getBoundingClientRect().width);
+			assert.deepStrictEqual(sizes.at(-1), [bounds.width, bounds.height, bounds.top, bounds.left]);
+			assert.ok(drawing.classList.contains('floating-editor-outer-right'));
+		}
+		assert.notStrictEqual(pageSurface.getBoundingClientRect().width, firstWidth);
+	});
+
+	test('Sketchpad sidebar serializes delayed mode switches and restores the original container', async () => {
+		for (const delayedMode of ['solve', 'draw'] as const) {
+			const gate = new DeferredPromise<void>();
+			const started = new DeferredPromise<void>();
+			let active = delayedMode === 'solve' ? 'draw' : 'search';
+			const opens: string[] = [];
+			const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+				mode: delayedMode,
+				sidebarTransition: Promise.resolve(),
+				drawingSidebar: { id: 'search', visible: false },
+				commands: {
+					executeCommand: async () => {
+						opens.push('draw');
+						if (delayedMode === 'draw' && opens.length === 1) { started.complete(); await gate.p; }
+						active = 'draw';
+					}
+				},
+				paneComposites: {
+					openPaneComposite: async (id: string) => {
+						opens.push(id);
+						if (delayedMode === 'solve' && opens.length === 1) { started.complete(); await gate.p; }
+						active = id;
+					}
+				},
+				layoutService: { setPartHidden: () => { assert.strictEqual(service.mode, 'solve'); } }
+			}) as ShortestPathModeService & { synchronizeDrawingSidebar(mode: ShortestPathMode): Promise<void> };
+			const first = service.synchronizeDrawingSidebar(delayedMode);
+			await started.p;
+			service.mode = delayedMode === 'solve' ? 'draw' : 'solve';
+			const second = service.synchronizeDrawingSidebar(service.mode);
+			gate.complete();
+			await Promise.all([first, second]);
+			assert.strictEqual(active, service.mode === 'draw' ? 'draw' : 'search');
+			service.mode = 'solve';
+			await service.synchronizeDrawingSidebar('solve');
+			assert.strictEqual(active, 'search');
+		}
+	});
+
+	test('Sketchpad routes multiple documents through native tabs without disposing the previous drawing', async () => {
+		const inputs: WebviewInput[] = [];
+		const opened: { input: WebviewInput; pinned?: boolean }[] = [];
+		const group = {
+			editors: inputs,
+			activeEditor: undefined as WebviewInput | undefined,
+			contains: (input: WebviewInput) => inputs.includes(input),
+		};
+		const pages = new Map<ShortestPathMode, WebviewInput>();
+		let saved: { ids: string[]; active: string } | undefined;
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			mode: 'draw' as ShortestPathMode,
+			ready: Promise.resolve(), pendingPages: new Map(), pages,
+			drawingTabStores: store.add(new DisposableMap<WebviewInput, DisposableStore>()),
+			storage: { store(_key: string, value: string, scope: StorageScope) { assert.strictEqual(scope, StorageScope.WORKSPACE); saved = JSON.parse(value); } },
+			drawingPart: { groups: [group], activeGroup: group, getGroups: () => [group], setVisible() { } },
+			applyMode(mode: ShortestPathMode) { this.mode = mode; },
+			changeActive: { fire() { } },
+			editors: {
+				async openEditor(input: WebviewInput, options: IEditorOptions, target: typeof group) {
+					assert.strictEqual(target, group);
+					if (!inputs.includes(input)) { inputs.push(input); }
+					target.activeEditor = input;
+					opened.push({ input, pinned: options.pinned });
+				}
+			},
+		}) as {
+			adoptPage(input: WebviewInput, preserveFocus: boolean): boolean;
+			refreshDrawingTabs(): void;
+		};
+		const create = (fileId: string) => Object.defineProperties(Object.create(WebviewInput.prototype), {
+			extension: { value: { id: { value: 'shortestpath.shortestpath-draw' } } },
+			webview: { value: { providedViewType: 'shortestpath.draw', state: JSON.stringify({ fileId }), container: document.createElement('div'), onDidUpdateState: () => Disposable.None } },
+			isDisposed: { value: () => false },
+			onWillDispose: { value: () => Disposable.None },
+			dispose: { value: () => assert.fail('opening a new drawing must retain the previous tab') },
+		}) as WebviewInput;
+		const first = create('first'); const second = create('second');
+		assert.strictEqual(service.adoptPage(first, false), false);
+		await Promise.resolve(); await Promise.resolve();
+		assert.strictEqual(service.adoptPage(second, false), false);
+		await Promise.resolve(); await Promise.resolve();
+		assert.deepStrictEqual(opened, [{ input: first, pinned: true }, { input: second, pinned: true }]);
+		assert.strictEqual(pages.get('draw'), second);
+		assert.deepStrictEqual(saved, { ids: ['first', 'second'], active: 'second' });
+		group.activeEditor = first;
+		service.refreshDrawingTabs();
+		assert.strictEqual(pages.get('draw'), first);
+		assert.strictEqual(service.adoptPage(first, false), false);
+		await Promise.resolve(); await Promise.resolve();
+		assert.deepStrictEqual(inputs, [first, second]);
+	});
+
+	test('late Sketchpad sidebar completion cannot steal focus after leaving the mode', async () => {
+		const gate = new DeferredPromise<void>();
+		let focuses = 0;
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			mode: 'solve' as ShortestPathMode,
+			ready: Promise.resolve(),
+			pages: new Map([['draw', { webview: { focus: () => focuses++ } }]]),
+			sidebarTransition: gate.p,
+			drawingPart: { activeGroup: { focus: () => focuses++ } },
+			applyMode(mode: ShortestPathMode) { this.mode = mode; },
+			showPage() { },
+		}) as ShortestPathModeService;
+		const switching = service.switchMode('draw');
+		await Promise.resolve();
+		service.mode = 'solve';
+		gate.complete();
+		await switching;
+		assert.strictEqual(focuses, 0);
+	});
+
 	function setup(createGate?: Promise<void>, createStarted?: () => void, restored?: Promise<void>, savedMode?: ShortestPathMode) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		const opened: { input: EditorInput; options: IEditorOptions | undefined; group: PreferredGroup | undefined }[] = [];
@@ -131,6 +302,8 @@ suite('ShortestPath browser routing', () => {
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidChangeActiveGroup = Event.None;
 			override getGroups() { return this.groups; }
+			override getGroup(id: number) { return this.groups.find(group => group.id === id); }
+			override activateGroup() { return browserGroup; }
 			override enforcePartOptions() { return Disposable.None; }
 			override setVisible() { }
 			override dispose() { }
@@ -204,6 +377,25 @@ suite('ShortestPath browser routing', () => {
 		service.restoreStartupMode = savedMode !== undefined;
 		instantiation.stub(IShortestPathModeService, service);
 		return { service, opened, untypedOpened, navigations, browserInputs, browserGroup, instantiation, known, handler: () => handler!, preferredCalls: () => preferredCalls };
+	}
+
+	for (const mode of ['browse', 'solve'] as const) {
+		test(`floating new tab in ${mode} creates only after accepting a URL`, async () => {
+			const { service, known, navigations } = setup();
+			service.mode = mode;
+			service.newBrowserTab();
+			const first = document.getElementsByClassName('browser-new-tab-overlay')[0];
+			first?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			assert.strictEqual(known.size, 0);
+			service.newBrowserTab();
+			const overlay = document.getElementsByClassName('browser-new-tab-overlay')[0];
+			const input = overlay.getElementsByTagName('input')[0];
+			input.value = 'https://example.com/new'; input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			assert.strictEqual(known.size, 0);
+			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			await new Promise(resolve => setTimeout(resolve, 10));
+			assert.deepStrictEqual({ created: known.size, navigations, overlays: document.getElementsByClassName('browser-new-tab-overlay').length }, { created: 1, navigations: ['https://example.com/new'], overlays: 0 });
+		});
 	}
 
 	test('Ctrl+Tab and Ctrl+Shift+Tab use the global MRU picker', () => {
@@ -606,25 +798,6 @@ suite('ShortestPath browser routing', () => {
 		},
 			{ handled: false, mode: 'browse', owns: true, active: true, sourcePair: true, dirty: true });
 	});
-
-	for (const mode of ['browse', 'solve'] as const) {
-		test(`floating new tab in ${mode} creates only after accepting a URL`, async () => {
-			const { service, known, navigations } = setup();
-			service.mode = mode;
-			service.newBrowserTab();
-			const first = document.getElementsByClassName('browser-new-tab-overlay')[0];
-			first?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-			assert.strictEqual(known.size, 0);
-			service.newBrowserTab();
-			const overlay = document.getElementsByClassName('browser-new-tab-overlay')[0];
-			const input = overlay.getElementsByTagName('input')[0];
-			input.value = 'https://example.com/new'; input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-			assert.strictEqual(known.size, 0);
-			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-			await new Promise(resolve => setTimeout(resolve, 10));
-			assert.deepStrictEqual({ created: known.size, navigations, overlays: document.getElementsByClassName('browser-new-tab-overlay').length }, { created: 1, navigations: ['https://example.com/new'], overlays: 0 });
-		});
-	}
 
 	test('native browser pane rejects auxiliary windows before resolving or attaching a view', async () => {
 		const { instantiation } = setup();

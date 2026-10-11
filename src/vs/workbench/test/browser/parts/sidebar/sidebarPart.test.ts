@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { Orientation, Sash } from '../../../../../base/browser/ui/sash/sash.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { SidebarPart } from '../../../../browser/parts/sidebar/sidebarPart.js';
-import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 
 class TestSidebarLayoutService extends TestLayoutService {
@@ -37,6 +38,32 @@ class TestViewDescriptorService extends mock<IViewDescriptorService>() {
 suite('SidebarPart', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Sketchpad redirects ordinary sidebar opens even when extensions register after entering the mode', async () => {
+		let drawing = false;
+		let registered = false;
+		const registration = new DeferredPromise<void>();
+		const opened: string[] = [];
+		const part = Object.assign(Object.create(SidebarPart.prototype), {
+			partId: Parts.SIDEBAR_PART,
+			contextKeyService: { getContextKeyValue: () => drawing },
+			extensionService: { whenInstalledExtensionsRegistered: () => registration.p },
+			getPaneComposite: () => registered ? {} : undefined,
+			layoutService: { isVisible: () => true },
+			openComposite: (id: string) => { opened.push(id); return undefined; },
+		}) as SidebarPart;
+		const opening = part.openPaneComposite('workbench.view.explorer', true);
+		drawing = true;
+		registered = true;
+		registration.complete();
+		await opening;
+		assert.deepStrictEqual(opened, ['workbench.view.extension.shortestpath-draw']);
+		await part.openPaneComposite('workbench.view.search', true);
+		assert.deepStrictEqual(opened, ['workbench.view.extension.shortestpath-draw', 'workbench.view.extension.shortestpath-draw']);
+		drawing = false;
+		await part.openPaneComposite('workbench.view.explorer', true);
+		assert.strictEqual(opened.at(-1), 'workbench.view.explorer');
+	});
 
 	test('moves the primary side bar class to the inward boundary sash', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);

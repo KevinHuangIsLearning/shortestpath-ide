@@ -115,3 +115,26 @@ test('activates both restored panels and ships every offline font alongside the 
 	}
 	assert.ok((await fs.stat(path.join(root, 'dist/webview.css'))).size > 0);
 });
+
+test('autosave waits one second after the last edit and after releasing a held pointer', t => {
+	t.mock.timers.enable({ apis: ['setTimeout'] });
+	const messages: ClientMessage[] = [];
+	const session = new SaveSession(message => messages.push(message));
+	session.accept(snapshot('initial'));
+	session.change(snapshot('first'));
+	t.mock.timers.tick(900);
+	session.change(snapshot('second'));
+	t.mock.timers.tick(999);
+	assert.equal(messages.length, 0);
+	t.mock.timers.tick(1);
+	session.activity(true);
+	session.change(snapshot('held'));
+	t.mock.timers.tick(5000);
+	assert.equal(messages.length, 1);
+	session.activity(false);
+	t.mock.timers.tick(999);
+	assert.equal(messages.length, 1);
+	t.mock.timers.tick(1);
+	assert.deepEqual(messages, [{ type: 'save', snapshot: snapshot('second'), revision: 2 }, { type: 'save', snapshot: snapshot('held'), revision: 3 }]);
+	session.dispose();
+});
