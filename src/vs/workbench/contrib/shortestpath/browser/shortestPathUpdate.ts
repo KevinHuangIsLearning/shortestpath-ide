@@ -76,14 +76,6 @@ export function parseShortestPathUpdateGraceState(value: unknown, version: strin
 	if (state.version !== version || typeof state.minimumSupportedVersion !== 'string' || typeof state.downloadUrl !== 'string' || typeof state.graceUntil !== 'number' || !Number.isFinite(state.graceUntil)) {
 		return undefined;
 	}
-	try {
-		const url = new URL(state.downloadUrl);
-		if (url.protocol !== 'https:' || url.hostname !== 'github.com' || !url.pathname.startsWith('/KevinHuangIsLearning/shortestpath-ide/releases/')) {
-			return undefined;
-		}
-	} catch {
-		return undefined;
-	}
 	return {
 		version: state.version,
 		minimumSupportedVersion: state.minimumSupportedVersion,
@@ -136,43 +128,27 @@ export function getShortestPathFastDownloadUrl(fastDownloadUrls: IShortestPathFa
 	return target?.fastDownloadType ? fastDownloadUrls?.[target.fastDownloadType] : undefined;
 }
 
-export function parseShortestPathUpdateDocument(document: IShortestPathUpdateDocument): IShortestPathUpdate | undefined {
-	if (typeof document.version !== 'string' || typeof document.downloadUrl !== 'string' || !parseVersion(document.version)) {
+export function parseShortestPathUpdateDocument(value: unknown): IShortestPathUpdate | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const document = value as IShortestPathUpdateDocument;
+	if (typeof document.version !== 'string' || typeof document.downloadUrl !== 'string') {
 		return undefined;
 	}
 
-	let downloadUrl: URL;
-	try {
-		downloadUrl = new URL(document.downloadUrl);
-	} catch {
-		return undefined;
-	}
-	const expectedPath = `/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v${document.version}`;
-	if (downloadUrl.protocol !== 'https:' || downloadUrl.hostname !== 'github.com' || downloadUrl.pathname !== expectedPath) {
-		return undefined;
-	}
-
-	const minimumSupportedVersion = document.minimumSupportedVersion;
-	if (minimumSupportedVersion !== undefined && (typeof minimumSupportedVersion !== 'string' || !parseVersion(minimumSupportedVersion))) {
-		return undefined;
-	}
-	if (minimumSupportedVersion && isShortestPathUpdateAvailable(document.version, minimumSupportedVersion)) {
-		return undefined;
-	}
-	const releaseNote = document.releaseNote;
-	if (releaseNote !== undefined && (typeof releaseNote !== 'string' || !releaseNote.trim() || releaseNote.length > 4000)) {
-		return undefined;
-	}
+	const minimumSupportedVersion = typeof document.minimumSupportedVersion === 'string'
+		&& parseVersion(document.minimumSupportedVersion)
+		&& parseVersion(document.version)
+		&& !isShortestPathUpdateAvailable(document.version, document.minimumSupportedVersion)
+		? document.minimumSupportedVersion : undefined;
 	const fastDownloadUrls = parseShortestPathFastDownloadUrls(document.fastDownloadUrls);
-	if (document.fastDownloadUrls !== undefined && !fastDownloadUrls) {
-		return undefined;
-	}
 
 	return {
 		version: document.version,
-		downloadUrl: downloadUrl.toString(),
+		downloadUrl: document.downloadUrl,
 		...(minimumSupportedVersion ? { minimumSupportedVersion } : {}),
-		...(releaseNote ? { releaseNote } : {}),
+		...(typeof document.releaseNote === 'string' ? { releaseNote: document.releaseNote } : {}),
 		...(fastDownloadUrls ? { fastDownloadUrls } : {}),
 	};
 }
@@ -181,21 +157,8 @@ function parseShortestPathFastDownloadUrls(value: unknown): IShortestPathFastDow
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
-	const urls = value as Partial<IShortestPathFastDownloadUrls>;
-	const entries = Object.entries(urls);
-	if (!entries.length || entries.some(([key, url]) => (key !== 'macosArm64' && key !== 'windowsUserSetup' && key !== 'windowsPortable') || typeof url !== 'string' || (url !== '' && !isShortestPathFastDownloadUrl(url)))) {
-		return undefined;
-	}
-	return urls;
-}
-
-function isShortestPathFastDownloadUrl(value: string): boolean {
-	try {
-		new URL(value);
-		return true;
-	} catch {
-		return false;
-	}
+	const urls = value as Record<string, unknown>;
+	return Object.fromEntries(Object.entries(urls).filter(([, url]) => typeof url === 'string'));
 }
 
 export function isShortestPathUpdateAvailable(currentVersion: string, availableVersion: string): boolean {
@@ -205,13 +168,18 @@ export function isShortestPathUpdateAvailable(currentVersion: string, availableV
 		return false;
 	}
 
-	for (let index = 0; index < current.length; index++) {
-		if (available[index] !== current[index]) {
-			return available[index] > current[index];
+	for (let index = 0; index < current.numbers.length; index++) {
+		if (available.numbers[index] !== current.numbers[index]) {
+			return available.numbers[index] > current.numbers[index];
 		}
 	}
 
-	return false;
+	// Hotfixes follow the plain release; other suffixes are prereleases.
+	const suffixRank = (suffix: string) => !suffix ? 0 : /^hotfix(?:[.-]|$)/i.test(suffix) ? 1 : -1;
+	const currentRank = suffixRank(current.suffix);
+	const availableRank = suffixRank(available.suffix);
+	return availableRank !== currentRank ? availableRank > currentRank
+		: available.suffix.localeCompare(current.suffix, 'en', { numeric: true, sensitivity: 'base' }) > 0;
 }
 
 export function isShortestPathVersionSupported(currentVersion: string, minimumSupportedVersion: string): boolean {
@@ -222,11 +190,11 @@ export function getShortestPathReleaseNotesUrl(version: string): string | undefi
 	return parseVersion(version) ? `https://raw.githubusercontent.com/KevinHuangIsLearning/shortestpath-ide/main/release-notes/${version}.md` : undefined;
 }
 
-function parseVersion(value: string): readonly number[] | undefined {
-	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value);
+function parseVersion(value: string): { numbers: readonly number[]; suffix: string } | undefined {
+	const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([\w.-]+))?(?:\+[\w.-]+)?$/i.exec(value);
 	if (!match) {
 		return undefined;
 	}
-
-	return [Number(match[1]), Number(match[2]), Number(match[3])];
+	const numbers = [Number(match[1]), Number(match[2]), Number(match[3])];
+	return numbers.every(Number.isSafeInteger) ? { numbers, suffix: match[4] ?? '' } : undefined;
 }

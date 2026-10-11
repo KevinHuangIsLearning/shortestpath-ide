@@ -10,71 +10,43 @@ import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShor
 suite('ShortestPath update check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('parses a valid latest update document only', () => {
-		assert.deepStrictEqual(parseShortestPathUpdateDocument({
-			version: '0.2.1',
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
-		}), {
-			version: '0.2.1',
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
-		});
-		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://example.com/release' }), undefined);
-		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/example/other/releases/tag/Release-v0.2.1' }), undefined);
-		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.2', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1' }), undefined);
+	test('requires only string version and download fields', () => {
+		for (const version of ['0.2.1', 'v0.2.1', '0.2.1-hotfix', '0.2.1-beta', 'custom']) {
+			for (const downloadUrl of ['https://example.com/release', 'http://example.com', 'custom download', '']) {
+				assert.deepStrictEqual(parseShortestPathUpdateDocument({ version, downloadUrl }), { version, downloadUrl });
+			}
+		}
+		for (const value of [null, [], 'manifest', {}, { version: 1, downloadUrl: 'url' }, { version: '0.2.1', downloadUrl: false }]) {
+			assert.strictEqual(parseShortestPathUpdateDocument(value), undefined);
+		}
 	});
 
-	test('parses a bounded non-empty release note', () => {
-		const update = parseShortestPathUpdateDocument({
-			version: '0.2.1',
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
-			releaseNote: '修复若干问题。\n优化更新体验。',
-		});
-		assert.strictEqual(update?.releaseNote, '修复若干问题。\n优化更新体验。');
-		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', releaseNote: '' }), undefined);
-		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', releaseNote: 'x'.repeat(4001) }), undefined);
+	test('accepts unrestricted string release notes and ignores other types', () => {
+		const release = { version: '0.2.1', downloadUrl: 'url' };
+		for (const releaseNote of ['', '   ', '修复若干问题。\n优化更新体验。', 'x'.repeat(10000)]) {
+			assert.deepStrictEqual(parseShortestPathUpdateDocument({ ...release, releaseNote }), { ...release, releaseNote });
+		}
+		assert.deepStrictEqual(parseShortestPathUpdateDocument({ ...release, releaseNote: 123 }), release);
 	});
 
-	test('parses arbitrary fast download URLs', () => {
-		const fastDownloadUrls = {
-			macosArm64: 'https://example.com/download/macos',
-			windowsUserSetup: 'https://downloads.example.net/user-setup',
-			windowsPortable: 'https://files.example.org/portable',
-		};
-		const update = parseShortestPathUpdateDocument({
-			version: '0.2.1',
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
-			fastDownloadUrls,
-		});
-		assert.deepStrictEqual(update?.fastDownloadUrls, fastDownloadUrls);
-		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', fastDownloadUrls: { macosArm64: 'not a URL' } }), undefined);
-		assert.deepStrictEqual(parseShortestPathUpdateDocument({
-			version: '0.2.1',
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
-			fastDownloadUrls: { macosArm64: '', windowsUserSetup: '', windowsPortable: '' },
-		})?.fastDownloadUrls, { macosArm64: '', windowsUserSetup: '', windowsPortable: '' });
-		assert.strictEqual(parseShortestPathUpdateDocument({ version: '0.2.1', downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1', fastDownloadUrls: { windowsSystemSetup: 'https://www.icloud.com.cn/iclouddrive/system' } }), undefined);
+	test('keeps string fast download fields and ignores invalid entries', () => {
+		const release = { version: '0.2.1', downloadUrl: 'url' };
+		const fastDownloadUrls = { macosArm64: 'not a URL', windowsUserSetup: '', customPlatform: 'custom link' };
+		assert.deepStrictEqual(parseShortestPathUpdateDocument({ ...release, fastDownloadUrls: { ...fastDownloadUrls, windowsPortable: 123 } }), { ...release, fastDownloadUrls });
+		for (const fastDownloadUrls of [null, [], 'link', 123]) {
+			assert.deepStrictEqual(parseShortestPathUpdateDocument({ ...release, fastDownloadUrls }), release);
+		}
 	});
 
-	test('parses a minimum supported version', () => {
-		assert.deepStrictEqual(parseShortestPathUpdateDocument({
-			version: '0.2.1',
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
-			minimumSupportedVersion: '0.2.0',
-		}), {
-			version: '0.2.1',
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
-			minimumSupportedVersion: '0.2.0',
-		});
-		assert.strictEqual(parseShortestPathUpdateDocument({
-			version: '0.2.1',
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
-			minimumSupportedVersion: 'newest',
-		}), undefined);
-		assert.strictEqual(parseShortestPathUpdateDocument({
-			version: '0.2.1',
-			downloadUrl: 'https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.2.1',
-			minimumSupportedVersion: '0.2.2',
-		}), undefined);
+	test('retains only valid minimum supported versions no newer than the release', () => {
+		const release = { version: '0.2.1-hotfix', downloadUrl: 'url' };
+		for (const minimumSupportedVersion of ['0.2.0', '0.2.1', 'v0.2.1-hotfix']) {
+			assert.deepStrictEqual(parseShortestPathUpdateDocument({ ...release, minimumSupportedVersion }), { ...release, minimumSupportedVersion });
+		}
+		for (const minimumSupportedVersion of ['newest', '0.2.2', '0.2.1-hotfix.2', 123]) {
+			assert.deepStrictEqual(parseShortestPathUpdateDocument({ ...release, minimumSupportedVersion }), release);
+		}
+		assert.deepStrictEqual(parseShortestPathUpdateDocument({ ...release, version: 'custom', minimumSupportedVersion: '0.2.0' }), { version: 'custom', downloadUrl: 'url' });
 	});
 
 	test('compares semantic release versions', () => {
@@ -83,6 +55,20 @@ suite('ShortestPath update check', () => {
 		assert.strictEqual(isShortestPathUpdateAvailable('0.3.0', '0.2.9'), false);
 		assert.strictEqual(isShortestPathVersionSupported('0.2.0', '0.2.0'), true);
 		assert.strictEqual(isShortestPathVersionSupported('0.1.9', '0.2.0'), false);
+		for (const [current, available, expected] of [
+			['0.4.8', 'v0.4.8', false],
+			['0.4.8', '0.4.8-hotfix', true],
+			['0.4.8-hotfix', '0.4.8', false],
+			['0.4.8-hotfix.2', '0.4.8-hotfix.10', true],
+			['0.4.8-beta.2', '0.4.8-beta.10', true],
+			['0.4.8-beta', '0.4.8', true],
+			['0.4.8', '0.4.8-beta', false],
+			['0.4.8-hotfix', '0.4.9-beta', true],
+			['0.4.8+build.1', '0.4.8+build.2', false],
+			['invalid', '0.4.8', false],
+		] as const) {
+			assert.strictEqual(isShortestPathUpdateAvailable(current, available), expected, `${current} -> ${available}`);
+		}
 	});
 
 	test('classifies update dialog behavior', () => {
@@ -180,7 +166,7 @@ suite('ShortestPath update check', () => {
 		};
 		assert.deepStrictEqual(parseShortestPathUpdateGraceState(grace, '0.2.0'), grace);
 		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceUntil: Number.NaN }, '0.2.0'), undefined);
-		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, downloadUrl: 'https://example.com/update' }, '0.2.0'), undefined);
+		assert.deepStrictEqual(parseShortestPathUpdateGraceState({ ...grace, downloadUrl: 'custom download' }, '0.2.0'), { ...grace, downloadUrl: 'custom download' });
 		assert.strictEqual(parseShortestPathUpdateGraceState({ ...grace, graceUntil: undefined, permanentlyAllowed: true }, '0.2.0'), undefined);
 		assert.deepStrictEqual(parseShortestPathUpdateGraceState({ ...grace, graceCount: 1 }, '0.2.0'), grace);
 	});

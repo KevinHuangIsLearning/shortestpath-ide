@@ -6,7 +6,7 @@
 import './media/shortestPathUpdateRequired.css';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { streamToBuffer, VSBuffer } from '../../../../base/common/buffer.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { $, addDisposableListener, append, isHTMLElement } from '../../../../base/browser/dom.js';
@@ -27,7 +27,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { asJson, asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
+import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -36,7 +36,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateDialogKind, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, getShortestPathUpdateWithFallback, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
+import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateDialogKind, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, getShortestPathUpdateWithFallback, IShortestPathUpdate, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
 
 interface IShortestPathUpdateCheckResult {
 	readonly release: IShortestPathUpdate;
@@ -93,12 +93,8 @@ export class ShortestPathUpdateChecker {
 				timeout: 10000,
 				callSite: 'shortestPathUpdate.check',
 			}, CancellationToken.None);
-			if (response.res.statusCode !== 200) {
-				throw new Error(`Failed to check for ShortestPath IDE updates: HTTP ${response.res.statusCode}`);
-			}
-
-			const updateDocument = await asJson<IShortestPathUpdateDocument>(response);
-			const parsedRelease = updateDocument ? parseShortestPathUpdateDocument(updateDocument) : undefined;
+			const updateDocument: unknown = JSON.parse((await streamToBuffer(response.stream)).toString());
+			const parsedRelease = parseShortestPathUpdateDocument(updateDocument);
 			if (!parsedRelease) {
 				// allow-any-unicode-next-line
 				throw new Error(localizeUpdate('The update manifest is invalid.', '更新清单格式无效。'));

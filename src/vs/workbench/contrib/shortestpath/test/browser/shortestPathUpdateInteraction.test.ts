@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -17,6 +18,9 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -54,6 +58,35 @@ suite('ShortestPath update interaction', () => {
 		store.add(toDisposable(() => { ShortestPathUpdateBlocker.dismiss(); root.remove(); }));
 		return { root, navigation, instantiation, storage, indicator, layout, titlebar, updateHost };
 	}
+
+	test('accepts manifests regardless of HTTP status and ignores invalid optional fields', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IProductService, { shortestPathVersion: '0.4.8', shortestPathUpdateUrl: 'https://example.test/latest.json' });
+		instantiation.stub(IEnvironmentService, {});
+		instantiation.stub(IFileService, {});
+		let requests = 0;
+		instantiation.stub(IRequestService, {
+			request: async () => {
+				requests++;
+				return { res: { statusCode: 503, headers: {} }, stream: bufferToStream(VSBuffer.fromString(JSON.stringify({ version: 'v0.4.8-hotfix', downloadUrl: 'custom download', releaseNote: 123, fastDownloadUrls: { macosArm64: false }, minimumSupportedVersion: 'invalid' }))) };
+			}
+		});
+		const result = await instantiation.createInstance(ShortestPathUpdateChecker).check();
+		assert.deepStrictEqual({ requests, release: result?.release }, { requests: 1, release: { version: 'v0.4.8-hotfix', downloadUrl: 'custom download', fastDownloadUrls: {} } });
+	});
+
+	test('falls back for malformed JSON or missing required fields', async () => {
+		for (const primaryBody of ['not JSON', '{"version":"0.4.8"}', 'null']) {
+			const instantiation = store.add(new TestInstantiationService());
+			instantiation.stub(IProductService, { shortestPathVersion: '0.4.8', shortestPathUpdateUrl: 'https://example.test/latest.json' });
+			instantiation.stub(IEnvironmentService, {});
+			instantiation.stub(IFileService, {});
+			let requests = 0;
+			instantiation.stub(IRequestService, { request: async () => ({ res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(++requests === 1 ? primaryBody : '{"version":"0.4.8-hotfix","downloadUrl":"download"}')) }) });
+			const result = await instantiation.createInstance(ShortestPathUpdateChecker).check();
+			assert.deepStrictEqual({ requests, release: result?.release }, { requests: 2, release: { version: '0.4.8-hotfix', downloadUrl: 'download' } });
+		}
+	});
 
 	test('compact updates stay outside navigation and survive title bar fallback', () => {
 		const { root, navigation, indicator, layout, titlebar, updateHost } = setupUpdate();
