@@ -1657,6 +1657,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 			if (event.type === 'correction.snapshot') { correctionView.show(event.data.task); return; }
 			panel.handleEvent(problemRef, event);
 		},
+		handleSubmissionActivity(problemRef, active) { recovery.setSubmissionActive(problemRef, active); },
 		handleRecoveryStatus(problemRef, status) { recovery.websiteStatus(problemRef, status); },
 		didBindProblem(problem, resumed) { recovery.connected(problem, resumed); void panel.restoreObservations(problem.ref); },
 		handleDisconnect(problemRef) {

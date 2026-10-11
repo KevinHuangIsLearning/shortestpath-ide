@@ -292,3 +292,70 @@ test('a silent connection timeout reports retry state and replaces the old page'
 		assert.equal(opens, 2);
 	} finally { manager.dispose(); }
 });
+
+for (const recovered of [false, true]) {
+	test(`submission verification returns to solve only after the request ends (recovered=${recovered})`, async () => {
+		let bound = false;
+		const actions: string[] = [];
+		const manager = new ConnectionRecovery({
+			open: async () => ({ id: 'submission', close: async () => {}, show: async () => { actions.push('browse'); } }),
+			prepare: () => randomUUID(), cancel() {}, isBound: () => bound, status() {},
+			returnToSolve: async () => { actions.push('solve'); },
+		}, 1000, 1);
+		try {
+			manager.select(problem);
+			await new Promise(resolve => setTimeout(resolve, 0));
+			bound = true;
+			manager.connected(problem, true);
+			manager.setSubmissionActive(problem.ref, true);
+			assert.deepEqual(actions, []);
+			manager.websiteStatus(problem.ref, 'verification_required');
+			await Promise.resolve();
+			if (recovered) { manager.websiteStatus(problem.ref, 'connecting'); }
+			assert.deepEqual(actions, ['browse']);
+			manager.setSubmissionActive(problem.ref, false);
+			assert.deepEqual(actions, ['browse', 'solve']);
+		} finally { manager.dispose(); }
+	});
+}
+
+test('normal submission completion and another problem do not redirect', async () => {
+	const actions: string[] = [];
+	const manager = new ConnectionRecovery({
+		open: async () => ({ id: 'submission', close: async () => {}, show: async () => { actions.push('browse'); } }),
+		prepare: () => randomUUID(), cancel() {}, isBound: () => false, status() {},
+		returnToSolve: async () => { actions.push('solve'); },
+	}, 1000, 1);
+	try {
+		manager.select(problem);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		manager.setSubmissionActive(problem.ref, true);
+		manager.setSubmissionActive(problem.ref, false);
+		assert.deepEqual(actions, []);
+		manager.setSubmissionActive(problem.ref, true);
+		manager.websiteStatus(problem.ref, 'verification_required');
+		await Promise.resolve();
+		manager.select({ ...problem, ref: 'another-problem', accountId: 'another-account' });
+		manager.setSubmissionActive(problem.ref, false);
+		assert.deepEqual(actions, ['browse']);
+	} finally { manager.dispose(); }
+});
+
+test('submission completion cancels verification navigation still waiting for a page', async () => {
+	let resolveOpen!: (page: { id: string; close(): Promise<void>; show(): Promise<void> }) => void;
+	const actions: string[] = [];
+	const manager = new ConnectionRecovery({
+		open: () => new Promise(resolve => { resolveOpen = resolve; }),
+		prepare: () => randomUUID(), cancel() {}, isBound: () => false, status() {},
+		returnToSolve: async () => { actions.push('solve'); },
+	}, 1000, 1);
+	try {
+		manager.select(problem);
+		manager.setSubmissionActive(problem.ref, true);
+		manager.websiteStatus(problem.ref, 'verification_required');
+		manager.setSubmissionActive(problem.ref, false);
+		resolveOpen({ id: 'late', close: async () => {}, show: async () => { actions.push('browse'); } });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.deepEqual(actions, []);
+	} finally { manager.dispose(); }
+});

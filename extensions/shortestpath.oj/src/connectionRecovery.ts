@@ -33,6 +33,7 @@ export class ConnectionRecovery {
 	private opening = false;
 	private disposed = false;
 	private shown = false;
+	private readonly pendingSubmissions = new Map<string, number>();
 	private showWhenReady = false;
 	private blocked = false;
 	private attempt = 0;
@@ -140,9 +141,25 @@ export class ConnectionRecovery {
 		this.deps.status(problem.ref, 'connected');
 		// Keep the authenticated relay: recreating it repeats protected reads and
 		// can challenge the user again immediately after successful verification.
-		if (resumed && this.shown) {
+		if (resumed && this.shown && !this.pendingSubmissions.has(problem.ref)) {
 			this.shown = false;
 			void this.deps.returnToSolve?.();
+		}
+	}
+
+	setSubmissionActive(problemRef: string, active: boolean): void {
+		const pending = (this.pendingSubmissions.get(problemRef) ?? 0) + (active ? 1 : -1);
+		if (pending > 0) {
+			this.pendingSubmissions.set(problemRef, pending);
+			return;
+		}
+		this.pendingSubmissions.delete(problemRef);
+		if (!this.disposed && this.problem?.ref === problemRef) {
+			this.showWhenReady = false;
+			if (this.shown) {
+				this.shown = false;
+				void this.deps.returnToSolve?.();
+			}
 		}
 	}
 
@@ -180,7 +197,7 @@ export class ConnectionRecovery {
 		this.deps.cancel();
 		const page = this.page;
 		this.page = undefined;
-		if (page) { void Promise.resolve(page.close()).catch(() => {}); }
+		if (page) { void Promise.resolve(page.close()).catch(() => { }); }
 	}
 
 	dispose(): void { this.disposed = true; this.stop(); }

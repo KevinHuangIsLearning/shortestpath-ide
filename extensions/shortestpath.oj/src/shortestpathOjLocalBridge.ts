@@ -55,6 +55,7 @@ export type LocalBridgeHandlers = {
 	activateProblem?(problem: ImportedProblem, resumed?: boolean, isCurrent?: () => boolean): Promise<void> | void;
 	activateBoundProblem?(problemRef: string): Promise<void>;
 	resumeProblem?(problem: ImportedProblem): Promise<void>;
+	handleSubmissionActivity?(problemRef: string, active: boolean): void;
 	handleRecoveryStatus?(problemRef: string, status: IdeRecoveryStatus): void;
 	didBindProblem?(problem: ImportedProblem, resumed: boolean): void;
 	updateProblemState(problemRef: string, state: ProblemState, capabilities?: ProblemCapabilities): Promise<void>;
@@ -229,21 +230,26 @@ export class ShortestPathOjLocalBridge {
 	}
 
 	async requestSubmission(problemRef: string, operationId: string, language: string, sourceCode: string): Promise<SubmissionResult> {
-		const response = await this.request(
-			problemRef,
-			'submission.request',
-			{ operationId, language, sourceCode },
-			'submission.result',
-			true,
-			submissionRequestTimeoutMs,
-		);
-		return parseSideEffectResult(() => {
-			const result = parseSubmissionResult(response.data);
-			if (result.language !== language) {
-				throw new Error('提交响应的语言与请求不匹配。');
-			}
-			return result;
-		});
+		this.handlers.handleSubmissionActivity?.(problemRef, true);
+		try {
+			const response = await this.request(
+				problemRef,
+				'submission.request',
+				{ operationId, language, sourceCode },
+				'submission.result',
+				true,
+				submissionRequestTimeoutMs,
+			);
+			return parseSideEffectResult(() => {
+				const result = parseSubmissionResult(response.data);
+				if (result.language !== language) {
+					throw new Error('提交响应的语言与请求不匹配。');
+				}
+				return result;
+			});
+		} finally {
+			this.handlers.handleSubmissionActivity?.(problemRef, false);
+		}
 	}
 
 	async requestSubmissionWatch(problemRef: string, submissionId: string): Promise<SubmissionWatchResult> {
@@ -408,8 +414,8 @@ export class ShortestPathOjLocalBridge {
 			return;
 		}
 		if (new URL(problem.url).origin !== connection.origin) {
-				this.sendFailure(connection, request.id, resultType, undefined, 'invalid_request', '题目地址不属于允许的站点。');
-				return;
+			this.sendFailure(connection, request.id, resultType, undefined, 'invalid_request', '题目地址不属于允许的站点。');
+			return;
 		}
 		if (ticket && (problem.accountId !== ticket.problem.accountId || problem.ref !== ticket.problem.ref || JSON.stringify(problem.target) !== JSON.stringify(ticket.problem.target))) {
 			this.sendFailure(connection, request.id, resultType, undefined, 'context_mismatch', '恢复账号或题目不匹配。'); return;

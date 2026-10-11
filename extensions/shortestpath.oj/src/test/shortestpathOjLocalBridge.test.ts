@@ -405,6 +405,34 @@ test('treats a mismatched side-effect response as outcome unknown', async () => 
 	}
 });
 
+for (const succeed of [false, true]) {
+	test(`submission activity ends after the bridge response (success=${succeed})`, async () => {
+		const activity: [string, boolean][] = [];
+		const bridge = new ShortestPathOjLocalBridge({
+			importProblem: async () => 'created', updateProblemState: async () => {},
+			handleEvent() {}, handleDisconnect() {},
+			handleSubmissionActivity: (ref, active) => { activity.push([ref, active]); },
+		}, 0);
+		const socket = await openSocket(await bridge.listeningPort());
+		try {
+			const bound = await sendRequest(socket, 'problem.bind', bindPayload);
+			const received = nextMessage(socket, message => message.type === 'submission.request');
+			const pending = bridge.requestSubmission('DSU/found/A', 'activity-id', 'cpp20', 'int main() {}');
+			const completed = succeed ? pending : assert.rejects(pending);
+			const request = await received;
+			assert.deepEqual(activity, [['DSU/found/A', true]]);
+			socket.send(JSON.stringify({
+				version: 1, id: 'activity-result', replyTo: request.id, type: 'submission.result',
+				sessionId: bound.sessionId, ok: succeed,
+				...(succeed ? { data: { state: 'submitted', submissionId: '45', language: 'cpp20', status: 'pending', message: 'submitted' } }
+					: { error: { code: 'submission_failed', message: 'failed' } }),
+			}));
+			await completed;
+			assert.deepEqual(activity, [['DSU/found/A', true], ['DSU/found/A', false]]);
+		} finally { socket.terminate(); await bridge.close(); }
+	});
+}
+
 function createBridge(imports: ImportedProblem[], states: ProblemState[], events: IncomingEvent[]): ShortestPathOjLocalBridge {
 	return new ShortestPathOjLocalBridge({
 		async importProblem(problem) {
