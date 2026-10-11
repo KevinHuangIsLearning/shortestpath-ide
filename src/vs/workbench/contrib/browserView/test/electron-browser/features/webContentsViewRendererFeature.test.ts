@@ -15,6 +15,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IBrowserViewLoadingEvent } from '../../../../../../platform/browserView/common/browserView.js';
 import { BrowserEditor } from '../../../electron-browser/browserEditor.js';
 import { WebContentsViewRendererFeature } from '../../../electron-browser/features/webContentsViewRendererFeature.js';
 import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
@@ -65,7 +66,7 @@ suite('Browser editor mode visibility', () => {
 		const feature = store.add(new WebContentsViewRendererFeature(editor, new NullLogService(), new class extends mock<IKeybindingService>() { }));
 		feature.onPaneVisibilityChanged(true);
 		const captures: DeferredPromise<VSBuffer>[] = [];
-		const loading = store.add(new Emitter<void>());
+		const loading = store.add(new Emitter<IBrowserViewLoadingEvent>());
 		const model = new class extends mock<IBrowserViewModel>() {
 			override visible = true;
 			override url = 'https://example.com/old';
@@ -116,7 +117,7 @@ suite('Browser editor mode visibility', () => {
 
 	test('a newer capture wins when screenshots of the same tab finish out of order', async () => {
 		const { changes, captures, loading, model, screenshot } = setupScreenshots();
-		changes.fire({ model, isNew: false }); loading.fire();
+		changes.fire({ model, isNew: false }); loading.fire({ loading: false });
 		await finishCapture(captures[1], 'new frame');
 		const current = screenshot.style.backgroundImage;
 		await finishCapture(captures[0], 'old frame');
@@ -141,7 +142,7 @@ suite('Browser editor mode visibility', () => {
 		const token = store.add(new CancellationTokenSource());
 		const input = new class extends mock<BrowserEditorInput>() {
 			override get model() { return undefined; }
-			override readonly url = 'https://example.com/new';
+			override get url() { return 'https://example.com/new'; }
 			override async resolve() { started.complete(); return resolving.p; }
 		};
 		const pane = Object.assign(Object.create(BrowserEditor.prototype), {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../base/common/event.js';
+import { onUnexpectedError } from '../../base/common/errors.js';
 import { BrowserViewStorageScope } from '../../platform/browserView/common/browserView.js';
 import { InstantiationType, registerSingleton } from '../../platform/instantiation/common/extensions.js';
 import { BrowserEditorInput } from '../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -12,7 +13,7 @@ import { IShortestPathModeService } from '../../workbench/contrib/shortestpath/c
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 
 /** Keeps browser API customers available without adding IDE navigation to Sessions. */
-class SessionsShortestPathModeService implements IShortestPathModeService {
+export class SessionsShortestPathModeService implements IShortestPathModeService {
 	declare readonly _serviceBrand: undefined;
 	readonly mode = 'solve';
 	readonly activeBrowser = undefined;
@@ -25,6 +26,7 @@ class SessionsShortestPathModeService implements IShortestPathModeService {
 
 	ownsBrowserTab(): boolean { return false; }
 	async switchMode(): Promise<void> { }
+	newBrowserTab(): void { void this.openBrowser(undefined, true).catch(onUnexpectedError); }
 	notifyResult(): void { }
 
 	async openBrowser(url?: string, _newTab?: boolean, preserveFocus?: boolean): Promise<BrowserEditorInput> {

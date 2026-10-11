@@ -575,7 +575,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 					run: () => { void this.selectTab(key).catch(onUnexpectedError); },
 				};
 			});
-			entries.push(...tabs.map(entry => ({ id: entry.key, title: entry.input.getName(), url: entry.input.url, favicon: entry.input.favicon, favorite: false, run: () => { void this.selectTab(entry.key).catch(onUnexpectedError); } })));
+			entries.push(...tabs.map(entry => ({ id: entry.key, title: entry.input.getName(), url: entry.input.url ?? '', favicon: entry.input.favicon, favorite: false, run: () => { void this.selectTab(entry.key).catch(onUnexpectedError); } })));
 			return entries;
 		};
 		const editor = getBrowserEditor(originPane) ?? getBrowserEditor(group?.activeEditorPane);
@@ -806,7 +806,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.verticalBars.clearAndDisposeAll();
 		this.browserTabOptions.value = part.enforcePartOptions({
 			showTabs: vertical ? 'none' : 'multiple',
-			isTabVisible: (input, groupId) => !(input instanceof BrowserEditorInput && this.favorites?.values.some(url => this.findTab(`${groupId}|favorite:${url}`)?.input === input)),
+			isTabVisible: (input: EditorInput, groupId: number) => !(input instanceof BrowserEditorInput && this.favorites?.values.some(url => this.findTab(`${groupId}|favorite:${url}`)?.input === input)),
 			onDidChangeTabVisibility: this.changeTabVisibility.event,
 			createTabsLeading: (container: unknown, groupId: number) => {
 				const store = new DisposableStore();

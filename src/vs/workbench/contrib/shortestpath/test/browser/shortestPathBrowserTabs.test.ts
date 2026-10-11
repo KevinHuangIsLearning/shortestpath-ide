@@ -15,6 +15,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ShortestPathBrowserTabBar } from '../../browser/shortestPathBrowserTabBar.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { findGroup } from '../../../../services/editor/common/editorGroupFinder.js';
 import { SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -41,7 +42,7 @@ suite('ShortestPath native browser container', () => {
 		store.add(browse.enforcePartOptions({
 			showTabs: 'multiple', enablePreview: false, wrapTabs: false,
 			tabSizing: 'fixed', tabSizingFixedMinWidth: 160, tabSizingFixedMaxWidth: 160,
-			createTabsLeading: target => {
+			createTabsLeading: (target: unknown) => {
 				const bar = instantiation.invokeFunction(accessor => new ShortestPathBrowserTabBar(target as HTMLElement, {
 					select: async () => { }, editUrl: () => { }, close: () => { }, move: () => { }, create: () => { }, setVertical: () => { }, getMenu: () => [],
 				}, accessor.get(IHoverService), accessor.get(IContextMenuService)));
@@ -127,7 +128,7 @@ suite('ShortestPath native browser container', () => {
 		store.add(toDisposable(() => urlInput.remove()));
 		store.add(browse.enforcePartOptions({
 			showTabs: 'multiple', enablePreview: false, wrapTabs: false,
-			isTabVisible: editor => editor !== represented,
+			isTabVisible: (editor: EditorInput) => editor !== represented,
 			onDidChangeTabVisibility: visibility.event,
 			createTabsLeading: (target: unknown, groupId: number) => {
 				const element = target as HTMLElement;

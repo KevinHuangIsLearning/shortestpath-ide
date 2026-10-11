@@ -250,6 +250,7 @@ export default defineConfig(
 			'src/vs/workbench/contrib/browserView/electron-browser/shortestPathBrowserOverlay.ts',
 			'src/vs/workbench/contrib/browserView/test/electron-browser/shortestPathBrowserOverlay.test.ts',
 			'src/vs/workbench/contrib/snippets/test/browser/snippetsLoading.test.ts',
+			'src/vs/sessions/test/browser/shortestPathModeService.test.ts',
 			'src/vs/workbench/test/browser/parts/editor/shortestpath*.ts',
 			'src/vs/workbench/test/browser/parts/shortestpath/**/*.ts',
 		],
@@ -2273,6 +2274,32 @@ export default defineConfig(
 						'src/*.js',
 						'*' // node.js
 					]
+				},
+				{
+					'target': 'src/vs/sessions/browser/shortestPathModeService.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/test/**',
+						'vs/platform/*/~',
+						'vs/workbench/contrib/browserView/common/**',
+						'vs/workbench/contrib/shortestpath/common/**',
+						'vs/workbench/services/editor/common/**',
+						'vs/sessions/browser/shortestPathModeService.js',
+					],
+				},
+				{
+					'target': 'src/vs/sessions/test/browser/shortestPathModeService.test.ts',
+					'layer': 'browser',
+					'test': true,
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/test/**',
+						'vs/workbench/contrib/browserView/common/**',
+						'vs/workbench/services/editor/common/**',
+						'vs/sessions/browser/shortestPathModeService.js',
+						'assert',
+					],
 				},
 				{
 					'target': 'src/vs/sessions/sessions.common.main.ts',
