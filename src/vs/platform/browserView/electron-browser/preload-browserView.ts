@@ -34,6 +34,181 @@ let localizedStrings: IBrowserViewPreloadLocalizedStrings = {
 function init() {
 	const { contextBridge, ipcRenderer } = require('electron');
 
+	// Keep the page gesture and its hint in the isolated world. The main process
+	// supplies history availability and the native end signal; wheel inactivity
+	// alone must never confirm navigation while fingers remain on the trackpad.
+	if (navigator.platform.indexOf('Mac') >= 0 && window === window.top) {
+		let token = -1;
+		let distance = 0;
+		let blocked = false;
+		let ended = true;
+		let beginTimestamp = Infinity;
+		let endTimestamp = Infinity;
+		let submitted = false;
+		let releaseTimer: ReturnType<typeof setTimeout> | undefined;
+		let blurred = false;
+		const pending: { event: WheelEvent; elements: Element[]; timestamp: number; processed: boolean }[] = [];
+		let canGoBack = false;
+		let canGoForward = false;
+		let hint: HTMLDivElement | undefined;
+		let circle: HTMLDivElement | undefined;
+		let arrow: SVGSVGElement | undefined;
+		const hideHint = () => {
+			hint?.remove();
+			hint = undefined;
+			circle = undefined;
+			arrow = undefined;
+		};
+		const updateHint = () => {
+			const back = distance < 0;
+			if (endTimestamp !== Infinity || Math.abs(distance) < 8 || !(back ? canGoBack : canGoForward)) {
+				hideHint();
+				return;
+			}
+			if (!hint) {
+				hint = document.createElement('div');
+				hint.setAttribute('data-vscode-history-swipe', '');
+				hint.setAttribute('aria-hidden', 'true');
+				const shadow = hint.attachShadow({ mode: 'closed' });
+				// Constructable styles keep the hint working under strict page CSPs.
+				const sheet = new CSSStyleSheet();
+				sheet.replaceSync(`
+					:host { all: initial; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; }
+					.circle { position: absolute; top: 50%; width: 76px; height: 76px; margin-top: -38px;
+						border-radius: 50%; background: #161616; color: white; box-shadow: 0 2px 12px #0006;
+						display: grid; place-items: center; transition: opacity 80ms linear; }
+					svg { width: 42px; height: 42px; }
+				`);
+				shadow.adoptedStyleSheets = [sheet];
+				circle = document.createElement('div');
+				circle.className = 'circle';
+				arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+				arrow.setAttribute('viewBox', '0 0 64 64');
+				const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+				path.setAttribute('d', 'M46 32H18M30 20L18 32L30 44');
+				path.setAttribute('fill', 'none');
+				path.setAttribute('stroke', 'currentColor');
+				path.setAttribute('stroke-width', '6');
+				path.setAttribute('stroke-linecap', 'round');
+				path.setAttribute('stroke-linejoin', 'round');
+				arrow.appendChild(path);
+				circle.appendChild(arrow);
+				shadow.appendChild(circle);
+				document.documentElement.appendChild(hint);
+			}
+			const progress = Math.min(Math.abs(distance) / 120, 1);
+			circle!.style.left = back ? `${-76 + progress * 88}px` : 'auto';
+			circle!.style.right = back ? 'auto' : `${-76 + progress * 88}px`;
+			circle!.style.opacity = Math.abs(distance) >= 120 ? '1' : '0.55';
+			arrow!.style.transform = back ? '' : 'scaleX(-1)';
+		};
+		ipcRenderer.on('vscode:browserView:historySwipeState', (_event: Electron.IpcRendererEvent, state: { token: number; beginTimestamp: number; released: boolean; canGoBack: boolean; canGoForward: boolean }) => {
+			if (state.token !== token) {
+				token = state.token;
+				distance = 0;
+				blocked = false;
+				ended = state.released;
+				beginTimestamp = state.beginTimestamp;
+				endTimestamp = Infinity;
+				submitted = false;
+				blurred = false;
+				clearTimeout(releaseTimer);
+				hideHint();
+				for (const sample of pending) {
+					if (!state.released && sample.timestamp >= beginTimestamp - 2) { sample.processed = false; }
+				}
+			}
+			canGoBack = state.canGoBack;
+			canGoForward = state.canGoForward;
+			for (const sample of pending) { processSample(sample); }
+		});
+		const confirmRelease = () => {
+			if (ended && endTimestamp !== Infinity && !submitted && !blocked && Math.abs(distance) >= 120
+				&& (distance < 0 ? canGoBack : canGoForward)) {
+				submitted = true;
+				ipcRenderer.send('vscode:browserView:historySwipe', distance < 0 ? 'back' : 'forward', token);
+			}
+		};
+		const settleRelease = () => {
+			clearTimeout(releaseTimer);
+			const releaseToken = token;
+			// Drain a batch after actual finger release, including any late wheel
+			// dispatch. Pausing with fingers down never starts this timer.
+			releaseTimer = setTimeout(() => {
+				if (releaseToken !== token || endTimestamp === Infinity) { return; }
+				ended = true;
+				hideHint();
+				confirmRelease();
+			}, 32);
+		};
+		ipcRenderer.on('vscode:browserView:historySwipeEnd', (_event: Electron.IpcRendererEvent, release: { token: number; timestamp: number }) => {
+			if (release.token !== token || ended) { return; }
+			endTimestamp = release.timestamp;
+			hideHint();
+			// Momentum can beat the native end IPC to the renderer. Recompute
+			// from physical finger samples so those earlier arrivals are excluded.
+			distance = 0;
+			blocked = blurred;
+			for (const sample of pending) {
+				if (sample.timestamp >= beginTimestamp - 2 && sample.timestamp <= endTimestamp) {
+					sample.processed = false;
+					processSample(sample);
+				}
+			}
+			settleRelease();
+		});
+		ipcRenderer.send('vscode:browserView:historySwipeReady');
+		window.addEventListener('blur', () => { blurred = true; blocked = true; clearTimeout(releaseTimer); hideHint(); });
+		// A quick gesture can reach the renderer before the native begin IPC.
+		// Retain recent samples and match them by the native event timestamps.
+		const processSample = (sample: typeof pending[number]) => {
+			if (sample.processed || submitted || blocked || (ended && endTimestamp === Infinity) || token < 0 || sample.timestamp < beginTimestamp - 2
+				|| sample.timestamp > endTimestamp) {
+				return;
+			}
+			sample.processed = true;
+			const { event, elements } = sample;
+			if (event.deltaX === 0 && event.deltaY === 0) { return; }
+			if (event.defaultPrevented || event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL
+				|| event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
+				|| Math.abs(event.deltaX) <= Math.abs(event.deltaY) * 2) {
+				blocked = true;
+				hideHint();
+				return;
+			}
+			if (document.scrollingElement && !elements.includes(document.scrollingElement)) {
+				elements.push(document.scrollingElement);
+			}
+			for (const element of elements) {
+				const style = getComputedStyle(element);
+				if (style.overscrollBehaviorX === 'contain' || style.overscrollBehaviorX === 'none'
+					|| (element.scrollWidth > element.clientWidth + 1
+						&& (element === document.scrollingElement || /^(auto|scroll|overlay)$/.test(style.overflowX)))) {
+					blocked = true;
+					hideHint();
+					return;
+				}
+			}
+			distance = Math.max(-180, Math.min(180, distance + event.deltaX));
+			updateHint();
+			if (endTimestamp !== Infinity) { settleRelease(); }
+		};
+		window.addEventListener('wheel', event => {
+			if (!event.isTrusted) { return; }
+			const sample = {
+				event, elements: event.composedPath().filter((target): target is Element => target instanceof Element),
+				timestamp: performance.timeOrigin + event.timeStamp, processed: false
+			};
+			// Wait for all page listeners before inspecting defaultPrevented.
+			setTimeout(() => {
+				const retainFrom = ended ? sample.timestamp - 1000 : Math.min(sample.timestamp - 1000, beginTimestamp - 2);
+				while (pending.length && pending[0].timestamp < retainFrom) { pending.shift(); }
+				pending.push(sample);
+				processSample(sample);
+			}, 0);
+		}, { passive: true });
+	}
+
 	// #######################################################################
 	// ###                                                                 ###
 	// ###       !!! DO NOT USE GET/SET PROPERTIES ANYWHERE HERE !!!       ###

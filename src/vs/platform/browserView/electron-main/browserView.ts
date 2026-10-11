@@ -24,6 +24,9 @@ import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.j
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { URI } from '../../../base/common/uri.js';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { registerBrowserViewHistorySwipe } from './browserViewHistorySwipe.js';
+import { registerBrowserViewTrackpadGesture } from './browserViewTrackpadGesture.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -514,6 +517,15 @@ export class BrowserView extends Disposable {
 				repeat: input.isAutoRepeat
 			});
 		});
+
+		// Route two-finger page swipes independently of editor-switching gestures.
+		if (isMacintosh) {
+			this._register(registerBrowserViewHistorySwipe(webContents,
+				() => this._view.getVisible() && !webContents.isCrashed() && !this.debugger.isPaused,
+				direction => direction === 'back' ? this.goBack() : this.goForward(),
+				listener => registerBrowserViewTrackpadGesture(() => this._hostWindow, () => this._view.getBounds(),
+					() => this._view.getVisible(), listener)));
+		}
 
 		// Track user gestures for popup blocking logic.
 		// Roughly based on https://html.spec.whatwg.org/multipage/interaction.html#tracking-user-activation.

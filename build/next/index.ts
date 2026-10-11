@@ -25,6 +25,7 @@ import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
 import { getBundleOptions } from './bundle.ts';
 import { compileStandaloneFiles } from './standalone.ts';
+import { buildTrackpadGestureMonitor } from './trackpadGestureMonitor.ts';
 
 const globAsync = promisify(glob);
 
@@ -668,6 +669,9 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
 	await compileStandaloneFiles(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
+	if (target === 'desktop') {
+		await buildTrackpadGestureMonitor(REPO_ROOT, outDirPath);
+	}
 
 	// Finish emitted assets and copied resources before packaging computes integrity data.
 	await optimizeSvgFiles(outDirPath, doMinify);
@@ -693,6 +697,7 @@ async function watch(): Promise<void> {
 	try {
 		await transpile(outDir, false);
 		await copyAllNonTsFiles(outDir, false);
+		await buildTrackpadGestureMonitor(REPO_ROOT, outDir);
 		console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
 	} catch (err) {
 		console.error('[watch] Initial build failed:', err);
@@ -853,6 +858,7 @@ async function main(): Promise<void> {
 					const t1 = Date.now();
 					await transpile(outDir, options.excludeTests, options.nls);
 					await copyAllNonTsFiles(outDir, options.excludeTests);
+					await buildTrackpadGestureMonitor(REPO_ROOT, outDirPath);
 					console.log(`[transpile] Done in ${Date.now() - t1}ms`);
 				}
 				break;
