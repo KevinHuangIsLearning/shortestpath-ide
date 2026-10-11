@@ -9,6 +9,8 @@ import { compileFile } from './compiler';
 import { getLanguage } from './utils';
 import { executeAndJudgeTestCase } from './testCaseExecution';
 import { getIgnoreSTDERRORPref } from './preferences';
+import * as vscode from 'vscode';
+import { prepareNativeRunner } from './nativeRunner';
 
 export type EnvironmentSelfTestSample = { input: string; output: string };
 export type EnvironmentSelfTestProgress =
@@ -36,6 +38,9 @@ export async function runEnvironmentSelfTest(options: {
 		});
 		if (!compiled) { return { success: false, reason: 'compile' }; }
 		const language = getLanguage(options.sourcePath);
+		if (vscode.workspace.getConfiguration('judger.execution').get('mode', 'native') === 'native' && !language.skipCompile && !['java', 'csharp'].includes(language.name)) {
+			await prepareNativeRunner(text => options.reportProgress?.({ type: 'compilerOutput', text }));
+		}
 		const executable = language.skipCompile ? options.sourcePath : binary;
 		for (const [index, sample] of options.samples.entries()) {
 			const result = await executeAndJudgeTestCase(language, executable, {

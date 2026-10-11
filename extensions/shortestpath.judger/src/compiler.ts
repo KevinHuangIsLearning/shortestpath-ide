@@ -435,6 +435,7 @@ export const compileFile = async (
     if (stagedDirectory) { flags[outputIndex] = compileArtifact; }
     else { await fs.promises.rm(artifact, { force: true }); }
     globalThis.logger.log('Compiling with flags', flags);
+    options.reportProgress?.(JSON.stringify({ event: 'compile', compiler: language.compiler, args: flags, cwd: spawnOpts.cwd, timeoutMs: spawnOpts.timeout }) + '\n');
     const result = new Promise<boolean>((resolve) => {
         if (options.isCancelled?.()) { resolve(false); return; }
         let compiler: ChildProcessWithoutNullStreams;
@@ -489,7 +490,7 @@ export const compileFile = async (
             }
         });
 
-        compiler.on('close', (exitcode) => {
+        compiler.on('close', (exitcode, signal) => {
             captureText(decoders.stdout.end());
             captureText(decoders.stderr.end());
             removeRunningCompiler(compiler);
@@ -497,6 +498,7 @@ export const compileFile = async (
             const hideWarningsWhenCompiledOK = getHideStderrorWhenCompiledOK();
 
             if (launchFailed || exitcode === null || exitCode !== 0 || !fs.existsSync(compileArtifact)) {
+                options.reportProgress?.(JSON.stringify({ event: 'compileFailed', exitCode: exitcode, signal, artifactExists: fs.existsSync(compileArtifact) }) + '\n');
                 if (!silent) {
                     ocWrite(
                         `Exit code: ${exitCode} Errors while compiling:\n` +

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../../nls.js';
 import { $, addDisposableListener, EventType, registerExternalFocusChecker } from '../../../../../base/browser/dom.js';
 import { getZoomFactor } from '../../../../../base/browser/browser.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
@@ -24,6 +23,7 @@ import {
 	IContainerLayoutOverride,
 } from '../browserEditor.js';
 import { BrowserOverlayManager, BrowserOverlayType } from '../overlayManager.js';
+import { ShortestPathBrowserOverlay } from '../shortestPathBrowserOverlay.js';
 
 /**
  * Default browser renderer: drives a Chromium WebContentsView.
@@ -50,6 +50,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	private readonly _placeholderScreenshot = $('.browser-placeholder-screenshot');
 	private readonly _overlayPauseEl = $('.browser-overlay-paused');
 	private readonly _overlayManager: BrowserOverlayManager;
+	private readonly _nativeOverlay: ReturnType<typeof ShortestPathBrowserOverlay.acquire>;
 
 	private readonly _placeholderContent: IBrowserEditorWidget;
 	private readonly _overlayPauseContent: IBrowserEditorWidget;
@@ -66,16 +67,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		super(editor);
 
 		this._overlayManager = this._register(new BrowserOverlayManager(editor.window));
-
-		// Build overlay-pause DOM
-		const message = $('.browser-overlay-paused-message');
-		const heading = $('.browser-overlay-paused-heading');
-		const detail = $('.browser-overlay-paused-detail');
-		heading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to Notification");
-		detail.textContent = localize('browser.overlayPauseDetail.notification', "Dismiss the notification to continue using the browser.");
-		message.appendChild(heading);
-		message.appendChild(detail);
-		this._overlayPauseEl.appendChild(message);
+		this._nativeOverlay = this._register(ShortestPathBrowserOverlay.acquire(editor.window, logService));
 
 		this._placeholderContent = { location: BrowserWidgetLocation.ContentArea, element: this._placeholderScreenshot, order: 100 };
 		this._overlayPauseContent = { location: BrowserWidgetLocation.ContentArea, element: this._overlayPauseEl, order: 200 };
@@ -230,6 +222,9 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	 * on the latest editor/overlay/model state.
 	 */
 	private _refresh(restartScreenshot = false): void {
+		if (this._container) {
+			this._nativeOverlay.setVisible(this._container, this._shouldShowPage());
+		}
 		// Placeholder screenshot: shown whenever there's a page to render
 		// (covered by the WCV when it's up, visible during hide/show swaps).
 		const placeholderActive = !!this._model?.url && !this._model?.error;
@@ -273,9 +268,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			return;
 		}
 		const overlays = this._overlayManager.getOverlappingOverlays(this._container);
-		const obscured = overlays.length > 0;
-		const hasNotification = overlays.some(o => o.type === BrowserOverlayType.Notification);
-		this._overlayPauseEl.classList.toggle('show-message', hasNotification);
+		const obscured = overlays.some(o => o.type !== BrowserOverlayType.Notification);
 		if (obscured !== this._overlayObscured) {
 			this._overlayObscured = obscured;
 			this._refresh();

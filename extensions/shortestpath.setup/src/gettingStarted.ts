@@ -5,10 +5,12 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as os from 'node:os';
 import * as vscode from 'vscode';
 import { localize, localizeFormat, localizeToolchainProgress, localizeWebviewHtml } from './localization';
 import { FirstRunEditorSession } from './firstRunEditorSession';
 import { EnvironmentSetupRunner } from './environmentSetup';
+import { environmentDiagnosticLog } from './environmentDiagnostics';
 import { firstRunView, type FirstRunEditorState } from './firstRunView';
 import { defaultCppTemplate } from './firstRunPreview';
 import { EditorPreview } from './editorPreview';
@@ -37,6 +39,8 @@ type FirstRunSetupInfo = { stages: Array<{ id: string; title: string; text: stri
 type FirstRunMessage =
 	| { type: 'startEnvironment' }
 	| { type: 'environmentState' }
+	| { type: 'exportEnvironmentLogs' }
+	| { type: 'openEnvironmentSettings' }
 	| { type: 'systemFonts' }
 	| { type: 'nextEditor' }
 	| { type: 'nextTemplate' }
@@ -160,6 +164,12 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 		}
 		if (message.type === 'startEnvironment') {
 			await environmentRunner?.run();
+		}
+		if (message.type === 'exportEnvironmentLogs') {
+			await exportEnvironmentLogs(context);
+		}
+		if (message.type === 'openEnvironmentSettings') {
+			await vscode.commands.executeCommand('shortestpath.openSettings');
 		}
 		if (message.type === 'nextEditor' || message.type === 'nextTemplate' || message.type === 'nextWorkspace' || message.type === 'compilePage') {
 			const ready = !!environmentRunner?.snapshot.ready && !environmentRunner.snapshot.running;
@@ -386,6 +396,31 @@ function getFirstRunEditorState(): FirstRunEditorState {
 	};
 }
 
+async function exportEnvironmentLogs(context: vscode.ExtensionContext): Promise<void> {
+	const attempts = environmentRunner?.attempts;
+	if (!attempts?.length) { return; }
+	const configuration = vscode.workspace.getConfiguration(undefined, null);
+	const log = environmentDiagnosticLog(attempts, {
+		createdAt: new Date().toISOString(), appName: vscode.env.appName, appVersion: vscode.version,
+		setupVersion: currentExtensionVersion(), judgerVersion: vscode.extensions.getExtension('shortestpath.judger')?.packageJSON?.version,
+		platform: process.platform, arch: process.arch, osRelease: os.release(), portable: vscode.env.isAppPortable,
+		compiler: configuration.get<string>('judger.language.cpp.Command'), compilerArgs: configuration.get<string>('judger.language.cpp.Args'),
+		clangd: configuration.get<string>('clangd.path'), clangdArgs: configuration.get<string[]>('clangd.arguments'),
+		fallbackFlags: configuration.get<string[]>('clangd.fallbackFlags'), storageDirectory: context.globalStorageUri.fsPath, tempDirectory: os.tmpdir()
+	});
+	try {
+		const target = await vscode.window.showSaveDialog({
+			title: localize('导出环境检测日志'), saveLabel: localize('导出日志'), filters: { Log: ['log'] },
+			defaultUri: vscode.Uri.file(path.join(os.homedir(), `shortestpath-environment-${new Date().toISOString().replace(/[:.]/g, '-')}.log`))
+		});
+		if (!target) { return; }
+		await vscode.workspace.fs.writeFile(target, Buffer.from(log, 'utf8'));
+		void vscode.window.showInformationMessage(localizeFormat('环境检测日志已保存到：{0}', target.fsPath));
+	} catch (error) {
+		void vscode.window.showErrorMessage(localizeFormat('无法导出环境检测日志：{0}', error instanceof Error ? error.message : String(error)));
+	}
+}
+
 function getFirstRunHtml(): string {
 	return firstRunView(environmentRunner!.snapshot, {
 		title: localize('编译配置'), intro: localize('检查编译器、运行样例，并验证代码提示。'), setupSteps: localize('开箱配置步骤'),
@@ -393,6 +428,15 @@ function getFirstRunHtml(): string {
 		pending: localize('待检查'), running: localize('正在配置，请等待…'), complete: localize('已完成'), error: localize('失败'),
 		ready: localize('环境已就绪，自测通过。'), failed: localize('配置未完成。请展开失败步骤查看日志，然后重试。'),
 		waiting: localize('完成环境检查后继续。'),
+		exportLogs: localize('导出日志'), openEnvironmentSettings: localize('打开设置'),
+		exportHint: localize('可导出本次及此前重试的检测日志，反馈给开发者。'),
+		issue_runner: localize('评测辅助程序未能准备完成。首次准备已延长等待时间，Windows 会自动重试一次；如果仍失败，请检查工具链安装是否完整、日志中的目录是否可写，以及 Windows 安全中心是否有文件拦截记录，再重试。'),
+		issue_permission: localize('无法写入或运行检测文件。请将 IDE 和工具链放在当前用户可写的目录，检查 Windows 安全中心是否有文件拦截记录，再重试。'),
+		issue_network: localize('下载或连接失败。请检查网络连接及代理设置，恢复连接后重试；镜像不可用时可改用官方下载源。'),
+		issue_compiler: localize('编译环境未就绪。请在设置的“编译器”中检查 C++ 编译器和 clangd 路径；未安装时，在“工具”中执行“修复工具链”，然后重试。'),
+		issue_headers: localize('编译器或系统头文件配置不完整。请在设置的“工具”中执行“修复工具链”，然后重新检测；使用自定义编译器时，也请检查其标准库是否完整。'),
+		issue_timeout: localize('检测程序等待超时。请等待工具链安装结束，确认没有其他任务占用大量资源，再重试；持续超时可导出日志反馈。'),
+		issue_unknown: localize('检测未通过。请展开本步骤查看具体错误，在设置的“工具”中运行“工具链诊断”或“修复工具链”；若仍失败，导出日志反馈给开发者。'),
 		editorTitle: localize('编辑配置'), editorIntro: localize('按你的习惯调整编辑体验。'),
 		fontLabel: localize('代码字体'), fontLigaturesLabel: localize('启用字体连字'),
 		fontLigaturesHint: localize('将 ->、!=、<= 等符号组合显示为连字，需要字体支持。'),

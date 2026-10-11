@@ -6,6 +6,19 @@
 import * as vscode from 'vscode';
 
 const english: Readonly<Record<string, string>> = {
+	'导出环境检测日志': 'Export Environment Check Logs',
+	'导出日志': 'Export Logs',
+	'打开设置': 'Open Settings',
+	'环境检测日志已保存到：{0}': 'Environment check logs saved to: {0}',
+	'无法导出环境检测日志：{0}': 'Could not export environment check logs: {0}',
+	'可导出本次及此前重试的检测日志，反馈给开发者。': 'Export logs from this check and previous retries to share with the developer.',
+	'评测辅助程序未能准备完成。首次准备已延长等待时间，Windows 会自动重试一次；如果仍失败，请检查工具链安装是否完整、日志中的目录是否可写，以及 Windows 安全中心是否有文件拦截记录，再重试。': 'The judging helper could not be prepared. First-time preparation has a longer timeout and retries once on Windows. If it still fails, check that the toolchain is fully installed, the logged directories are writable, and Windows Security has no file-blocking events, then retry.',
+	'无法写入或运行检测文件。请将 IDE 和工具链放在当前用户可写的目录，检查 Windows 安全中心是否有文件拦截记录，再重试。': 'The check files could not be written or run. Move the IDE and toolchain to a directory writable by your user account, check Windows Security for file-blocking events, then retry.',
+	'下载或连接失败。请检查网络连接及代理设置，恢复连接后重试；镜像不可用时可改用官方下载源。': 'Download or connection failed. Check your network connection and proxy settings, then retry. Use the official download source if the mirror is unavailable.',
+	'编译环境未就绪。请在设置的“编译器”中检查 C++ 编译器和 clangd 路径；未安装时，在“工具”中执行“修复工具链”，然后重试。': 'The compiler environment is not ready. Check the C++ compiler and clangd paths under Compiler in Settings. If they are missing, run Repair Toolchain under Tools, then retry.',
+	'编译器或系统头文件配置不完整。请在设置的“工具”中执行“修复工具链”，然后重新检测；使用自定义编译器时，也请检查其标准库是否完整。': 'The compiler or system headers are incomplete. Run Repair Toolchain under Tools in Settings, then check again. For a custom compiler, also check its standard library installation.',
+	'检测程序等待超时。请等待工具链安装结束，确认没有其他任务占用大量资源，再重试；持续超时可导出日志反馈。': 'The check timed out. Wait for toolchain installation to finish and check that other tasks are not using excessive resources, then retry. Export the logs if timeouts persist.',
+	'检测未通过。请展开本步骤查看具体错误，在设置的“工具”中运行“工具链诊断”或“修复工具链”；若仍失败，导出日志反馈给开发者。': 'The check failed. Expand this step for the error details, then run Toolchain Diagnostics or Repair Toolchain under Tools in Settings. Export the logs for the developer if it still fails.',
 	'已在“{0}”中创建 .clangd 和 .clang-format。': 'Created .clangd and .clang-format in “{0}”.',
 	'“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？': '“{0}” has no OI project configuration yet. Create .clangd and .clang-format?',
 

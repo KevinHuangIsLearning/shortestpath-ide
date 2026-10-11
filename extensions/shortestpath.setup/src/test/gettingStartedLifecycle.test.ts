@@ -16,6 +16,11 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 	const setupSelections: object[] = [];
 	const root = path.resolve(__dirname, '../..');
 	const uri = (fsPath: string, scheme = 'file') => ({ fsPath, scheme, toString: () => scheme + '://' + fsPath });
+	const commandResults = new Map<string, { success: boolean; message: string }>();
+	const exported: string[] = [];
+	const exportErrors: string[] = [];
+	let exportTarget: ReturnType<typeof uri> | undefined;
+	let exportError: Error | undefined;
 	let pickFolder: () => Promise<ReturnType<typeof uri>[] | undefined> = async () => [uri(root)];
 	let openError: Error | undefined;
 	const openedFolders: Array<{ fsPath: string; completed: unknown; options: unknown }> = [];
@@ -43,14 +48,15 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 		return panel;
 	}
 	const vscode = {
-		env: { language: 'zh-cn' }, ViewColumn: { Active: 1 }, ConfigurationTarget: { Global: 1 },
+		env: { language: 'zh-cn', appName: 'ShortestPath IDE', isAppPortable: false }, version: 'test', ViewColumn: { Active: 1 }, ConfigurationTarget: { Global: 1 },
 		Uri: { file: uri },
 		window: { async showOpenDialog(options: { canSelectFiles: boolean; canSelectFolders: boolean; canSelectMany: boolean }) {
 			assert.deepEqual([options.canSelectFiles, options.canSelectFolders, options.canSelectMany], [false, true, false]);
 			dialogCalls++; return pickFolder();
-		}, createWebviewPanel(_type: string, title: string) { const panel = createPanel(); panel.title = title; panels.push(panel); return panel; }, async showWarningMessage() {}, onDidChangeActiveColorTheme() { return { dispose() {} }; } },
+		}, async showSaveDialog() { return exportTarget; }, showInformationMessage() {}, showErrorMessage(message: string) { exportErrors.push(message); }, createWebviewPanel(_type: string, title: string) { const panel = createPanel(); panel.title = title; panels.push(panel); return panel; }, async showWarningMessage() {}, onDidChangeActiveColorTheme() { return { dispose() {} }; } },
 		extensions: { all: [], getExtension() { return { packageJSON: { version: '0.1.0' } }; } },
 		commands: { registerCommand(id: string, handler: () => void) { commands.set(id, handler); return { dispose() {} }; }, async executeCommand(command: string, folder?: ReturnType<typeof uri> | { mode: 'recommended' | 'repair'; cppStandard: string; installToolchain: boolean; completeSetup: boolean }, options?: unknown) {
+			if (commandResults.has(command)) { return commandResults.get(command); }
 			if (command === 'vscode.openFolder') {
 				assert.ok(folder && 'fsPath' in folder);
 				openedFolders.push({ fsPath: folder.fsPath, completed: settings.get('shortestpath.setup.completed'), options: JSON.parse(JSON.stringify(options)) });
@@ -67,6 +73,7 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 			}
 			return { success: true, message: 'ready' }; } },
 		workspace: {
+			fs: { async writeFile(_target: ReturnType<typeof uri>, content: Buffer) { if (exportError) { throw exportError; } exported.push(content.toString('utf8')); } },
 			workspaceFolders: undefined as Array<{ uri: ReturnType<typeof uri> }> | undefined,
 			getConfiguration(section?: string) {
 				return { get(key: string) { return settings.get(section ? section + '.' + key : key); }, async update(key: string, value: unknown) {
@@ -81,11 +88,12 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 	const source = fs.readFileSync(path.join(root, 'src/gettingStarted.ts'), 'utf8') + '\nexport const testApi = { openGettingStarted, maybeAutoOpenGettingStarted, registerGettingStarted };';
 	const exports: { testApi?: { openGettingStarted: (context: unknown) => void; maybeAutoOpenGettingStarted: (context: unknown) => Promise<void>; registerGettingStarted: (context: unknown) => void } } = {};
 	vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
-		exports, process: { platform: process.platform, env: { ...process.env, VSCODE_PORTABLE: portableDataPath } }, console, setTimeout: (callback: () => void) => scheduled.push(callback),
+		exports, Buffer, Error, process: { platform: process.platform, env: { ...process.env, VSCODE_PORTABLE: portableDataPath } }, console, setTimeout: (callback: () => void) => scheduled.push(callback),
 		require(id: string): unknown {
 			if (id === 'vscode') { return vscode; }
 			if (id === './bundledFont') { return { withBundledCodeFont: (html: string) => html }; }
 			if (id === './environmentSetup') { return require('../environmentSetup'); }
+			if (id === './environmentDiagnostics') { return require('../environmentDiagnostics'); }
 			if (id === './firstRunEditorSession') { return require('../firstRunEditorSession'); }
 			if (id === './firstRunPreview') { return require('../firstRunPreview'); }
 			if (id === './editorPreview') { return { EditorPreview: class { async render(_tabSize: number, _hints: boolean, _format: boolean, source: string) { return { source: format ? await format(source, _tabSize) : source }; } dispose() {} } }; }
@@ -97,7 +105,7 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 			return require(id);
 		}
 	});
-	const context = { subscriptions: [], extensionPath: root, globalState: { async update(key: string, value: unknown) { globalState.set(key, value); }, get(key: string) { return globalState.get(key); } } };
+	const context = { subscriptions: [], extensionPath: root, globalStorageUri: uri(path.join(root, 'storage')), globalState: { async update(key: string, value: unknown) { globalState.set(key, value); }, get(key: string) { return globalState.get(key); } } };
 	const open = () => exports.testApi!.openGettingStarted(context);
 	const holdSave = () => {
 		let resolve!: () => void, reject!: (error: Error) => void;
@@ -105,10 +113,28 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 		void held.promise.catch(() => {});
 		return held;
 	};
-	return { register: () => exports.testApi!.registerGettingStarted(context), runCommand: (id: string) => { const command = commands.get(id); assert.ok(command); command(); }, root, uri, globalState, setupSelections, openedFolders, dialogCalls: () => dialogCalls, setPicker: (picker: typeof pickFolder) => { pickFolder = picker; }, setWorkspace: (folder: string) => { vscode.workspace.workspaceFolders = [{ uri: uri(folder) }]; }, failOpen: (error: Error | undefined) => { openError = error; }, panels, open, settings, holdSave, autoOpen: () => exports.testApi!.maybeAutoOpenGettingStarted(context), scheduled, fontReads: () => fontReads, reopen: () => { const callback = scheduled.shift(); assert.ok(callback); callback(); } };
+	return { exported, exportErrors, commandResults, setExportTarget: (target: string | undefined) => { exportTarget = target ? uri(target) : undefined; }, failExport: (error: Error) => { exportError = error; }, register: () => exports.testApi!.registerGettingStarted(context), runCommand: (id: string) => { const command = commands.get(id); assert.ok(command); command(); }, root, uri, globalState, setupSelections, openedFolders, dialogCalls: () => dialogCalls, setPicker: (picker: typeof pickFolder) => { pickFolder = picker; }, setWorkspace: (folder: string) => { vscode.workspace.workspaceFolders = [{ uri: uri(folder) }]; }, failOpen: (error: Error | undefined) => { openError = error; }, panels, open, settings, holdSave, autoOpen: () => exports.testApi!.maybeAutoOpenGettingStarted(context), scheduled, fontReads: () => fontReads, reopen: () => { const callback = scheduled.shift(); assert.ok(callback); callback(); } };
 }
 
 const editor = { fontFamily: 'Menlo', fontSize: 18, tabSize: 2, cppTemplate: 'int main() {}', fontLigatures: false, colorTheme: 'One Monokai', autoDetectColorScheme: false, autoSave: 'onFocusChange', autoFormat: true, clangdVariableTypeHints: true };
+
+test('exports failed and recovered checks, respects save cancellation, and reports export errors', async () => {
+	const host = createHost();
+	host.commandResults.set('shortestpath.selfTestEnvironment', { success: false, message: 'Could not compile the native runner' });
+	host.open();
+	const panel = host.panels[0];
+	await panel.receive({ type: 'startEnvironment' });
+	await panel.receive({ type: 'exportEnvironmentLogs' });
+	assert.equal(host.exported.length, 0);
+	host.commandResults.set('shortestpath.selfTestEnvironment', { success: true, message: 'recovered' });
+	await panel.receive({ type: 'startEnvironment' });
+	host.setExportTarget('/export/environment.log');
+	await panel.receive({ type: 'exportEnvironmentLogs' });
+	assert.match(host.exported[0], /Attempt 1[\s\S]*Could not compile the native runner[\s\S]*Attempt 2[\s\S]*complete/);
+	host.failExport(new Error('permission denied'));
+	await panel.receive({ type: 'exportEnvironmentLogs' });
+	assert.deepEqual(host.exportErrors, ['无法导出环境检测日志：permission denied']);
+});
 
 test('completed setup preserves the restored mode instead of opening the guide', async () => {
 	const host = createHost();

@@ -3,6 +3,7 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SessionLinkRelay } from './sessionLinkRelay';
 import { ideBridgeFeatures, ideSchemaRevision, IdeRecoveryStatus } from './generated/ide-bridge-contract';
 import type { WorkspaceProblemRecoveryContext } from './workspaceProblemCache';
 import { randomUUID } from 'crypto';
@@ -105,6 +106,7 @@ export class OutcomeUnknownError extends Error {
 }
 
 export class ShortestPathOjLocalBridge {
+	readonly sessionLink = new SessionLinkRelay();
 	private readonly server: WebSocketServer;
 	private readonly connections = new Set<BridgeConnection>();
 	private readonly longRunningRequestListeners = new Set<(problemRef: string, active: boolean) => void>();
@@ -343,6 +345,8 @@ export class ShortestPathOjLocalBridge {
 			return;
 		}
 		this.trace(`Connection #${connection.id} received ${message.type}.`);
+		if (connection.version === 2 && this.sessionLink.handle(connection.id, connection.origin, message.type, message.data,
+			(type, data) => this.send(connection, { id: randomUUID(), type, data }))) { return; }
 		if (message.type === 'bridge.hello' && connection.version === 2) {
 			this.send(connection, { id: randomUUID(), replyTo: message.id, type: 'bridge.hello.result', ok: true, data: { protocolMajor: 2, schemaRevision: ideSchemaRevision, features: ideBridgeFeatures } });
 			return;
@@ -608,6 +612,7 @@ export class ShortestPathOjLocalBridge {
 	}
 
 	private removeConnection(connection: BridgeConnection): void {
+		this.sessionLink.remove(connection.id);
 		if (!this.connections.delete(connection)) {
 			return;
 		}

@@ -21,6 +21,7 @@ import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IAccessibilityService } from '../../../accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../accessibility/test/common/testAccessibilityService.js';
+import { registerWindowViewportOffset } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
 import { IMarkdownRendererService } from '../../../markdown/browser/markdownRenderer.js';
@@ -86,6 +87,15 @@ suite('HoverService', () => {
 
 		hoverService = store.add(instantiationService.createInstance(HoverService));
 		instantiationService.stub(IHoverService, hoverService);
+	});
+
+	test('uses the full host height and the space above a notification child viewport', () => {
+		store.add(registerWindowViewportOffset(mainWindow, () => ({ x: 0, y: 500, width: 800, height: 800 })));
+		const target = createTarget();
+		target.style.cssText = 'position: absolute; top: 10px; left: 10px; width: 100px; height: 20px;';
+		const hover = showHover('A notification tooltip', target, { position: { hoverPosition: HoverPosition.ABOVE } }) as HoverWidget;
+		assert.deepStrictEqual({ above: hover.domNode.getBoundingClientRect().bottom <= target.getBoundingClientRect().top, maxHeight: hover.domNode.style.maxHeight }, { above: true, maxHeight: '400px' });
+		hover.dispose();
 	});
 
 	// #region Helper functions

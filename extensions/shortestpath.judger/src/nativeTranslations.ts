@@ -3,6 +3,9 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 export const nativeChinese: Record<string, string> = {
+	'judger.runner.preparing': '首次准备评测辅助程序，最多等待 60 秒…',
+	'judger.runner.retry': '评测辅助程序准备失败，正在自动重试一次…',
+	'judger.runner.compileFailed': '无法编译评测辅助程序。',
 	'judger.dashboard.confirmAction': '确认',
 	'judger.dashboard.partial': '部分 AC',
 	'judger.dashboard.confirmCompletion': '将“{0}”标记为{1}？',

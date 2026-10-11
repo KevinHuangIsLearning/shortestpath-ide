@@ -8,6 +8,7 @@ import { renderLocalTests, renderLocalTestsToolbar } from './localTestsView';
 import { ProblemRatingSession, isRating, Rating } from './problemRating';
 import { renderLocalJudgingMarkdown } from './localJudgingMarkdown';
 import { ConnectionRecovery, RecoveryState } from './connectionRecovery';
+import { SessionLinkPage } from './sessionLinkPage';
 import { CorrectionView } from './correctionView';
 import { AuxiliaryOperationRecovery } from './auxiliaryOperationRecovery';
 import type { SubmissionCorrectionAvailability, SubmissionCorrectionTaskResponse, SubmissionListResponse } from './generated/api-contract';
@@ -1679,7 +1680,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 		bridge.onLongRunningRequest((problemRef, active) => panel.setLongRunningOperationNotice(problemRef, active)),
 		bridge.onTrace(log),
 	);
-	bridge.onListening(() => log(`WebSocket bridge listening at ws://127.0.0.1:${bridgePort}/shortestpath-oj with shortestpath-oj-v2/v1.`));
+	const sessionOrigin = process.env.SHORTESTPATH_OJ_DEV_ORIGIN ?? 'https://shortestpath.cn';
+	const sessionPage = new SessionLinkPage(`${sessionOrigin}/ide/session#${bridge.sessionLink.token}`,
+		url => vscode.window.openBrowserTab(url, { hidden: true, preserveFocus: true }),
+		() => log('Session association page unavailable; retrying.'), () => bridge.sessionLink.nativeConnected);
+	bridge.onListening(() => {
+		log(`WebSocket bridge listening at ws://127.0.0.1:${bridgePort}/shortestpath-oj with shortestpath-oj-v2/v1.`);
+		if (getAllowedBridgeOrigins().has(sessionOrigin)) { sessionPage.start(); }
+	});
+	context.subscriptions.push(sessionPage, vscode.window.onDidCloseBrowserTab(tab => sessionPage.pageClosed(tab.id)));
 	bridge.onError(error => {
 		log(`WebSocket bridge error: ${error.message}`);
 		if (isAddressInUseError(error)) {

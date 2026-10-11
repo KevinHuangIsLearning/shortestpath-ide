@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, registerWindowViewportOffset } from '../../../../../base/browser/dom.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action, ActionRunner, SubmenuAction } from '../../../../../base/common/actions.js';
@@ -25,6 +27,7 @@ suite('Native ContextMenuService', () => {
 	let focusMode: FocusMode | undefined;
 	let menu: IContextMenuItem[];
 	let closeMenu: (() => void) | undefined;
+	let coordinates: { x?: number; y?: number };
 
 	setup(() => {
 		calls = [];
@@ -44,6 +47,7 @@ suite('Native ContextMenuService', () => {
 		});
 		service = store.add(instantiationService.createInstance(NativeContextMenuService, (items, _options, onHide) => {
 			menu = items;
+			coordinates = _options ?? {};
 			closeMenu = onHide;
 		}));
 	});
@@ -98,5 +102,22 @@ suite('Native ContextMenuService', () => {
 
 		assert.deepStrictEqual(calls, ['hide']);
 	});
+
+	for (const mouseAnchor of [false, true]) {
+		test(`${mouseAnchor ? 'uses the native cursor' : 'uses host coordinates'} for a child view's menu anchor`, () => {
+			const frame = mainWindow.document.body.appendChild($('iframe')) as HTMLIFrameElement;
+			store.add(toDisposable(() => frame.remove()));
+			const target = frame.contentWindow!;
+			store.add(registerWindowViewportOffset(target, () => ({ x: 100, y: 200, width: 800, height: 600 })));
+			const anchor = frame.contentDocument!.body.appendChild($('div'));
+			anchor.style.cssText = 'position: absolute; left: 10px; top: 20px; width: 30px; height: 40px;';
+			const action = store.add(new Action('test', 'Test'));
+			service.showContextMenu({
+				getAnchor: () => mouseAnchor ? new StandardMouseEvent(target, new MouseEvent('contextmenu', { view: target, clientX: 10, clientY: 20 })) : anchor,
+				getActions: () => [action]
+			});
+			assert.deepStrictEqual({ x: coordinates.x, y: coordinates.y }, { x: mouseAnchor ? undefined : 140, y: mouseAnchor ? undefined : 260 + (isMacintosh ? 4 : 0) });
+		});
+	}
 
 });

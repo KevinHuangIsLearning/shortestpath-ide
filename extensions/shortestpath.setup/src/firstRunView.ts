@@ -30,9 +30,10 @@ export function firstRunView(state: EnvironmentSetupState, ui: Record<string, st
 <title>${ui.title}</title><style>
 *{box-sizing:border-box}body{margin:0;background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:850px;margin:0 auto;padding:32px}h1{font-size:32px;margin:14px 0 12px}p{color:var(--vscode-descriptionForeground)}nav{display:flex;flex-wrap:wrap;gap:12px 24px;color:var(--vscode-descriptionForeground)}nav .active{color:var(--vscode-editor-foreground);font-weight:600}ol{list-style:none;padding:0;margin:28px 0}li{border:1px solid var(--vscode-widget-border,#555);border-radius:8px;margin:12px 0;padding:16px}summary{cursor:pointer;display:flex;gap:14px;align-items:center;list-style:none}summary::-webkit-details-marker{display:none}.indicator{width:26px;height:26px;border:1px solid var(--vscode-descriptionForeground);border-radius:50%;text-align:center;flex-shrink:0}.complete .indicator{background:var(--vscode-testing-iconPassed,#388a34);color:white;border-color:transparent}.running .indicator{border-color:var(--vscode-progressBar-background);animation:pulse 1s infinite alternate}.error .indicator{color:var(--vscode-errorForeground);border-color:currentColor}.heading{flex:1}strong{font-size:16px}.description{font-size:13px;color:var(--vscode-descriptionForeground)}.status{font-size:12px;color:var(--vscode-descriptionForeground)}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font:12px/1.5 var(--vscode-editor-font-family,monospace);background:var(--vscode-textCodeBlock-background);padding:12px}footer{display:flex;align-items:center;gap:12px;flex-wrap:wrap}button{font:inherit;border:0;border-radius:5px;padding:9px 22px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--vscode-focusBorder)}#notice{margin-top:20px}progress{width:100%;height:4px}[hidden]{display:none!important}.settings{border:1px solid var(--vscode-widget-border,#555);border-radius:8px;padding:0 20px;margin:24px 0}.setting{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:13px 0;border-bottom:1px solid var(--vscode-widget-border,#555)}.setting:last-child{border:0}.setting label{font-weight:600}.setting input:not([type=checkbox]),.setting select{width:240px;max-width:55%;font:inherit;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,#555);border-radius:4px;padding:6px 8px}.setting input[type=checkbox]{width:18px;height:18px}.setting .description{max-width:400px}#preview{font-size:14px;line-height:1.6;border-radius:5px;padding:18px;background:var(--vscode-editor-background);border:1px solid var(--vscode-widget-border,#555);overflow:auto;margin:20px 0}.code-line{white-space:pre;min-height:1.6em}.inlay-hint{font-size:90%;color:var(--vscode-editorInlayHint-typeForeground,var(--vscode-editorInlayHint-foreground));background:var(--vscode-editorInlayHint-typeBackground,var(--vscode-editorInlayHint-background));border-radius:3px;padding:0 2px}textarea{display:block;width:100%;min-height:400px;resize:vertical;background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);border:1px solid var(--vscode-widget-border,#555);border-radius:5px;padding:18px;margin:24px 0;line-height:1.6;tab-size:2}#workspaceFolder{overflow-wrap:anywhere}#fontStatus{font-size:12px}@keyframes pulse{to{opacity:.35}}@media(prefers-reduced-motion:reduce){.running .indicator{animation:none}}@media(max-width:600px){main{padding:24px 16px}.status{max-width:70px}.setting{gap:12px}}
 footer{justify-content:space-between;margin-top:24px}button:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}.save-error,.preview-error{color:var(--vscode-errorForeground)}.template-code{position:relative;margin:24px 0;border:1px solid var(--vscode-widget-border,#555);border-radius:5px;overflow:hidden}.template-code:focus-within{outline:2px solid var(--vscode-focusBorder)}#templatePreview{position:absolute;inset:0;padding:18px;overflow:hidden;pointer-events:none}#cppTemplate{position:relative;display:block;width:100%;min-height:400px;margin:0;resize:none;border:0;border-radius:0;background:transparent;color:transparent;-webkit-text-fill-color:transparent;caret-color:var(--vscode-editor-foreground);white-space:pre;overflow:auto;outline:none}.template-code .inlay-hint{pointer-events:none}
+.guidance{margin:0 16px 16px;color:var(--vscode-foreground)}.diagnostic-actions{display:flex;flex-wrap:wrap;gap:12px}.diagnostic-actions button{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}.diagnostic-actions button:hover:not(:disabled){background:var(--vscode-button-secondaryHoverBackground)}
 </style></head><body><main>
 <nav aria-label="${ui.setupSteps}"><span id="compileLabel"></span><span id="editorLabel"></span><span id="templateLabel"></span><span id="workspaceLabel"></span></nav>
-<section id="compilePage"><h1 id="title"></h1><p id="intro"></p><ol id="steps" aria-label="${ui.title}"></ol><progress id="progress" hidden></progress><p id="notice" role="status" aria-live="polite"></p><footer><button id="start"></button><button id="next" disabled></button></footer></section>
+<section id="compilePage"><h1 id="title"></h1><p id="intro"></p><ol id="steps" aria-label="${ui.title}"></ol><progress id="progress" hidden></progress><p id="notice" role="status" aria-live="polite"></p><div class="diagnostic-actions"><button id="openEnvironmentSettings" hidden></button><button id="exportLogs" hidden></button></div><p id="exportHint" hidden></p><footer><button id="start"></button><button id="next" disabled></button></footer></section>
 <section id="editorPage" hidden><h1 id="editorTitle"></h1><p id="editorIntro"></p><div class="settings">
 <div class="setting"><div><label id="fontLabel" for="fontFamily"></label><div id="fontStatus" class="description" role="status" aria-live="polite"></div></div><select id="fontFamily"></select></div>
 <div class="setting"><div><label id="fontLigaturesLabel" for="fontLigatures"></label><div id="fontLigaturesHint" class="description"></div></div><input id="fontLigatures" type="checkbox"></div>
@@ -71,6 +72,9 @@ byId('editorLabel').textContent = '2 · ' + ui.editorTitle;
 byId('templateLabel').textContent = '3 · ' + ui.templateTitle;
 byId('workspaceLabel').textContent = '4 · ' + ui.workspaceTitle;
 byId('progress').setAttribute('aria-label', ui.running);
+byId('exportLogs').textContent = ui.exportLogs;
+byId('openEnvironmentSettings').textContent = ui.openEnvironmentSettings;
+byId('exportHint').textContent = ui.exportHint;
 function showPage(value) {
   page = value;
   templateEditing = false;
@@ -101,14 +105,17 @@ function render(value) {
       const title = document.createElement('strong'), description = document.createElement('div'); description.className = 'description'; heading.append(title, description);
       const status = document.createElement('span'); status.className = 'status';
       const log = document.createElement('pre'); log.setAttribute('data-i18n-ignore','');
-      summary.append(indicator, heading, status); details.append(summary, log); li.append(details); byId('steps').append(li);
-      row = {li, details, indicator, title, description, status, log, previous:'pending'}; rows.set(step.id,row);
+      const guidance = document.createElement('p'); guidance.className = 'guidance'; guidance.setAttribute('role','status');
+      summary.append(indicator, heading, status); details.append(summary, guidance, log); li.append(details); byId('steps').append(li);
+      row = {li, details, indicator, title, description, status, guidance, log, previous:'pending'}; rows.set(step.id,row);
     }
     row.li.className = step.status;
     row.indicator.textContent = step.status === 'complete' ? '✓' : step.status === 'error' ? '!' : step.status === 'running' ? '…' : '';
     row.title.textContent = step.title; row.description.textContent = step.description; row.status.textContent = ui[step.status];
     if (row.log.textContent !== step.log) row.log.textContent = step.log;
     row.log.hidden = !step.log;
+    row.guidance.textContent = step.status === 'error' ? (ui['issue_' + step.issue] || ui.issue_unknown) : '';
+    row.guidance.hidden = step.status !== 'error';
     if (row.previous !== step.status && (step.status === 'running' || step.status === 'error')) row.details.open = true;
     if (row.previous === 'running' && step.status === 'complete') row.details.open = false;
     row.previous = step.status;
@@ -117,6 +124,12 @@ function render(value) {
   byId('start').textContent = failed ? ui.retry : ui.start;
   byId('start').disabled = state.running || state.ready;
   byId('next').disabled = !state.ready || state.running;
+  byId('openEnvironmentSettings').hidden = !failed;
+  byId('openEnvironmentSettings').disabled = state.running;
+  const hasLog = state.steps.some(step => step.log);
+  byId('exportLogs').hidden = !hasLog;
+  byId('exportLogs').disabled = state.running;
+  byId('exportHint').hidden = !hasLog;
   renderWorkspace();
   byId('progress').hidden = !state.running;
   byId('notice').textContent = state.ready ? ui.ready : state.running ? ui.running : failed ? ui.failed : ui.waiting;
@@ -220,6 +233,8 @@ byId('cppTemplate').onscroll = () => { byId('templatePreview').scrollTop = byId(
 byId('retryPreview').onclick = requestPreview;
 byId('retryTemplatePreview').onclick = requestPreview;
 byId('start').onclick = () => vscode.postMessage({type:'startEnvironment'});
+byId('exportLogs').onclick = () => { if(!state.running && state.steps.some(step => step.log)) vscode.postMessage({type:'exportEnvironmentLogs'}); };
+byId('openEnvironmentSettings').onclick = () => { if(!state.running && state.steps.some(step => step.status === 'error')) vscode.postMessage({type:'openEnvironmentSettings'}); };
 byId('next').onclick = () => { if(state.ready&&!state.running) vscode.postMessage({type:'nextEditor'}); };
 byId('back').onclick = () => vscode.postMessage({type:'compilePage'});
 byId('nextTemplate').onclick = () => { if(!completing) vscode.postMessage({type:'nextTemplate'}); };

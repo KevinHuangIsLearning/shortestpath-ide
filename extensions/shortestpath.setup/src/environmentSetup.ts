@@ -3,6 +3,8 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { environmentIssue, type EnvironmentIssue, type EnvironmentSetupAttempt } from './environmentDiagnostics';
+
 export type EnvironmentStepStatus = 'pending' | 'running' | 'complete' | 'error';
 
 export type EnvironmentStepState = {
@@ -11,6 +13,8 @@ export type EnvironmentStepState = {
 	description: string;
 	status: EnvironmentStepStatus;
 	log: string;
+	issue?: EnvironmentIssue;
+	error?: string;
 };
 
 export type EnvironmentSetupState = {
@@ -29,6 +33,8 @@ export type EnvironmentSetupStep = {
 /** Completion is determined by the host, never by messages from the Webview. */
 export class EnvironmentSetupRunner {
 	private state: EnvironmentSetupState;
+	private startedAt = '';
+	private readonly previousAttempts: EnvironmentSetupAttempt[] = [];
 
 	constructor(private readonly steps: readonly EnvironmentSetupStep[], private readonly publish: (state: EnvironmentSetupState) => void, private readonly translateError: (message: string) => string = message => message) {
 		this.state = this.initialState();
@@ -36,6 +42,11 @@ export class EnvironmentSetupRunner {
 
 	get snapshot(): EnvironmentSetupState {
 		return { ...this.state, steps: this.state.steps.map(step => ({ ...step })) };
+	}
+
+	get attempts(): EnvironmentSetupAttempt[] {
+		return [...this.previousAttempts, ...(this.startedAt ? [{ startedAt: this.startedAt, state: this.snapshot }] : [])]
+			.map(attempt => ({ startedAt: attempt.startedAt, state: { ...attempt.state, steps: attempt.state.steps.map(step => ({ ...step })) } }));
 	}
 
 	private initialState(): EnvironmentSetupState {
@@ -46,6 +57,11 @@ export class EnvironmentSetupRunner {
 		if (this.state.running || this.state.ready) {
 			return;
 		}
+		if (this.startedAt) {
+			this.previousAttempts.push({ startedAt: this.startedAt, state: this.snapshot });
+			if (this.previousAttempts.length > 3) { this.previousAttempts.shift(); }
+		}
+		this.startedAt = new Date().toISOString();
 		this.state = this.initialState();
 		this.state.running = true;
 		this.publish(this.snapshot);
@@ -64,7 +80,11 @@ export class EnvironmentSetupRunner {
 					current.status = 'complete';
 				} catch (error) {
 					current.status = 'error';
-					current.log = `${current.log}${this.translateError(error instanceof Error ? error.message : String(error))}\n`.slice(-24000);
+					const message = error instanceof Error ? error.message : String(error);
+					current.error = message.slice(-24000);
+					current.issue = environmentIssue(message);
+					if (current.issue === 'unknown') { current.issue = environmentIssue(current.log); }
+					current.log = `${current.log}${this.translateError(message)}\n`.slice(-24000);
 					return;
 				}
 				this.publish(this.snapshot);

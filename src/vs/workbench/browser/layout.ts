@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
-import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
+import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
@@ -202,7 +202,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly navigationView = isWeb ? undefined : this._register(new NavigationView());
 	get mainWindowNavigationContainer(): HTMLElement | undefined { return this.navigationView?.container; }
 	get mainWindowNavigationLayoutContainer(): HTMLElement | undefined { return this.navigationView?.element; }
-	get activeContainer() { return this.getContainerFromDocument(getActiveDocument()); }
+	get activeContainer() { return this.getContainerFromDocument(getActiveWindow().document); }
 	get containers(): Iterable<HTMLElement> {
 		const containers: HTMLElement[] = [];
 		for (const { window } of getWindows()) {
