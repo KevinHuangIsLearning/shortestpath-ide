@@ -643,6 +643,14 @@ const english: Readonly<Record<string, string>> = {
 	, '空格': 'Spaces'
 	, 'Error Lens 行内错误提示': 'Error Lens Inline Diagnostics'
 	, '在出错那一行的行尾直接显示诊断文字；关闭后只保留编辑器自己的波浪线，写代码时依然实时报错。': 'Shows diagnostic text inline at the end of the offending line. When off, only the editor\'s own squiggles remain; diagnostics are still reported live while you type.'
+	, 'Dark Reader 网页深色模式': 'Dark Reader Website Dark Mode'
+	, '为内置浏览器中的网页启用深色模式，更改立即生效。': 'Enable dark mode for websites in the integrated browser. Changes take effect immediately.'
+	, '跟随 IDE 主题': 'Follow IDE Theme'
+	, '始终开启': 'Always On'
+	, '自动检测网页深色主题': 'Auto Detect Website Dark Theme'
+	, '网页已有深色主题时保留原样，避免重复转换。': 'Keep websites with their own dark theme unchanged to avoid applying dark mode twice.'
+	, 'Dark Reader 排除站点': 'Dark Reader Excluded Sites'
+	, '每行一个主机名，例如 www.example.com；不含协议或路径，子域名单独匹配。': 'One hostname per line, such as www.example.com, without a protocol or path. Subdomains are matched separately.'
 };
 
 export function localize(value: string): string {

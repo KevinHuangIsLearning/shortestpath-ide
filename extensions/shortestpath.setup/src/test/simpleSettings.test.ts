@@ -28,12 +28,12 @@ test('settings groups preserve each control and expose only the three left navig
 	const controls: Record<string, string[]> = Object.fromEntries([...html.matchAll(/<section class="card" data-category="([^"]+)"[^>]*>([\s\S]*?)<\/section>/g)]
 		.map(match => [match[1], []]));
 	for (const match of html.matchAll(/<section class="card" data-category="([^"]+)"[^>]*>([\s\S]*?)<\/section>/g)) {
-		controls[match[1]].push(...[...match[2].matchAll(/<(?:input|select|button)[^>]*id="([^"]+)"/g)].map(control => control[1]));
+		controls[match[1]].push(...[...match[2].matchAll(/<(?:input|select|button|textarea)[^>]*id="([^"]+)"/g)].map(control => control[1]));
 	}
 	assert.deepStrictEqual(controls, {
 		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
 		compiler: ['cppStandard', 'compilerFlags', 'executableCleanupEnabled', 'executableCleanupDelaySeconds', 'toolchainDiagnostics'],
-		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'defaultSubmitMethod', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
+		tools: ['cppTemplate', 'cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
 	});
 	const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 	assert.equal(new Set(ids).size, ids.length);
@@ -169,7 +169,7 @@ test('font preview applies current tokens literally and rejects old responses af
 function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () => [[{ text: 'int', style: 'color:blue' }]], compilerCommands: Record<string, string> = {}) {
 	const updates: string[] = [];
 	const savedFlags: Record<string, string> = {};
-	const savedValues: Record<string, string | number | boolean> = {};
+	const savedValues: Record<string, string | number | boolean | string[]> = {};
 	const commands: string[] = [];
 	const messages: Array<Record<string, unknown>> = [];
 	let receive!: (message: Record<string, unknown>) => Promise<void>;
@@ -190,7 +190,7 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 		ViewColumn: { Active: 1 }, ConfigurationTarget: { Global: 1 }, env: { language: 'en' }, extensions: { all: [] },
 		window: { createWebviewPanel: () => panel, onDidChangeActiveColorTheme(handler: () => void) { onTheme = handler; return listener(); } },
 		workspace: {
-			getConfiguration: (section?: string) => ({ get: (key: string) => savedValues[section ? section + '.' + key : key] ?? compilerCommands[key], async update(key: string, value: string | number | boolean, target: number) {
+			getConfiguration: (section?: string) => ({ get: (key: string) => savedValues[section ? section + '.' + key : key] ?? compilerCommands[key], async update(key: string, value: string | number | boolean | string[], target: number) {
 				assert.equal(target, vscode.ConfigurationTarget.Global);
 				savedValues[key] = value;
 				updates.push(key);
@@ -290,4 +290,47 @@ test('Better switches in custom settings preserve independent values and refresh
 		assert.equal(state().atcoderBetterEnabled, atcoderBetterEnabled);
 		assert.equal(state().codeforcesBetterEnabled, codeforcesBetterEnabled);
 	}
+});
+
+
+test('Dark Reader settings save globally, round-trip and refresh when changed from the browser toolbar', async () => {
+	const host = createSettingsHost();
+	const state = () => host.messages.filter(message => message.type === 'state').at(-1)?.value as Record<string, unknown>;
+	for (const mode of ['on', 'off', 'auto']) {
+		await host.receive({ type: 'save', value: { browserDarkReaderMode: mode, browserDarkReaderDetectDarkTheme: false, browserDarkReaderExcludedHosts: [' WWW.Example.COM. ', '', 'www.example.com', 'sub.example.com'] } });
+		assert.equal(host.savedValues['workbench.browser.darkReader.mode'], mode);
+		assert.equal(host.savedValues['workbench.browser.darkReader.detectDarkTheme'], false);
+		assert.deepEqual(Array.from(host.savedValues['workbench.browser.darkReader.excludedHosts'] as string[]), ['www.example.com', 'sub.example.com']);
+		host.onConfiguration({ affectsConfiguration: key => key === 'workbench.browser.darkReader' });
+		assert.equal(state().browserDarkReaderMode, mode);
+		assert.equal(state().browserDarkReaderDetectDarkTheme, false);
+		assert.deepEqual(state().browserDarkReaderExcludedHosts, ['www.example.com', 'sub.example.com']);
+	}
+	host.savedValues['workbench.browser.darkReader.detectDarkTheme'] = true;
+	host.onConfiguration({ affectsConfiguration: key => key === 'workbench.browser.darkReader' });
+	assert.equal(state().browserDarkReaderDetectDarkTheme, true);
+	await host.receive({ type: 'save', value: { browserDarkReaderMode: 'invalid', browserDarkReaderExcludedHosts: [42] } });
+	assert.equal(host.savedValues['workbench.browser.darkReader.mode'], 'auto');
+	assert.deepEqual(Array.from(host.savedValues['workbench.browser.darkReader.excludedHosts'] as string[]), ['www.example.com', 'sub.example.com']);
+	await host.receive({ type: 'save', value: { browserDarkReaderExcludedHosts: [] } });
+	host.onConfiguration({ affectsConfiguration: key => key === 'workbench.browser.darkReader' });
+	assert.deepEqual(state().browserDarkReaderExcludedHosts, []);
+	host.onDispose();
+});
+
+test('Dark Reader controls serialize hostnames and restore values without treating sites as HTML', () => {
+	const html = renderSettings();
+	assert.match(html, /textarea class="excluded-hosts" id="browserDarkReaderExcludedHosts"[^>]*data-i18n-ignore/);
+	const elements: Record<string, { value: string; checked: boolean }> = {};
+	const byId = (id: string) => elements[id] ??= { value: '', checked: false };
+	const context = vm.createContext({ byId, serializeFont: () => '', selectedFont: '', Number });
+	const bindings = html.match(/byId\('browserDarkReaderMode'\)\.value[\s\S]*?byId\('browserDarkReaderExcludedHosts'\)\.value[^;]+;/)?.[0];
+	const collect = html.match(/function value\(\) \{[^\n]+/)?.[0];
+	assert.ok(bindings && collect);
+	vm.runInContext(`const state = { browserDarkReaderMode: 'off', browserDarkReaderDetectDarkTheme: false, browserDarkReaderExcludedHosts: ['www.example.com', '<script>'] };\n${bindings}\n${collect}`, context);
+	assert.equal(byId('browserDarkReaderExcludedHosts').value, 'www.example.com\n<script>');
+	const values = JSON.parse(JSON.stringify(vm.runInContext('value()', context)));
+	assert.equal(values.browserDarkReaderMode, 'off');
+	assert.equal(values.browserDarkReaderDetectDarkTheme, false);
+	assert.deepEqual(values.browserDarkReaderExcludedHosts, ['www.example.com', '<script>']);
 });

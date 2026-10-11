@@ -55,6 +55,9 @@ type SimpleSettingsState = {
 	useExtensionMarketplace: boolean;
 	atcoderBetterEnabled: boolean;
 	codeforcesBetterEnabled: boolean;
+	browserDarkReaderMode: 'off' | 'on' | 'auto';
+	browserDarkReaderDetectDarkTheme: boolean;
+	browserDarkReaderExcludedHosts: string[];
 	shortestPathCppSubmissionLanguage: string;
 	defaultSubmitMethod: string;
 	themes: ThemeOption[];
@@ -604,7 +607,8 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('window.autoDetectColorScheme')
 			|| event.affectsConfiguration('files.autoSave')
 			|| event.affectsConfiguration('shortestpath.useExtensionMarketplace')
-			|| event.affectsConfiguration('shortestpath.ojbetter'))) {
+			|| event.affectsConfiguration('shortestpath.ojbetter')
+			|| event.affectsConfiguration('workbench.browser.darkReader'))) {
 			void panel.webview.postMessage({ type: 'state', value: getState() });
 		}
 	});
@@ -653,6 +657,9 @@ function getState(): SimpleSettingsState {
 		useExtensionMarketplace: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('useExtensionMarketplace') ?? false,
 		atcoderBetterEnabled: vscode.workspace.getConfiguration('shortestpath.ojbetter', null).get<boolean>('atcoder') ?? true,
 		codeforcesBetterEnabled: vscode.workspace.getConfiguration('shortestpath.ojbetter', null).get<boolean>('codeforces') ?? true,
+		browserDarkReaderMode: workbench.get<SimpleSettingsState['browserDarkReaderMode']>('browser.darkReader.mode') ?? 'auto',
+		browserDarkReaderDetectDarkTheme: workbench.get<boolean>('browser.darkReader.detectDarkTheme') ?? true,
+		browserDarkReaderExcludedHosts: workbench.get<string[]>('browser.darkReader.excludedHosts') ?? [],
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'cpp20',
 		defaultSubmitMethod: vscode.workspace.getConfiguration('judger.general', null).get<string>('defaultSubmitMethod') ?? 'ask',
 		themes: getThemeOptions(colorTheme)
@@ -715,6 +722,9 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('shortestpath.useExtensionMarketplace', value.useExtensionMarketplace === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.ojbetter.atcoder', value.atcoderBetterEnabled === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.ojbetter.codeforces', value.codeforcesBetterEnabled === true, vscode.ConfigurationTarget.Global),
+		...(value.browserDarkReaderMode === 'off' || value.browserDarkReaderMode === 'on' || value.browserDarkReaderMode === 'auto' ? [settings.update('workbench.browser.darkReader.mode', value.browserDarkReaderMode, vscode.ConfigurationTarget.Global)] : []),
+		...(typeof value.browserDarkReaderDetectDarkTheme === 'boolean' ? [settings.update('workbench.browser.darkReader.detectDarkTheme', value.browserDarkReaderDetectDarkTheme, vscode.ConfigurationTarget.Global)] : []),
+		...(Array.isArray(value.browserDarkReaderExcludedHosts) && value.browserDarkReaderExcludedHosts.every(host => typeof host === 'string') ? [settings.update('workbench.browser.darkReader.excludedHosts', [...new Set(value.browserDarkReaderExcludedHosts.map(host => host.trim().toLowerCase().replace(/\.$/, '')).filter(Boolean))], vscode.ConfigurationTarget.Global)] : []),
 		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global),
 		settings.update('judger.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global)
 	]);
@@ -751,6 +761,7 @@ main { box-sizing: border-box; display: grid; grid-template-columns: 156px minma
 .action-tooltip { display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 10; box-sizing: border-box; width: 240px; padding: 10px 12px; border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: 6px; background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); font-size: 12px; line-height: 1.5; text-align: left; white-space: normal; pointer-events: none; box-shadow: 0 4px 12px var(--vscode-widget-shadow); }.action-tooltip strong, .action-tooltip span { display: block; }.action-tooltip strong { margin-bottom: 4px; }.header-action:hover .action-tooltip, .header-action:focus-visible .action-tooltip { display: block; }
 a { color: var(--vscode-textLink-foreground); text-decoration: none; } a:hover { color: var(--vscode-textLink-activeForeground); text-decoration: underline; } a:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .sidebar { align-self: start; }.categories { display: grid; gap: 4px; }.category { width: 100%; border: 1px solid transparent; border-radius: 4px; padding: 10px 12px; color: var(--vscode-foreground); background: transparent; text-align: left; font: inherit; cursor: pointer; }.category:hover { background: var(--vscode-list-hoverBackground); }.category.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); border-color: var(--vscode-contrastActiveBorder, transparent); }
+.excluded-hosts { width: 100%; box-sizing: border-box; padding: 6px 8px; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 3px; resize: vertical; }
 .settings-content { min-width: 0; overflow-y: auto; padding-right: 4px; } h2 { font-size: 18px; font-weight: 600; margin: 0 0 16px; } h3 { font-size: 13px; font-weight: 600; color: var(--vscode-descriptionForeground); margin: 16px 0 0; }
 .card { border: 1px solid var(--vscode-editorWidget-border); border-radius: 6px; padding: 0 20px; margin: 0 0 16px; }
 .row { display: grid; grid-template-columns: 190px 1fr; gap: 20px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--vscode-editorWidget-border); }
@@ -806,6 +817,9 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 <div class="row"><div><label for="defaultSubmitMethod">Judger 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div>
 </section>
 <section class="card" data-category="tools" hidden><h3>内置浏览器</h3>
+<div class="row"><div><label for="browserDarkReaderMode">Dark Reader 网页深色模式</label><div class="hint">为内置浏览器中的网页启用深色模式，更改立即生效。</div></div><select id="browserDarkReaderMode"><option value="auto">跟随 IDE 主题</option><option value="on">始终开启</option><option value="off">关闭</option></select></div>
+<div class="row"><div><label for="browserDarkReaderDetectDarkTheme">自动检测网页深色主题</label><div class="hint">网页已有深色主题时保留原样，避免重复转换。</div></div><label class="toggle"><input id="browserDarkReaderDetectDarkTheme" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="browserDarkReaderExcludedHosts">Dark Reader 排除站点</label><div class="hint">每行一个主机名，例如 www.example.com；不含协议或路径，子域名单独匹配。</div></div><textarea class="excluded-hosts" id="browserDarkReaderExcludedHosts" rows="3" spellcheck="false" data-i18n-ignore></textarea></div>
 <div class="row"><div><label for="atcoderBetterEnabled">AtCoder Better</label><div class="hint">在 AtCoder 页面启用 Better 浏览增强。更改后刷新已有页面；详细选项在页面的 Better 设置中调整。</div></div><label class="toggle"><input id="atcoderBetterEnabled" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="codeforcesBetterEnabled">Codeforces Better</label><div class="hint">在 Codeforces 页面启用 Better 浏览增强。更改后刷新已有页面；详细选项在页面的 Better 设置中调整。</div></div><label class="toggle"><input id="codeforcesBetterEnabled" type="checkbox"><span>启用</span></label></div>
 </section>
@@ -1019,9 +1033,12 @@ function apply(state) {
 	byId('useExtensionMarketplace').checked = !!state.useExtensionMarketplace;
 	byId('atcoderBetterEnabled').checked = !!state.atcoderBetterEnabled;
 	byId('codeforcesBetterEnabled').checked = !!state.codeforcesBetterEnabled;
+	byId('browserDarkReaderMode').value = state.browserDarkReaderMode ?? 'auto';
+	byId('browserDarkReaderDetectDarkTheme').checked = state.browserDarkReaderDetectDarkTheme !== false;
+	byId('browserDarkReaderExcludedHosts').value = (state.browserDarkReaderExcludedHosts ?? []).join('\\n');
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, cppTemplate: byId('cppTemplate').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked }; }
+function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, cppTemplate: byId('cppTemplate').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked, browserDarkReaderMode: byId('browserDarkReaderMode').value, browserDarkReaderDetectDarkTheme: byId('browserDarkReaderDetectDarkTheme').checked, browserDarkReaderExcludedHosts: byId('browserDarkReaderExcludedHosts').value.split(/\\r?\\n/) }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily), textarea').forEach(control => {
