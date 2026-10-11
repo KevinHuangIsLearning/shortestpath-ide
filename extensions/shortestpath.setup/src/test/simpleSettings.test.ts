@@ -31,7 +31,7 @@ test('settings groups preserve each control and expose only the three left navig
 		controls[match[1]].push(...[...match[2].matchAll(/<(?:input|select|button|textarea)[^>]*id="([^"]+)"/g)].map(control => control[1]));
 	}
 	assert.deepStrictEqual(controls, {
-		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
+		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'compactMode', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
 		compiler: ['cppStandard', 'compilerFlags', 'executableCleanupEnabled', 'executableCleanupDelaySeconds', 'toolchainDiagnostics'],
 		tools: ['cppTemplate', 'cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
 	});
@@ -274,6 +274,20 @@ test('Error Lens toggle controls the extension enable setting', async () => {
 	assert.deepStrictEqual(host.updates.filter(key => key.startsWith('errorLens.')), ['errorLens.enabled']);
 });
 
+
+test('Compact Mode defaults on and round-trips through ShortestPath IDE settings', async () => {
+	const host = createSettingsHost();
+	const state = () => {
+		host.onConfiguration({ affectsConfiguration: key => key === 'shortestpath.compactMode' });
+		return host.messages.at(-1)!.value as Record<string, unknown>;
+	};
+	assert.equal(state().compactMode, true);
+	for (const compactMode of [false, true]) {
+		await host.receive({ type: 'save', value: { ...state(), compactMode } });
+		assert.equal(host.savedValues['shortestpath.compactMode'], compactMode);
+		assert.equal(state().compactMode, compactMode);
+	}
+});
 
 test('Better switches in custom settings preserve independent values and refresh from configuration', async () => {
 	const host = createSettingsHost();

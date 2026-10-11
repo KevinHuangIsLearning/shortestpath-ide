@@ -5,6 +5,7 @@
 
 /* Part Element */
 .monaco-workbench .part.titlebar {
+	--titlebar-control-height: 22px;
 	display: flex;
 	flex-direction: row;
 	box-shadow: var(--vscode-shadow-md);
@@ -214,7 +215,7 @@
 	overflow: hidden;
 	margin: 0 6px;
 	border-radius: var(--vscode-cornerRadius-medium);
-	height: 22px;
+	height: var(--titlebar-control-height);
 	width: 38vw;
 	max-width: 600px;
 }

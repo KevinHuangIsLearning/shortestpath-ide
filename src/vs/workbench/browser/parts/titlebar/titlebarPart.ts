@@ -93,6 +93,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	declare _serviceBrand: undefined;
 
 	readonly mainPart: BrowserTitlebarPart;
+	get navigationContainer(): HTMLElement | undefined { return this.mainPart.navigationContainer; }
 	get shortestPathUpdateContainer(): HTMLElement | undefined { return this.mainPart.shortestPathUpdateContainer; }
 
 	constructor(
@@ -226,6 +227,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 }
 
 export class BrowserTitlebarPart extends Part implements ITitlebarPart {
+	public navigationContainer: HTMLElement | undefined;
 	public shortestPathUpdateContainer: HTMLElement | undefined;
 
 	//#region IView
@@ -487,6 +489,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		if (!this.isAuxiliary && hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.createSidebarToggle();
+			this.navigationContainer = append(this.leftContent, $('div.titlebar-navigation-container'));
 		}
 
 		// Draggable region that we can manipulate for #52522

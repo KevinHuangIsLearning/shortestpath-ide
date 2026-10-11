@@ -48,8 +48,32 @@ suite('Workbench navigation column', () => {
 		assert.strictEqual(layout.getLayoutClasses().includes('shortestpath-dual-mode'), !isWeb);
 	});
 
+	test('Compact Mode releases the column and restores the same controls on exit', () => {
+		const navigation = store.add(new NavigationView());
+		const titlebar = document.createElement('div');
+		const button = document.createElement('button');
+		button.setAttribute('aria-pressed', 'true');
+		navigation.container.append(button);
+		const editor = store.add(new TestView(100, Number.POSITIVE_INFINITY, 0, Number.POSITIVE_INFINITY));
+		const grid = store.add(new Grid<IView>(navigation));
+		grid.orientation = Orientation.HORIZONTAL;
+		grid.addView(editor, 752, navigation, Direction.Right);
+		grid.layout(800, 600);
+		navigation.setTitlebarContainer(titlebar);
+		assert.deepStrictEqual(grid.getViewSize(navigation), { width: 0, height: 600 });
+		assert.deepStrictEqual(editor.size, [800, 600]);
+		assert.strictEqual(titlebar.firstElementChild, navigation.container);
+		assert.strictEqual(navigation.container.firstElementChild, button);
+		assert.strictEqual(button.getAttribute('aria-pressed'), 'true');
+		// An unavailable title bar (fullscreen, zen or native chrome) restores navigation.
+		navigation.setTitlebarContainer(undefined);
+		assert.deepStrictEqual(grid.getViewSize(navigation), { width: 48, height: 600 });
+		assert.strictEqual(navigation.element.firstElementChild, navigation.container);
+		assert.strictEqual(navigation.container.firstElementChild, button);
+	});
+
 	test('reserves a fixed column as the window resizes and workbench content is hidden', () => {
-		const navigation = new NavigationView();
+		const navigation = store.add(new NavigationView());
 		const editor = store.add(new TestView(100, Number.POSITIVE_INFINITY, 0, Number.POSITIVE_INFINITY));
 		const sidebar = store.add(new TestView(100, Number.POSITIVE_INFINITY, 0, Number.POSITIVE_INFINITY));
 		const grid = store.add(new Grid<IView>(navigation));

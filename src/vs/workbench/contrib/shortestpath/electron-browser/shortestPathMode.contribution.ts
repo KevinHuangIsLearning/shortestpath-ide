@@ -42,6 +42,7 @@ import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
 import { getShortestPathPageMode, IShortestPathModeService, isRestorableBrowserUrl, isShortestPathPageMode, parseBrowserState, shortestPathHome, shortestPathPageCommands, ShortestPathMode, ShortestPathPageMode } from '../common/shortestPathMode.js';
 import { createNavigationHoverDelegate } from '../browser/shortestPathNavigationHover.js';
+import { registerNavigationExpansion, registerNavigationSwipe } from '../browser/shortestPathNavigationSwipe.js';
 import { shouldRevealSolveEditor } from '../browser/shortestPathEditorMode.js';
 
 const browsingContext = new RawContextKey<boolean>('shortestpath.browsing', false);
@@ -94,6 +95,8 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private drawButton!: HTMLButtonElement;
 	private dashboardButton!: HTMLButtonElement;
 	private settingsButton!: HTMLButtonElement;
+	private previousPageButton: HTMLButtonElement | undefined;
+	private nextPageButton: HTMLButtonElement | undefined;
 	private pageSurface!: HTMLElement;
 	private resultBadge!: HTMLElement;
 	private switcher!: HTMLElement;
@@ -166,7 +169,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		// allow-any-unicode-next-line
 		this.browseButton = this.button(this.switcher, localize('sp.browse', "浏览"), () => this.switchMode('browse'), 'globe');
 		this.browseButton.classList.add('shortestpath-mode-browse');
-		const updateSetup = () => { this.browseButton.disabled = !this.configuration.getValue<boolean>('shortestpath.setup.completed'); };
+		const updateSetup = () => { this.browseButton.disabled = !this.configuration.getValue<boolean>('shortestpath.setup.completed'); this.updateNavigationHints(); };
 		updateSetup();
 		this._register(this.configuration.onDidChangeConfiguration(event => { if (event.affectsConfiguration('shortestpath.setup.completed')) { updateSetup(); } }));
 		// allow-any-unicode-next-line
@@ -186,6 +189,17 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.settingsButton = this.button(this.navigationActions, localize('sp.settings', "设置"), () => this.switchMode('settings'), 'settings-gear');
 		this.settingsButton.classList.add('shortestpath-mode-settings');
 		this.solveButton.setAttribute('aria-pressed', 'true');
+		const navigation = this.layoutService.mainWindowNavigationContainer!;
+		// allow-any-unicode-next-line
+		this.previousPageButton = this.button(navigation, localize('sp.previousPage', "上一页"), () => this.switchNavigationPage(-1), 'chevron-left');
+		this.previousPageButton.classList.add('shortestpath-navigation-hint');
+		navigation.prepend(this.previousPageButton);
+		// allow-any-unicode-next-line
+		this.nextPageButton = this.button(navigation, localize('sp.nextPage', "下一页"), () => this.switchNavigationPage(1), 'chevron-right');
+		this.nextPageButton.classList.add('shortestpath-navigation-hint', 'shortestpath-navigation-hint-right');
+		this.updateNavigationHints();
+		this._register(registerNavigationExpansion(navigation));
+		this._register(registerNavigationSwipe(navigation, direction => { void Promise.resolve(this.switchNavigationPage(direction)).catch(onUnexpectedError); }, [this.browseButton, this.solveButton, this.snippetsButton, this.drawButton, this.dashboardButton, this.settingsButton]));
 	}
 
 	protected async create(): Promise<void> {
@@ -235,6 +249,24 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			this.applyMode('browse');
 			void this.ensureBrowserTab().then(() => this.openHomeIfOnlyBlankTab()).catch(onUnexpectedError);
 		} else { this.applyMode('solve'); }
+	}
+
+	private navigationModes(): ShortestPathMode[] {
+		return this.browseButton.disabled ? ['solve', 'snippets', 'draw', 'dashboard', 'settings'] : ['browse', 'solve', 'snippets', 'draw', 'dashboard', 'settings'];
+	}
+
+	private switchNavigationPage(direction: -1 | 1): Promise<void> | void {
+		const modes = this.navigationModes();
+		const next = modes[modes.indexOf(this.requestedMode ?? this.mode) + direction];
+		if (next) { return this.switchMode(next); }
+	}
+
+	private updateNavigationHints(): void {
+		if (!this.previousPageButton || !this.nextPageButton) { return; }
+		const modes = this.navigationModes();
+		const index = modes.indexOf(this.requestedMode ?? this.mode);
+		this.previousPageButton.disabled = index <= 0;
+		this.nextPageButton.disabled = index >= modes.length - 1;
 	}
 
 	private button(parent: HTMLElement, label: string, run: () => PromiseLike<unknown> | void, icon?: string, store: DisposableStore = this._store): HTMLButtonElement {
@@ -324,6 +356,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			this.returnFocus = active instanceof mainWindow.HTMLElement && !this.switcher.contains(active) && !this.navigationActions.contains(active) ? active : undefined;
 		}
 		this.mode = mode;
+		this.requestedMode = mode;
 		this.browsing.set(mode === 'browse');
 		this.pageMode.set(isShortestPathPageMode(mode));
 		this.layoutService.mainContainer.classList.toggle('shortestpath-browsing', mode === 'browse');
@@ -340,6 +373,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.drawButton.setAttribute('aria-pressed', String(mode === 'draw'));
 		this.dashboardButton.setAttribute('aria-pressed', String(mode === 'dashboard'));
 		this.settingsButton.setAttribute('aria-pressed', String(mode === 'settings'));
+		this.updateNavigationHints();
 		for (const [pageMode, input] of this.pages) {
 			if (mode === pageMode) { this.showPage(input); }
 			else { input.webview.release(this); }
@@ -534,7 +568,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 
 	private layout(): void {
 		if (!this.surface) { return; }
-		const navigation = this.layoutService.mainWindowNavigationContainer!.getBoundingClientRect();
+		const navigation = (this.layoutService.mainWindowNavigationLayoutContainer ?? this.layoutService.mainWindowNavigationContainer)!.getBoundingClientRect();
 		const root = this.layoutService.mainContainer.getBoundingClientRect();
 		// Navigation can have transient collapsed bounds during workbench layout.
 		// Keep independent pages below the visible title bar and banner instead.

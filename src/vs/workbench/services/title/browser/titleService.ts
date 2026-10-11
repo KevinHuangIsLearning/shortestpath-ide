@@ -14,6 +14,9 @@ export interface ITitleService extends ITitlebarPart {
 
 	readonly _serviceBrand: undefined;
 
+	/** Main custom title bar host for ShortestPath navigation. */
+	readonly navigationContainer?: HTMLElement;
+
 	/** Main custom title bar host for the ShortestPath update entry. */
 	readonly shortestPathUpdateContainer?: HTMLElement;
 

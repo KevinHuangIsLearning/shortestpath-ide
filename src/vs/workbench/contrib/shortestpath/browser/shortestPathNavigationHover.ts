@@ -18,12 +18,13 @@ export function createNavigationHoverDelegate(hoverService: IHoverService): IHov
 			const button = target.targetElements[0];
 			const zoom = getDomNodeZoomLevel(options.container ?? button.closest<HTMLElement>('.monaco-workbench') ?? button);
 			const bounds = button.getBoundingClientRect();
+			const compact = !!button.closest('.compact-navigation');
 			return hoverService.showInstantHover({
 				...options,
 				// ContextView positions in container CSS coordinates; target bounds already include CSS zoom.
-				target: { ...target, x: bounds.right / zoom, y: bounds.bottom / zoom },
+				target: { ...target, x: (compact ? bounds.left : bounds.right) / zoom, y: bounds.bottom / zoom },
 				additionalClasses: ['shortestpath-navigation-hover'],
-				position: { hoverPosition: HoverPosition.RIGHT },
+				position: { hoverPosition: compact ? HoverPosition.BELOW : HoverPosition.RIGHT },
 				appearance: { compact: true, showPointer: false, skipFadeInAnimation: true },
 				persistence: { hideOnKeyDown: true }
 			}, focus);

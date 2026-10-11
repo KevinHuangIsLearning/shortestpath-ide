@@ -59,6 +59,16 @@ suite('ShortestPath navigation hover', () => {
 		});
 	}
 
+	test('Compact Mode tooltip opens below the title bar control', () => {
+		const { button, fixture, hoverService } = setupHover(6, 40);
+		fixture.classList.add('compact-navigation');
+		const hover = createNavigationHoverDelegate(hoverService).showHover({ target: button, content: 'Sketchpad' });
+		assert.ok(hover);
+		store.add(hover);
+		const tooltip = fixture.querySelector<HTMLElement>('.shortestpath-navigation-hover')!;
+		assert.ok(tooltip.getBoundingClientRect().top >= button.getBoundingClientRect().bottom);
+	});
+
 	test('managed mouse hover stays beside the button and closes when the pointer leaves', async () => {
 		const { button, fixture, hoverService } = setupHover(147, 123);
 		const delegate = createNavigationHoverDelegate(hoverService);
