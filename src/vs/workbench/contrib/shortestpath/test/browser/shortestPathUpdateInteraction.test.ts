@@ -7,7 +7,7 @@ import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -21,6 +21,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { ITitleService } from '../../../../services/title/browser/titleService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IShortestPathUpdateIndicator, ShortestPathUpdateBlocker, ShortestPathUpdateChecker, ShortestPathUpdateContribution, ShortestPathUpdateIndicator } from '../../browser/shortestPathUpdate.contribution.js';
@@ -31,10 +32,15 @@ suite('ShortestPath update interaction', () => {
 	function setupUpdate(currentVersion = '0.3.17', minimumSupportedVersion = '0.3.17') {
 		const root = append(mainWindow.document.body, $('.monaco-workbench'));
 		const navigation = append(root, $('.workbench-navigation'));
+		const titlebar = append(root, $('.titlebar-navigation-container'));
+		const right = append(root, $('.titlebar-right'));
+		const updateHost = append(right, $('.shortestpath-titlebar-update-container'));
+		const layout = store.add(new Emitter<{ width: number; height: number }>());
 		const instantiation = store.add(new TestInstantiationService());
 		const storage = store.add(new TestStorageService());
-		instantiation.stub(IWorkbenchLayoutService, { mainContainer: root, mainWindowNavigationContainer: navigation, getContainer: () => root, onDidChangePartVisibility: Event.None });
+		instantiation.stub(IWorkbenchLayoutService, { mainContainer: root, mainWindowNavigationContainer: navigation, getContainer: () => root, onDidChangePartVisibility: Event.None, onDidLayoutMainContainer: layout.event });
 		instantiation.stub(IHoverService, NullHoverService);
+		instantiation.stub(ITitleService, { shortestPathUpdateContainer: updateHost });
 		instantiation.stub(IProductService, { shortestPathVersion: currentVersion, shortestPathUpdateUrl: 'https://example.test/latest.json' });
 		instantiation.stub(IStorageService, storage);
 		instantiation.stub(ILogService, new NullLogService());
@@ -46,8 +52,26 @@ suite('ShortestPath update interaction', () => {
 		const indicator = store.add(instantiation.createInstance(ShortestPathUpdateIndicator));
 		instantiation.set(IShortestPathUpdateIndicator, indicator);
 		store.add(toDisposable(() => { ShortestPathUpdateBlocker.dismiss(); root.remove(); }));
-		return { root, navigation, instantiation, storage, indicator };
+		return { root, navigation, instantiation, storage, indicator, layout, titlebar, updateHost };
 	}
+
+	test('compact updates stay outside navigation and survive title bar fallback', () => {
+		const { root, navigation, indicator, layout, titlebar, updateHost } = setupUpdate();
+		let opened = 0;
+		indicator.show('0.3.18', () => opened++);
+		const button = navigation.querySelector<HTMLButtonElement>('button')!;
+		titlebar.append(navigation);
+		navigation.classList.add('compact-navigation');
+		layout.fire({ width: 800, height: 600 });
+		button.click();
+		assert.deepStrictEqual({ external: button.parentElement === updateHost, compact: button.classList.contains('compact-update-indicator'), hidden: button.hidden, opened }, { external: true, compact: true, hidden: false, opened: 1 });
+		root.append(navigation);
+		navigation.classList.remove('compact-navigation');
+		layout.fire({ width: 800, height: 600 });
+		assert.deepStrictEqual({ restored: button.parentElement === navigation, compact: button.classList.contains('compact-update-indicator'), hidden: button.hidden }, { restored: true, compact: false, hidden: false });
+		indicator.clear();
+		assert.strictEqual(button.hidden, true);
+	});
 
 	test('automatic ordinary check only shows the lower navigation entry; click and Escape control the card', async () => {
 		const { root, navigation, instantiation } = setupUpdate();

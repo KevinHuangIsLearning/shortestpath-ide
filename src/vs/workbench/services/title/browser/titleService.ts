@@ -14,6 +14,9 @@ export interface ITitleService extends ITitlebarPart {
 
 	readonly _serviceBrand: undefined;
 
+	/** Main custom title bar host for the ShortestPath update entry. */
+	readonly shortestPathUpdateContainer?: HTMLElement;
+
 	/**
 	 * The shared {@link WindowTitle} instance for the main window. Used by
 	 * components that need to render or react to the resolved `window.title`

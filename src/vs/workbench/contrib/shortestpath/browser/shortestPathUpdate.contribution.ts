@@ -34,6 +34,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateDialogKind, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, getShortestPathUpdateWithFallback, IShortestPathUpdate, IShortestPathUpdateDocument, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
 
@@ -309,7 +310,7 @@ export interface IShortestPathUpdateIndicator {
 	clear(): void;
 }
 
-/** Ordinary updates stay in the navigation column until the user opens them. */
+/** Ordinary updates remain reachable outside the collapsed title bar navigation. */
 export class ShortestPathUpdateIndicator extends Disposable implements IShortestPathUpdateIndicator {
 	declare readonly _serviceBrand: undefined;
 	private readonly button: HTMLButtonElement | undefined;
@@ -318,6 +319,7 @@ export class ShortestPathUpdateIndicator extends Disposable implements IShortest
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IHoverService hoverService: IHoverService,
+		@ITitleService titleService: ITitleService,
 	) {
 		super();
 		const navigation = layoutService.mainWindowNavigationContainer;
@@ -332,6 +334,16 @@ export class ShortestPathUpdateIndicator extends Disposable implements IShortest
 		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.button, localize('sp.updateAvailable', "有新版本可用，点击查看更新")));
 		this._register(addDisposableListener(this.button, 'click', () => this.open?.()));
 		this._register(toDisposable(() => this.button?.remove()));
+		const updateLocation = () => {
+			const compact = navigation.classList.contains('compact-navigation') && !!titleService.shortestPathUpdateContainer;
+			const host = compact ? titleService.shortestPathUpdateContainer : navigation;
+			if (host && this.button) {
+				if (this.button.parentElement !== host) { host.append(this.button); }
+				this.button.classList.toggle('compact-update-indicator', compact);
+			}
+		};
+		updateLocation();
+		this._register(layoutService.onDidLayoutMainContainer(updateLocation));
 	}
 
 	show(version: string, open: () => void): void {
@@ -634,15 +646,20 @@ registerAction2(class extends Action2 {
 			if (!result) {
 				ShortestPathUpdateBlocker.dismiss();
 				const reason = !productService.shortestPathVersion
+					// allow-any-unicode-next-line
 					? localizeUpdate('The current product has no version configured.', '当前产品未配置版本号。')
+					// allow-any-unicode-next-line
 					: localizeUpdate('The current product has no update URL configured.', '当前产品未配置更新地址。');
 				if (!fromSetup) {
+					// allow-any-unicode-next-line
 					notificationService.error(localizeUpdate(`Unable to check for ShortestPath IDE updates: ${reason}`, `无法检查 ShortestPath IDE 更新：${reason}`));
 				}
 				return { status: 'failed', reason };
 			}
 			if (!fromSetup && !isShortestPathUpdateAvailable(productService.shortestPathVersion ?? '', result.release.version)) {
+				// allow-any-unicode-next-line
 				const version = productService.shortestPathVersion ?? localizeUpdate('Unknown', '未知');
+				// allow-any-unicode-next-line
 				notificationService.info(localizeUpdate(`ShortestPath IDE is up to date (${version}).`, `当前已是 ShortestPath IDE 最新版本（${version}）。`));
 			}
 			if (!isShortestPathUpdateAvailable(productService.shortestPathVersion ?? '', result.release.version)) {
@@ -709,8 +726,8 @@ registerAction2(class extends Action2 {
 		} catch (error) {
 			ShortestPathUpdateBlocker.dismiss();
 			const reason = getErrorMessage(error);
-			// allow-any-unicode-next-line
 			if (!fromSetup) {
+				// allow-any-unicode-next-line
 				notificationService.error(localizeUpdate(`Unable to check for ShortestPath IDE updates: ${reason}`, `无法检查 ShortestPath IDE 更新：${reason}`));
 			}
 			return { status: 'failed', reason };

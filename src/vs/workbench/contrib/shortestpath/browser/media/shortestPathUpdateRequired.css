@@ -137,6 +137,27 @@
 	display: none;
 }
 
+.shortestpath-titlebar-update-container {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .shortestpath-titlebar-update-container:has(> .compact-update-indicator:not([hidden])) ~ :is(.update-toolbar-container, .action-toolbar-container) {
+	margin-left: 0;
+}
+
+.monaco-workbench .shortestpath-update-indicator.compact-update-indicator {
+	flex: 0 0 auto;
+	flex-direction: row;
+	box-sizing: border-box;
+	height: var(--titlebar-control-height, 22px);
+	margin: 0 var(--vscode-spacing-size80, 8px);
+	padding: 0 var(--vscode-spacing-size60, 6px);
+	-webkit-app-region: no-drag;
+}
+
 .shortestpath-update-indicator:hover {
 	background: var(--vscode-button-hoverBackground);
 }

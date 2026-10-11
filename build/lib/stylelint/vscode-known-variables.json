@@ -1004,6 +1004,7 @@
 		"--agent-sessions-editor-tab-padding",
 		"--shortestpath-custom-titlebar-vertical-inset",
 		"--shortestpath-windows-window-controls-width",
+		"--titlebar-control-height",
 		"--session-chat-base-height",
 		"--editor-font-size",
 		"--background-dark",
