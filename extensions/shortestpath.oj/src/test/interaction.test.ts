@@ -130,3 +130,62 @@ test('finished counterexamples open with a prominent add action before their dat
 		assert.doesNotMatch(renderTasks([{ ...task, status: 'found', counterExample: { input: '', expected: '', actual: '' }, ...unavailable }]), /data-command="addStressCounterExample"/);
 	}
 });
+
+function createZoomView(savedZoom?: number) {
+	const source = view();
+	const start = source.indexOf('/* ---- Preview zoom ---- */');
+	const end = source.indexOf('/* ---- End preview zoom ---- */', start);
+	class Control {
+		disabled = false;
+		textContent = '';
+		click: () => void = () => { };
+		addEventListener(_name: string, listener: () => void): void { this.click = listener; }
+	}
+	const controls = new Map(['oj-zoom-out', 'oj-zoom-in', 'oj-zoom-reset'].map(id => [id, new Control()]));
+	let scale = '';
+	let state = { problemRef: '', sourcePath: '', zoom: 0 };
+	const body = { dataset: { problemRef: 'DSU/found/A', sourcePath: '/workspace/A.cpp' } };
+	vm.runInNewContext(source.slice(start, end), {
+		body,
+		vscode: { getState: () => ({ zoom: savedZoom }), setState: (value: typeof state) => { state = value; } },
+		document: {
+			getElementById: (id: string) => controls.get(id),
+			querySelector: () => ({ style: { setProperty: (_name: string, value: string) => { scale = value; } } }),
+		},
+	});
+	return { controls, body, snapshot: () => ({ scale, state: JSON.parse(JSON.stringify(state)), label: controls.get('oj-zoom-reset')!.textContent }) };
+}
+
+test('preview zoom restores, clamps, resets and preserves panel ownership', () => {
+	const panel = createZoomView(120);
+	panel.controls.get('oj-zoom-in')!.click();
+	assert.deepEqual(panel.snapshot(), { scale: '1.3', state: { problemRef: 'DSU/found/A', sourcePath: '/workspace/A.cpp', zoom: 130 }, label: '130%' });
+	panel.controls.get('oj-zoom-reset')!.click();
+	assert.equal(panel.snapshot().scale, '1');
+	for (let i = 0; i < 20; i++) { panel.controls.get('oj-zoom-out')!.click(); }
+	assert.equal(panel.snapshot().scale, '0.5');
+	assert.equal(panel.controls.get('oj-zoom-out')!.disabled, true);
+	panel.body.dataset.sourcePath = '/workspace/B.cpp';
+	for (let i = 0; i < 20; i++) { panel.controls.get('oj-zoom-in')!.click(); }
+	assert.deepEqual(panel.snapshot(), { scale: '2', state: { problemRef: 'DSU/found/A', sourcePath: '/workspace/B.cpp', zoom: 200 }, label: '200%' });
+	assert.equal(panel.controls.get('oj-zoom-in')!.disabled, true);
+	for (const invalid of [NaN, Infinity]) { assert.equal(createZoomView(invalid).snapshot().scale, '1'); }
+	assert.equal(createZoomView(1000).snapshot().scale, '2');
+});
+
+test('submission resize animation uses layout heights inside a zoomed preview', () => {
+	const source = view();
+	const start = source.indexOf('const snapshotSubmissionHeights =');
+	const end = source.indexOf(`window.addEventListener('message'`, start);
+	const submission = { dataset: { persistKey: 'submission:10' }, offsetHeight: 100, style: { height: '', transition: '', overflow: '' }, getBoundingClientRect: () => ({ height: 200 }) };
+	const section = { querySelectorAll: () => [submission] };
+	let finish: (() => void) | undefined;
+	const context = vm.createContext({ window: { matchMedia: () => ({ matches: false }), setTimeout: (listener: () => void) => { finish = listener; } } });
+	vm.runInContext(`${source.slice(start, end)}; globalThis.snapshot = snapshotSubmissionHeights; globalThis.resize = animateSubmissionResize;`, context);
+	const previous = context.snapshot(section);
+	submission.offsetHeight = 150;
+	context.resize(section, previous);
+	assert.deepEqual({ previous: previous.get('submission:10'), height: submission.style.height }, { previous: 100, height: '150px' });
+	finish!();
+	assert.deepEqual(submission.style, { height: '', transition: '', overflow: '' });
+});

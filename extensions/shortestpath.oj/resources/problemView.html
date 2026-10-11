@@ -18,6 +18,11 @@
 				<h1><a href="{{PROBLEM_URL}}" data-command="openWebsite" data-i18n-ignore>{{TITLE}}</a></h1>
 				<span id="oj-statement-version">{{STATEMENT_VERSION}}</span>
 				<div class="problem-actions">
+					<div class="preview-zoom" role="group" aria-label="预览缩放">
+						<button type="button" id="oj-zoom-out" title="缩小" aria-label="缩小">−</button>
+						<button type="button" id="oj-zoom-reset" title="重置缩放" aria-label="重置缩放">100%</button>
+						<button type="button" id="oj-zoom-in" title="放大" aria-label="放大">+</button>
+					</div>
 					<span id="oj-submission-button">{{SUBMISSION_BUTTON}}</span>
 				</div>
 			</div>

@@ -7,6 +7,10 @@ import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 
 const english: Readonly<Record<string, string>> = {
+	'预览缩放': 'Preview Zoom',
+	'缩小': 'Zoom Out',
+	'放大': 'Zoom In',
+	'重置缩放': 'Reset Zoom',
 	'点击编辑': 'Click to edit',
 	'题目自带样例不能修改或删除。': 'The problem samples cannot be edited or deleted.',
 	'测试用例 {0}': 'Test Case {0}',

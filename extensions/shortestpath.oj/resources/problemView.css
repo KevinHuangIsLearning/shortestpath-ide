@@ -2243,3 +2243,24 @@ button.local-test-icon:focus-visible,
 .local-test:has(.local-test-value[open]) button[data-command="localTestSave"] {
 	display: inline-flex;
 }
+
+.preview-zoom {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+}
+
+header .problem-actions .preview-zoom button {
+	background: transparent;
+	color: var(--vscode-foreground);
+	padding: 3px 6px;
+}
+
+header .problem-actions .preview-zoom button:hover:not(:disabled) {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+#oj-zoom-reset {
+	min-width: 5ch;
+	font-variant-numeric: tabular-nums;
+}

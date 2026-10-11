@@ -3,7 +3,9 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare function acquireVsCodeApi(): { postMessage(message: object): void; setState(state: object): void };
+type ProblemViewState = { problemRef?: string; sourcePath?: string; zoom?: number };
+
+declare function acquireVsCodeApi(): { postMessage(message: object): void; getState(): ProblemViewState | undefined; setState(state: ProblemViewState): void };
 
 type HintLikeMessage = { type: 'hintLike' | 'hintLikeError'; hintId: string; target: 'question' | 'answer'; liked?: boolean; count?: number; hintLikes?: { liked: boolean; count: number }; editorialLikes?: { liked: boolean; count: number } };
 
@@ -41,7 +43,27 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 (() => {
 	const vscode = acquireVsCodeApi();
 	const body = document.body;
-	vscode.setState({ problemRef: body.dataset.problemRef, sourcePath: body.dataset.sourcePath });
+	/* ---- Preview zoom ---- */
+	const savedZoom = vscode.getState()?.zoom;
+	let previewZoom = typeof savedZoom === 'number' && Number.isFinite(savedZoom) ? Math.max(50, Math.min(200, Math.round(savedZoom / 10) * 10)) : 100;
+	const persistViewState = (): void => {
+		vscode.setState({ problemRef: body.dataset.problemRef, sourcePath: body.dataset.sourcePath, zoom: previewZoom });
+	};
+	const zoomOut = document.getElementById('oj-zoom-out') as HTMLButtonElement | null;
+	const zoomIn = document.getElementById('oj-zoom-in') as HTMLButtonElement | null;
+	const zoomReset = document.getElementById('oj-zoom-reset');
+	const applyPreviewZoom = (): void => {
+		document.querySelector<HTMLElement>('.tab-panels')?.style.setProperty('zoom', String(previewZoom / 100));
+		if (zoomReset) { zoomReset.textContent = `${previewZoom}%`; }
+		if (zoomOut) { zoomOut.disabled = previewZoom <= 50; }
+		if (zoomIn) { zoomIn.disabled = previewZoom >= 200; }
+		persistViewState();
+	};
+	zoomOut?.addEventListener('click', () => { previewZoom = Math.max(50, previewZoom - 10); applyPreviewZoom(); });
+	zoomIn?.addEventListener('click', () => { previewZoom = Math.min(200, previewZoom + 10); applyPreviewZoom(); });
+	zoomReset?.addEventListener('click', () => { previewZoom = 100; applyPreviewZoom(); });
+	applyPreviewZoom();
+	/* ---- End preview zoom ---- */
 	document.querySelector('.title-line h1 a')?.addEventListener('click', event => {
 		event.preventDefault();
 		vscode.postMessage({ command: 'openWebsite' });
@@ -939,7 +961,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		section.querySelectorAll<HTMLElement>('.submission[data-persist-key]').forEach(submission => {
 			const key = submission.dataset.persistKey;
 			if (key) {
-				heights.set(key, submission.getBoundingClientRect().height);
+				heights.set(key, submission.offsetHeight);
 			}
 		});
 		return heights;
@@ -954,7 +976,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 			if (previousHeight === undefined) {
 				return;
 			}
-			const nextHeight = submission.getBoundingClientRect().height;
+			const nextHeight = submission.offsetHeight;
 			if (Math.abs(previousHeight - nextHeight) < 1) {
 				return;
 			}
@@ -995,7 +1017,8 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		}
 		if (message.type === 'sourceChanged') {
 			body.dataset.sourcePath = message.sourcePath;
-			vscode.setState({ problemRef: message.problemRef, sourcePath: message.sourcePath });
+			body.dataset.problemRef = message.problemRef;
+			persistViewState();
 			return;
 		}
 		if (message.type === 'confirm') {
