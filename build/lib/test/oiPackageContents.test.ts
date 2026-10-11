@@ -31,6 +31,15 @@ async function collectFixture(extension: string, files: string[]): Promise<strin
 }
 
 suite('OI extension package contents', () => {
+	test('CodeSnap retains its browser renderer and license without development dependencies', async () => {
+		const runtime = ['src/extension.js', 'src/util.js', 'webview/index.html', 'webview/src/index.js', 'webview/style.css',
+			'node_modules/dom-to-image-even-more/dist/dom-to-image-more.min.js', 'node_modules/dom-to-image-even-more/LICENSE', 'node_modules/dom-to-image-even-more/package.json'];
+		const development = ['node_modules/core-js/index.js', 'node_modules/dom-to-image-even-more/bower_components/example.js',
+			'node_modules/dom-to-image-even-more/src/dom-to-image-more.js', 'examples/code.png', 'package-lock.json'];
+		const files = await vsce.listFiles({ cwd: path.join(root, 'extensions/aadityanarayan.code-snap'), packageManager: vsce.PackageManager.Npm });
+		assert.deepStrictEqual([...runtime, ...development].filter(file => files.includes(file)).sort(), runtime.sort());
+	});
+
 	test('OJ retains both Webview scripts and bundle notices without unbundled dependencies or tests', async () => {
 		const runtime = ['dist/extension.js', 'dist/THIRD_PARTY_NOTICES.txt', 'out/problemView.js', 'out/styleHotReload.js', 'resources/problemView.html', 'resources/katex/katex.min.js'];
 		const development = ['out/extension.js', 'out/test/example.test.js', 'node_modules/shiki/dist/index.mjs', 'dist/metafile.json'];
@@ -40,12 +49,12 @@ suite('OI extension package contents', () => {
 	test('Judger retains compiled parsers, native tools, userscripts and licenses without the companion build tree', async () => {
 		const runtime = [
 			'dist/extension.js', 'dist/frontend.module.js', 'preview-dist/preview.module.js',
-			'dist/static/competitive-companion/parsers.bundle.txt', 'dist/static/competitive-companion/parsers.runtime.txt',
+			'dist/static/competitive-companion/parsers.runtime.txt',
 			'dist/static/competitive-companion/LICENSE', 'dist/static/competitive-companion/THIRD-PARTY-LICENSES.txt',
 			'dist/static/tools/runner.cpp', 'dist/static/tools/hook.hpp', 'dist/static/testlib/testlib.h',
 			'dist/static/userscripts/luogu.user.js', 'LICENSE', 'package.nls.json',
 		];
-		const development = ['scripts/companion/node_modules/esbuild/bin/esbuild', 'scripts/companion/entry.ts', 'static/competitive-companion/parsers.runtime.txt', 'screenshots/example.png'];
+		const development = ['dist/static/competitive-companion/parsers.bundle.txt', 'scripts/companion/node_modules/esbuild/bin/esbuild', 'scripts/companion/entry.ts', 'static/competitive-companion/parsers.runtime.txt', 'screenshots/example.png'];
 		assert.deepStrictEqual(await collectFixture('shortestpath.judger', [...runtime, ...development]), runtime.sort());
 	});
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { gulp, rename, replace, filter, jsonEditor } from './lib/gulp/facade.ts';
+import { gulp, rename, replace, filter, jsonEditor, buffer } from './lib/gulp/facade.ts';
 import * as fs from 'fs';
 import * as path from 'path';
 import es from 'event-stream';
@@ -25,6 +25,7 @@ import { getProductionDependencies } from './lib/dependencies.ts';
 import { config } from './lib/electron.ts';
 import { createAsar } from './lib/asar.ts';
 import { minifyDependency } from './lib/minifyDependency.ts';
+import { deduplicateLicenseNotices } from './lib/deduplicateLicenseNotices.ts';
 import minimist from 'minimist';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
 import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
@@ -272,15 +273,16 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**/@vscode/vsce-sign/bin/*',
 			], [
 				'**/*.mk',
-			], [
-				'node_modules/vsda/**', // retain copy of `vsda` in node_modules for internal use
 				// The sandbox runtime is spawned as a standalone Node subprocess (no ASAR
 				// resolution hook), so it and its transitive JS dependencies must remain as
-				// real files under `node_modules`. Keep them duplicated out of the archive.
+				// real files under `node_modules`. Normal resolution also finds these files,
+				// so archiving a second copy only increases the installed package size.
 				'node_modules/@vscode/sandbox-runtime/**', // includes its nested `commander`
 				'node_modules/@pondwader/socks5-server/**',
 				'node_modules/shell-quote/**',
 				'node_modules/zod/**'
+			], [
+				'node_modules/vsda/**', // retain copy of `vsda` in node_modules for internal use
 			], 'node_modules.asar'));
 
 		const mergeStreams = [
@@ -349,11 +351,21 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			ffmpegChromium: false
 		};
 
+		const licenseNoticesFilter = filter('**/LICENSES.chromium.html', { restore: true });
 		let result: NodeJS.ReadWriteStream = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
 			.pipe(electron(electronConfig))
+			.pipe(licenseNoticesFilter)
+			.pipe(buffer())
+			.pipe(es.mapSync((file: VinylFile) => {
+				if (sourceFolderName.endsWith('-min') && file.isBuffer() && path.basename(file.path) === 'LICENSES.chromium.html') {
+					file.contents = deduplicateLicenseNotices(file.contents);
+				}
+				return file;
+			}))
+			.pipe(licenseNoticesFilter.restore)
 			// ShortestPath ships English plus a bundled Simplified Chinese language
 			// pack. Electron's other native locale packs are unreachable payload.
 			.pipe(util.filter(data => isShortestPathElectronLocale(data.relative, platform)))

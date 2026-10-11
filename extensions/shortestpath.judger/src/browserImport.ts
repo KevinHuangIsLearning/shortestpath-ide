@@ -101,21 +101,20 @@ export function registerBrowserImport(context: vscode.ExtensionContext, importPr
 				return { count: 0 };
 			}
 			const sourceUrl = expectedUrl ?? tab.url;
+			const runtime = await fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.runtime.txt'), 'utf8');
 			if (!parserId) {
-				const runtime = await fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.runtime.txt'), 'utf8');
 				const inspected = await evaluateBrowserPage(tab, `(() => { ${runtime}; return globalThis.ShortestPathCompanionInspect(); })()`, sourceUrl);
 				const choices = Array.isArray(inspected) ? inspected.filter((choice): choice is { id: string; name: string; patterns: string[]; matched: boolean } => typeof choice?.id === 'string' && typeof choice?.name === 'string' && Array.isArray(choice?.patterns) && typeof choice?.matched === 'boolean') : [];
 				parserId = choices.find(choice => choice.matched)?.id;
 				if (!parserId) {
 					const selected = await vscode.window.showQuickPick(choices.map(choice => ({ label: choice.name, description: choice.patterns.join(', '), parserId: choice.id })), {
-					placeHolder: localize('judger.browserImport.chooseParser', 'Choose Parser…'), matchOnDescription: true,
-				});
+						placeHolder: localize('judger.browserImport.chooseParser', 'Choose Parser…'), matchOnDescription: true,
+					});
 					if (!selected) { return { count: 0, cancelled: true }; }
 					parserId = selected.parserId;
 				}
 			}
-			const bundle = await fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.bundle.txt'), 'utf8');
-			const expression = `(async () => { globalThis.__shortestpathParserId = ${JSON.stringify(parserId ?? null)}; return await (${bundle}); })()`;
+			const expression = `(async () => { ${runtime}; return await globalThis.ShortestPathCompanionParse(${JSON.stringify(parserId ?? null)}); })()`;
 			const problems = await parseBrowserProblems(tab, expression, sourceUrl);
 			for (const problem of problems) {
 				if (tab.url !== sourceUrl) { throw new Error(localize('judger.browserImport.pageChanged', 'The page changed during import. Please retry.')); }

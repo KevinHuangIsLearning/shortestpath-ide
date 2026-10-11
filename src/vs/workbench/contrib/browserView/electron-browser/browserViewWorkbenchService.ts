@@ -316,14 +316,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
-	getOrCreateLazy(data: IBrowserEditorInputData): BrowserEditorInput {
-		return this._getOrCreateLazy(data);
+	getOrCreateLazy(data: IBrowserEditorInputData, createOptions?: IBrowserViewWorkbenchCreateOptions): BrowserEditorInput {
+		return this._getOrCreateLazy(data, undefined, createOptions);
 	}
 
 	private _getOrCreateLazy(data: IBrowserEditorInputData, model?: IBrowserViewModel, createOptions?: IBrowserViewWorkbenchCreateOptions): BrowserEditorInput {
 		const { id, associatedResource } = data;
 		if (!this._known.has(id)) {
-			const input = this.instantiationService.createInstance(BrowserEditorInput, data, async () => {
+			const input: BrowserEditorInput = this.instantiationService.createInstance(BrowserEditorInput, data, async () => {
 				const info = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
@@ -334,7 +334,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 						associatedResource,
 						session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
 						initialAudiences: createOptions?.initialAudiences,
-						initialUrl: createOptions ? createOptions.initialUrl : data.url,
+						initialUrl: createOptions ? (createOptions.initialUrl ? input.url : undefined) : input.url,
 						openSource: createOptions?.openSource
 					}
 				);

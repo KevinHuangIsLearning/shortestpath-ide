@@ -18,13 +18,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		log.appendLine('Integrated browser API unavailable');
 		return;
 	}
-	let assets: Assets;
-	try {
-		assets = new Assets(join(context.extensionPath, 'resources'));
-	} catch (error) {
-		log.appendLine(`Cannot load bundled OJBetter: ${error.message}`);
-		return;
-	}
+	// Payloads include Monaco workers and translations; load them on the first supported page.
+	let assets: Assets | undefined;
 	const storage = new Preferences(context.globalState);
 	const tabs = new Map<string, Integration>();
 	const starting = new Set<string>();
@@ -42,7 +37,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		starting.add(tab.id);
 		const startedGeneration = generation;
 		try {
-			const integration = await connect(tab, assets, {
+			const activeAssets = assets ??= new Assets(join(context.extensionPath, 'resources'));
+			const integration = await connect(tab, activeAssets, {
 				storage,
 				fetch,
 				clipboard: text => vscode.env.clipboard.writeText(text),
@@ -60,7 +56,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				integration.onDidDispose = () => {
 					if (tabs.get(tab.id) === integration) { tabs.delete(tab.id); }
 				};
-				log.appendLine(`${assets.manifest.scripts[platform].name} ${assets.manifest.scripts[platform].version}: attached`);
+				log.appendLine(`${activeAssets.manifest.scripts[platform].name} ${activeAssets.manifest.scripts[platform].version}: attached`);
 			}
 		} catch (error) {
 			log.appendLine(`OJBetter attachment failed: ${error.message}`);

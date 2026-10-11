@@ -55,6 +55,7 @@ import { getShortestPathPageMode, IShortestPathModeService, isRestorableBrowserU
 import { createNavigationHoverDelegate } from '../browser/shortestPathNavigationHover.js';
 import { registerNavigationExpansion, registerNavigationSwipe } from '../browser/shortestPathNavigationSwipe.js';
 import { shouldRevealSolveEditor } from '../browser/shortestPathEditorMode.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
 const browsingContext = new RawContextKey<boolean>('shortestpath.browsing', false);
 const drawingContext = new RawContextKey<boolean>('shortestpath.drawMode', false);
@@ -96,9 +97,13 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private readonly tabStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly browserGroupStores = this._register(new DisposableMap<number, DisposableStore>());
 	private readonly openingTabs = new Set<string>();
+	private restoringBrowserTabs = false;
 	protected browserPart: IEmbeddedEditorPart | undefined;
 	protected drawingPart: IEmbeddedEditorPart | undefined;
 	private restoringDrawingTabs = false;
+	private drawingTabsReady: Promise<void> | undefined;
+	private drawingTabsRestored = false;
+	private readonly pendingDrawingEditors = new Set<Promise<unknown>>();
 	private readonly drawingTabStores = this._register(new DisposableMap<WebviewInput, DisposableStore>());
 	private readonly drawingEditorOptions = new WeakMap<EditorInput, IEditorOptions>();
 	private readonly drawingGroupStores = this._register(new DisposableMap<number, DisposableStore>());
@@ -244,7 +249,6 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.pageSurface = append(root, $('section.shortestpath-page-space'));
 		this.pageSurface.hidden = true;
 		this.drawingSurface = append(this.pageSurface, $('.shortestpath-drawing-space'));
-		this.createDrawingPart(this.drawingSurface);
 		// allow-any-unicode-next-line
 		this.surface = append(root, $('section.shortestpath-browser-space', { 'aria-label': localize('sp.browser', "网页浏览") }));
 		this.surface.hidden = true;
@@ -258,37 +262,65 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this._register(addDisposableListener(mainWindow, 'focus', () => this.refresh()));
 		this._register(this.editors.onWillOpenEditor(event => this.revealEditorMode(event)));
 		this.layout();
-		const state = parseBrowserState(this.storage.get(tabsKey, StorageScope.PROFILE));
-		// Native pages survive a workbench reload. Reuse them so development reloads
-		// keep page state and do not leave duplicate views running in the background.
-		const liveViews = await this.nativeBrowsers.getBrowserViews(mainWindow.vscodeWindowId);
-		for (const [index, url] of state.urls.entries()) {
-			const live = liveViews.find(view => view.owner.type === 'user' && view.id === state.ids?.[index] && !this.tabs.has(view.id) && !this.editors.isOpened(this.browsers.getOrCreateLazy({ id: view.id })))
-				?? liveViews.find(view => view.owner.type === 'user' && view.state.url === url && !this.tabs.has(view.id) && !this.editors.isOpened(this.browsers.getOrCreateLazy({ id: view.id })));
-			const input = live ? this.browsers.getOrCreateLazy({ id: live.id, url }) : await this.browsers.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global } });
-			await input.resolve();
-			await this.openInBrowserPart(input, true);
-			// Browser tabs restore independently of code editor groups.
-			if (!live) { input.navigate(url); }
-		}
-		this.activeBrowser = [...this.tabs.values()][state.active];
-		if (this.activeBrowser) { await this.openInBrowserPart(this.activeBrowser, true, false); }
+		await this.restoreBrowserTabs();
 		this.renderTabs();
-		const drawingState = this.storage.get(drawingTabsKey, StorageScope.WORKSPACE);
-		if (drawingState) {
+		this.restoreMode();
+	}
+
+	protected async restoreBrowserTabs(): Promise<void> {
+		this.restoringBrowserTabs = true;
+		try {
+			const state = parseBrowserState(this.storage.get(tabsKey, StorageScope.PROFILE));
+			// Native pages survive a workbench reload. Reuse them so development reloads
+			// keep page state and do not leave duplicate views running in the background.
+			const liveViews = await this.nativeBrowsers.getBrowserViews(mainWindow.vscodeWindowId);
+			const restored: BrowserEditorInput[] = [];
+			for (const [index, url] of state.urls.entries()) {
+				const live = liveViews.find(view => view.owner.type === 'user' && view.id === state.ids?.[index] && !this.tabs.has(view.id) && !this.editors.isOpened(this.browsers.getOrCreateLazy({ id: view.id, url: view.state.url })))
+					?? liveViews.find(view => view.owner.type === 'user' && view.state.url === url && !this.tabs.has(view.id) && !this.editors.isOpened(this.browsers.getOrCreateLazy({ id: view.id, url: view.state.url })));
+				const input = live ? this.browsers.getOrCreateLazy({ id: live.id, url }) : this.browsers.getOrCreateLazy({ id: generateUuid(), url }, {
+					owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global }, initialUrl: url
+				});
+				// Bind surviving native views so closing an inactive reload tab also disposes its renderer.
+				if (live) { await input.resolve(); }
+				this.adopt(input);
+				restored.push(input);
+			}
+			// Open the selected editor first; inactive tabs retain their URL and native
+			// session options but allocate a renderer only when the user selects them.
+			this.activeBrowser = restored[state.active];
+			if (this.activeBrowser) { await this.openInBrowserPart(this.activeBrowser, true, false, state.active); }
+			for (const [index, input] of restored.entries()) {
+				if (input !== this.activeBrowser) { await this.openInBrowserPart(input, true, true, index); }
+			}
+		} finally { this.restoringBrowserTabs = false; }
+	}
+
+	/** Restore the hidden drawing editors only when Sketchpad is first used. */
+	protected restoreDrawingTabs(): Promise<void> {
+		return this.drawingTabsReady ??= Promise.resolve().then(async () => {
+			if (this.stopped) { return; }
+			this.restoringDrawingTabs = true;
 			try {
-				const saved = JSON.parse(drawingState) as { ids?: unknown; active?: unknown };
+				if (!this.drawingPart) { this.createDrawingPart(this.drawingSurface); }
+				const drawingState = this.storage.get(drawingTabsKey, StorageScope.WORKSPACE);
+				if (!drawingState) { this.drawingTabsRestored = true; return; }
+				let saved: { ids?: unknown; active?: unknown };
+				try { saved = JSON.parse(drawingState) ?? {}; }
+				catch (error) { onUnexpectedError(error); saved = {}; }
 				if (Array.isArray(saved.ids) && saved.ids.every(id => typeof id === 'string')) {
 					const ids = [...new Set(saved.ids as string[])];
 					const ordered = ids.filter(id => id !== saved.active);
 					if (typeof saved.active === 'string' && ids.includes(saved.active)) { ordered.push(saved.active); }
-					this.restoringDrawingTabs = true;
 					await this.commands.executeCommand('shortestpath.draw.restoreTabs', ordered);
+					while (this.pendingDrawingEditors.size) { await Promise.all([...this.pendingDrawingEditors]); }
 				}
-			} catch (error) { onUnexpectedError(error); }
-			finally { this.restoringDrawingTabs = false; }
-		}
-		this.restoreMode();
+				this.drawingTabsRestored = true;
+			} finally { this.restoringDrawingTabs = false; }
+		}).catch(error => {
+			this.drawingTabsReady = undefined;
+			throw error;
+		});
 	}
 
 	protected restoreMode(): void {
@@ -361,6 +393,10 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		await this.ready;
 		if (this.stopped) { return; }
 		if (mode === 'browse' && !this.configuration.getValue<boolean>('shortestpath.setup.completed')) { return; }
+		if (mode === 'draw') {
+			await this.restoreDrawingTabs();
+			if (this.stopped || this.requestedMode !== mode) { return; }
+		}
 		this.applyMode(mode);
 		if (mode === 'browse') {
 			if (!this.activeBrowser) { await this.ensureBrowserTab(); }
@@ -490,10 +526,14 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			}
 			const pending = this.pendingPages.has(mode);
 			void this.ready.then(async () => {
+				if (!this.restoringDrawingTabs) { await this.restoreDrawingTabs(); }
 				if (this.stopped || input.isDisposed() || !this.drawingPart) { return; }
 				if (!preserveFocus && (!pending || this.mode === mode)) { this.applyMode(mode); }
 				const group = this.drawingPart.groups.find(group => group.contains(input)) ?? this.drawingPart.activeGroup;
-				await this.editors.openEditor(input, { pinned: true, preserveFocus: preserveFocus || this.mode !== 'draw' }, group);
+				const opening = this.editors.openEditor(input, { pinned: true, preserveFocus: preserveFocus || this.mode !== 'draw' }, group);
+				this.pendingDrawingEditors.add(opening);
+				try { await opening; }
+				finally { this.pendingDrawingEditors.delete(opening); }
 				this.refreshDrawingTabs();
 				this.drawingPart.setVisible(this.mode === 'draw');
 			}).catch(onUnexpectedError);
@@ -683,7 +723,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	}
 
 	private saveDrawingTabs(): void {
-		if (!this.drawingPart || this.stopped || this.restoringDrawingTabs) { return; }
+		if (!this.drawingPart || this.stopped || this.restoringDrawingTabs || !this.drawingTabsRestored) { return; }
 		const id = (input: EditorInput | null | undefined): string | undefined => {
 			if (!(input instanceof WebviewInput)) { return undefined; }
 			try { const state = JSON.parse(input.webview.state ?? '{}') as { fileId?: unknown }; return typeof state.fileId === 'string' ? state.fileId : undefined; } catch { return undefined; }
@@ -719,14 +759,14 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		part.setVisible(false);
 	}
 
-	private async openInBrowserPart(input: BrowserEditorInput, preserveFocus: boolean, inactive = preserveFocus): Promise<void> {
+	private async openInBrowserPart(input: BrowserEditorInput, preserveFocus: boolean, inactive = preserveFocus, index?: number): Promise<void> {
 		const part = this.browserPart;
 		if (!part || input.isDisposed()) { return; }
 		this.openingTabs.add(input.id);
 		this.adopt(input);
 		const group = part.groups.find(group => group.contains(input)) ?? part.activeGroup;
 		try {
-			await this.editors.openEditor(input, { pinned: true, preserveFocus, inactive }, group);
+			await this.editors.openEditor(input, { pinned: true, preserveFocus, inactive, index }, group);
 		} finally {
 			this.openingTabs.delete(input.id);
 			part.setVisible(this.mode === 'browse');
@@ -1011,7 +1051,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	}
 
 	private saveTabs(): void {
-		if (this.stopped) { return; }
+		if (this.stopped || this.restoringBrowserTabs) { return; }
 		const ordered = this.browserPart?.getGroups(GroupsOrder.GRID_APPEARANCE).flatMap(group => group.editors.filter((input): input is BrowserEditorInput => input instanceof BrowserEditorInput)) ?? [...this.tabs.values()];
 		const saved = ordered.filter(tab => isRestorableBrowserUrl(tab.url ?? ''));
 		this.storage.store(tabsKey, JSON.stringify({ urls: saved.map(tab => tab.url), ids: saved.map(tab => tab.id), active: Math.max(0, saved.indexOf(this.activeBrowser!)) }), StorageScope.PROFILE, StorageTarget.MACHINE);

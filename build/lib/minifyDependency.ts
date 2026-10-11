@@ -16,9 +16,22 @@ const packages = new Set([
 	'@microsoft/dev-tunnels-contracts', '@microsoft/dev-tunnels-management',
 ]);
 
+const jsonResources = new Set([
+	'node_modules/chrome-remote-interface/lib/protocol.json',
+	'node_modules/playwright-core/lib/server/deviceDescriptorsSource.json',
+	'node_modules/@vscode/codicons/dist/metadata.json',
+	'node_modules/@vscode/vscode-languagedetection/model/model.json',
+	'node_modules/mime-db/db.json',
+]);
+
 /** Minimize whitespace in selected shipped dependencies without renaming or bundling. */
 export function minifyDependency(relativePath: string, contents: Buffer): Buffer {
-	const parts = relativePath.replaceAll('\\', '/').split('/');
+	const normalizedPath = relativePath.replaceAll('\\', '/');
+	if (jsonResources.has(normalizedPath)) {
+		const output = Buffer.from(JSON.stringify(JSON.parse(contents.toString('utf8'))));
+		return output.length < contents.length ? output : contents;
+	}
+	const parts = normalizedPath.split('/');
 	if (parts.shift() !== 'node_modules' || !/\.[cm]?js$/.test(relativePath)) {
 		return contents;
 	}

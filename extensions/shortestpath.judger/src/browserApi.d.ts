@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 declare module 'vscode' {
     interface BrowserCDPSession {
         onDidClose: Event<void>;
@@ -12,6 +17,7 @@ declare module 'vscode' {
     }
 	namespace window {
 		const onDidOpenBrowserTab: Event<BrowserTab>;
+		const onDidChangeActiveBrowserTab: Event<BrowserTab | undefined>;
 		const onDidCloseBrowserTab: Event<BrowserTab>;
 		const onDidChangeBrowserTabState: Event<BrowserTab>;
         const browserTabs: readonly BrowserTab[];

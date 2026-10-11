@@ -2,10 +2,10 @@
  *  Copyright (c) 2026 ShortestPath IDE contributors.
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-jest.mock('vscode', () => ({}), { virtual: true });
+jest.mock('vscode', () => ({ window: {} }), { virtual: true });
 import vm from 'vm';
 import * as vscode from 'vscode';
-import { browserImportCleanupScript, cleanupBrowserImportButton } from '../browserImportCleanup';
+import { browserImportCleanupScript, cleanupBrowserImportButton, registerBrowserImportCleanup } from '../browserImportCleanup';
 
 test.each(['https://shortestpath.cn/problem/dsu/found/A', 'https://example.com/task'])('removes only the old IDE control and stops its world cleanup: %s', href => {
 	const oldControl = { remove: jest.fn() };
@@ -56,4 +56,22 @@ test.each([false, true])('migration uses original world and releases session/lis
 			['Target.getTargets', 'Target.attachToTarget', 'Page.getFrameTree', 'Page.createIsolatedWorld', 'Runtime.evaluate'], 1, 0, 0,
 		]);
 	})();
+});
+
+
+test('migration leaves inactive restored tabs suspended and cleans them when selected', async () => {
+	const foreground = { id: 'foreground', startCDPSession: jest.fn(async () => { throw new Error('test session unavailable'); }) };
+	const background = { id: 'background', startCDPSession: jest.fn(async () => { throw new Error('test session unavailable'); }) };
+	let selected: (tab: vscode.BrowserTab | undefined) => void = () => {};
+	const window = { browserTabs: [foreground, background], activeBrowserTab: foreground,
+		onDidChangeActiveBrowserTab: (callback: typeof selected) => { selected = callback; return { dispose() {} }; }
+	};
+	Object.assign(vscode.window, window);
+	registerBrowserImportCleanup({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+	await Promise.resolve();
+	expect([foreground.startCDPSession.mock.calls.length, background.startCDPSession.mock.calls.length]).toEqual([1, 0]);
+	Object.assign(vscode.window, { activeBrowserTab: background });
+	selected(background as unknown as vscode.BrowserTab);
+	await Promise.resolve();
+	expect(background.startCDPSession).toHaveBeenCalledTimes(1);
 });

@@ -172,7 +172,7 @@ test.each([true, false])('native import %s matched parser chooses automatic or m
 	const importer = jest.fn().mockResolvedValue({ created: true });
 	expect(await register(importer)()).toEqual({ count: 1 });
 	expect(vscode.window.showQuickPick).toHaveBeenCalledTimes(matched ? 0 : 1);
-	expect(f.sent.find(message => message.method === 'Runtime.evaluate' && String(message.params.expression).includes('__shortestpathParserId'))?.params.expression).toContain('__shortestpathParserId = "ExampleParser"');
+	expect(f.sent.find(message => message.method === 'Runtime.evaluate' && String(message.params.expression).includes('ShortestPathCompanionParse('))?.params.expression).toContain('ShortestPathCompanionParse("ExampleParser")');
 	expect(importer).toHaveBeenCalledWith(tasks[0], f.tab.url);
 });
 
@@ -187,4 +187,18 @@ test('manual parser picker cancellation releases the import lock without importi
 	expect(await command()).toEqual({ count: 0, cancelled: true });
 	expect(await command()).toEqual({ count: 0, cancelled: true });
 	expect(importer).not.toHaveBeenCalled();
+});
+
+
+test('manual import executes the shared runtime with its selected parser without a duplicate bundle', async () => {
+	const tasks = [{ name: 'A', url: 'https://example.com/A', tests: [] }];
+	const testBrowser = browser(undefined, false, false, expression => vm.runInNewContext(expression, { location: { href: 'https://example.com/A' } }));
+	const read = jest.spyOn(fs.promises, 'readFile').mockResolvedValue(`(() => { globalThis.ShortestPathCompanionParse = async id => {
+		if (id !== "ExampleParser") { throw new Error('Wrong parser'); }
+		return ${JSON.stringify(tasks)};
+	}; })()`);
+	const importer = jest.fn(async () => ({ created: true }));
+	expect(await runImportCommand(testBrowser, importer, true)).toEqual({ count: 1 });
+	expect(read.mock.calls.map(call => call[0])).toEqual(['/extension/dist/static/competitive-companion/parsers.runtime.txt']);
+	expect(importer.mock.calls).toEqual([[tasks[0], testBrowser.tab.url]]);
 });

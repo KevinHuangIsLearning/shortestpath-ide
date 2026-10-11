@@ -11,7 +11,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChannel } from '../../../../../base/parts/ipc/common/ipc.js';
@@ -24,6 +24,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, IQ
 import { IEditorGroup, IEditorReplacement, IEditorGroupsService, IEditorPart, IEmbeddedEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
+import { BrowserViewStorageScope } from '../../../../../platform/browserView/common/browserView.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { canOpenEditorsInNewWindow, EditorInputCapabilities, IUntypedEditorInput, EditorsOrder, IEditorWillOpenEvent } from '../../../../common/editor.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -221,7 +222,7 @@ suite('ShortestPath browser routing', () => {
 		let saved: { ids: string[]; active: string } | undefined;
 		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
 			mode: 'draw' as ShortestPathMode,
-			ready: Promise.resolve(), pendingPages: new Map(), pages,
+			ready: Promise.resolve(), drawingTabsReady: Promise.resolve(), drawingTabsRestored: true, pendingDrawingEditors: new Set(), pendingPages: new Map(), pages,
 			drawingTabStores: store.add(new DisposableMap<WebviewInput, DisposableStore>()),
 			storage: { store(_key: string, value: string, scope: StorageScope) { assert.strictEqual(scope, StorageScope.WORKSPACE); saved = JSON.parse(value); } },
 			drawingPart: { groups: [group], activeGroup: group, getGroups: () => [group], setVisible() { } },
@@ -248,9 +249,9 @@ suite('ShortestPath browser routing', () => {
 		}) as WebviewInput;
 		const first = create('first'); const second = create('second');
 		assert.strictEqual(service.adoptPage(first, false), false);
-		await Promise.resolve(); await Promise.resolve();
+		await timeout(0);
 		assert.strictEqual(service.adoptPage(second, false), false);
-		await Promise.resolve(); await Promise.resolve();
+		await timeout(0);
 		assert.deepStrictEqual(opened, [{ input: first, pinned: true }, { input: second, pinned: true }]);
 		assert.strictEqual(pages.get('draw'), second);
 		assert.deepStrictEqual(saved, { ids: ['first', 'second'], active: 'second' });
@@ -258,24 +259,136 @@ suite('ShortestPath browser routing', () => {
 		service.refreshDrawingTabs();
 		assert.strictEqual(pages.get('draw'), first);
 		assert.strictEqual(service.adoptPage(first, false), false);
-		await Promise.resolve(); await Promise.resolve();
+		await timeout(0);
 		assert.deepStrictEqual(inputs, [first, second]);
+	});
+
+	test('Sketchpad defers restoration, shares concurrent requests and waits for adopted editors', async () => {
+		const editor = new DeferredPromise<void>();
+		let creates = 0;
+		const calls: unknown[][] = [];
+		let writes = 0;
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			drawingPart: undefined as object | undefined,
+			pendingDrawingEditors: new Set([editor.p]),
+			storage: { get: () => JSON.stringify({ ids: ['active', 'other', 'active'], active: 'active' }), store: () => writes++ },
+			createDrawingPart() { creates++; this.drawingPart = {}; },
+			commands: { async executeCommand(...args: unknown[]) { calls.push(args); } },
+		}) as { restoreDrawingTabs(): Promise<void>; saveDrawingTabs(): void; drawingTabsRestored: boolean };
+		service.saveDrawingTabs();
+		assert.deepStrictEqual({ creates, calls, writes }, { creates: 0, calls: [], writes: 0 });
+		const first = service.restoreDrawingTabs();
+		assert.strictEqual(service.restoreDrawingTabs(), first);
+		await timeout(0);
+		service.saveDrawingTabs();
+		assert.deepStrictEqual({ creates, calls, writes, restored: service.drawingTabsRestored }, { creates: 1, calls: [['shortestpath.draw.restoreTabs', ['other', 'active']]], writes: 0, restored: undefined });
+		// The renderer adoption can finish after the extension's command response.
+		(service as { pendingDrawingEditors?: Set<Promise<void>> }).pendingDrawingEditors?.delete(editor.p);
+		editor.complete();
+		await first;
+		assert.strictEqual(service.drawingTabsRestored, true);
+	});
+
+	test('Sketchpad retains saved tabs after a failed restore and permits retry', async () => {
+		let attempts = 0;
+		let writes = 0;
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			drawingPart: undefined as object | undefined,
+			pendingDrawingEditors: new Set(),
+			storage: { get: () => JSON.stringify({ ids: ['saved'] }), store: () => writes++ },
+			createDrawingPart() { this.drawingPart = {}; },
+			commands: { async executeCommand() { if (++attempts === 1) { throw new Error('restore unavailable'); } } },
+		}) as { restoreDrawingTabs(): Promise<void>; saveDrawingTabs(): void; drawingTabsRestored: boolean };
+		await assert.rejects(service.restoreDrawingTabs(), /restore unavailable/);
+		service.saveDrawingTabs();
+		assert.deepStrictEqual({ attempts, writes, restored: service.drawingTabsRestored }, { attempts: 1, writes: 0, restored: undefined });
+		await service.restoreDrawingTabs();
+		assert.deepStrictEqual({ attempts, writes, restored: service.drawingTabsRestored }, { attempts: 2, writes: 0, restored: true });
+	});
+
+	test('leaving Sketchpad during deferred restoration preserves the latest mode request', async () => {
+		const gate = new DeferredPromise<void>();
+		const applied: ShortestPathMode[] = [];
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			mode: 'solve' as ShortestPathMode,
+			ready: Promise.resolve(), restoreDrawingTabs: () => gate.p,
+			applyMode(mode: ShortestPathMode) { this.mode = mode; applied.push(mode); },
+			resultBadge: { hidden: false }, solveButton: { setAttribute() { } },
+			layoutService: { focusPart() { } },
+		}) as ShortestPathModeService;
+		const opening = service.switchMode('draw');
+		await service.switchMode('solve');
+		gate.complete();
+		await opening;
+		assert.deepStrictEqual(applied, ['solve']);
+	});
+
+	test('browser restoration loads only the selected tab and preserves background URLs, order and global sessions', async () => {
+		let resolves = 0;
+		const urls = ['https://example.com/first', 'https://example.com/selected', 'https://example.com/last'];
+		const inputs: { id: string; url: string; resolve(): Promise<void> }[] = [];
+		const order: string[] = [];
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			storage: { get: () => JSON.stringify({ urls, active: 1 }) },
+			nativeBrowsers: { getBrowserViews: async () => [] },
+			browsers: {
+				getOrCreateLazy(data: { id: string; url: string }, options: { session: { scope: BrowserViewStorageScope }; initialUrl: string }) {
+					assert.deepStrictEqual(options, { owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global }, initialUrl: data.url });
+					const input = { ...data, async resolve() { resolves++; } };
+					inputs.push(input);
+					return input;
+				}
+			},
+			adopt() { },
+			async openInBrowserPart(input: typeof inputs[number], preserveFocus: boolean, inactive: boolean, index: number) {
+				assert.strictEqual(preserveFocus, true);
+				order.splice(index, 0, input.url);
+				if (!inactive) { await input.resolve(); }
+			}
+		}) as { restoreBrowserTabs(): Promise<void>; activeBrowser: typeof inputs[number] };
+		await service.restoreBrowserTabs();
+		assert.deepStrictEqual({ resolves, order, active: service.activeBrowser.url }, { resolves: 1, order: urls, active: urls[1] });
+		await inputs[2].resolve();
+		assert.strictEqual(resolves, 2);
+	});
+
+	test('reload preserves live inactive URLs and binds existing views for disposal', async () => {
+		const urls = ['https://example.com/first', 'https://example.com/selected'];
+		const ids = ['live-first', 'live-selected'];
+		const inputs = new Map<string, { id: string; url?: string; resolve(): Promise<void> }>();
+		const bound: string[] = [];
+		let snapshot: { urls: string[]; ids: string[] } | undefined;
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			tabs: new Map(),
+			storage: { get: () => JSON.stringify({ urls, ids, active: 1 }), store: (_key: string, value: string) => { snapshot = JSON.parse(value); } },
+			nativeBrowsers: { getBrowserViews: async () => ids.map((id, index) => ({ id, owner: { type: 'user' }, state: { url: urls[index] } })) },
+			editors: { isOpened: () => false },
+			browsers: { getOrCreateLazy(data: { id: string; url?: string }) { if (!inputs.has(data.id)) { inputs.set(data.id, { ...data, async resolve() { bound.push(data.id); } }); } return inputs.get(data.id); } },
+			adopt(input: { id: string; url?: string }) { this.tabs.set(input.id, input); },
+			async openInBrowserPart() { },
+		}) as { restoreBrowserTabs(): Promise<void>; saveTabs(): void };
+		await service.restoreBrowserTabs();
+		service.saveTabs();
+		assert.deepStrictEqual(snapshot, { urls, ids, active: 1 });
+		assert.deepStrictEqual(bound, ids);
 	});
 
 	test('late Sketchpad sidebar completion cannot steal focus after leaving the mode', async () => {
 		const gate = new DeferredPromise<void>();
+		const shown = new DeferredPromise<void>();
 		let focuses = 0;
 		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
 			mode: 'solve' as ShortestPathMode,
 			ready: Promise.resolve(),
+			drawingTabsReady: Promise.resolve(),
 			pages: new Map([['draw', { webview: { focus: () => focuses++ } }]]),
 			sidebarTransition: gate.p,
 			drawingPart: { activeGroup: { focus: () => focuses++ } },
 			applyMode(mode: ShortestPathMode) { this.mode = mode; },
-			showPage() { },
+			showPage() { shown.complete(); },
 		}) as ShortestPathModeService;
 		const switching = service.switchMode('draw');
-		await Promise.resolve();
+		await shown.p;
 		service.mode = 'solve';
 		gate.complete();
 		await switching;

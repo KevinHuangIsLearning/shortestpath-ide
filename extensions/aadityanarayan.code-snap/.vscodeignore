@@ -6,3 +6,11 @@ vsc-extension-quickstart.md
 **/jsconfig.json
 **/*.map
 **/.eslintrc.json
+# The Webview loads the prebuilt browser script directly. Its development
+# dependencies, Bower fixtures and source distributions are not runtime inputs.
+node_modules/**
+!node_modules/dom-to-image-even-more/dist/dom-to-image-more.min.js
+!node_modules/dom-to-image-even-more/LICENSE
+!node_modules/dom-to-image-even-more/package.json
+examples/**
+package-lock.json

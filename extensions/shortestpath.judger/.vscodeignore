@@ -16,3 +16,6 @@ scripts/**
 static/**
 screenshots/**
 webpack.preview.config.js
+
+# The importer and page button share the complete parser runtime.
+dist/static/competitive-companion/parsers.bundle.txt

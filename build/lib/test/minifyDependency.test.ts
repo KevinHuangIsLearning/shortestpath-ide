@@ -37,3 +37,12 @@ test('unselected sources, non-JavaScript resources, and non-dependency paths rem
 test('selected malformed JavaScript fails the build instead of emitting a partial runtime', () => {
 	assert.throws(() => minifyDependency('node_modules/zod/index.js', Buffer.from('export const =')));
 });
+
+test('selected runtime JSON retains all data and string whitespace', () => {
+	const value = { domains: [{ name: 'Runtime', description: 'Space  and\nnewline', commands: [{ name: 'evaluate' }] }] };
+	const input = Buffer.from(JSON.stringify(value, null, 4));
+	const output = minifyDependency('node_modules\\chrome-remote-interface\\lib\\protocol.json', input);
+	assert.deepStrictEqual(JSON.parse(output.toString()), value);
+	assert.ok(output.length < input.length);
+	assert.throws(() => minifyDependency('node_modules/chrome-remote-interface/lib/protocol.json', Buffer.from('{')));
+});

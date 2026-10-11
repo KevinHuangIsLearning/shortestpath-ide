@@ -15,7 +15,7 @@ Rebuild from repository root:
 2. In `extensions/shortestpath.judger/scripts/companion`, run `npm ci --ignore-scripts --no-audit --no-fund`.
 3. Run `node extensions/shortestpath.judger/scripts/build-companion.ts /absolute/upstream/path extensions/shortestpath.judger/scripts/companion`.
 
-The script verifies the upstream commit. The `parsers.bundle.txt` asset is executable JavaScript packaged as text and read by the extension; this keeps vendored code outside application TS and JS lint/compile pipelines. Upstream PDF/ZIP build substitutions are preserved.
+The script verifies the upstream commit. The `parsers.runtime.txt` asset is executable JavaScript packaged as text and shared by the importer and the page button; this keeps vendored code outside application TS and JS lint/compile pipelines. Upstream PDF/ZIP build substitutions are preserved.
 
 Validation on 2026-10-04: live CSES task 1068 parsed in a real Chromium CDP isolated world; unsupported example.com fails explicitly. No claim of online validation across all upstream sites or authenticated contests.
 

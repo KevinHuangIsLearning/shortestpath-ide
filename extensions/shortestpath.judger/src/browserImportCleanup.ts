@@ -57,10 +57,12 @@ export async function cleanupBrowserImportButton(tab: vscode.BrowserTab): Promis
 export function registerBrowserImportCleanup(context: vscode.ExtensionContext): void {
 	const running = new Set<string>();
 	const cleanup = (tab: vscode.BrowserTab) => {
-		if (running.has(tab.id)) { return; }
+		// Selecting a suspended tab may create its renderer. A background migration must not do so.
+		if (vscode.window.activeBrowserTab?.id !== tab.id || running.has(tab.id)) { return; }
 		running.add(tab.id);
 		void cleanupBrowserImportButton(tab).catch(error => globalThis.logger?.warn('Browser import control cleanup', String(error))).finally(() => running.delete(tab.id));
 	};
 	for (const tab of vscode.window.browserTabs ?? []) { cleanup(tab); }
 	if (vscode.window.onDidOpenBrowserTab) { context.subscriptions.push(vscode.window.onDidOpenBrowserTab(cleanup)); }
+	if (vscode.window.onDidChangeActiveBrowserTab) { context.subscriptions.push(vscode.window.onDidChangeActiveBrowserTab(tab => { if (tab) { cleanup(tab); } })); }
 }
