@@ -7,7 +7,7 @@ jest.mock('vscode', () => ({
 	Disposable: class { constructor(readonly dispose: () => void) { } },
 	commands: { executeCommand: jest.fn(async () => undefined), registerCommand: jest.fn(() => ({ dispose() { } })) },
 	Uri: { file: (file: string) => ({ fsPath: file }) },
-    workspace: { getConfiguration: () => ({ get: (key: string, fallback: unknown) => key === 'mode' ? 'direct' : key === 'executableCleanupDelaySeconds' ? 0 : fallback }), openTextDocument: jest.fn(async () => ({ save: async () => true })) },
+	workspace: { getConfiguration: () => ({ get: (key: string, fallback: unknown) => key === 'mode' ? 'direct' : key === 'executableCleanupDelaySeconds' ? 0 : fallback }), openTextDocument: jest.fn(async () => ({ save: async () => true })) },
 	window: { showErrorMessage: jest.fn(), tabGroups: { activeTabGroup: { activeTab: { input: {} } } } },
 }), { virtual: true });
 jest.mock('../utils', () => ({ getLanguage: () => ({ name: 'cpp', compiler: process.env.CPH_TEST_CPP_COMPILER || 'g++', args: ['-std=c++17', '-g'], skipCompile: false }) }));
@@ -35,9 +35,10 @@ const integrationTest = compilerAvailable ? test : test.skip;
 integrationTest('headless adapter really compiles and runs samples, reports mismatch and compile errors, and cleans binaries without CPH UI', async () => {
 	const directory = mkdtempSync(path.join(os.tmpdir(), 'sp-integrated-'));
 	const sourcePath = path.join(directory, 'A.cpp');
-	const problem: Problem = { shortestPath: true, name: 'A', srcPath: sourcePath, url: 'https://shortestpath.cn/problem/DSU/found/A', interactive: false, memoryLimit: 256, timeLimit: 1000, group: 'test', tests: [{ id: 1, input: '2\n', output: '4\n' }, { id: 2, input: '3\n', output: 'wrong\n' }] };
+	// Direct execution includes process startup; allow headroom on loaded test hosts.
+	const problem: Problem = { shortestPath: true, name: 'A', srcPath: sourcePath, url: 'https://shortestpath.cn/problem/DSU/found/A', interactive: false, memoryLimit: 256, timeLimit: 10000, group: 'test', tests: [{ id: 1, input: '2\n', output: '4\n' }, { id: 2, input: '3\n', output: 'wrong\n' }] };
 	globalThis.extensionContext = { extensionPath: directory } as vscode.ExtensionContext;
-    globalThis.logger = { ...console, log: jest.fn() };
+	globalThis.logger = { ...console, log: jest.fn() };
 	globalThis.reporter = { sendTelemetryEvent: jest.fn() } as unknown as typeof globalThis.reporter;
 	(getProblem as jest.Mock).mockImplementation(() => problem);
 	const context = { subscriptions: [] as Array<{ dispose(): void }> };
@@ -46,7 +47,18 @@ integrationTest('headless adapter really compiles and runs samples, reports mism
 		writeFileSync(sourcePath, '#include <iostream>\nint main() { int x; std::cin >> x; std::cout << 2*x << "\\n"; }\n');
 		problem.tests.push({ id: 3, input: '4\n', output: ' 8\t\n\n' });
 		const result = await getIntegratedTestService().request({ action: 'runAll', sourcePath });
-        expect({ error: result.error, diagnostics: result.diagnostics }).toEqual({ error: undefined, diagnostics: '' });
+		const [compileEvent, ...compilerOutput] = result.diagnostics.split('\n');
+		expect({ error: result.error, invocation: JSON.parse(compileEvent), compilerOutput: compilerOutput.join('\n') }).toEqual({
+			error: undefined,
+			invocation: {
+				event: 'compile',
+				compiler: process.env.CPH_TEST_CPP_COMPILER || 'g++',
+				args: [sourcePath, '-o', expect.any(String), '-std=c++17', '-g', '-D', 'DEBUG', '-D', 'CPH', '-D', 'ONLINE_JUDGE'],
+				cwd: directory,
+				timeoutMs: 10000,
+			},
+			compilerOutput: '',
+		});
 		expect(result.tests.map(test => [test.id, test.result?.stdout, test.result?.pass])).toEqual([[1, '4\n', true], [2, '6\n', false], [3, '8\n', true]]);
 		expect(result.tests[1].result?.diff?.lines.some(line => line.type !== 'match')).toBe(true);
 		await new Promise(resolve => setTimeout(resolve, 5));
@@ -55,6 +67,9 @@ integrationTest('headless adapter really compiles and runs samples, reports mism
 		const failed = await getIntegratedTestService().request({ action: 'run', sourcePath, id: 1 });
 		expect(failed.error).toBe('compile-failed');
 		expect(failed.diagnostics).toContain('error:');
+		const failureEvent = JSON.parse(failed.diagnostics.trim().split('\n').slice(-1)[0]);
+		expect(failureEvent).toEqual({ event: 'compileFailed', exitCode: expect.any(Number), signal: null, artifactExists: false });
+		expect(failureEvent.exitCode).not.toBe(0);
 		expect(failed.status).toBe('idle');
 		expect(getJudgeViewProvider).not.toHaveBeenCalled();
 	} finally {
@@ -64,7 +79,7 @@ integrationTest('headless adapter really compiles and runs samples, reports mism
 }, 15000);
 
 test('binary cleanup preserves interpreted source and unrelated files while removing Java classes and native artifacts', () => {
-    globalThis.logger = { ...console, log: jest.fn() };
+	globalThis.logger = { ...console, log: jest.fn() };
 	const directory = mkdtempSync(path.join(os.tmpdir(), 'sp-cleanup-'));
 	try {
 		const sourcePath = path.join(directory, 'A.py');
