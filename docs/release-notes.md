@@ -2,121 +2,37 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.4.8 更新 / What's New
+## v0.4.9 更新 / What's New
 
-- 浏览器与 IDE 可共享 ShortestPath 登录，减少重复登录和两端互相掉线的问题。
-- 浏览网页时，IDE 通知不再打断操作，查看和处理通知更顺畅。
-- 改善首次配置和本地评测的稳定性。环境检查失败时提供更清晰的解决建议，并支持导出日志，方便反馈问题。
-- 打开代码文件夹后，自动补齐代码提示和格式化设置，保留已有自定义配置。
-- 修复启动后首次使用代码片段时，片段可能不显示的问题。
+非常大的更新喵。
 
-### English
+浏览、做题、画草稿的小窝一起升级啦！本喵把导航、网页小助手和草稿文件都收拾好了，快来看看这次带回了什么喵～🐾
 
-- Share your ShortestPath login between the browser and IDE, reducing repeated sign-ins and unexpected sign-outs.
-- IDE notifications no longer interrupt browsing and are easier to view and interact with.
-- Improved initial setup and local judging reliability. Failed environment checks offer clearer troubleshooting advice and downloadable logs for reporting issues.
-- Opening a code folder automatically fills in missing completion and formatting settings while preserving your custom configuration.
-- Fixed code snippets sometimes not appearing on their first use after startup.
-
-## v0.4.7 更新 / What's New
-
-- 新增独立 Dashboard（仪表盘）页面，展示做题热力图、单日最多 AC 的日期与数量，以及单题最长用时。
-- 支持调整统计范围、筛选来源与状态；默认列出范围内全部题目，点击热力图查看当天，并可清除日期选择。
-- 题目以列对齐的紧凑列表展示，提供来源 OJ、完整完成状态和用时；打开题目会进入浏览页面。
-- 兼容旧版与缺少可选字段的题目记录；缺少 AC 时间时按题目创建日期统计。
-- 计时上限为 5 小时。超时且没有标记的题目单独列出并计入创建日期热力图；修改状态需二次确认，修改后保留创建日期及 5:00:00+ 用时。
+- **导航缩成一团，想去哪就去哪喵。** Compact Mode 默认开启啦，开关住在「ShortestPath IDE 设置 → 外观与保存」。点左右箭头或划触控板就能切页，滑块也会跟着悬停和手势跑；展开导航时覆盖 Command Center，按钮不用挤在一起啦。有新版本时，「更新」会待在标题栏右侧，导航收起来也看得见喵。
+- **标签跳来跳去，本喵帮你记顺序。** 按 Ctrl + Tab 或 Ctrl + Shift + Tab，就能按最近使用顺序在浏览、做题、草稿等多标签页面间跳转，还会自动回到标签所在的页面喵。浏览标签栏、分屏和新建标签入口也整理过啦；收藏区可以展开或收起，星标和箭头会告诉你它现在的状态。
+- **网页披上新外套，小助手报到喵。** 内置浏览器请来了 Dark Reader：跟随主题切换、识别网页自己的深色主题、排除指定站点，都能在 ShortestPath IDE 设置里安排喵。AtCoder Better 和 Codeforces Better 也装好啦，各有自己的开关，想用哪只就开哪只。
+- **爪爪轻划，网页往前往后走。** macOS 内置浏览器可以用触控板左右轻扫前进、后退啦。边缘箭头跟着手势出现，划过阈值再松手就切换，往回拉还能取消喵。浏览区域高度为零、标签打开却看不见的小毛病抓住啦；组合题目标签的刷新、缩放、只读网址选择和复制，以及标签栏顶部留白，也一起修好啦。
+- **草稿终于有自己的文件小窝啦。** Sketchboard 能开多个草稿标签，还能把文件和文件夹放在 IDE 存储目录里喵。行内取名、重命名、拖拽搬家都支持，停下操作 1 秒就会自动保存。清空、导入和导出搬进了文件右键菜单；想在代码旁画画，从标签栏就能打开啦。
+- **题面看清楚，提交少绕路喵。** SPOJ 题目预览可以在 50%–200% 之间缩放，点百分比就回到 100%，刷新也记得原来的比例喵；题面、提示、评测和解题报告会一起缩放。网页提交平时待在「做题」，遇到安全认证才去「浏览」，提交结果回来就回到「做题」啦。
+- **评价随爪点，题目细节也顺毛啦。** SPOJ 评价换成「夯 / 普 / 拉」，表情、文字和人数一起显示喵；首次 AC 的评价弹窗可以选「稍后再说」，点赞先在本地亮起来，再同步网站。题目链接重复打开、解题报告参考代码不能滚动的问题也修好啦。没有本地评测工具，官方样例照样能看、能复制；折叠时有箭头，悬停标题有下划线，展开入口更好找喵。
+- **统计跟着题走，编辑器安心待着喵。** 打开或切回 Dashboard，统计就会刷新；源码删除或改名后，题目记录也跟着同步。Activity Bar 里空空的 Dashboard 侧栏入口收走啦，独立页面还在喵。不同目录的同名文件来回切，Judger 会跟上刷新；侧栏更新也不再抢走编辑器焦点啦。
+- **更新提醒也理顺了喵。** 更新清单里的可选信息格式不对时，会跳过这些字段，继续读取版本与下载地址；带 hotfix 后缀的修复版也能正确判断更新顺序啦喵。
 
 ### English
 
-- Added a standalone Dashboard with a problem activity heatmap, the date and count of the busiest AC day, and the longest time spent on a problem.
-- Adjust the period and filter by source or status. The list initially shows all problems in the selected period; select a heatmap day to narrow it down and clear the selection to show all again.
-- Problems use a compact, aligned list with source OJ, full completion status, and elapsed time. Open Problem opens the browsing page.
-- Supports legacy records and missing optional fields. Problems without an AC timestamp are counted on their creation date.
-- Timers are capped at five hours. Overdue unmarked problems appear separately and count toward the creation-date heatmap. Changing their status requires confirmation and preserves the creation date and 5:00:00+ elapsed time.
+A big update, meow.
 
-## v0.4.6 更新 / What's New
+The browsing, solving, and sketching nests all got an upgrade! We've tidied navigation, welcomed website helpers, and found a home for your drawing files. Come see what the cat brought in. 🐾
 
-- 修复 Windows 绿色版环境自检和 C++20 编译时找不到标准库头文件的问题。
-- 自动修复已有绿色版的编译配置，保留自定义编译选项。
-- 工作区直接受信任，不再进入受限模式。
-- 浏览界面双击顶部标签栏空白处会打开新的空白浏览器标签页，支持浏览器分组；做题界面的新建文件行为保持不变。
-
-### English
-
-- Fixed missing standard-library headers during environment checks and C++20 compilation in the Windows portable edition.
-- Automatically repairs existing portable compiler settings while preserving custom compiler options.
-- Workspaces are trusted automatically and no longer enter Restricted Mode.
-- Double-clicking empty space in the browsing tab bar opens a new blank browser tab, including in split browser groups. The solving tab bar keeps its New File behavior.
-
-## v0.4.5 更新 / What's New
-
-浏览和做题的小窝收拾好啦，这次重点是标签页、导题和界面细节喵～🐾
-
-- **浏览、做题，各住各的小窝喵。** 两边共用原生标签栏，标签页各自保留；从右上角切换网页，会回到它所在的页面。
-- **浏览器的小毛病修好啦。** 加载失败会显示完整错误页；修复空网址、圆角和 Browser Settings 弹窗，浏览标签栏也不再挂着一把锁喵。
-- **导题入口搬到右上角喵。** ShortestPath OJ 页面不再出现 Add problem；其他网站可直接用匹配的解析器导入，找不到匹配时自己选，没有文件名模板时输入文件名即可。
-- **New Tab 的快捷入口回来啦。** 做题页恢复新建文件、打开、查看文档和请我喝杯咖啡；浏览页放大专题入口。切换到浏览时，如果只有一个 New Tab，就打开 ShortestPath OJ 喵。
-- **界面再瘦一圈喵。** 标签栏和左侧模式栏更紧凑，hover 背景两侧留白对齐。
-- **评测小助手也整理好了。** 修复 Error Lens 设置开关，改进 AC 完成状态和临时目录清理喵。
-
-### English
-
-The browsing and solving spaces got a tidy-up, with smoother tabs, imports, and a little extra polish. 🐾
-
-- Browsing and solving share native tabs while keeping separate tab sets. Switching to a webpage returns to its owning mode.
-- Fixed full error pages, empty URLs, rounded borders, and Browser Settings dialogs. Removed the browser group lock icon.
-- Moved problem import to the browser toolbar and removed Add problem from ShortestPath OJ pages. Matching parsers are selected automatically; unmatched pages allow manual selection, and imports prompt for a filename when no naming template is configured.
-- Restored New File, Open, documentation, and coffee links on the solving start page. Enlarged the browsing topic shortcut. Entering browsing with a single New Tab opens ShortestPath OJ.
-- Compacted tabs and the navigation rail, with balanced hover gutters.
-- Fixed the Error Lens toggle and improved Judger AC completion state and temporary directory cleanup. Purr!
-
-## v0.4.4 更新 / What's New
-
-- 新增离线草稿画板，内置 16 个可编辑竞赛绘图模板，支持自动保存、代码旁绘图，以及 Excalidraw、PNG 和 SVG 导出。
-- 内置 Fira Code，编辑器、设置及引导预览均可直接使用；字体加载完成后自动刷新字宽测量。
-- 首次引导新增字体选择和连字开关，示例代码可即时展示连字效果；保留既有字体设置。
-- 代码存放目录选定后立即记住，重新进入引导时恢复；重装保留用户数据即可恢复，便携版支持目录随盘符或位置变化重新定位。
-- Windows 改为提供用户安装版与便携版；旧系统安装版的更新入口引导至用户安装包。
-- 统一草稿、设置和代码片段页面的边界样式，改善紧凑布局下的显示。
-
-### English
-
-- Added an offline sketchpad with 16 editable competition templates, autosave, drawing beside code, and Excalidraw, PNG, and SVG export.
-- Bundled Fira Code for the editor, settings, and setup previews. Font measurements refresh after fonts finish loading.
-- Added font selection and a ligature toggle to initial setup, with live ligature examples and preservation of existing font preferences.
-- Code folders are remembered immediately and restored when setup reopens. Reinstalling with user data preserved keeps the selection; portable installations rebase folders after drive or location changes.
-- Windows now provides a per-user installer and a portable package. Update links for legacy system installations lead to the user installer.
-- Unified sketchpad, settings, and snippet page borders, including compact layouts.
-
-## v0.4.3 更新 / What's New
-
-- 修复启动后题目样例无法加载、本地评测无法使用的问题。
-- 内置浏览器的 ShortestPath 导题入口改用网站的“开始做题”流程，支持页面导航与按钮状态变化。
-- 将题目评价移至题面顶部浮层，改善投票后的焦点、浮层边界和悬停交互。
-- 题解代码高亮、字体与编辑器主题保持一致，改进浏览器标签标题宽度及拥挤时的滚动显示。
-
-### English
-
-- Fixed problem samples failing to load and local judging being unavailable after startup.
-- Integrated browser imports on ShortestPath now use the website's Start Solving flow and follow page navigation and button state changes.
-- Moved problem ratings into a header popover and improved focus, viewport positioning, and hover behavior after voting.
-- Editorial code highlighting and fonts follow the editor theme. Improved browser tab title sizing and scrolling when tabs are crowded.
-
-## v0.4.2 更新 / What's New
-
-- 新增题目与代码配对的解题工作区、内嵌样例和自定义测试；官方样例保持只读，支持编译诊断、取消运行及输出差异。
-- 题目快照移入 IDE 私有缓存，只保留最近 30 题；保留代码关联并迁移旧缓存，不删除代码或 Judger 测试文件。
-- 完善连接恢复、题目评价、历史题面和报告展示。点赞使用题目快照，支持投票及修改，下次获取题目时同步远端状态。
-- 改进首次配置和环境自检、C++ 模板及代码片段编辑、字体和格式预览，并兼容新版 Judger。
-- 修复部分界面中文翻译未正常显示的问题。
-
-### English
-
-- Added paired problem and source workspaces with integrated samples and custom tests. Official samples remain read-only, with compiler diagnostics, cancellation, and output differences.
-- Moved problem snapshots to a private IDE cache retaining the latest 30 problems. Source bindings survive eviction; migration preserves source and Judger testcase files.
-- Improved connection recovery, ratings, statement history, and reports. Likes use the imported snapshot, support voting and changes, and refresh on the next problem fetch.
-- Improved first-run setup, environment checks, C++ templates, snippet editing, font and formatting previews, with support for the current Judger backend.
-- Fixed missing Chinese translations in parts of the interface.
+- **Curl up the navigation, then hop where you like.** Compact Mode is on by default, with its switch in ShortestPath IDE Settings → Appearance and Save. Use arrows or trackpad gestures to change pages; the highlight follows your hover and gestures. Expanded navigation covers the Command Center so the buttons have room to breathe. The Update button waits on the title bar's right when a new version is available, even with navigation tucked away. Meow!
+- **Hop between tabs; we'll remember the order.** Ctrl + Tab and Ctrl + Shift + Tab take you through browsing, solving, sketchpad, and other multitab pages in recent-use order, returning to each tab's owning page. Browser tabs, split views, and New Tab have had a tidy-up too. Expand or fold away favorites; the star and arrow show their current state. Purr!
+- **New coats for websites, with helpers on paw.** Dark Reader has moved into the browser! Set theme switching, detection of a site's own dark theme, and site exclusions in ShortestPath IDE Settings. AtCoder Better and Codeforces Better are bundled too, each with its own switch. Pick the helpers you want, meow.
+- **A gentle paw-swipe through browser history.** On macOS, swipe left or right on the trackpad to go back or forward. Edge arrows follow along; release past the threshold to navigate, or pull back to cancel. We've caught the zero-height browser area that left open tabs invisible, and fixed reload, zoom, selection and copying of locked URLs in paired problem tabs, plus the gap above the tab bar. Purr!
+- **Every sketch gets a little file nest.** Sketchboard can open multiple drawing tabs and keep files and folders in IDE storage. Name them inline, rename them, or drag them to a new home; autosave steps in after one second of inactivity. Clear, Import, and Export now live in the file context menu, and the tab bar lets you draw beside your code. Meow!
+- **A closer look at problems, fewer detours for submissions.** Zoom SPOJ previews from 50% to 200%, or click the percentage to return to 100%. The ratio stays after a refresh, and statements, hints, judging, and reports scale together. Web submissions stay in Solve, visit Browse for security verification, and return to Solve when the submission result arrives. Back to your solving nest, meow!
+- **Tap a rating and smooth out the little snags.** SPOJ ratings now use “夯 / 普 / 拉”, showing emoji, text, and counts. Choose Later in the first-AC rating dialog; likes light up locally before syncing to the website. Duplicate problem links and unscrollable editorial code have been fixed too. Official samples stay viewable and copyable without local judging tools. Collapsed problems show arrows, and hovered titles gain underlines to help you find the way in. Purr!
+- **Stats follow your work; the editor keeps its focus.** Dashboard refreshes when opened or revisited, and problem records follow source deletion and renaming. Its empty Activity Bar sidebar entry is gone, while the standalone page keeps its home. Judger now refreshes when you switch between same-named files in different folders, and sidebar updates no longer steal editor focus. Meow!
+- **Update reminders got a tidy-up too.** Malformed optional manifest fields are skipped so the version and download address can still be read. Hotfix releases now find their proper place in the update order. Purr!
 
 The English version follows the Chinese version.
 
