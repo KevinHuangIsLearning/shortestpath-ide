@@ -293,12 +293,16 @@ export class BrowserUrlBarWidget extends Disposable {
 		this._register(addDisposableListener(this._urlDisplay, EventType.CLICK, () => {
 			const isMouseFocusClick = pendingMouseFocus;
 			pendingMouseFocus = false;
-			if (!isMouseFocusClick || this._host.isReadonly) {
+			if (!isMouseFocusClick) {
 				return;
 			}
 			// Preserve drag-selection so users can copy parts of the URL.
 			const selection = this._urlDisplay.ownerDocument.getSelection();
 			if (selection && !selection.isCollapsed && selection.anchorNode && this._urlDisplay.contains(selection.anchorNode)) {
+				return;
+			}
+			if (this._host.isReadonly) {
+				this._selectAll();
 				return;
 			}
 			// First click after mouse-focus (without a drag) opens the picker with the URL fully

@@ -238,6 +238,39 @@ suite('BrowserUrlBarWidget', () => {
 		});
 	});
 
+	test('first click on a readonly URL selects it without opening the picker', () => {
+		const { display, picker, navigated } = makeHarness(true);
+		display.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+		display.focus();
+		display.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		assert.deepStrictEqual({
+			selected: mainWindow.document.getSelection()?.toString(),
+			pickerVisible: picker.visible,
+			navigated,
+		}, { selected: display.textContent, pickerVisible: false, navigated: [] });
+	});
+
+	test('readonly URL permits text selection inside the workbench selection boundary', () => {
+		const { widget, display } = makeHarness(true);
+		widget.element.classList.add('browser-root');
+		widget.element.style.userSelect = 'none';
+		assert.strictEqual(mainWindow.getComputedStyle(display).userSelect, 'text');
+	});
+
+	test('clicking a readonly URL preserves a partial drag selection', () => {
+		const { display, picker } = makeHarness(true);
+		display.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+		display.focus();
+		const range = mainWindow.document.createRange();
+		range.setStart(display.firstChild!, 8);
+		range.setEnd(display.firstChild!, 15);
+		const selection = mainWindow.document.getSelection()!;
+		selection.removeAllRanges();
+		selection.addRange(range);
+		display.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		assert.deepStrictEqual({ selected: selection.toString(), pickerVisible: picker.visible }, { selected: 'example', pickerVisible: false });
+	});
+
 	function mountPickerActionProvider(widget: BrowserUrlBarWidget, provider: IBrowserUrlPickerActionProvider): void {
 		const contribution = {
 			widgets: [],

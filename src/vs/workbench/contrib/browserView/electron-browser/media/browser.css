@@ -697,6 +697,8 @@
 	}
 
 	.browser-url-display {
+		user-select: text;
+		-webkit-user-select: text;
 		flex: 1;
 		min-width: 60px;
 		display: block;
@@ -717,7 +719,6 @@
 
 		&[aria-readonly="true"] {
 			color: var(--vscode-descriptionForeground);
-			cursor: default;
 		}
 
 		&:empty::before {
