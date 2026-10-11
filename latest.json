@@ -1,6 +1,6 @@
 {
-	"version": "0.4.7",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.7",
+	"version": "0.4.8",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.8",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "新增独立仪表盘，提供做题热力图、AC 高峰和最长用时统计，支持范围筛选及按日查看。兼容旧题目记录；超时未标记题目可经确认修改状态，用时保持 5:00:00+，始终归到创建日期。\n\nAdded a standalone Dashboard with activity heatmaps, peak AC and longest-time statistics, period filters, and daily views. Legacy records are supported. Overdue unmarked problems can be updated after confirmation while retaining their creation date and 5:00:00+ elapsed time."
+	"releaseNote": "浏览器与 IDE 可共享 ShortestPath 登录，减少重复登录和两端互相掉线的问题。\n浏览网页时，IDE 通知不再打断操作，查看和处理通知更顺畅。\n改善首次配置和本地评测的稳定性。环境检查失败时提供更清晰的解决建议，并支持导出日志，方便反馈问题。\n打开代码文件夹后，自动补齐代码提示和格式化设置，保留已有自定义配置。\n修复启动后首次使用代码片段时，片段可能不显示的问题。\n\nShare your ShortestPath login between the browser and IDE, reducing repeated sign-ins and unexpected sign-outs.\nIDE notifications no longer interrupt browsing and are easier to view and interact with.\nImproved initial setup and local judging reliability. Failed environment checks offer clearer troubleshooting advice and downloadable logs for reporting issues.\nOpening a code folder automatically fills in missing completion and formatting settings while preserving your custom configuration.\nFixed code snippets sometimes not appearing on their first use after startup."
 }

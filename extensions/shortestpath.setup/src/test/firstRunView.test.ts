@@ -35,7 +35,7 @@ class Element {
 
 test('checklist renders host progress, gates finishing, and preserves external logs', () => {
 	const state: EnvironmentSetupState = { running: false, ready: false, steps: [{ id: 'toolchain', title: '编译器', description: '检测工具链', status: 'pending', log: '' }] };
-	const ui = { title: '环境配置', intro: 'C++20', start: '开始', retry: '重试', finish: '完成', pending: '待检查', running: '正在配置', complete: '已完成', error: '失败', ready: '就绪', failed: '请重试', waiting: '等待', fontLoading: '加载字体', fontError: '字体读取失败', noFonts: '无字体', defaultFont: '默认' };
+	const ui = { title: '环境配置', intro: 'C++20', start: '开始', retry: '重试', finish: '完成', pending: '待检查', running: '正在配置', complete: '已完成', error: '失败', ready: '就绪', failed: '请重试', waiting: '等待', fontLoading: '加载字体', fontError: '字体读取失败', noFonts: '无字体', defaultFont: '默认', issue_runner: '检查工具链与写入权限，再重试。', exportLogs: '导出日志', openEnvironmentSettings: '打开设置' };
 	const editor: FirstRunEditorState = { fontFamily: 'monospace', fontSize: 14, tabSize: 2, cppTemplate: 'int main() {}', fontLigatures: false, colorTheme: 'dark', autoDetectColorScheme: false, themes: [{ id: 'dark', label: 'Dark' }], autoSave: 'off', autoFormat: false, clangdVariableTypeHints: true };
 	const html = firstRunView(state, ui, editor);
 	assert.doesNotMatch(html, /cppStandard|type:'skip'|pageLabels/);
@@ -53,9 +53,14 @@ test('checklist renders host progress, gates finishing, and preserves external l
 	assert.equal(start.disabled, true); assert.equal(finish.disabled, true);
 	const details = elements.get('steps')!.children[0].children[0];
 	assert.equal(details.open, true);
-	assert.equal(details.children[1].textContent, '<script>external log</script>');
-	assert.ok(details.children[1].attributes.has('data-i18n-ignore'));
-	state.running = false; state.steps[0].status = 'error'; send();
+	assert.equal(details.children[2].textContent, '<script>external log</script>');
+	assert.ok(details.children[2].attributes.has('data-i18n-ignore'));
+	state.running = false; state.steps[0].status = 'error'; state.steps[0].issue = 'runner'; send();
+	assert.deepEqual([details.children[1].textContent, details.children[1].hidden, elements.get('exportLogs')!.hidden, elements.get('exportLogs')!.disabled], [ui.issue_runner, false, false, false]);
+	elements.get('exportLogs')!.onclick!();
+	assert.equal(JSON.stringify(messages.at(-1)), '{"type":"exportEnvironmentLogs"}');
+	elements.get('openEnvironmentSettings')!.onclick!();
+	assert.equal(JSON.stringify(messages.at(-1)), '{"type":"openEnvironmentSettings"}');
 	assert.equal(start.textContent, '重试'); assert.equal(finish.disabled, true);
 	state.ready = true; state.steps[0].status = 'complete'; send();
 	assert.equal(finish.disabled, true);

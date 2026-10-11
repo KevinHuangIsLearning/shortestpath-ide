@@ -204,11 +204,14 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 				// Electron taking care of opening the menu at the cursor position.
 			}
 
+			const viewportOffset = dom.getWindowViewportOffset(targetWindow);
 			if (typeof x === 'number') {
+				x += viewportOffset?.x ?? 0;
 				x = Math.floor(x * zoom);
 			}
 
 			if (typeof y === 'number') {
+				y += viewportOffset?.y ?? 0;
 				y = Math.floor(y * zoom);
 			}
 

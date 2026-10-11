@@ -75,7 +75,6 @@ type ToolchainInstallResult = {
 };
 
 const SETUP_COMPLETE = 'shortestpath.setupComplete';
-const OI_WORKSPACE_INITIALIZATION_DISMISSED = 'shortestpath.oiWorkspaceInitializationDismissed';
 
 const shortestPathHiddenFiles: Record<string, boolean> = {
 	'**/.cph': true,
@@ -152,8 +151,20 @@ function createDefaultClangdConfig(configPath: string, compiler: string, cppStan
 	}
 }
 
-function createDefaultClangdProjectConfig(workspaceFolder: string, compiler: string, cppStandard: FirstRunSelection['cppStandard']): void {
-	createDefaultClangdConfig(path.join(workspaceFolder, '.clangd'), compiler, cppStandard);
+function createDefaultClangdProjectConfig(workspaceFolder: string, compiler: string, cppStandard: FirstRunSelection['cppStandard'], updateGenerated = false): void {
+	const configPath = path.join(workspaceFolder, '.clangd');
+	if (updateGenerated && fs.existsSync(configPath)) {
+		const content = fs.readFileSync(configPath, 'utf8');
+		const expected = defaultClangdProjectConfig(compiler, cppStandard);
+		const updated = content.replace(/^    - -std=c\+\+(?:11|14|17|20|23)$/m, `    - -std=${cppStandard}`)
+			.replace(/^  Compiler: .*$/m, () => `  Compiler: ${JSON.stringify(compiler.replaceAll('\\', '/'))}`);
+		// Only refresh an unchanged generated template; preserve custom project settings.
+		if (updated === expected && content !== expected) {
+			fs.writeFileSync(configPath, expected, 'utf8');
+		}
+		return;
+	}
+	createDefaultClangdConfig(configPath, compiler, cppStandard);
 }
 
 function createDefaultClangFormatConfig(workspaceFolder: string): void {
@@ -180,39 +191,38 @@ function getSingleLocalWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
 
 function hasOiWorkspaceConfig(workspaceFolder: vscode.WorkspaceFolder): boolean {
 	return fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clangd'))
-		|| fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clang-format'));
+		&& fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clang-format'));
 }
 
-async function initializeOiWorkspace(context: vscode.ExtensionContext): Promise<void> {
+async function initializeOiWorkspace(context: vscode.ExtensionContext, silent = false): Promise<void> {
 	const workspaceFolder = getSingleLocalWorkspaceFolder();
 	if (!workspaceFolder) {
-		void vscode.window.showInformationMessage(localize('请先打开一个本地文件夹，再初始化 OI 项目配置。'));
+		if (!silent) {
+			void vscode.window.showInformationMessage(localize('请先打开一个本地文件夹，再初始化 OI 项目配置。'));
+		}
 		return;
 	}
 
-	const configuredCompiler = vscode.workspace.getConfiguration('judger.language.cpp').get<string>('Command');
+	const configuration = vscode.workspace.getConfiguration('judger.language.cpp', workspaceFolder.uri);
+	const configuredCompiler = configuration.get<string>('Command');
 	const compiler = configuredCompiler || await findPreferredCompiler(loadPreset(context).compilerCandidates) || 'g++';
-	createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, 'c++20');
+	createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, findCppStandard(configuration.get<string>('Args') ?? ''));
 	createDefaultClangFormatConfig(workspaceFolder.uri.fsPath);
-	await context.workspaceState.update(OI_WORKSPACE_INITIALIZATION_DISMISSED, undefined);
-	void vscode.window.showInformationMessage(localizeFormat('已在“{0}”中创建 .clangd 和 .clang-format。', workspaceFolder.name));
+	if (!silent) {
+		void vscode.window.showInformationMessage(localizeFormat('已在“{0}”中创建 .clangd 和 .clang-format。', workspaceFolder.name));
+	}
 }
 
-async function offerOiWorkspaceInitialization(context: vscode.ExtensionContext): Promise<void> {
+async function ensureOiWorkspaceInitialization(context: vscode.ExtensionContext): Promise<void> {
 	const workspaceFolder = getSingleLocalWorkspaceFolder();
-	if (!workspaceFolder || hasOiWorkspaceConfig(workspaceFolder) || context.workspaceState.get<boolean>(OI_WORKSPACE_INITIALIZATION_DISMISSED)) {
+	if (!workspaceFolder || hasOiWorkspaceConfig(workspaceFolder)) {
 		return;
 	}
 
-	const action = await vscode.window.showInformationMessage(
-		localizeFormat('“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？', workspaceFolder.name),
-		localize('初始化 OI 配置'),
-		localize('暂不初始化')
-	);
-	if (action === localize('初始化 OI 配置')) {
-		await initializeOiWorkspace(context);
-	} else {
-		await context.workspaceState.update(OI_WORKSPACE_INITIALIZATION_DISMISSED, true);
+	try {
+		await initializeOiWorkspace(context, true);
+	} catch (error) {
+		console.error('Failed to initialize OI workspace configuration', error);
 	}
 }
 
@@ -286,7 +296,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		if (event.affectsConfiguration('shortestpath.setup.pending')) { void applyPending(); }
 	}));
 	await applyPending();
-	void offerOiWorkspaceInitialization(context);
+	await ensureOiWorkspaceInitialization(context);
 }
 
 async function removeLegacyWindowsCompilerLocale(context: vscode.ExtensionContext): Promise<void> {
@@ -452,7 +462,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 			}
 		}
 		if (firstRunSelection?.workspaceFolder) {
-			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard);
+			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard, true);
 		}
 		if (firstRunSelection) {
 			settings['clangd.fallbackFlags'] = await compilerFallbackFlags(compiler, runToolchainCommand, cppStandard);

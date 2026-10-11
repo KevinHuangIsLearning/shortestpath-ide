@@ -53,4 +53,37 @@ suite('Browser editor mode visibility', () => {
 		assert.deepStrictEqual(visibility, [true, false, true, false]);
 		feature.onModelDetached();
 	});
+	test('overlapping notifications leave the live page visible and do not show a pause cover', async () => {
+		const part = append(mainWindow.document.body, $('.part.editor'));
+		part.style.cssText = 'position: absolute; top: 20px; left: 20px; width: 400px; height: 300px;';
+		store.add(toDisposable(() => part.remove()));
+		const container = append(part, $('.browser-container'));
+		container.style.cssText = 'width: 400px; height: 300px;';
+		const notification = append(mainWindow.document.body, $('.notification-toast-container'));
+		notification.style.cssText = 'position: absolute; top: 30px; left: 30px; width: 200px; height: 80px; z-index: 9999;';
+		store.add(toDisposable(() => notification.remove()));
+		const changes = store.add(new Emitter<{ model: IBrowserViewModel; isNew: boolean }>());
+		const editor = new class extends mock<BrowserEditor>() {
+			override readonly onDidChangeModel = changes.event;
+			override get window() { return mainWindow; }
+		};
+		const feature = store.add(new WebContentsViewRendererFeature(editor, new NullLogService(), new class extends mock<IKeybindingService>() { }));
+		feature.onContainerCreated(container);
+		const visibility: boolean[] = [];
+		const model = new class extends mock<IBrowserViewModel>() {
+			override visible = false;
+			override readonly url = 'https://example.com/problem';
+			override readonly onDidChangeVisibility = Event.None;
+			override readonly onDidKeyCommand = Event.None;
+			override readonly onDidNavigate = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+			override async setVisible(value: boolean) { this.visible = value; visibility.push(value); }
+		};
+		changes.fire({ model, isNew: false });
+		feature.onPaneVisibilityChanged(true);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+		assert.deepStrictEqual({ visibility, covered: container.classList.contains('page-obscured') }, { visibility: [true], covered: false });
+		feature.onModelDetached();
+	});
+
 });

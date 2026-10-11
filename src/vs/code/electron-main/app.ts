@@ -45,6 +45,7 @@ import { ipcBrowserViewChannelName } from '../../platform/browserView/common/bro
 import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
 import { BrowserViewGroupMainService, IBrowserViewGroupMainService } from '../../platform/browserView/electron-main/browserViewGroupMainService.js';
+import { ShortestPathBrowserOverlayWindows } from '../../platform/browserView/electron-main/shortestPathBrowserOverlay.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -295,6 +296,7 @@ type OSProxyConfigClassification = {
  * even if the user starts many instances (e.g. from the command line).
  */
 export class CodeApplication extends Disposable {
+	private readonly browserOverlayWindows = this._register(new ShortestPathBrowserOverlayWindows());
 
 	private static readonly SECURITY_PROTOCOL_HANDLING_CONFIRMATION_SETTING_KEY = {
 		[Schemas.file]: 'security.promptForLocalFileProtocolHandling' as const,
@@ -654,7 +656,7 @@ export class CodeApplication extends Disposable {
 		app.on('web-contents-created', (event, contents) => {
 
 			// Auxiliary Window: delegate to `AuxiliaryWindow` class
-			if (contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`)) {
+			if (contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) && !this.browserOverlayWindows.isOverlay(contents)) {
 				this.logService.trace('[aux window]  app.on("web-contents-created"): Registering auxiliary window');
 
 				this.auxiliaryWindowsMainService?.registerWindow(contents);
@@ -677,6 +679,10 @@ export class CodeApplication extends Disposable {
 
 				// about:blank windows can open as window witho our default options
 				if (details.url === 'about:blank') {
+					if (details.features.split(',').includes('vscode-native-browser-overlay=yes')) {
+						const trusted = contents.getURL().startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) || !!this.auxiliaryWindowsMainService?.getWindowByWebContents(contents);
+						return trusted ? this.browserOverlayWindows.createWindowOpenHandler(contents) : { action: 'deny' };
+					}
 					this.logService.trace('[aux window] webContents#setWindowOpenHandler: Allowing auxiliary window to open on about:blank');
 
 					return {

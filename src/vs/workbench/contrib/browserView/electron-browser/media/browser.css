@@ -528,36 +528,6 @@
 			opacity: 1;
 			visibility: visible;
 		}
-
-		&.show-message {
-			background-color: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent);
-		}
-	}
-
-	.browser-overlay-paused-message {
-		padding: 20px 40px;
-		border-radius: 4px;
-		border: 1px solid var(--vscode-editorWidget-border);
-		background-color: var(--vscode-editor-background);
-		box-shadow: var(--vscode-shadow-lg);
-		max-width: 80%;
-		text-align: center;
-		display: none;
-	}
-
-	.browser-overlay-paused.show-message .browser-overlay-paused-message {
-		display: block;
-	}
-
-	.browser-overlay-paused-heading {
-		font-size: 18px;
-		font-weight: 600;
-		margin-bottom: 8px;
-	}
-
-	.browser-overlay-paused-detail {
-		font-size: 14px;
-		color: var(--vscode-descriptionForeground);
 	}
 
 	.browser-error-container {

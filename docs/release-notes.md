@@ -2,6 +2,22 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
+## v0.4.8 更新 / What's New
+
+- 浏览器与 IDE 可共享 ShortestPath 登录，减少重复登录和两端互相掉线的问题。
+- 浏览网页时，IDE 通知不再打断操作，查看和处理通知更顺畅。
+- 改善首次配置和本地评测的稳定性。环境检查失败时提供更清晰的解决建议，并支持导出日志，方便反馈问题。
+- 打开代码文件夹后，自动补齐代码提示和格式化设置，保留已有自定义配置。
+- 修复启动后首次使用代码片段时，片段可能不显示的问题。
+
+### English
+
+- Share your ShortestPath login between the browser and IDE, reducing repeated sign-ins and unexpected sign-outs.
+- IDE notifications no longer interrupt browsing and are easier to view and interact with.
+- Improved initial setup and local judging reliability. Failed environment checks offer clearer troubleshooting advice and downloadable logs for reporting issues.
+- Opening a code folder automatically fills in missing completion and formatting settings while preserving your custom configuration.
+- Fixed code snippets sometimes not appearing on their first use after startup.
+
 ## v0.4.7 更新 / What's New
 
 - 新增独立 Dashboard（仪表盘）页面，展示做题热力图、单日最多 AC 的日期与数量，以及单题最长用时。

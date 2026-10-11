@@ -183,7 +183,8 @@ export class BrowserView extends Disposable {
 		}));
 
 		this._view.setVisible(false);
-		this._ownerWindow.win?.contentView.addChildView(this._view);
+		// Keep browser pages below native workbench notification overlays.
+		this._ownerWindow.win?.contentView.addChildView(this._view, 0);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
 			const location = (() => {
@@ -690,7 +691,7 @@ export class BrowserView extends Disposable {
 			if (newWindow) {
 				this._currentWindow?.win?.contentView.removeChildView(this._view);
 				this._currentWindow = newWindow;
-				newWindow.win?.contentView.addChildView(this._view);
+				newWindow.win?.contentView.addChildView(this._view, 0);
 			}
 		}
 

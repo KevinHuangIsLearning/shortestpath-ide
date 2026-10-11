@@ -29,6 +29,7 @@ export interface IRegisteredCodeWindow {
 
 export const {
 	registerWindow,
+	registerChildWindow,
 	getWindow,
 	getDocument,
 	getWindows,
@@ -41,6 +42,7 @@ export const {
 	onDidUnregisterWindow
 } = (function () {
 	const windows = new Map<number, IRegisteredCodeWindow>();
+	const childWindows = new Set<IRegisteredCodeWindow>();
 
 	ensureCodeWindow(mainWindow, 1);
 	const mainWindowRegistration = { window: mainWindow, disposables: new DisposableStore() };
@@ -58,41 +60,48 @@ export const {
 		return window ?? (fallbackToMain ? mainWindowRegistration : undefined);
 	}
 
+	function register(window: CodeWindow, child = false): IDisposable {
+		if (!child && windows.has(window.vscodeWindowId)) {
+			return Disposable.None;
+		}
+		const disposables = new DisposableStore();
+		const registeredWindow = { window, disposables: disposables.add(new DisposableStore()) };
+		if (child) {
+			childWindows.add(registeredWindow);
+		} else {
+			windows.set(window.vscodeWindowId, registeredWindow);
+		}
+		disposables.add(toDisposable(() => {
+			if (child) {
+				childWindows.delete(registeredWindow);
+			} else {
+				windows.delete(window.vscodeWindowId);
+			}
+			if (!child) {
+				onDidUnregisterWindow.fire(window);
+			}
+		}));
+		if (!child) {
+			disposables.add(addDisposableListener(window, EventType.BEFORE_UNLOAD, () => onWillUnregisterWindow.fire(window)));
+		}
+		onDidRegisterWindow.fire(registeredWindow);
+		return disposables;
+	}
+
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
 		onWillUnregisterWindow: onWillUnregisterWindow.event,
 		onDidUnregisterWindow: onDidUnregisterWindow.event,
-		registerWindow(window: CodeWindow): IDisposable {
-			if (windows.has(window.vscodeWindowId)) {
-				return Disposable.None;
-			}
-
-			const disposables = new DisposableStore();
-
-			const registeredWindow = {
-				window,
-				disposables: disposables.add(new DisposableStore())
-			};
-			windows.set(window.vscodeWindowId, registeredWindow);
-
-			disposables.add(toDisposable(() => {
-				windows.delete(window.vscodeWindowId);
-				onDidUnregisterWindow.fire(window);
-			}));
-
-			disposables.add(addDisposableListener(window, EventType.BEFORE_UNLOAD, () => {
-				onWillUnregisterWindow.fire(window);
-			}));
-
-			onDidRegisterWindow.fire(registeredWindow);
-
-			return disposables;
+		registerWindow: register,
+		/** Registers a native child document while retaining its host's window ID for native services. */
+		registerChildWindow(window: CodeWindow): IDisposable {
+			return register(window, true);
 		},
 		getWindows(): Iterable<IRegisteredCodeWindow> {
-			return windows.values();
+			return [...windows.values(), ...childWindows];
 		},
 		getWindowsCount(): number {
-			return windows.size;
+			return windows.size + childWindows.size;
 		},
 		getWindowId(targetWindow: Window): number {
 			return (targetWindow as CodeWindow).vscodeWindowId;
@@ -145,6 +154,29 @@ export type ExternalFocusChecker = () => IExternalFocusInfo;
  * Electron WebContentsViews (browser views) that exist outside the workbench DOM.
  */
 const externalFocusCheckers = new Set<ExternalFocusChecker>();
+
+const nativeViewportOffsets = new WeakMap<Window, () => { x: number; y: number; width: number; height: number }>();
+
+/** Registers a native child view's offset within its containing workbench window. */
+export function registerWindowViewportOffset(targetWindow: Window, offset: () => { x: number; y: number; width: number; height: number }): IDisposable {
+	nativeViewportOffsets.set(targetWindow, offset);
+	return toDisposable(() => nativeViewportOffsets.delete(targetWindow));
+}
+
+/** Returns the offset needed to place native UI from a child view in its host window. */
+export function getWindowViewportOffset(targetWindow: Window): { x: number; y: number; width: number; height: number } | undefined {
+	return nativeViewportOffsets.get(targetWindow)?.();
+}
+
+/** The available host viewport expressed in the native child document's coordinates. */
+export function getWindowViewport(targetWindow: Window): { top: number; left: number; width: number; height: number } {
+	const offset = getWindowViewportOffset(targetWindow);
+	return {
+		top: -(offset?.y ?? 0), left: -(offset?.x ?? 0),
+		width: offset?.width ?? targetWindow.document.documentElement.clientWidth,
+		height: offset?.height ?? targetWindow.innerHeight
+	};
+}
 
 /**
  * Register a function that checks if a component outside the DOM has focus.
@@ -474,7 +506,9 @@ class AnimationFrameQueueItem implements IDisposable {
 
 		if (!animFrameRequested.get(targetWindowId)) {
 			animFrameRequested.set(targetWindowId, true);
-			targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId));
+			// Native child documents share the host queue; hiding them must not suspend it.
+			const frameWindow = getWindowById(targetWindowId)?.window ?? targetWindow;
+			frameWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId));
 		}
 
 		return item;
@@ -1057,7 +1091,7 @@ export function getActiveDocument(): Document {
 		return mainWindow.document;
 	}
 
-	const documents = Array.from(getWindows()).map(({ window }) => window.document);
+	const documents = Array.from(getWindows()).reverse().map(({ window }) => window.document);
 	const focusedDoc = documents.find(doc => doc.hasFocus());
 	if (focusedDoc) {
 		return focusedDoc;
@@ -1079,7 +1113,9 @@ export function getActiveDocument(): Document {
  */
 export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
-	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
+	const window = (document.defaultView?.window ?? mainWindow) as CodeWindow;
+	// Native child documents share their host ID, but native window operations target the host.
+	return getWindowById(window.vscodeWindowId)?.window ?? window;
 }
 
 interface IMutationObserver {

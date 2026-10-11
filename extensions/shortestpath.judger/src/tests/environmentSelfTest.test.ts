@@ -13,12 +13,14 @@ jest.mock('../compiler', () => ({ compileFile: jest.fn(async () => true) }));
 jest.mock('../utils', () => ({ getLanguage: jest.fn(() => ({ name: 'cpp', compiler: 'g++', args: [], skipCompile: false })) }));
 jest.mock('../preferences', () => ({ getIgnoreSTDERRORPref: jest.fn(() => false) }));
 jest.mock('../executions', () => ({ runTestCase: jest.fn(), runCustomChecker: jest.fn() }));
+jest.mock('../nativeRunner', () => ({ prepareNativeRunner: jest.fn(async () => 'runner') }));
 
 import { runEnvironmentSelfTest } from '../environmentSelfTest';
 import { compileFile } from '../compiler';
 import { getLanguage } from '../utils';
 import { runTestCase } from '../executions';
 import { compareOutput } from '../outputComparison';
+import { prepareNativeRunner } from '../nativeRunner';
 
 globalThis.logger = { ...console, log: jest.fn() };
 const samples = [{ input: '1 2\n', output: '3\n' }, { input: '-7 4\n', output: '-3\n' }];
@@ -41,6 +43,7 @@ test('uses CPH compiler, runner and text judge, checks AC and WA, and cleans the
 	expect(result).toEqual({ success: true });
 	expect(compileFile).toHaveBeenCalledWith(sourcePath, expect.objectContaining({ silent: true, timeout: 60000, outputPath: expect.stringContaining(directory) }));
 	expect(runTestCase).toHaveBeenCalledTimes(3);
+	expect(prepareNativeRunner).toHaveBeenCalledTimes(1);
 	expect(progress).toHaveBeenCalledWith(expect.objectContaining({ type: 'sample', pass: true, actual: '3\n' }));
 	expect(fs.existsSync(path.join(directory, process.platform === 'win32' ? 'cph-check.exe' : 'cph-check.bin'))).toBe(false);
 });
@@ -49,6 +52,7 @@ test('fails when compilation fails without running testcases', async () => {
 	(compileFile as jest.Mock).mockResolvedValue(false);
 	expect(await runEnvironmentSelfTest({ sourcePath, samples })).toEqual({ success: false, reason: 'compile' });
 	expect(runTestCase).not.toHaveBeenCalled();
+	expect(prepareNativeRunner).not.toHaveBeenCalled();
 });
 
 test('interpreted self-test runs the original Python source and never removes it', async () => {
@@ -59,6 +63,7 @@ test('interpreted self-test runs the original Python source and never removes it
 	expect(await runEnvironmentSelfTest({ sourcePath, samples })).toEqual({ success: true });
 	expect((runTestCase as jest.Mock).mock.calls.map(call => call[1])).toEqual([sourcePath, sourcePath, sourcePath]);
 	expect(await fs.promises.readFile(sourcePath, 'utf8')).toBe('print(3)');
+	expect(prepareNativeRunner).not.toHaveBeenCalled();
 });
 
 test.each(['wrong output', 'timeout', 'stderr', 'nonzero exit'])('fails a CPH sample on %s', async failure => {

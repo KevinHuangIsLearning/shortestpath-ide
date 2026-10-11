@@ -294,6 +294,7 @@ export type AdminEditorialReadResponse = {
 
 export type AdminEditorialRequest = {
   content?: string;
+  expected_updated_at?: string;
   simple_content?: string;
   solution_code?: string;
 };
@@ -304,12 +305,42 @@ export type AdminEditorialWriteResponse = {
   updated?: boolean;
 };
 
+export type AdminFeedbackListResponse = {
+  items: Array<AdminFeedbackSummary>;
+  page: number;
+  page_size: number;
+  total: number;
+};
+
+export type AdminFeedbackSummary = {
+  applied_count: number;
+  change_count: number;
+  content: string;
+  created_at: string;
+  id: number;
+  problem_id: number;
+  problem_title: string;
+  review_note: string;
+  reviewed_at?: string;
+  reviewed_by?: number;
+  reward_coins: number;
+  reward_silver: number;
+  rewarded_at?: string;
+  scope: string;
+  status: string;
+  type: string;
+  updated_at: string;
+  user_id: number;
+  version: number;
+};
+
 export type AdminHintListResponse = {
   items: Array<AdminProblemHint>;
 };
 
 export type AdminHintRequest = {
   answer: string;
+  expected_updated_at?: string;
   question: string;
   seq: number;
 };
@@ -702,6 +733,15 @@ export type AdminUpdateOIProblemLocalTestURLRequest = {
   local_test_url: string;
 };
 
+export type AdminUpdateUsernameRequest = {
+  username: string;
+};
+
+export type AdminUpdateUsernameResponse = {
+  updated: boolean;
+  username: string;
+};
+
 export type AdminWalletTransactionItem = {
   amount: number;
   available_delta: number;
@@ -741,6 +781,11 @@ export type AlgorithmListResponse = {
 export type AlgorithmTag = {
   id: number;
   name: string;
+};
+
+export type ApplyFeedbackRequest = {
+  reward_coins?: number;
+  token: string;
 };
 
 export type Attempt = {
@@ -815,6 +860,7 @@ export type Contest = {
   duration_seconds?: number;
   end_at: string;
   hidden?: boolean;
+  hint_policy?: string;
   id: number;
   identity_revealed: boolean;
   kind: string;
@@ -884,6 +930,7 @@ export type ContestListItem = {
   duration_seconds?: number;
   end_at: string;
   hidden?: boolean;
+  hint_policy?: string;
   id: number;
   identity_revealed: boolean;
   kind: string;
@@ -1275,6 +1322,14 @@ export type CreatePaymentOrderRequest = {
   pricing_version: number;
 };
 
+export type CreatePrivateConversationRequest = {
+  body: string;
+  client_key: string;
+  recipient?: string;
+  recipient_id?: number;
+  subject: string;
+};
+
 export type CreateRedeemCodeRequest = {
   amount: number;
   expires_at: string | null;
@@ -1358,6 +1413,13 @@ export type DailyRecommendationResponse = {
   selection_strategy: string;
 };
 
+export type DecideFeedbackRequest = {
+  item_ids: Array<number>;
+  note: string;
+  reward_coins?: number;
+  status: string;
+};
+
 export type DeleteModulesRequest = {
   items: Array<ModuleRequest>;
 };
@@ -1386,6 +1448,11 @@ export type DetachTopicProblemResponse = {
 export type Diagnosis = {
   issue: Array<string>;
   summary: string;
+};
+
+export type DiagnosticHistoryResponse = {
+  next_before_id?: number;
+  tasks: Array<DiagnosticTaskSummary>;
 };
 
 export type DiagnosticTask = {
@@ -1421,6 +1488,14 @@ export type DiagnosticTaskResponse = {
   task: DiagnosticTask;
 };
 
+export type DiagnosticTaskSummary = {
+  created_at: string;
+  id: number;
+  rounds_executed: number;
+  rounds_planned: number;
+  status: string;
+};
+
 export type DiffLine = {
   left: string;
   line: number;
@@ -1451,6 +1526,7 @@ export type EditorialResponse = {
   content: string;
   core_algorithm: AlgorithmTag | null;
   difficulty: number;
+  feedback_receipt?: string;
   hints: Array<EditorialHint>;
   problem_title: string;
   simple_content: string;
@@ -1529,6 +1605,140 @@ export type ExternalOJSyncSummary = {
   newly_accepted: number;
   no_accepted: number;
   skipped_accepted: number;
+};
+
+export type FeedbackApplyResponse = {
+  feedback_id: number;
+  status: string;
+  validation_id?: number;
+};
+
+export type FeedbackContextResponse = {
+  algorithms?: Array<{
+    id: number;
+    name: string;
+  }>;
+  fields: Array<FeedbackField>;
+  problem_id: number;
+  scope: string;
+};
+
+export type FeedbackDetailResponse = {
+  algorithms?: Array<{
+    id: number;
+    name: string;
+  }>;
+  applied_count: number;
+  attempts?: Array<FeedbackReviewAttempt>;
+  change_count: number;
+  current_fields?: Array<FeedbackField>;
+  feedback: ProblemFeedback;
+  impacts?: Array<FeedbackImpact>;
+  items: Array<ProblemFeedbackItem>;
+  overrides?: Array<FeedbackOverride>;
+  redacted: boolean;
+  revisions: Array<ProblemContentRevision>;
+};
+
+export type FeedbackField = {
+  apply_mode: string;
+  field: string;
+  hash: string;
+  kind: string;
+  reason?: string;
+  value: string;
+};
+
+export type FeedbackImpact = {
+  affected: boolean;
+  href: string;
+  name: string;
+};
+
+export type FeedbackListResponse = {
+  items: Array<FeedbackDetailResponse>;
+  total: number;
+};
+
+export type FeedbackNotification = {
+  created_at: string;
+  feedback_id: number;
+  id: number;
+  kind: string;
+  read_at?: string;
+  user_id: number;
+};
+
+export type FeedbackNotificationsResponse = {
+  items: Array<FeedbackNotification>;
+  pending: number;
+  unread: number;
+};
+
+export type FeedbackOverride = {
+  current_hash: string;
+  current_value: string;
+  field: string;
+  revision_id: number;
+  upstream_value?: string;
+};
+
+export type FeedbackOverridePreviewRequest = {
+  current_hash: string;
+  expected_revision_id: number;
+  field: string;
+  release: boolean;
+  value?: string;
+};
+
+export type FeedbackPatch = {
+  base_hash: string;
+  end: number;
+  field: string;
+  group_key: string;
+  reason: string;
+  replacement: string;
+  start: number;
+};
+
+export type FeedbackPreviewField = {
+  after: string;
+  before: string;
+  field: string;
+  rebased: boolean;
+};
+
+export type FeedbackPreviewRequest = {
+  items: Array<FeedbackReviewSelection>;
+};
+
+export type FeedbackPreviewResponse = {
+  fields: Array<FeedbackPreviewField>;
+  kind: string;
+  release_override: boolean;
+  token: string;
+  validation_required: boolean;
+};
+
+export type FeedbackReviewAttempt = {
+  created_at: string;
+  error_message?: string;
+  id: number;
+  reviewer_id: number;
+  reward_coins?: number;
+  state: string;
+  token: string;
+  validation_id?: number;
+  verdict?: string;
+};
+
+export type FeedbackReviewSelection = {
+  final?: string;
+  item_id: number;
+};
+
+export type FeedbackUpdatedResponse = {
+  updated: boolean;
 };
 
 export type FieldErrorDetails = {
@@ -1671,6 +1881,12 @@ export type LearningCoinGrantView = {
   target_user_id: number;
 };
 
+export type LegacyReviewFeedbackRequest = {
+  review_note: string;
+  reward_coins?: number;
+  status: string;
+};
+
 export type LikeResponse = {
   like_count: number;
   liked: boolean;
@@ -1795,6 +2011,42 @@ export type NotesResponse = {
   topic_title: string;
 };
 
+export type NotificationActor = {
+  id: number;
+  nickname: string;
+  role: string;
+  username: string;
+};
+
+export type NotificationContactsResponse = {
+  items: Array<NotificationActor>;
+};
+
+export type NotificationItem = {
+  action_href: string;
+  actor?: NotificationActor;
+  body: string;
+  conversation_id?: number;
+  created_at: string;
+  feedback_id?: number;
+  id: number;
+  kind: string;
+  read_at?: string;
+  status: string;
+  title: string;
+  updated_at: string;
+  version: number;
+};
+
+export type NotificationListResponse = {
+  items: Array<NotificationItem>;
+  page: number;
+  page_size: number;
+  read_before: string;
+  total: number;
+  unread: number;
+};
+
 export type OIJudgeMetadata = {
   checker_code?: string;
   interactor_code?: string;
@@ -1827,6 +2079,7 @@ export type OIJudgeUploadResponse = {
   imported_cases: number;
   imported_test_points: number;
   oi_problem_id: number;
+  reused?: boolean;
   score_mode: string;
   test_point_count: number;
   testdata_revision_id: number;
@@ -2053,6 +2306,27 @@ export type OIProblemSyncResponse = {
 export type OISampleMutationResponse = {
   oi_problem: OIProblemRecord;
   sample_test_data_available: boolean;
+};
+
+export type OITestDataReuseRequest = {
+  formal?: {
+    case_count: number;
+    cases_sha256: string;
+    version: number;
+  };
+  metadata: OIJudgeMetadata;
+  sample?: {
+    sha256: string;
+    size: number;
+  };
+};
+
+export type OITestDataReuseResponse = {
+  formal?: OIJudgeUploadResponse;
+  sample?: {
+    reused: boolean;
+    sample_test_data_available: boolean;
+  };
 };
 
 export type OpenContestProblemResponse = {
@@ -2321,6 +2595,29 @@ export type PriceConfig = {
   unit_price_fen: number;
 };
 
+export type PrivateConversationResponse = {
+  can_reply: boolean;
+  created_at: string;
+  has_more: boolean;
+  id: number;
+  messages: Array<PrivateMessageItem>;
+  participant: NotificationActor;
+  subject: string;
+  updated_at: string;
+};
+
+export type PrivateMessageItem = {
+  body: string;
+  created_at: string;
+  id: number;
+  sender: NotificationActor;
+};
+
+export type PrivateMessageSentResponse = {
+  conversation_id: number;
+  message: PrivateMessageItem;
+};
+
 export type Problem = {
   auxiliary_algorithms: Array<AlgorithmTag>;
   checker_type: string;
@@ -2430,6 +2727,20 @@ export type Problem = {
   untimed: boolean;
 };
 
+export type ProblemContentRevision = {
+  actor_id: number;
+  after: string;
+  before: string;
+  created_at: string;
+  feedback_id: number;
+  field: string;
+  id: number;
+  kind: string;
+  preview_id: number;
+  problem_id: number;
+  reverts_id?: number;
+};
+
 export type ProblemEditorialResponse = EditorialLockedResponse | EditorialResponse;
 
 export type ProblemEntryDetails = {
@@ -2466,6 +2777,43 @@ export type ProblemEntryResponse = {
   topic_slug: string;
   topic_title: string;
   user_status?: ProblemUserStatus;
+};
+
+export type ProblemFeedback = {
+  content: string;
+  created_at: string;
+  id: number;
+  problem_id: number;
+  review_note: string;
+  reviewed_at?: string;
+  reviewed_by?: number;
+  reward_coins: number;
+  reward_silver: number;
+  rewarded_at?: string;
+  scope: string;
+  status: string;
+  type: string;
+  updated_at: string;
+  user_id: number;
+  version: number;
+};
+
+export type ProblemFeedbackItem = {
+  base: string;
+  base_hash: string;
+  created_at: string;
+  end: number;
+  feedback_id: number;
+  field: string;
+  group_key: string;
+  id: number;
+  reason: string;
+  replacement: string;
+  review_note: string;
+  revision_id?: number;
+  start: number;
+  status: string;
+  updated_at: string;
 };
 
 export type ProblemGroupListItem = {
@@ -2545,6 +2893,7 @@ export type ProblemRatingResponse = {
   };
   first_ac_submission_id?: number;
   rating: string;
+  reward_coins?: number;
   unlock_at?: string;
 };
 
@@ -2566,6 +2915,7 @@ export type ProblemUpdateRequest = {
   content?: string;
   core_algorithm_id?: number | null;
   difficulty?: number;
+  expected_updated_at?: string;
   group_id?: number;
   input_format?: string;
   is_example?: boolean;
@@ -2601,6 +2951,7 @@ export type ProblemWriteRequest = {
   content: string;
   core_algorithm_id?: number | null;
   difficulty?: number;
+  expected_updated_at?: string;
   group_id: number;
   input_format?: string;
   is_example?: boolean;
@@ -2706,6 +3057,20 @@ export type RankingItem = {
   username: string;
 };
 
+export type ReadNotificationItem = {
+  id: number;
+  version: number;
+};
+
+export type ReadNotificationsRequest = {
+  all_before?: string;
+  items: Array<ReadNotificationItem>;
+};
+
+export type ReadNotificationsResponse = {
+  unread: number;
+};
+
 export type RecordAnalyticsVisitRequest = {
   visitor_id: string;
 };
@@ -2798,6 +3163,11 @@ export type ReplaceOISubtaskSolutionsRequest = {
   subtask_solutions: Array<SubtaskSolution>;
 };
 
+export type ReplyPrivateConversationRequest = {
+  body: string;
+  client_key: string;
+};
+
 export type RequiredActionDetails = {
   required_action: string;
 };
@@ -2830,6 +3200,25 @@ export type Scope = {
   relevance: string;
 };
 
+export type SessionLinkContext = {
+  session_ref: string;
+  user: AuthUser | null;
+};
+
+export type SessionLinkGrantRequest = {
+  challenge: string;
+};
+
+export type SessionLinkGrantResponse = {
+  code: string;
+  expires_at: string;
+};
+
+export type SessionLinkRedeemRequest = {
+  code: string;
+  verifier: string;
+};
+
 export type SetProblemRatingRequest = {
   rating: string;
 };
@@ -2847,6 +3236,10 @@ export type StartSubmissionDiagnosticRequest = {
 export type StartSubmissionDiagnosticResponse = {
   billing: SubmissionDiagnosticBilling;
   task: DiagnosticTask;
+};
+
+export type StartTeamContestRequest = {
+  allow_hints: boolean;
 };
 
 export type StartTopicBreakthroughRequest = {
@@ -2944,6 +3337,7 @@ export type SubmissionDetailResponse = {
     reason?: string;
   };
   diagnostic_billing?: SubmissionDiagnosticBilling;
+  diagnostic_latest_task_id?: number;
   judge_mode?: string;
   problem_id?: number;
   problem_label?: string;
@@ -3010,6 +3404,7 @@ export type SubmissionListItem = {
   language: string;
   max_memory_kb: number;
   max_time_ms: number;
+  precise_score?: number;
   result_hidden?: boolean;
   score: number;
   status: string;
@@ -3038,6 +3433,7 @@ export type SubmissionSummary = {
   language: string;
   max_memory_kb: number;
   max_time_ms: number;
+  precise_score?: number;
   result_hidden?: boolean;
   score: number;
   status: string;
@@ -3051,6 +3447,7 @@ export type SubmissionUpdateEvent = {
   judged_at?: string;
   max_memory_kb: number;
   max_time_ms: number;
+  precise_score?: number;
   score: number;
   stage?: string;
   status: string;
@@ -3073,6 +3470,13 @@ export type SubmissionUpdateUserStatus = {
 export type SubmissionWebSocketIncrementalEvent = SubmissionUpdateEvent;
 
 export type SubmissionWebSocketInitialEvent = SubmissionUpdateEvent;
+
+export type SubmitFeedbackRequest = {
+  content: string;
+  items: Array<FeedbackPatch>;
+  receipt: string;
+  type: string;
+};
 
 export type SubmitProblemRequest = {
   code: string;
@@ -3141,6 +3545,7 @@ export type SuiteRequest = {
     seq: number;
   }>;
   options: {
+    force_regenerate?: boolean;
     only_source_problem_id?: string;
     overwrite: boolean;
     reconcile_topic: boolean;
@@ -3386,6 +3791,7 @@ export type TeamContestConfigResponse = {
 };
 
 export type TeamContestParticipation = {
+  allow_hints: boolean;
   ends_at: string;
   started_at: string;
 };
@@ -3913,6 +4319,7 @@ export type WalletSpendAllocation = {
 };
 
 export type CoreOperationResponseMap = {
+  adminUpdateUsername: AdminUpdateUsernameResponse;
   getIDEOperation: IDEOperationResponse;
   adminDashboard: AdminDashboardResponse;
   recordAnalyticsVisit: RecordAnalyticsVisitResponse;
@@ -3960,6 +4367,7 @@ export type CoreOperationResponseMap = {
   previewOIProblem: OIProblemPreviewResponse;
   syncOIProblem: OIProblemSyncResponse;
   syncOIProblemJudge: OIJudgeUploadResponse;
+  reuseOIProblemTestData: OITestDataReuseResponse;
   adminUploadOIProblemJudge: OIJudgeUploadResponse;
   getOIProblemJudgeValidation: OIJudgeValidationResponse;
   syncOIProblemSampleTestData: OISampleMutationResponse;
@@ -3997,6 +4405,7 @@ export type CoreOperationResponseMap = {
   diffContestSubmissions: SubmissionDiffResponse;
   startSubmissionDiagnostic: StartSubmissionDiagnosticResponse;
   getSubmissionDiagnostic: DiagnosticTaskResponse;
+  listSubmissionDiagnosticHistory: DiagnosticHistoryResponse;
   adminRejudgeSubmission: RejudgeSubmissionResponse;
   adminDeleteSubmission: DeleteSubmissionResponse;
   adminPreviewProblemRejudge: ProblemRejudgePreview;
@@ -4032,6 +4441,9 @@ export type CoreOperationResponseMap = {
   register: RegisterResponse;
   login: LoginResponse;
   logout: LogoutResponse;
+  getSessionLinkContext: SessionLinkContext;
+  createSessionLinkGrant: SessionLinkGrantResponse;
+  redeemSessionLinkGrant: SessionLinkContext;
   getAuthSession: AuthSessionResponse;
   getCurrentUser: CurrentUserResponse;
   listMyTeams: TeamListResponse;
@@ -4115,6 +4527,33 @@ export type CoreOperationResponseMap = {
   getProblemEditorial: ProblemEditorialResponse;
   listProblemHints: HintListResponse;
   viewProblemHint: HintViewResponse;
+  getFeedbackContext: FeedbackContextResponse;
+  submitProblemFeedback: ProblemFeedback;
+  getProblemFeedback: FeedbackListResponse;
+  getMyFeedback: FeedbackListResponse;
+  getContestFeedback: FeedbackListResponse;
+  getContestFeedbackContext: FeedbackContextResponse;
+  submitContestFeedback: ProblemFeedback;
+  withdrawFeedback: FeedbackApplyResponse;
+  getFeedbackNotifications: FeedbackNotificationsResponse;
+  getNotifications: NotificationListResponse;
+  readNotifications: ReadNotificationsResponse;
+  getMessageContacts: NotificationContactsResponse;
+  createPrivateConversation: PrivateMessageSentResponse;
+  getPrivateConversation: PrivateConversationResponse;
+  replyPrivateConversation: PrivateMessageSentResponse;
+  readFeedbackNotifications: FeedbackNotificationsResponse;
+  getAdminFeedback: AdminFeedbackListResponse;
+  getAdminFeedbackDetail: FeedbackDetailResponse;
+  previewFeedbackRollback: FeedbackPreviewResponse;
+  previewFeedbackOverride: FeedbackPreviewResponse;
+  previewFeedback: FeedbackPreviewResponse;
+  applyFeedback: FeedbackApplyResponse;
+  decideFeedback: FeedbackApplyResponse;
+  cancelFeedback: FeedbackApplyResponse;
+  legacyReviewFeedback: FeedbackUpdatedResponse;
+  getAdminFeedbackNotifications: FeedbackNotificationsResponse;
+  readAdminFeedbackNotifications: FeedbackNotificationsResponse;
   getProblemRating: ProblemRatingResponse;
   setProblemRating: ProblemRatingResponse;
   getContestProblemRating: ProblemRatingResponse;
@@ -4130,6 +4569,7 @@ export type CoreOperationResponseMap = {
 };
 
 export type CoreOperationRequestMap = {
+  adminUpdateUsername: AdminUpdateUsernameRequest;
   getIDEOperation: undefined;
   adminDashboard: undefined;
   recordAnalyticsVisit: RecordAnalyticsVisitRequest;
@@ -4177,6 +4617,7 @@ export type CoreOperationRequestMap = {
   previewOIProblem: OIProblemSyncRequest;
   syncOIProblem: OIProblemSyncRequest;
   syncOIProblemJudge: FormData;
+  reuseOIProblemTestData: OITestDataReuseRequest;
   adminUploadOIProblemJudge: FormData;
   getOIProblemJudgeValidation: undefined;
   syncOIProblemSampleTestData: FormData;
@@ -4214,6 +4655,7 @@ export type CoreOperationRequestMap = {
   diffContestSubmissions: undefined;
   startSubmissionDiagnostic: StartSubmissionDiagnosticRequest;
   getSubmissionDiagnostic: undefined;
+  listSubmissionDiagnosticHistory: undefined;
   adminRejudgeSubmission: undefined;
   adminDeleteSubmission: undefined;
   adminPreviewProblemRejudge: undefined;
@@ -4249,6 +4691,9 @@ export type CoreOperationRequestMap = {
   register: RegisterRequest;
   login: LoginRequest;
   logout: undefined;
+  getSessionLinkContext: undefined;
+  createSessionLinkGrant: SessionLinkGrantRequest;
+  redeemSessionLinkGrant: SessionLinkRedeemRequest;
   getAuthSession: undefined;
   getCurrentUser: undefined;
   listMyTeams: undefined;
@@ -4262,7 +4707,7 @@ export type CoreOperationRequestMap = {
   getTeamContestConfig: undefined;
   updateTeamContest: UpdateTeamContestRequest;
   deleteTeamContest: undefined;
-  startTeamContest: undefined;
+  startTeamContest: StartTeamContestRequest;
   endTeamContest: undefined;
   adminListTeams: undefined;
   adminCreateTeam: CreateTeamRequest;
@@ -4332,6 +4777,33 @@ export type CoreOperationRequestMap = {
   getProblemEditorial: undefined;
   listProblemHints: undefined;
   viewProblemHint: undefined;
+  getFeedbackContext: undefined;
+  submitProblemFeedback: SubmitFeedbackRequest;
+  getProblemFeedback: undefined;
+  getMyFeedback: undefined;
+  getContestFeedback: undefined;
+  getContestFeedbackContext: undefined;
+  submitContestFeedback: SubmitFeedbackRequest;
+  withdrawFeedback: DecideFeedbackRequest;
+  getFeedbackNotifications: undefined;
+  getNotifications: undefined;
+  readNotifications: ReadNotificationsRequest;
+  getMessageContacts: undefined;
+  createPrivateConversation: CreatePrivateConversationRequest;
+  getPrivateConversation: undefined;
+  replyPrivateConversation: ReplyPrivateConversationRequest;
+  readFeedbackNotifications: undefined;
+  getAdminFeedback: undefined;
+  getAdminFeedbackDetail: undefined;
+  previewFeedbackRollback: undefined;
+  previewFeedbackOverride: FeedbackOverridePreviewRequest;
+  previewFeedback: FeedbackPreviewRequest;
+  applyFeedback: ApplyFeedbackRequest;
+  decideFeedback: DecideFeedbackRequest;
+  cancelFeedback: ApplyFeedbackRequest;
+  legacyReviewFeedback: LegacyReviewFeedbackRequest;
+  getAdminFeedbackNotifications: undefined;
+  readAdminFeedbackNotifications: undefined;
   getProblemRating: undefined;
   setProblemRating: SetProblemRatingRequest;
   getContestProblemRating: undefined;
@@ -4349,6 +4821,7 @@ export type CoreOperationRequestMap = {
 export type CoreOperationId = keyof CoreOperationResponseMap;
 
 export const coreOperationMethods = {
+  adminUpdateUsername: "PUT",
   getIDEOperation: "GET",
   adminDashboard: "GET",
   recordAnalyticsVisit: "POST",
@@ -4396,6 +4869,7 @@ export const coreOperationMethods = {
   previewOIProblem: "POST",
   syncOIProblem: "POST",
   syncOIProblemJudge: "POST",
+  reuseOIProblemTestData: "POST",
   adminUploadOIProblemJudge: "POST",
   getOIProblemJudgeValidation: "GET",
   syncOIProblemSampleTestData: "POST",
@@ -4433,6 +4907,7 @@ export const coreOperationMethods = {
   diffContestSubmissions: "GET",
   startSubmissionDiagnostic: "POST",
   getSubmissionDiagnostic: "GET",
+  listSubmissionDiagnosticHistory: "GET",
   adminRejudgeSubmission: "POST",
   adminDeleteSubmission: "DELETE",
   adminPreviewProblemRejudge: "GET",
@@ -4468,6 +4943,9 @@ export const coreOperationMethods = {
   register: "POST",
   login: "POST",
   logout: "POST",
+  getSessionLinkContext: "GET",
+  createSessionLinkGrant: "POST",
+  redeemSessionLinkGrant: "POST",
   getAuthSession: "GET",
   getCurrentUser: "GET",
   listMyTeams: "GET",
@@ -4551,6 +5029,33 @@ export const coreOperationMethods = {
   getProblemEditorial: "GET",
   listProblemHints: "GET",
   viewProblemHint: "POST",
+  getFeedbackContext: "GET",
+  submitProblemFeedback: "POST",
+  getProblemFeedback: "GET",
+  getMyFeedback: "GET",
+  getContestFeedback: "GET",
+  getContestFeedbackContext: "GET",
+  submitContestFeedback: "POST",
+  withdrawFeedback: "POST",
+  getFeedbackNotifications: "GET",
+  getNotifications: "GET",
+  readNotifications: "POST",
+  getMessageContacts: "GET",
+  createPrivateConversation: "POST",
+  getPrivateConversation: "GET",
+  replyPrivateConversation: "POST",
+  readFeedbackNotifications: "POST",
+  getAdminFeedback: "GET",
+  getAdminFeedbackDetail: "GET",
+  previewFeedbackRollback: "POST",
+  previewFeedbackOverride: "POST",
+  previewFeedback: "POST",
+  applyFeedback: "POST",
+  decideFeedback: "POST",
+  cancelFeedback: "POST",
+  legacyReviewFeedback: "PUT",
+  getAdminFeedbackNotifications: "GET",
+  readAdminFeedbackNotifications: "POST",
   getProblemRating: "GET",
   setProblemRating: "PUT",
   getContestProblemRating: "GET",

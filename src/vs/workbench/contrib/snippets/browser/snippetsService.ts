@@ -226,10 +226,10 @@ export class SnippetsService implements ISnippetsService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 	) {
-		this._trackPendingWork(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
+		this._trackPendingWork(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(async () => {
 			this._initExtensionSnippets();
-			this._initUserSnippets();
 			this._initWorkspaceSnippets();
+			await this._initUserSnippets();
 		})));
 
 		setSnippetSuggestSupport(new SnippetCompletionProvider(this._languageService, this, languageConfigurationService));
