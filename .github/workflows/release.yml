@@ -194,7 +194,7 @@ jobs:
           }
           $ojBetterRoot = Join-Path $destination 'resources\app\extensions\shortestpath.ojbetter'
           node -e "const p=require('node:path'); const r=process.argv[1]; new (require(p.join(r,'out/assets.js')).Assets)(p.join(r,'resources'));" $ojBetterRoot
-          if ($LASTEXITCODE -ne 0) { throw 'Bundled OJBetter assets failed checksum validation.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled OJBetter assets failed to load.' }
           $localePath = Join-Path $destination 'locales'
           $locales = @(Get-ChildItem -LiteralPath $localePath -Filter '*.pak' -File)
           $unexpectedLocales = @($locales | Where-Object Name -NotIn @('en-US.pak', 'zh-CN.pak'))

@@ -3,7 +3,6 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { browserBootstrap } from './browserRuntime';
@@ -48,7 +47,7 @@ export function adaptScript(source: string): string {
 	return source.replaceAll('window.location.reload()', '__ojbetterReload()').replaceAll('location.reload()', '__ojbetterReload()');
 }
 
-/** Read immutable local payloads; update errors must not silently run unverified code. */
+/** Read bundled payloads, allowing packaging transforms and local edits. */
 export class Assets {
 	readonly manifest: Manifest;
 	private readonly contents = new Map<string, string>();
@@ -57,12 +56,8 @@ export class Assets {
 
 	constructor(root: string) {
 		this.manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
-		for (const [file, hash] of Object.entries(this.manifest.files)) {
-			const data = readFileSync(join(root, file));
-			if (createHash('sha256').update(data).digest('hex') !== hash) {
-				throw new Error(`OJBetter asset checksum mismatch: ${file}`);
-			}
-			this.contents.set(file, data.toString('utf8'));
+		for (const file of Object.keys(this.manifest.files)) {
+			this.contents.set(file, readFileSync(join(root, file), 'utf8'));
 		}
 		const requires = this.manifest.scripts.atcoder.requires;
 		if (JSON.stringify(requires) !== JSON.stringify(this.manifest.scripts.codeforces.requires)) {

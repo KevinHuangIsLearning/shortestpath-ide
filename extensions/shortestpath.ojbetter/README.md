@@ -27,8 +27,8 @@ npm test --prefix extensions/shortestpath.ojbetter
 npm run compile-oi-extensions
 ```
 
-启动源码版 IDE 后用内置浏览器访问两站。诊断在 **OJBetter** 输出频道。构建链将本扩展作为预编译内置扩展保留；三平台发布流程检查入口及全部资源 hash。
+启动源码版 IDE 后用内置浏览器访问两站。诊断在 **OJBetter** 输出频道。构建链将本扩展作为预编译内置扩展保留；三平台发布流程检查入口及资源能否加载，运行时不校验资源 hash，允许打包压缩和本地修改。
 
-更新时先固定新的上游提交，复制 release 脚本和对应 `resources/locales`、`i18n/*/resources/locales`。根据脚本元数据下载依赖并验证 SRI，记录 URL 和许可证。Monaco 的 npm `esm/vs/editor/editor.main.js` 使用 esbuild 0.28.1 构建为浏览器 IIFE（`globalName: shortestpathMonaco`、minify、`legalComments: eof`、`.ttf: dataurl`）；editor/json/css/html/typescript worker 分别构建 IIFE，保留 Monaco LICENSE 和 ThirdPartyNotices。KaTeX CSS 字体内联为 data URL。生成资源 SHA-256 清单，检查适配器函数边界和测试，再进行真实浏览器回归。不要仅更新版本号或 hash 来绕过校验。
+更新时先固定新的上游提交，复制 release 脚本和对应 `resources/locales`、`i18n/*/resources/locales`。根据脚本元数据下载依赖并验证 SRI，记录 URL 和许可证。Monaco 的 npm `esm/vs/editor/editor.main.js` 使用 esbuild 0.28.1 构建为浏览器 IIFE（`globalName: shortestpathMonaco`、minify、`legalComments: eof`、`.ttf: dataurl`）；editor/json/css/html/typescript worker 分别构建 IIFE，保留 Monaco LICENSE 和 ThirdPartyNotices。KaTeX CSS 字体内联为 data URL。资源 SHA-256 清单仅用于来源记录，不作为运行时加载条件；检查适配器函数边界和测试，再进行真实浏览器回归。
 
 2026-10-09 已在真实源码版 IDE 中验证双站设置保存/刷新、编辑器与 JSON worker、流式 HTTP 桥接及导航边界；登录提交和需个人凭据的付费服务应使用自己的账号设置验证。

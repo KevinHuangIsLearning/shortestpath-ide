@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runInNewContext, Script } from 'node:vm';
 import { join } from 'node:path';
-import { readdirSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { browserBootstrap } from '../browserRuntime';
 import { Assets } from '../assets';
 import { platformForUrl } from '../sites';
@@ -18,7 +19,7 @@ test('site matching rejects lookalikes, unrelated subdomains and non-web schemes
 	assert.deepEqual(urls.map(platformForUrl), ['atcoder', 'codeforces', 'codeforces', 'codeforces', 'codeforces', undefined, undefined, undefined, undefined, undefined]);
 });
 
-test('bundled payload hashes, adapter boundaries and complete script syntax are valid', () => {
+test('bundled payload coverage, adapter boundaries and complete script syntax are valid', () => {
 	const assets = new Assets(join(__dirname, '../../resources'));
 	const source = assets.source('bridge', { atcoder: true, codeforces: true });
 	assert.doesNotThrow(() => new Script(source));
@@ -32,6 +33,24 @@ test('bundled payload hashes, adapter boundaries and complete script syntax are 
 	assert.equal(assets.manifest.scripts.atcoder.version, '1.25.1');
 	assert.equal(assets.manifest.scripts.codeforces.version, '1.87.1');
 	assert.equal(assets.localResource('https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/common.json?cache=1')?.includes('settings'), true);
+});
+
+test('packaged JSON and locally edited payloads load without checksum validation', () => {
+	const root = mkdtempSync(join(tmpdir(), 'ojbetter-assets-'));
+	try {
+		cpSync(join(__dirname, '../../resources'), root, { recursive: true });
+		const original = new Assets(root);
+		for (const file of Object.keys(original.manifest.files).filter(file => file.endsWith('.json'))) {
+			const target = join(root, file);
+			writeFileSync(target, JSON.stringify(JSON.parse(readFileSync(target, 'utf8'))));
+		}
+		const script = join(root, original.manifest.scripts.atcoder.file);
+		writeFileSync(script, readFileSync(script, 'utf8') + '\n// Local customization\n');
+		const assets = new Assets(root);
+		assert.doesNotThrow(() => new Script(assets.source('bridge', { atcoder: true, codeforces: true })));
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
 });
 
 test('preferences serialize writes, survive a new instance and separate platforms', async () => {
