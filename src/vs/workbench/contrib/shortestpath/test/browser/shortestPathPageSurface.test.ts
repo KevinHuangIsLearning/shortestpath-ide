@@ -8,7 +8,6 @@ import '../../../../browser/media/floatingPanels.css';
 import '../../../../browser/parts/titlebar/media/titlebarpart.css';
 import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../base/common/async.js';
 import { registerNavigationExpansion, registerNavigationSwipe } from '../../browser/shortestPathNavigationSwipe.js';
 import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -126,6 +125,11 @@ suite('ShortestPath standalone page surface', () => {
 	});
 
 	test('Compact Mode animates group width and labels the active page', async () => {
+		const waitForLayout = async () => {
+			for (let frame = 0; frame < 3; frame++) {
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			}
+		};
 		const workbench = append(mainWindow.document.body, $('.monaco-workbench.shortestpath-dual-mode'));
 		store.add(toDisposable(() => workbench.remove()));
 		const navigation = append(workbench, $('.workbench-navigation.compact-navigation'));
@@ -142,14 +146,21 @@ suite('ShortestPath standalone page surface', () => {
 		assert.strictEqual(mainWindow.getComputedStyle(browse, '::after').content, '"Browse"');
 		assert.ok(mainWindow.getComputedStyle(navigation).transitionDuration.includes('0.16s'));
 		browse.focus();
+		await waitForLayout();
 		assert.ok(parseFloat(navigation.style.width) > collapsedWidth);
+		const expandedWidth = parseFloat(navigation.style.width);
+		// Intrinsic child sizes can change without a focus or attribute event (for example,
+		// while loading a font). The group must track the final size by itself.
+		solve.style.width = '70px';
+		await waitForLayout();
+		assert.ok(Math.abs(parseFloat(navigation.style.width) - expandedWidth - 44) < 1);
 		browse.blur();
-		await timeout(0);
+		await waitForLayout();
 		assert.strictEqual(parseFloat(navigation.style.width), collapsedWidth);
 		for (const zoom of [.8, 1.25]) {
 			workbench.style.zoom = String(zoom);
 			navigation.classList.toggle('zoom-test');
-			await timeout(0);
+			await waitForLayout();
 			assert.ok(Math.abs(parseFloat(navigation.style.width) - collapsedWidth) < 1);
 		}
 	});

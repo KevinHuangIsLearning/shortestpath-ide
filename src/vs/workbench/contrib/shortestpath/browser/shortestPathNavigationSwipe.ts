@@ -88,25 +88,52 @@ export function registerNavigationSwipe(container: HTMLElement, switchPage: (dir
 /** Animate the group between its active page and all entries for hover or keyboard focus. */
 export function registerNavigationExpansion(container: HTMLElement): IDisposable {
 	const store = new DisposableStore();
+	const targetWindow = getWindow(container);
 	const refresh = () => {
 		if (!container.classList.contains('compact-navigation')) {
 			container.style.removeProperty('width');
 			return;
 		}
-		const targetWindow = getWindow(container);
 		const children = [...container.children].filter(isHTMLElement).filter(child => { const style = targetWindow.getComputedStyle(child); return style.display !== 'none' && style.position !== 'absolute'; });
 		const zoom = getDomNodeZoomLevel(container);
 		const gap = parseFloat(targetWindow.getComputedStyle(container).columnGap) || 0;
 		const width = children.reduce((sum, child) => sum + child.getBoundingClientRect().width / zoom, 0) + gap * Math.max(0, children.length - 1);
-		container.style.width = `${width}px`;
+		const value = `${width}px`;
+		if (container.style.width !== value) {
+			container.style.width = value;
+		}
+	};
+	// The children can change size after focus styles or an animation have been applied.
+	// Observe their sizes rather than the animated container width we set ourselves.
+	const resizeObserver = new targetWindow.ResizeObserver(refresh);
+	store.add(toDisposable(() => resizeObserver.disconnect()));
+	const observedChildren = new Set<HTMLElement>();
+	const observeChildren = () => {
+		const children = new Set([...container.children].filter(isHTMLElement));
+		for (const child of observedChildren) {
+			if (!children.has(child)) {
+				resizeObserver.unobserve(child);
+				observedChildren.delete(child);
+			}
+		}
+		for (const child of children) {
+			if (!observedChildren.has(child)) {
+				resizeObserver.observe(child);
+				observedChildren.add(child);
+			}
+		}
 	};
 	for (const event of ['mouseenter', 'mouseleave', 'focusin']) {
 		store.add(addDisposableListener(container, event, refresh));
 	}
 	store.add(addDisposableListener(container, 'focusout', () => queueMicrotask(() => { if (!store.isDisposed) { refresh(); } })));
-	const observer = new MutationObserver(refresh);
+	const observer = new targetWindow.MutationObserver(() => {
+		observeChildren();
+		refresh();
+	});
 	observer.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-pressed', 'aria-label', 'hidden', 'class'] });
 	store.add(toDisposable(() => observer.disconnect()));
+	observeChildren();
 	refresh();
 	return store;
 }
