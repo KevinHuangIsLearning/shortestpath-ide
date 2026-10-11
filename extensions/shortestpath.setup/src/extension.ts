@@ -12,7 +12,7 @@ import { withCompilerRuntime } from './compilerRuntime';
 import { defaultClangFormatConfig, registerCppFormatting } from './cppFormatting';
 import { findCppStandard, initializeCppSnippets, registerSimpleSettings } from './simpleSettings';
 import { registerCphSettings } from './cphSettings';
-	import { registerBrowserScriptTester } from './browserScriptTester';
+import { registerBrowserScriptTester } from './browserScriptTester';
 import { registerGettingStarted } from './gettingStarted';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
 import { localize, localizeFormat } from './localization';
@@ -402,7 +402,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 	const configuration = vscode.workspace.getConfiguration(undefined, null);
 	const preservedCompilerFlags = firstRunSelection?.mode === 'repair'
 		? configuration.inspect<string>('judger.language.cpp.Args')?.globalValue
-			?? configuration.inspect<string>('c-cpp-compile-run.cpp-flags')?.globalValue
+		?? configuration.inspect<string>('c-cpp-compile-run.cpp-flags')?.globalValue
 		: undefined;
 
 	if (firstRunSelection) {
@@ -686,6 +686,7 @@ function getPlatformName(): 'windows' | 'mac' | 'linux' {
 function loadPlatformInstaller(context: vscode.ExtensionContext): PlatformInstaller {
 	// Platform installers are plain CommonJS resources so the main-process first-run
 	// window and this extension command execute the exact same platform logic.
+	// eslint-disable-next-line no-restricted-syntax -- These shared CommonJS resources are selected by platform at runtime.
 	return require(path.join(context.extensionPath, 'resources', `${getPlatformName()}.js`)) as PlatformInstaller;
 }
 
@@ -870,7 +871,7 @@ function hasShortestPathHiddenFiles(): boolean {
 function addMissingShortestPathFileExcludes(excludes: Record<string, boolean>): Record<string, boolean> {
 	const updatedExcludes = { ...excludes };
 	for (const [pattern, excluded] of Object.entries(shortestPathHiddenFiles)) {
-		if (!(pattern in updatedExcludes)) {
+		if (!Object.hasOwn(updatedExcludes, pattern)) {
 			updatedExcludes[pattern] = excluded;
 		}
 	}

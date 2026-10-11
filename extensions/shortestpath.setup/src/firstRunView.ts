@@ -76,143 +76,143 @@ byId('exportLogs').textContent = ui.exportLogs;
 byId('openEnvironmentSettings').textContent = ui.openEnvironmentSettings;
 byId('exportHint').textContent = ui.exportHint;
 function showPage(value) {
-  page = value;
-  templateEditing = false;
-  byId('compilePage').hidden = page !== 'compile';
-  byId('editorPage').hidden = page !== 'editor';
-  byId('templatePage').hidden = page !== 'template';
-  byId('workspacePage').hidden = page !== 'workspace';
-  byId('compileLabel').className = page === 'compile' ? 'active' : '';
-  byId('editorLabel').className = page === 'editor' ? 'active' : '';
-  byId('templateLabel').className = page === 'template' ? 'active' : '';
-  byId('workspaceLabel').className = page === 'workspace' ? 'active' : '';
-  renderWorkspace();
-  ++previewId;
-  if (page === 'template' && templateResult) renderPreview(templateResult);
-  if (page === 'editor' || page === 'template') {
-    if (!fontsRequested) { fontsRequested = true; status('fontStatus',ui.fontLoading); vscode.postMessage({type:'systemFonts'}); }
-    requestPreview();
-  }
+	page = value;
+	templateEditing = false;
+	byId('compilePage').hidden = page !== 'compile';
+	byId('editorPage').hidden = page !== 'editor';
+	byId('templatePage').hidden = page !== 'template';
+	byId('workspacePage').hidden = page !== 'workspace';
+	byId('compileLabel').className = page === 'compile' ? 'active' : '';
+	byId('editorLabel').className = page === 'editor' ? 'active' : '';
+	byId('templateLabel').className = page === 'template' ? 'active' : '';
+	byId('workspaceLabel').className = page === 'workspace' ? 'active' : '';
+	renderWorkspace();
+	++previewId;
+	if (page === 'template' && templateResult) renderPreview(templateResult);
+	if (page === 'editor' || page === 'template') {
+		if (!fontsRequested) { fontsRequested = true; status('fontStatus',ui.fontLoading); vscode.postMessage({type:'systemFonts'}); }
+		requestPreview();
+	}
 }
 function render(value) {
-  state = value;
-  for (const step of state.steps) {
-    let row = rows.get(step.id);
-    if (!row) {
-      const li = document.createElement('li'), details = document.createElement('details'), summary = document.createElement('summary');
-      const indicator = document.createElement('span'); indicator.className = 'indicator'; indicator.setAttribute('aria-hidden','true');
-      const heading = document.createElement('span'); heading.className = 'heading';
-      const title = document.createElement('strong'), description = document.createElement('div'); description.className = 'description'; heading.append(title, description);
-      const status = document.createElement('span'); status.className = 'status';
-      const log = document.createElement('pre'); log.setAttribute('data-i18n-ignore','');
-      const guidance = document.createElement('p'); guidance.className = 'guidance'; guidance.setAttribute('role','status');
-      summary.append(indicator, heading, status); details.append(summary, guidance, log); li.append(details); byId('steps').append(li);
-      row = {li, details, indicator, title, description, status, guidance, log, previous:'pending'}; rows.set(step.id,row);
-    }
-    row.li.className = step.status;
-    row.indicator.textContent = step.status === 'complete' ? '✓' : step.status === 'error' ? '!' : step.status === 'running' ? '…' : '';
-    row.title.textContent = step.title; row.description.textContent = step.description; row.status.textContent = ui[step.status];
-    if (row.log.textContent !== step.log) row.log.textContent = step.log;
-    row.log.hidden = !step.log;
-    row.guidance.textContent = step.status === 'error' ? (ui['issue_' + step.issue] || ui.issue_unknown) : '';
-    row.guidance.hidden = step.status !== 'error';
-    if (row.previous !== step.status && (step.status === 'running' || step.status === 'error')) row.details.open = true;
-    if (row.previous === 'running' && step.status === 'complete') row.details.open = false;
-    row.previous = step.status;
-  }
-  const failed = state.steps.some(step => step.status === 'error');
-  byId('start').textContent = failed ? ui.retry : ui.start;
-  byId('start').disabled = state.running || state.ready;
-  byId('next').disabled = !state.ready || state.running;
-  byId('openEnvironmentSettings').hidden = !failed;
-  byId('openEnvironmentSettings').disabled = state.running;
-  const hasLog = state.steps.some(step => step.log);
-  byId('exportLogs').hidden = !hasLog;
-  byId('exportLogs').disabled = state.running;
-  byId('exportHint').hidden = !hasLog;
-  renderWorkspace();
-  byId('progress').hidden = !state.running;
-  byId('notice').textContent = state.ready ? ui.ready : state.running ? ui.running : failed ? ui.failed : ui.waiting;
+	state = value;
+	for (const step of state.steps) {
+		let row = rows.get(step.id);
+		if (!row) {
+			const li = document.createElement('li'), details = document.createElement('details'), summary = document.createElement('summary');
+			const indicator = document.createElement('span'); indicator.className = 'indicator'; indicator.setAttribute('aria-hidden','true');
+			const heading = document.createElement('span'); heading.className = 'heading';
+			const title = document.createElement('strong'), description = document.createElement('div'); description.className = 'description'; heading.append(title, description);
+			const status = document.createElement('span'); status.className = 'status';
+			const log = document.createElement('pre'); log.setAttribute('data-i18n-ignore','');
+			const guidance = document.createElement('p'); guidance.className = 'guidance'; guidance.setAttribute('role','status');
+			summary.append(indicator, heading, status); details.append(summary, guidance, log); li.append(details); byId('steps').append(li);
+			row = {li, details, indicator, title, description, status, guidance, log, previous:'pending'}; rows.set(step.id,row);
+		}
+		row.li.className = step.status;
+		row.indicator.textContent = step.status === 'complete' ? '✓' : step.status === 'error' ? '!' : step.status === 'running' ? '…' : '';
+		row.title.textContent = step.title; row.description.textContent = step.description; row.status.textContent = ui[step.status];
+		if (row.log.textContent !== step.log) row.log.textContent = step.log;
+		row.log.hidden = !step.log;
+		row.guidance.textContent = step.status === 'error' ? (ui['issue_' + step.issue] || ui.issue_unknown) : '';
+		row.guidance.hidden = step.status !== 'error';
+		if (row.previous !== step.status && (step.status === 'running' || step.status === 'error')) row.details.open = true;
+		if (row.previous === 'running' && step.status === 'complete') row.details.open = false;
+		row.previous = step.status;
+	}
+	const failed = state.steps.some(step => step.status === 'error');
+	byId('start').textContent = failed ? ui.retry : ui.start;
+	byId('start').disabled = state.running || state.ready;
+	byId('next').disabled = !state.ready || state.running;
+	byId('openEnvironmentSettings').hidden = !failed;
+	byId('openEnvironmentSettings').disabled = state.running;
+	const hasLog = state.steps.some(step => step.log);
+	byId('exportLogs').hidden = !hasLog;
+	byId('exportLogs').disabled = state.running;
+	byId('exportHint').hidden = !hasLog;
+	renderWorkspace();
+	byId('progress').hidden = !state.running;
+	byId('notice').textContent = state.ready ? ui.ready : state.running ? ui.running : failed ? ui.failed : ui.waiting;
 }
 function renderWorkspace() {
-  byId('workspaceFolder').textContent = workspaceFolder || '';
-  byId('workspaceFolder').hidden = !workspaceFolder;
-  byId('workspaceEmpty').hidden = !!workspaceFolder;
-  byId('chooseWorkspace').disabled = completing || choosingWorkspace;
-  byId('backTemplate').disabled = completing || choosingWorkspace;
-  byId('finish').disabled = completing || choosingWorkspace || !workspaceFolder || !state.ready || state.running;
+	byId('workspaceFolder').textContent = workspaceFolder || '';
+	byId('workspaceFolder').hidden = !workspaceFolder;
+	byId('workspaceEmpty').hidden = !!workspaceFolder;
+	byId('chooseWorkspace').disabled = completing || choosingWorkspace;
+	byId('backTemplate').disabled = completing || choosingWorkspace;
+	byId('finish').disabled = completing || choosingWorkspace || !workspaceFolder || !state.ready || state.running;
 }
 function option(select, value, label, external = false) {
-  const element = document.createElement('option'); element.value = value; element.textContent = label;
-  if (external) element.setAttribute('data-i18n-ignore','');
-  select.append(element);
+	const element = document.createElement('option'); element.value = value; element.textContent = label;
+	if (external) element.setAttribute('data-i18n-ignore','');
+	select.append(element);
 }
 function renderFonts() {
-  const select = byId('fontFamily'); select.replaceChildren();
-  const current = (editor.fontFamily || 'Fira Code').split(',')[0].trim().replace(/^['"]|['"]$/g, '');
-  const fonts = [...new Set(['Fira Code', current, ...systemCodeFonts])];
-  for (const font of fonts) option(select, font, font, true);
-  select.value = current;
+	const select = byId('fontFamily'); select.replaceChildren();
+	const current = (editor.fontFamily || 'Fira Code').split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+	const fonts = [...new Set(['Fira Code', current, ...systemCodeFonts])];
+	for (const font of fonts) option(select, font, font, true);
+	select.value = current;
 }
 async function applySystemFonts(value) {
-  const generation = ++fontDetectionGeneration;
-  try {
-    const fonts = await getMonospaceFonts(value.fonts);
-    if (generation !== fontDetectionGeneration) return;
-    systemCodeFonts = fonts.filter(font => font.toLowerCase() !== 'fira code').sort((left,right) => codeFontPriority(left)-codeFontPriority(right) || left.localeCompare(right));
-    renderFonts();
-    status('fontStatus',value.error);
-  } catch {
-    if (generation === fontDetectionGeneration) status('fontStatus',ui.fontDetectionError);
-  }
+	const generation = ++fontDetectionGeneration;
+	try {
+		const fonts = await getMonospaceFonts(value.fonts);
+		if (generation !== fontDetectionGeneration) return;
+		systemCodeFonts = fonts.filter(font => font.toLowerCase() !== 'fira code').sort((left,right) => codeFontPriority(left)-codeFontPriority(right) || left.localeCompare(right));
+		renderFonts();
+		status('fontStatus',value.error);
+	} catch {
+		if (generation === fontDetectionGeneration) status('fontStatus',ui.fontDetectionError);
+	}
 }
 function previewStyle() {
-  for (const id of ['preview','templatePreview','cppTemplate']) {
-    byId(id).style.fontFamily = editor.fontFamily;
-    byId(id).style.fontSize = editor.fontSize + 'px';
-    byId(id).style.tabSize = String(editor.tabSize);
-    byId(id).style.fontVariantLigatures = editor.fontLigatures ? 'normal' : 'none';
-  }
-  byId('cppTemplate').style.height = Math.max(400, (editor.cppTemplate.split('\\n').length + 1) * editor.fontSize * 1.6 + 36) + 'px';
+	for (const id of ['preview','templatePreview','cppTemplate']) {
+		byId(id).style.fontFamily = editor.fontFamily;
+		byId(id).style.fontSize = editor.fontSize + 'px';
+		byId(id).style.tabSize = String(editor.tabSize);
+		byId(id).style.fontVariantLigatures = editor.fontLigatures ? 'normal' : 'none';
+	}
+	byId('cppTemplate').style.height = Math.max(400, (editor.cppTemplate.split('\\n').length + 1) * editor.fontSize * 1.6 + 36) + 'px';
 }
 function status(id, text) { byId(id).textContent = text || ''; byId(id).hidden = !text; }
 function requestPreview() {
-  if ((page !== 'editor' && page !== 'template') || completing) return;
-  const editing = page === 'template' && templateEditing;
-  vscode.postMessage({type:'editorPreview',page,source:page === 'template' ? editor.cppTemplate : undefined,tabSize:editor.tabSize,typeHints:editor.clangdVariableTypeHints && !editing,autoFormat:editor.autoFormat && !editing,requestId:++previewId});
+	if ((page !== 'editor' && page !== 'template') || completing) return;
+	const editing = page === 'template' && templateEditing;
+	vscode.postMessage({type:'editorPreview',page,source:page === 'template' ? editor.cppTemplate : undefined,tabSize:editor.tabSize,typeHints:editor.clangdVariableTypeHints && !editing,autoFormat:editor.autoFormat && !editing,requestId:++previewId});
 }
 function renderPreview(value) {
-  const preview = byId(page === 'template' ? 'templatePreview' : 'preview'); preview.replaceChildren();
-  value.lines.forEach((tokens, index) => {
-    const line = document.createElement('div'); line.className = 'code-line';
-    const hints = editor.clangdVariableTypeHints && !templateEditing ? value.hints.filter(hint => hint.line === index) : [];
-    for (const segment of splitTokens(tokens, hints)) {
-      const span = document.createElement('span'); span.textContent = segment.text;
-      if (segment.hint) span.className = 'inlay-hint'; else span.style.cssText = segment.style;
-      line.append(span);
-    }
-    preview.append(line);
-  });
-  status(page === 'template' ? 'templatePreviewStatus' : 'previewStatus', value.hintError);
-  byId(page === 'template' ? 'retryTemplatePreview' : 'retryPreview').hidden = !value.hintError;
+	const preview = byId(page === 'template' ? 'templatePreview' : 'preview'); preview.replaceChildren();
+	value.lines.forEach((tokens, index) => {
+		const line = document.createElement('div'); line.className = 'code-line';
+		const hints = editor.clangdVariableTypeHints && !templateEditing ? value.hints.filter(hint => hint.line === index) : [];
+		for (const segment of splitTokens(tokens, hints)) {
+			const span = document.createElement('span'); span.textContent = segment.text;
+			if (segment.hint) span.className = 'inlay-hint'; else span.style.cssText = segment.style;
+			line.append(span);
+		}
+		preview.append(line);
+	});
+	status(page === 'template' ? 'templatePreviewStatus' : 'previewStatus', value.hintError);
+	byId(page === 'template' ? 'retryTemplatePreview' : 'retryPreview').hidden = !value.hintError;
 }
 function renderEditor(value) {
-  editor = value;
-  renderFonts();
-  byId('fontLigatures').checked = editor.fontLigatures;
-  byId('fontSize').value = editor.fontSize;
-  byId('tabSize').value = editor.tabSize;
-  byId('cppTemplate').value = editor.cppTemplate;
-  templateResult = {source:editor.cppTemplate,lines:editor.cppTemplate.split('\\n').map(text => [{text,style:''}]),hints:[]};
-  const themes = byId('colorTheme'); themes.replaceChildren();
-  for (const theme of editor.themes) option(themes, theme.id, theme.label, true);
-  themes.value = editor.colorTheme;
-  byId('autoFormat').checked = editor.autoFormat;
-  byId('clangdVariableTypeHints').checked = editor.clangdVariableTypeHints;
-  previewStyle();
+	editor = value;
+	renderFonts();
+	byId('fontLigatures').checked = editor.fontLigatures;
+	byId('fontSize').value = editor.fontSize;
+	byId('tabSize').value = editor.tabSize;
+	byId('cppTemplate').value = editor.cppTemplate;
+	templateResult = {source:editor.cppTemplate,lines:editor.cppTemplate.split('\\n').map(text => [{text,style:''}]),hints:[]};
+	const themes = byId('colorTheme'); themes.replaceChildren();
+	for (const theme of editor.themes) option(themes, theme.id, theme.label, true);
+	themes.value = editor.colorTheme;
+	byId('autoFormat').checked = editor.autoFormat;
+	byId('clangdVariableTypeHints').checked = editor.clangdVariableTypeHints;
+	previewStyle();
 }
 function save(section, value) {
-  vscode.postMessage({type:'save',page:section,value,requestId:++saveId});
+	vscode.postMessage({type:'save',page:section,value,requestId:++saveId});
 }
 byId('fontFamily').onchange = () => { editor.fontFamily = serializeFont(byId('fontFamily').value); previewStyle(); save('font',editor); };
 byId('fontLigatures').onchange = () => { editor.fontLigatures = byId('fontLigatures').checked; previewStyle(); save('font',editor); };
@@ -222,9 +222,9 @@ byId('colorTheme').onchange = () => { editor.colorTheme = byId('colorTheme').val
 byId('autoFormat').onchange = () => { editor.autoFormat = byId('autoFormat').checked; save('autoformat',editor); requestPreview(); };
 byId('clangdVariableTypeHints').onchange = () => { editor.clangdVariableTypeHints = byId('clangdVariableTypeHints').checked; save('clangd',editor); requestPreview(); };
 byId('cppTemplate').oninput = () => {
-  editor.cppTemplate = byId('cppTemplate').value; previewStyle(); save('template',editor);
-  templateResult = {source:editor.cppTemplate,lines:editor.cppTemplate.split('\\n').map(text => [{text,style:''}]),hints:[]};
-  renderPreview(templateResult); requestPreview();
+	editor.cppTemplate = byId('cppTemplate').value; previewStyle(); save('template',editor);
+	templateResult = {source:editor.cppTemplate,lines:editor.cppTemplate.split('\\n').map(text => [{text,style:''}]),hints:[]};
+	renderPreview(templateResult); requestPreview();
 };
 byId('cppTemplate').onfocus = () => { templateEditing = true; ++previewId; if (templateResult) renderPreview(templateResult); requestPreview(); };
 byId('cppTemplate').onpointerdown = () => { templateEditing = true; if (templateResult) renderPreview(templateResult); };
@@ -243,30 +243,30 @@ byId('nextWorkspace').onclick = () => { if(!completing) vscode.postMessage({type
 byId('backTemplate').onclick = () => { if(!completing&&!choosingWorkspace) vscode.postMessage({type:'nextTemplate'}); };
 byId('chooseWorkspace').onclick = () => { if(!completing&&!choosingWorkspace&&page==='workspace') { choosingWorkspace = true; renderWorkspace(); vscode.postMessage({type:'chooseWorkspace'}); } };
 function lockEditor(value) {
-  completing = value;
-  for (const id of ['fontFamily','fontLigatures','fontSize','tabSize','colorTheme','autoFormat','clangdVariableTypeHints','cppTemplate','nextTemplate','back','backEditor','nextWorkspace','backTemplate','finish']) byId(id).disabled = completing || (id === 'finish' && !state.ready);
-  renderWorkspace();
+	completing = value;
+	for (const id of ['fontFamily','fontLigatures','fontSize','tabSize','colorTheme','autoFormat','clangdVariableTypeHints','cppTemplate','nextTemplate','back','backEditor','nextWorkspace','backTemplate','finish']) byId(id).disabled = completing || (id === 'finish' && !state.ready);
+	renderWorkspace();
 }
 byId('finish').onclick = () => { if(!completing&&!choosingWorkspace&&page==='workspace'&&workspaceFolder&&state.ready&&!state.running) { lockEditor(true); vscode.postMessage({type:'complete',value:editor}); } };
 window.addEventListener('message',event => {
-  const message = event.data;
-  if (message.type==='systemFonts') void applySystemFonts(message.value);
-  if (message.type==='environmentState') render(message.value);
-  if (message.type==='firstRunPage') { renderEditor(message.state); workspaceFolder = message.workspaceFolder; showPage(message.value); }
-  if (message.type==='saveResult'&&message.requestId===saveId) status(page === 'template' ? 'templateSaved' : 'saved',message.success?'':message.message);
-  if (message.type==='folderOpenRequested') { lockEditor(false); status('workspaceError',''); }
-  if (message.type==='completeError') { lockEditor(false); status('workspaceError',message.message); }
-  if (message.type==='workspaceResult') { choosingWorkspace = false; workspaceFolder = message.workspaceFolder; status('workspaceError',message.message); renderWorkspace(); }
-  if (message.type==='previewRefresh') requestPreview();
-  if (message.type==='editorPreview'&&message.requestId===previewId&&(page==='editor'||page==='template')&&!completing) {
-    if (message.value) {
-      if (page==='template') {
-        templateResult=message.value;
-        if (!templateEditing && editor.cppTemplate!==message.value.source) { editor.cppTemplate=message.value.source; byId('cppTemplate').value=editor.cppTemplate; previewStyle(); save('template',editor); }
-      }
-      renderPreview(message.value);
-    } else { status(page === 'template' ? 'templatePreviewStatus' : 'previewStatus',message.message); byId(page === 'template' ? 'retryTemplatePreview' : 'retryPreview').hidden=false; }
-  }
+	const message = event.data;
+	if (message.type==='systemFonts') void applySystemFonts(message.value);
+	if (message.type==='environmentState') render(message.value);
+	if (message.type==='firstRunPage') { renderEditor(message.state); workspaceFolder = message.workspaceFolder; showPage(message.value); }
+	if (message.type==='saveResult'&&message.requestId===saveId) status(page === 'template' ? 'templateSaved' : 'saved',message.success?'':message.message);
+	if (message.type==='folderOpenRequested') { lockEditor(false); status('workspaceError',''); }
+	if (message.type==='completeError') { lockEditor(false); status('workspaceError',message.message); }
+	if (message.type==='workspaceResult') { choosingWorkspace = false; workspaceFolder = message.workspaceFolder; status('workspaceError',message.message); renderWorkspace(); }
+	if (message.type==='previewRefresh') requestPreview();
+	if (message.type==='editorPreview'&&message.requestId===previewId&&(page==='editor'||page==='template')&&!completing) {
+		if (message.value) {
+			if (page==='template') {
+				templateResult=message.value;
+				if (!templateEditing && editor.cppTemplate!==message.value.source) { editor.cppTemplate=message.value.source; byId('cppTemplate').value=editor.cppTemplate; previewStyle(); save('template',editor); }
+			}
+			renderPreview(message.value);
+		} else { status(page === 'template' ? 'templatePreviewStatus' : 'previewStatus',message.message); byId(page === 'template' ? 'retryTemplatePreview' : 'retryPreview').hidden=false; }
+	}
 });
 render(state); renderEditor(editor); showPage(page); lockEditor(completing); vscode.postMessage({type:'environmentState'});
 </script></body></html>`;

@@ -58,12 +58,14 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 		commands: { registerCommand(id: string, handler: () => void) { commands.set(id, handler); return { dispose() {} }; }, async executeCommand(command: string, folder?: ReturnType<typeof uri> | { mode: 'recommended' | 'repair'; cppStandard: string; installToolchain: boolean; completeSetup: boolean }, options?: unknown) {
 			if (commandResults.has(command)) { return commandResults.get(command); }
 			if (command === 'vscode.openFolder') {
-				assert.ok(folder && 'fsPath' in folder);
+				const isFolderUri = (value: typeof folder): value is ReturnType<typeof uri> => !!value && Object.hasOwn(value, 'fsPath');
+				assert.ok(isFolderUri(folder));
 				openedFolders.push({ fsPath: folder.fsPath, completed: settings.get('shortestpath.setup.completed'), options: JSON.parse(JSON.stringify(options)) });
 				if (openError) { throw openError; }
 			}
 			if (command === 'shortestpath.applyFirstRunSetup') {
-				assert.ok(folder && 'mode' in folder);
+				const isSetupSelection = (value: typeof folder): value is Exclude<typeof folder, ReturnType<typeof uri> | undefined> => !!value && Object.hasOwn(value, 'mode');
+				assert.ok(isSetupSelection(folder));
 				const selection = folder;
 				setupSelections.push(JSON.parse(JSON.stringify(selection)));
 				if (selection.mode === 'recommended') {

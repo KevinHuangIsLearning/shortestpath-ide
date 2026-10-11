@@ -263,21 +263,25 @@ function createEnvironmentRunner(info: FirstRunSetupInfo): EnvironmentSetupRunne
 		|| vscode.workspace.getConfiguration('c-cpp-compile-run', null).get<string>('cpp-flags') || '';
 	const cppStandard = completed ? findCppStandard(compilerFlags) : 'c++20';
 	return new EnvironmentSetupRunner([
-		...info.stages.map(stage => ({ id: stage.id, title: stage.title, description: stage.text, async run(report: (message: string) => void) {
-			const result = await vscode.commands.executeCommand<ToolchainInstallResult>('shortestpath.prepareFirstRunStage', {
-				stage: stage.id, reportProgress: (message: string) => report(localizeToolchainProgress(message))
-			});
-			if (!result?.success) { throw new Error(result?.message || localize('编译环境尚未准备完成。请完成安装后重试。')); }
-			report(localizeToolchainProgress(result.message));
-			if (stage.id === 'toolchain') {
-				const ready = await vscode.commands.executeCommand<boolean>('shortestpath.applyFirstRunSetup', { mode, installToolchain: false, cppStandard, completeSetup: false });
-				if (!ready) { throw new Error(localize('编译环境尚未准备完成。请完成安装后重试。')); }
+		...info.stages.map(stage => ({
+			id: stage.id, title: stage.title, description: stage.text, async run(report: (message: string) => void) {
+				const result = await vscode.commands.executeCommand<ToolchainInstallResult>('shortestpath.prepareFirstRunStage', {
+					stage: stage.id, reportProgress: (message: string) => report(localizeToolchainProgress(message))
+				});
+				if (!result?.success) { throw new Error(result?.message || localize('编译环境尚未准备完成。请完成安装后重试。')); }
+				report(localizeToolchainProgress(result.message));
+				if (stage.id === 'toolchain') {
+					const ready = await vscode.commands.executeCommand<boolean>('shortestpath.applyFirstRunSetup', { mode, installToolchain: false, cppStandard, completeSetup: false });
+					if (!ready) { throw new Error(localize('编译环境尚未准备完成。请完成安装后重试。')); }
+				}
 			}
-		} })),
-		{ id: 'selfTest', title: localize('环境自测'), description: localize('运行 A+B 示例，检查命令行编译、Judger 样例测试与代码提示。'), async run(report) {
-			const result = await vscode.commands.executeCommand<ToolchainInstallResult>('shortestpath.selfTestEnvironment', { reportProgress: (message: string) => report(localizeToolchainProgress(message)) });
-			if (!result?.success) { throw new Error(result?.message || localize('环境自测失败。')); }
-		} }
+		})),
+		{
+			id: 'selfTest', title: localize('环境自测'), description: localize('运行 A+B 示例，检查命令行编译、Judger 样例测试与代码提示。'), async run(report) {
+				const result = await vscode.commands.executeCommand<ToolchainInstallResult>('shortestpath.selfTestEnvironment', { reportProgress: (message: string) => report(localizeToolchainProgress(message)) });
+				if (!result?.success) { throw new Error(result?.message || localize('环境自测失败。')); }
+			}
+		}
 	], state => {
 		if (activePanel) { void activePanel.webview.postMessage({ type: 'environmentState', value: state }).then(undefined, () => undefined); }
 	}, localize);
