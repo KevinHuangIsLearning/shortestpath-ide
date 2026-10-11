@@ -530,7 +530,9 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		if (!this.surface) { return; }
 		const navigation = this.layoutService.mainWindowNavigationContainer!.getBoundingClientRect();
 		const root = this.layoutService.mainContainer.getBoundingClientRect();
-		this.surface.style.top = `${navigation.top - root.top}px`;
+		// Navigation can have transient collapsed bounds during workbench layout.
+		// Keep independent pages below the visible title bar and banner instead.
+		this.surface.style.top = `${this.layoutService.mainContainerOffset.top}px`;
 		this.surface.style.left = `${navigation.right - root.left}px`;
 		this.pageSurface.style.top = this.surface.style.top;
 		this.pageSurface.style.left = this.surface.style.left;

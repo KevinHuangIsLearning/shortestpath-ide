@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -64,6 +64,47 @@ class TestModeService extends ShortestPathModeService {
 
 suite('ShortestPath browser routing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('independent pages remain visible when navigation collapses at the window bottom', () => {
+		const root = document.createElement('div');
+		root.style.cssText = 'position:relative;width:600px;height:400px';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const navigation = document.createElement('div');
+		navigation.style.cssText = 'position:absolute;left:0;top:400px;width:48px;height:0';
+		root.appendChild(navigation);
+		const surface = document.createElement('div');
+		surface.style.cssText = 'position:absolute;right:0;bottom:0';
+		root.appendChild(surface);
+		const pageSurface = surface.cloneNode() as HTMLElement;
+		root.appendChild(pageSurface);
+		const offset = { top: 35, quickPickTop: 6 };
+		const sizes: number[][] = [];
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			mode: 'browse', surface, pageSurface,
+			layoutService: {
+				mainContainer: root, mainWindowNavigationContainer: navigation, mainContainerOffset: offset,
+				getContainer: () => undefined,
+			},
+			browserPart: { layout: (...size: number[]) => sizes.push(size) },
+		}) as { layout(): void };
+		for (const top of [35, 61, 0]) {
+			offset.top = top;
+			service.layout();
+			const bounds = surface.getBoundingClientRect();
+			const pageBounds = pageSurface.getBoundingClientRect();
+			const rootBounds = root.getBoundingClientRect();
+			assert.deepStrictEqual({
+				top: bounds.top - rootBounds.top, height: bounds.height,
+				pageTop: pageBounds.top - rootBounds.top, pageHeight: pageBounds.height,
+				left: bounds.left - rootBounds.left, width: bounds.width,
+				layout: sizes.at(-1),
+			}, {
+				top, height: 400 - top, pageTop: top, pageHeight: 400 - top,
+				left: 48, width: 552, layout: [552, 400 - top, rootBounds.top + top, rootBounds.left + 48],
+			});
+		}
+	});
 
 	function setup(createGate?: Promise<void>, createStarted?: () => void, restored?: Promise<void>, savedMode?: ShortestPathMode) {
 		const instantiation = workbenchInstantiationService(undefined, store);
