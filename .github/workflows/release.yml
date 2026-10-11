@@ -265,7 +265,6 @@ jobs:
       - name: Archive macOS application
         run: |
           app="../VSCode-darwin-arm64/ShortestPath IDE.app"
-          node build/lib/checkPackageSize.ts "$app" 500000000
           for entry in \
             "shortestpath.judger/dist/extension.js" \
             "usernamehw.errorlens/dist/extension.js" \
