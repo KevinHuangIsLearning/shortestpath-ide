@@ -15,6 +15,24 @@ import { validatePublicProblemContent } from '../publicProblemValidation';
 
 const source = (): string => fs.readFileSync(path.resolve(__dirname, '../extension.js'), 'utf8');
 
+function createWebviewLinkClick(target: object, href: string) {
+	const host = fs.readFileSync(path.resolve(__dirname, '../../../../src/vs/workbench/contrib/webview/browser/pre/index.html'), 'utf8');
+	const start = host.indexOf('const handleInnerClick =');
+	const end = host.indexOf('\n\t\t};', start) + '\n\t\t};'.length;
+	assert.ok(start >= 0 && end > start);
+	const externalMessages: object[] = [];
+	const context = vm.createContext({ hostMessaging: { postMessage: (command: string, payload: object) => externalMessages.push({ command, payload: structuredClone(payload) }) } });
+	vm.runInContext(`${host.slice(start, end)}; globalThis.click = handleInnerClick;`, context);
+	const event = {
+		target, isTrusted: true, defaultPrevented: false, cancelBubble: false,
+		view: { document: { querySelector: () => null } },
+		composedPath: () => [{ tagName: 'A', href, hash: '', getAttribute: () => href }],
+		preventDefault() { this.defaultPrevented = true; },
+		stopPropagation() { this.cancelBubble = true; },
+	};
+	return { event, externalMessages, bubble: () => { if (!event.cancelBubble) { context.click(event); } } };
+}
+
 test('statement sections and samples are independently collapsible without rewriting external content', () => {
 	const compiled = source();
 	const start = compiled.indexOf('function renderStatement(');
@@ -123,17 +141,21 @@ test('webview HTTP links prevent the default external opener and forward literal
 	const start = compiled.indexOf('document.addEventListener(\'click\', event => {');
 	const prefix = compiled.slice(compiled.indexOf('{', start) + 1, compiled.indexOf('const summary', start));
 	let href = 'https://shortestpath.cn/editorial/1?x=2&y=3';
-	let prevented = 0;
 	const messages: object[] = [];
 	class Element {
 		closest() { return { getAttribute: () => href }; }
 	}
 	const context = vm.createContext({ Element, vscode: { postMessage: (message: object) => messages.push(structuredClone(message)) } });
 	vm.runInContext(`globalThis.click = event => { ${prefix} };`, context);
-	context.click({ target: new Element(), preventDefault: () => { prevented++; } });
+	const link = createWebviewLinkClick(new Element(), href);
+	context.click(link.event);
+	link.bubble();
 	href = '#sample';
-	context.click({ target: new Element(), preventDefault: () => { prevented++; } });
-	assert.deepEqual({ prevented, messages }, { prevented: 1, messages: [{ command: 'openUrl', url: 'https://shortestpath.cn/editorial/1?x=2&y=3' }] });
+	const fragment = createWebviewLinkClick(new Element(), href);
+	context.click(fragment.event);
+	assert.deepEqual({ prevented: link.event.defaultPrevented, fragmentPrevented: fragment.event.defaultPrevented, external: link.externalMessages, messages }, {
+		prevented: true, fragmentPrevented: false, external: [], messages: [{ command: 'openUrl', url: 'https://shortestpath.cn/editorial/1?x=2&y=3' }],
+	});
 });
 
 test('title clicks open the website once without also forwarding a generic link', () => {
@@ -153,11 +175,18 @@ test('title clicks open the website once without also forwarding a generic link'
 		document: { querySelector: () => ({ addEventListener: (_type: string, listener: typeof titleClick) => { titleClick = listener; } }) },
 	});
 	vm.runInContext(`${compiled.slice(titleStart, titleEnd)}; globalThis.linkClick = event => { ${linkPrefix} };`, context);
-	const event = { target: new Element(), defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
-	titleClick(event);
-	context.linkClick(event);
-	assert.equal(event.defaultPrevented, true);
-	assert.deepEqual(messages, [{ command: 'openWebsite' }]);
+	const link = createWebviewLinkClick(new Element(), 'https://www.spoj.com/problems/TEST/');
+	titleClick(link.event);
+	if (!link.event.cancelBubble) { context.linkClick(link.event); }
+	link.bubble();
+	assert.deepEqual({ prevented: link.event.defaultPrevented, messages, external: link.externalMessages }, { prevented: true, messages: [{ command: 'openWebsite' }], external: [] });
+});
+
+test('webview host forwards a prevented link if its propagation is not stopped', () => {
+	const link = createWebviewLinkClick({}, 'https://www.spoj.com/problems/TEST/');
+	link.event.preventDefault();
+	link.bubble();
+	assert.deepEqual(link.externalMessages, [{ command: 'did-click-link', payload: { uri: 'https://www.spoj.com/problems/TEST/' } }]);
 });
 
 test('website opener switches to browsing before opening the integrated URL', async () => {

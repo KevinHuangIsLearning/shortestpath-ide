@@ -66,6 +66,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 	/* ---- End preview zoom ---- */
 	document.querySelector('.title-line h1 a')?.addEventListener('click', event => {
 		event.preventDefault();
+		event.stopPropagation();
 		vscode.postMessage({ command: 'openWebsite' });
 	});
 	const timer = document.getElementById('problem-timer-value');
@@ -508,6 +509,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		const href = link?.getAttribute('href');
 		if (href && /^https?:\/\//i.test(href)) {
 			event.preventDefault();
+			event.stopPropagation();
 			vscode.postMessage({ command: 'openUrl', url: href });
 			return;
 		}
