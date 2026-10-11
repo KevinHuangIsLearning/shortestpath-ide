@@ -18,7 +18,7 @@ type RunnerBuildState = { waiters: Set<RunnerWaiter>; output: string };
 const runnerBuilds = new Map<string, { promise: Promise<string>; state: RunnerBuildState }>();
 
 /** Publish only complete runner binaries and share cold builds between testcases. */
-export async function prepareNativeRunner(report: (message: string) => void = () => {}, buildPlatform: NodeJS.Platform = process.platform, checkCancelled?: () => void): Promise<string> {
+export async function prepareNativeRunner(report: (message: string) => void = () => { }, buildPlatform: NodeJS.Platform = process.platform, checkCancelled?: () => void): Promise<string> {
 	checkCancelled?.();
 	const root = globalThis.extensionContext.extensionPath;
 	const source = path.join(root, 'dist/static/tools/runner.cpp');
@@ -100,9 +100,9 @@ export async function runNative(
 	processes: ChildProcessWithoutNullStreams[],
 	timeout: number,
 	maxOutputSize = 8 * 1024 * 1024,
-    inputPath?: string,
-    cwd?: string,
-    checkCancelled?: () => void,
+	inputPath?: string,
+	cwd?: string,
+	checkCancelled?: () => void,
 ): Promise<Run> {
 	checkCancelled?.();
 	const executable = await prepareNativeRunner(undefined, process.platform, checkCancelled);
@@ -131,8 +131,8 @@ export async function runNative(
 			],
 			processes,
 			wallTimeout + 2000,
-            '',
-            cwd,
+			'',
+			cwd,
 		);
 		if (wrapper.code !== 0 || wrapper.signal || !fs.existsSync(paths[3])) {
 			return { ...wrapper, code: wrapper.code || 1 };

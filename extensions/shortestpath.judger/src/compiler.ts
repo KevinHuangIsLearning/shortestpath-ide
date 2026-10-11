@@ -96,7 +96,9 @@ const getFlags = (
     const binPath = outputPath || getBinSaveLocation(srcPath, language);
     // The language.args are fetched from user saved preferences, if any.
     let args = language.args;
-    if (args[0] === '') args = [];
+    if (args[0] === '') {
+        args = [];
+    }
     let ret: string[];
     switch (language.name) {
         case 'cpp':

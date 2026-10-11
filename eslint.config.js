@@ -307,10 +307,25 @@ export default defineConfig(
 		]
 		}
 	},
-	// This inherited CPH file has no upstream copyright header.
+	// These inherited CPH files have no upstream copyright header.
 	{
-		files: ['extensions/shortestpath.judger/src/webview/editorChange.ts'],
+		files: [
+			'extensions/shortestpath.judger/src/webview/editorChange.ts',
+			'extensions/shortestpath.judger/src/compiler.ts',
+		],
 		rules: { 'header/header': 'off' },
+	},
+	// Keep the runner's original GPL notice without inventing a copyright owner.
+	{
+		files: ['extensions/shortestpath.judger/src/nativeRunner.ts'],
+		rules: {
+			'header/header': [2, 'block', [
+				'---------------------------------------------------------------------------------------------',
+				' * Part of ShortestPath Judger.',
+				' * Licensed under GPL-3.0-or-later. See LICENSE for license information.',
+				' *--------------------------------------------------------------------------------------------',
+			]],
+		},
 	},
 	// Disallow bracket notation for property names that can use dot notation.
 	{

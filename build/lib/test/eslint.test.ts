@@ -35,11 +35,17 @@ suite('eslint', () => {
 `;
 		const authored = header('2026 ShortestPath IDE contributors.', 'GPL-3.0-or-later license. See LICENSE in the project root for license information.');
 		const upstream = header('Microsoft Corporation. All rights reserved.', 'MIT License. See License.txt in the project root for license information.');
+		const runnerNotice = `/*---------------------------------------------------------------------------------------------
+ * Part of ShortestPath Judger.
+ * Licensed under GPL-3.0-or-later. See LICENSE for license information.
+ *--------------------------------------------------------------------------------------------*/
+`;
 		const cases = [
 			['extensions/shortestpath.judger/src/problemDisplay.ts', authored, upstream],
 			['extensions/shortestpath.setup/resources/windows.js', authored, upstream],
 			['src/vs/base/node/portablePaths.ts', authored, upstream],
 			['src/vs/base/common/arrays.ts', upstream, authored],
+			['extensions/shortestpath.judger/src/nativeRunner.ts', runnerNotice, upstream],
 		];
 		const results = [];
 		for (const [filePath, accepted, rejected] of cases) {
@@ -47,7 +53,7 @@ suite('eslint', () => {
 			const invalid = (await linter.lintText(rejected, { filePath }))[0];
 			results.push([valid.messages.filter(message => message.ruleId === 'header/header').length, invalid.messages.filter(message => message.ruleId === 'header/header').length]);
 		}
-		assert.deepStrictEqual(results, [[0, 1], [0, 1], [0, 1], [0, 1]]);
+		assert.deepStrictEqual(results, [[0, 1], [0, 1], [0, 1], [0, 1], [0, 1]]);
 	});
 
 	test('uses the full filter when no positional arguments are provided', () => {

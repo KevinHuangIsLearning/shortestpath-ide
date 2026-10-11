@@ -186,7 +186,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	});
 
 	const copyrights = es.through(function (file: VinylFileWithLines) {
-		const lines = file.__lines;
+		const lines = file.__lines || file.contents!.toString('utf8').split(/\r\n|\r|\n/);
 
 		if (!hasAcceptedCopyrightHeader(lines)) {
 			console.error(file.relative + ': Missing or bad copyright statement');
@@ -234,6 +234,8 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
+	const indentationFilterStream = filter(Array.from(indentationFilter), { restore: true });
+	const copyrightFilterStream = filter(Array.from(copyrightFilter), { restore: true });
 	const result = input
 		.pipe(filter((f) => Boolean(f.stat && !f.stat.isDirectory())))
 		.pipe(snapshotFilter)
@@ -245,12 +247,14 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		.pipe(trackCheckedFile())
 		.pipe(unicode)
 		.pipe(unicodeFilterStream.restore)
-		.pipe(filter(Array.from(indentationFilter)))
+		.pipe(indentationFilterStream)
 		.pipe(trackCheckedFile())
 		.pipe(indentation)
-		.pipe(filter(Array.from(copyrightFilter)))
+		.pipe(indentationFilterStream.restore)
+		.pipe(copyrightFilterStream)
 		.pipe(trackCheckedFile())
-		.pipe(copyrights);
+		.pipe(copyrights)
+		.pipe(copyrightFilterStream.restore);
 
 	const streams: NodeJS.ReadWriteStream[] = [
 		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(trackCheckedFile()).pipe(formatting)
