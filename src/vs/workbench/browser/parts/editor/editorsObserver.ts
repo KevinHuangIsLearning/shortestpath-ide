@@ -162,7 +162,10 @@ export class EditorsObserver extends Disposable {
 		}));
 
 		// Make sure to cleanup on dispose
-		Event.once(group.onWillDispose)(() => dispose(groupDisposables));
+		Event.once(group.onWillDispose)(() => {
+			for (const editor of group.editors) { this.removeMostRecentEditor(group, editor); }
+			dispose(groupDisposables);
+		});
 	}
 
 	private onDidChangeEditorPartOptions(event: IEditorPartOptionsChangeEvent): void {

@@ -34,7 +34,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { EditorsOrder } from '../../../common/editor.js';
+import { EditorsOrder, IEditorWillOpenEvent } from '../../../common/editor.js';
 import { BrowserEditorInput } from '../../browserView/common/browserEditorInput.js';
 import { BrowserSourceEditorInput } from '../../browserView/common/browserSourceEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
@@ -201,11 +201,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this._register(this.layoutService.onDidChangePartVisibility(() => this.layout()));
 		this._register(onDidChangeZoomLevel(() => this.layout()));
 		this._register(addDisposableListener(mainWindow, 'focus', () => this.refresh()));
-		this._register(this.editors.onWillOpenEditor(event => {
-			if (this.mode !== 'solve' && this.editorGroups.mainPart.groups.some(group => group.id === event.groupId) && shouldRevealSolveEditor(event)) {
-				void this.switchMode('solve').catch(onUnexpectedError);
-			}
-		}));
+		this._register(this.editors.onWillOpenEditor(event => this.revealEditorMode(event)));
 		this.layout();
 		const state = parseBrowserState(this.storage.get(tabsKey, StorageScope.PROFILE));
 		// Native pages survive a workbench reload. Reuse them so development reloads
@@ -309,6 +305,16 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			this.solveButton.setAttribute('aria-label', localize('sp.solve', "做题"));
 			if (this.returnFocus?.isConnected) { this.returnFocus.focus(); }
 			else { this.layoutService.focusPart(Parts.EDITOR_PART, mainWindow); }
+		}
+	}
+
+	/** Reveal the owning surface before a foreground editor is opened there. */
+	protected revealEditorMode(event: IEditorWillOpenEvent): void {
+		if (!shouldRevealSolveEditor(event)) { return; }
+		if (this.browserPart?.groups.some(group => group.id === event.groupId)) {
+			if (this.mode !== 'browse') { this.applyMode('browse'); }
+		} else if (this.mode !== 'solve' && this.editorGroups.mainPart.groups.some(group => group.id === event.groupId)) {
+			void this.switchMode('solve').catch(onUnexpectedError);
 		}
 	}
 

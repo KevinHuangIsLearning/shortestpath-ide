@@ -24,7 +24,7 @@ import { IEditorGroup, IEditorReplacement, IEditorGroupsService, IEditorPart, IE
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { canOpenEditorsInNewWindow, EditorInputCapabilities, IUntypedEditorInput, EditorsOrder } from '../../../../common/editor.js';
+import { canOpenEditorsInNewWindow, EditorInputCapabilities, IUntypedEditorInput, EditorsOrder, IEditorWillOpenEvent } from '../../../../common/editor.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
@@ -34,6 +34,9 @@ import { IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchServic
 import { IWebviewWorkbenchService } from '../../../webviewPanel/browser/webviewWorkbenchService.js';
 import { ShortestPathModeService } from '../../electron-browser/shortestPathMode.contribution.js';
 import { OpenIntegratedBrowserAction, QuickOpenBrowserAction } from '../../../browserView/electron-browser/features/browserTabManagementFeatures.js';
+import { AllEditorsByMostRecentlyUsedQuickAccess } from '../../../../browser/parts/editor/editorQuickAccess.js';
+import { QuickAccessPreviousRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessPreviousRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorInGroupAction } from '../../../../browser/parts/editor/editorActions.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -59,6 +62,7 @@ class TestModeService extends ShortestPathModeService {
 	protected override renderTabs(): void { }
 	protected override refresh(): void { }
 	ensureBlankTab(): Promise<void> { return this.ensureBrowserTab(); }
+	revealEditor(event: IEditorWillOpenEvent): void { this.revealEditorMode(event); }
 	synchronizeTabs(): void { super.renderTabs(); }
 }
 
@@ -200,6 +204,60 @@ suite('ShortestPath browser routing', () => {
 		instantiation.stub(IShortestPathModeService, service);
 		return { service, opened, untypedOpened, navigations, browserInputs, browserGroup, instantiation, known, handler: () => handler!, preferredCalls: () => preferredCalls };
 	}
+
+	test('Ctrl+Tab and Ctrl+Shift+Tab use the global MRU picker', () => {
+		const forward = new QuickAccessPreviousRecentlyUsedEditorAction();
+		const reverse = new QuickAccessLeastRecentlyUsedEditorAction();
+		const forwardBinding = forward.desc.keybinding;
+		const reverseBinding = reverse.desc.keybinding;
+		assert.ok(forwardBinding && !Array.isArray(forwardBinding));
+		assert.ok(reverseBinding && !Array.isArray(reverseBinding));
+		assert.deepStrictEqual([
+			forwardBinding.primary,
+			forwardBinding.mac?.primary,
+			reverseBinding.primary,
+			reverseBinding.mac?.primary,
+			new QuickAccessPreviousRecentlyUsedEditorInGroupAction().desc.keybinding,
+			new QuickAccessLeastRecentlyUsedEditorInGroupAction().desc.keybinding,
+		], [KeyMod.CtrlCmd | KeyCode.Tab, KeyMod.WinCtrl | KeyCode.Tab, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab, undefined, undefined]);
+	});
+
+	test('global MRU picks retain both surfaces and open in their original group', async () => {
+		const { service, instantiation, browserGroup, opened } = setup();
+		await service.switchMode('browse');
+		const browser = await service.openBrowser('https://example.com', true);
+		const code = store.add(new TestFileEditorInput(URI.parse('test://solution.cpp'), 'testInput'));
+		const entries = [{ editor: browser, groupId: browserGroup.id }, { editor: code, groupId: 7 }];
+		instantiation.stub(IEditorService, 'getEditors', () => entries);
+		instantiation.stub(IEditorGroupsService, 'getGroup', (id: number) => id === browserGroup.id ? browserGroup : undefined);
+		const provider = store.add(instantiation.createInstance(class extends AllEditorsByMostRecentlyUsedQuickAccess {
+			picks() { return this._getPicks(''); }
+		}));
+		const picks = provider.picks().filter(pick => pick.type !== 'separator');
+		assert.deepStrictEqual(picks.map(pick => pick.groupId), [browserGroup.id, 7]);
+		await picks[1].accept?.({ ctrlCmd: false, alt: false, shift: false }, { inBackground: false });
+		assert.deepStrictEqual(opened.map(({ input, options, group }) => ({ input, options, group })), [{ input: code, options: { preserveFocus: false }, group: 7 }]);
+	});
+
+	test('foreground opens reveal either surface while background opens keep the mode', async () => {
+		const { service, instantiation, browserGroup } = setup(undefined, undefined, undefined, 'browse');
+		await service.switchMode('browse');
+		const browser = await service.openBrowser('https://example.com', true);
+		const mainGroup = instantiation.get(IEditorGroupsService).mainPart.groups[0];
+		const modes: ShortestPathMode[] = [];
+		for (const options of [{ preserveFocus: true }, { inactive: true }, {}]) {
+			await service.switchMode('solve');
+			service.revealEditor({ editor: browser, groupId: browserGroup.id, options });
+			modes.push(service.mode);
+		}
+		for (const options of [{ preserveFocus: true }, { inactive: true }, {}]) {
+			await service.switchMode('browse');
+			service.revealEditor({ editor: browser, groupId: mainGroup.id, options });
+			await Promise.resolve();
+			modes.push(service.mode);
+		}
+		assert.deepStrictEqual(modes, ['solve', 'solve', 'browse', 'browse', 'browse', 'solve']);
+	});
 
 	test('navigation appears while editor restoration is pending and an early switch is retained', async () => {
 		const restored = new DeferredPromise<void>();

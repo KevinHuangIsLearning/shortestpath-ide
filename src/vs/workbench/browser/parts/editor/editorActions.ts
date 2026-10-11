@@ -1847,6 +1847,13 @@ export class QuickAccessPreviousRecentlyUsedEditorAction extends AbstractQuickAc
 			id: 'workbench.action.quickOpenPreviousRecentlyUsedEditor',
 			title: localize2('quickOpenPreviousRecentlyUsedEditor', 'Quick Open Previous Recently Used Editor'),
 			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Tab,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyCode.Tab
+				}
+			},
 			category: Categories.View
 		}, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
 	}
@@ -1859,8 +1866,15 @@ export class QuickAccessLeastRecentlyUsedEditorAction extends AbstractQuickAcces
 			id: 'workbench.action.quickOpenLeastRecentlyUsedEditor',
 			title: localize2('quickOpenLeastRecentlyUsedEditor', 'Quick Open Least Recently Used Editor'),
 			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab
+				}
+			},
 			category: Categories.View
-		}, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
+		}, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, ItemActivation.LAST);
 	}
 }
 
@@ -1871,13 +1885,6 @@ export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends Abstract
 			id: 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
 			title: localize2('quickOpenPreviousRecentlyUsedEditorInGroup', 'Quick Open Previous Recently Used Editor in Group'),
 			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.Tab,
-				mac: {
-					primary: KeyMod.WinCtrl | KeyCode.Tab
-				}
-			},
 			precondition: ActiveEditorGroupEmptyContext.toNegated(),
 			category: Categories.View
 		}, ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
@@ -1891,13 +1898,6 @@ export class QuickAccessLeastRecentlyUsedEditorInGroupAction extends AbstractQui
 			id: 'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup',
 			title: localize2('quickOpenLeastRecentlyUsedEditorInGroup', 'Quick Open Least Recently Used Editor in Group'),
 			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
-				mac: {
-					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab
-				}
-			},
 			precondition: ActiveEditorGroupEmptyContext.toNegated(),
 			category: Categories.View
 		}, ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, ItemActivation.LAST);

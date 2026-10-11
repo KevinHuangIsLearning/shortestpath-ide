@@ -200,9 +200,18 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		if (!isHTMLElement(container)) { throw new Error('An embedded editor part requires an HTML container.'); }
 		const part = this.instantiationService.createInstance(EmbeddedEditorPart, this);
 		const registration = this.registerPart(part);
-		this._register(Event.once(part.onWillDispose)(() => registration.dispose()));
+		this._register(Event.once(part.onWillDispose)(() => {
+			// Group disposal runs after onWillDispose. Unregister first so
+			// removal listeners see the remaining groups when querying parts.
+			const groups = [...part.groups];
+			registration.dispose();
+			for (const group of groups) { this._onDidRemoveGroup.fire(group); }
+		}));
 		try {
 			part.create(container);
+			// Initial grid creation does not emit onDidAddGroup. Register the
+			// first group just like auxiliary and modal editor parts do.
+			this._onDidAddGroup.fire(part.activeGroup);
 			return part;
 		} catch (error) {
 			registration.dispose();

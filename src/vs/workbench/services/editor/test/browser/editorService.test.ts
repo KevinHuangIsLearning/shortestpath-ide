@@ -8,9 +8,10 @@ import { EditorActivation, IResourceEditorInput, ITextEditorOptions } from '../.
 import { URI } from '../../../../../base/common/uri.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor, isEditorInput, EditorInputCapabilities } from '../../../../common/editor.js';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestForceRevealFileEditorInput, workbenchTeardown } from '../../../../test/browser/workbenchTestServices.js';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, createEditorParts, registerTestFileEditor, TestTextFileEditor, TestForceRevealFileEditorInput, workbenchTeardown } from '../../../../test/browser/workbenchTestServices.js';
 import { EditorService } from '../../browser/editorService.js';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from '../../common/editorGroupsService.js';
+import { AllEditorsByMostRecentlyUsedQuickAccess } from '../../../../browser/parts/editor/editorQuickAccess.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { ACTIVE_GROUP, IBaseSaveRevertAllEditorOptions, IEditorService, PreferredGroup, SIDE_GROUP } from '../../common/editorService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -72,6 +73,43 @@ suite('EditorService', () => {
 	function createTestFileEditorInput(resource: URI, typeId: string): TestFileEditorInput {
 		return disposables.add(new TestFileEditorInput(resource, typeId));
 	}
+
+	test('global MRU picker includes every embedded multi-tab surface and removes disposed groups', async () => {
+		const instantiation = workbenchInstantiationService(undefined, disposables);
+		testLocalInstantiationService = instantiation;
+		instantiation.stub(ICommandService, { executeCommand: async () => undefined });
+		const parts = await createEditorParts(instantiation, disposables);
+		instantiation.stub(IEditorGroupsService, parts);
+		const service = disposables.add(instantiation.createInstance(EditorService, undefined));
+		instantiation.stub(IEditorService, service);
+		await Promise.resolve();
+		const code = createTestFileEditorInput(URI.parse('test://solution.cpp'), TEST_EDITOR_INPUT_ID);
+		await service.openEditor(code, { pinned: true }, parts.mainPart.activeGroup);
+		const surfaces = [0, 1].map(() => disposables.add(parts.createEmbeddedEditorPart(document.createElement('div'))));
+		const inputs = [0, 1, 2].map(index => createTestFileEditorInput(URI.parse(`test://tab${index}`), TEST_EDITOR_INPUT_ID));
+		const openingGroups: number[] = [];
+		disposables.add(service.onWillOpenEditor(event => openingGroups.push(event.groupId)));
+		await service.openEditor(inputs[0], { pinned: true }, surfaces[0].activeGroup);
+		await service.openEditor(inputs[1], { pinned: true }, surfaces[0].activeGroup);
+		await service.openEditor(inputs[2], { pinned: true }, surfaces[1].activeGroup);
+		const provider = disposables.add(instantiation.createInstance(class extends AllEditorsByMostRecentlyUsedQuickAccess {
+			picks() { return this._getPicks('').filter(pick => pick.type !== 'separator'); }
+		}));
+		assert.deepStrictEqual(new Set(provider.picks().map(pick => pick.resource?.toString())), new Set([code, ...inputs].map(input => input.resource.toString())));
+		for (const input of [inputs[1], code, inputs[2], inputs[0]]) {
+			const pick = provider.picks().find(pick => pick.resource?.toString() === input.resource.toString());
+			assert.ok(pick);
+			await pick.accept?.({ ctrlCmd: false, alt: false, shift: false }, { inBackground: false });
+		}
+		assert.deepStrictEqual(openingGroups, [surfaces[0].activeGroup.id, surfaces[0].activeGroup.id, surfaces[1].activeGroup.id, surfaces[0].activeGroup.id, parts.mainPart.activeGroup.id, surfaces[1].activeGroup.id, surfaces[0].activeGroup.id]);
+		await surfaces[0].activeGroup.closeEditor(inputs[0]);
+		assert.ok(!provider.picks().some(pick => pick.resource?.toString() === inputs[0].resource.toString()));
+		const removedGroups: { id: number; registered: boolean }[] = [];
+		disposables.add(parts.onDidRemoveGroup(group => removedGroups.push({ id: group.id, registered: parts.getGroup(group.id) !== undefined || parts.groups.includes(group) })));
+		surfaces[0].dispose();
+		assert.deepStrictEqual(removedGroups, [{ id: openingGroups[0], registered: false }]);
+		assert.deepStrictEqual(new Set(provider.picks().map(pick => pick.resource?.toString())), new Set([code, inputs[2]].map(input => input.resource.toString())));
+	});
 
 	test('openEditor() - basics', async () => {
 		const [, service, accessor] = await createEditorService();
