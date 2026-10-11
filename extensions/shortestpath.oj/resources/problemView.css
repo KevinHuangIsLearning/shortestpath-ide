@@ -1678,6 +1678,20 @@ body {
 	display: none;
 }
 
+.section-collapsible:not([open]) > summary::before,
+.editorial-collapsible:not([open]) > summary::before {
+	color: var(--vscode-descriptionForeground);
+	content: '▸';
+	display: inline-block;
+	margin-right: 6px;
+}
+
+.section-collapsible > summary:hover h2,
+.editorial-collapsible > summary:hover h2 {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
 .section-collapsible > summary {
 	margin: 1em 0 0.6em;
 }
