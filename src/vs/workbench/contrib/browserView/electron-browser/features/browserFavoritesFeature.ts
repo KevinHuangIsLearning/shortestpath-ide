@@ -92,6 +92,74 @@ class FavoriteIndicator extends Disposable {
 	}
 }
 
+/** Shared API for the existing workspace favorites, including external storage updates. */
+export class BrowserFavoritesStore extends Disposable {
+	private static readonly STORAGE_KEY = 'workbench.browser.favorites';
+	private readonly change = this._register(new Emitter<void>());
+	readonly onDidChange = this.change.event;
+	private urls = new Set<string>();
+
+	constructor(private readonly _storageService: IStorageService) {
+		super();
+		this.load();
+		const listeners = this._register(new DisposableStore());
+		this._register(_storageService.onDidChangeValue(StorageScope.WORKSPACE, BrowserFavoritesStore.STORAGE_KEY, listeners)(() => {
+			this.load();
+			this.change.fire();
+		}));
+	}
+
+	get values(): readonly string[] { return [...this.urls]; }
+	isFavorite(url: string): boolean { return this.urls.has(url); }
+
+	private load(): void {
+		const raw = this._storageService.get(BrowserFavoritesStore.STORAGE_KEY, StorageScope.WORKSPACE);
+		if (!raw) {
+			this.urls = new Set();
+			return;
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			this.urls = new Set(
+				Array.isArray(parsed) ? parsed.filter((u): u is string => typeof u === 'string') : []
+			);
+		} catch {
+			this.urls = new Set();
+		}
+	}
+
+	toggle(url: string): void {
+		if (this.urls.has(url)) {
+			this.urls.delete(url);
+		} else {
+			this.urls.add(url);
+		}
+		this._storageService.store(
+			BrowserFavoritesStore.STORAGE_KEY,
+			JSON.stringify([...this.urls]),
+			StorageScope.WORKSPACE,
+			StorageTarget.USER,
+		);
+		this.change.fire();
+	}
+
+	// Idempotent: callers that should never re-add a favorite (e.g. the per-item
+	// delete button on suggestions) must use this rather than `toggle`.
+	remove(url: string): void {
+		if (!this.urls.has(url)) {
+			return;
+		}
+		this.urls.delete(url);
+		this._storageService.store(
+			BrowserFavoritesStore.STORAGE_KEY,
+			JSON.stringify([...this.urls]),
+			StorageScope.WORKSPACE,
+			StorageTarget.USER,
+		);
+		this.change.fire();
+	}
+}
+
 /**
  * Workspace-scoped favorites: persists a set of favorite URLs and surfaces
  * them as URL bar suggestions plus a toggle button in the picker chrome.
@@ -102,10 +170,8 @@ class FavoriteIndicator extends Disposable {
  */
 export class BrowserFavoritesFeature extends BrowserEditorContribution {
 
-	private static readonly STORAGE_KEY = 'workbench.browser.favorites';
-
 	private readonly _onDidChangeState = this._register(new Emitter<void>());
-	private _urls = new Set<string>();
+	private readonly favorites: BrowserFavoritesStore;
 
 	private readonly _suggestionProvider: IBrowserUrlSuggestionProvider;
 	private readonly _actionProvider: IBrowserUrlPickerActionProvider;
@@ -114,24 +180,19 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 
 	constructor(
 		editor: BrowserEditor,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(editor);
-		this._load();
+		this.favorites = this._register(new BrowserFavoritesStore(storageService));
 		this._isFavoriteContext = CONTEXT_BROWSER_URL_IS_FAVORITED.bindTo(contextKeyService);
 
 		this._indicator = this._register(new FavoriteIndicator(instantiationService, this._keybindingService));
 		this._register(this._indicator.onDidClick(() => this.toggleCurrent()));
 
-		// React to external storage updates (e.g. another window writing the key).
-		const storageListenerStore = this._register(new DisposableStore());
-		this._register(this._storageService.onDidChangeValue(
-			StorageScope.WORKSPACE, BrowserFavoritesFeature.STORAGE_KEY, storageListenerStore,
-		)(() => {
-			this._load();
+		this._register(this.favorites.onDidChange(() => {
 			this._refresh();
 			this._onDidChangeState.fire();
 		}));
@@ -144,7 +205,7 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 			getSuggestions: async ({ input }) => {
 				const suggestions: IBrowserUrlSuggestion[] = [];
 				const current = input.url;
-				for (const url of this._urls) {
+				for (const url of this.favorites.values) {
 					if (url === current) {
 						continue;
 					}
@@ -152,10 +213,11 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 						id: 'browser.favorites.delete',
 						iconClass: ThemeIcon.asClassName(Codicon.trash),
 						tooltip: localize('browser.removeFavorite', "Remove from Favorites"),
-						run: () => this._remove(url),
+						run: () => this.favorites.remove(url),
 					};
 					suggestions.push({
 						id: 'favorite:' + url,
+						navigationUrl: url,
 						label: url,
 						icon: Codicon.star,
 						apply: target => target.navigate(url),
@@ -173,7 +235,7 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 				if (!url) {
 					return [];
 				}
-				const favorite = this._urls.has(url);
+				const favorite = this.favorites.isFavorite(url);
 				const tooltip = favorite
 					? localize('browser.removeFavorite', "Remove from Favorites")
 					: localize('browser.addFavorite', "Add to Favorites");
@@ -187,7 +249,7 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 					run: target => {
 						const u = target.url;
 						if (u) {
-							this._toggle(u);
+							this.favorites.toggle(u);
 						}
 					},
 				};
@@ -223,71 +285,24 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 	}
 
 	isFavorite(url: string): boolean {
-		return this._urls.has(url);
+		return this.favorites.isFavorite(url);
 	}
 
 	toggleCurrent(): void {
 		const url = this.editor.model?.url;
 		if (url) {
-			this._toggle(url);
+			this.favorites.toggle(url);
 		}
 	}
 
 	private _refresh(): void {
 		const url = this.editor.model?.url ?? '';
-		const favorite = !!url && this._urls.has(url);
+		const favorite = !!url && this.favorites.isFavorite(url);
 		this._isFavoriteContext.set(favorite);
 		this._indicator.setVisible(favorite);
 	}
 
-	private _load(): void {
-		const raw = this._storageService.get(BrowserFavoritesFeature.STORAGE_KEY, StorageScope.WORKSPACE);
-		if (!raw) {
-			this._urls = new Set();
-			return;
-		}
-		try {
-			const parsed: unknown = JSON.parse(raw);
-			this._urls = new Set(
-				Array.isArray(parsed) ? parsed.filter((u): u is string => typeof u === 'string') : []
-			);
-		} catch {
-			this._urls = new Set();
-		}
-	}
 
-	private _toggle(url: string): void {
-		if (this._urls.has(url)) {
-			this._urls.delete(url);
-		} else {
-			this._urls.add(url);
-		}
-		this._storageService.store(
-			BrowserFavoritesFeature.STORAGE_KEY,
-			JSON.stringify([...this._urls]),
-			StorageScope.WORKSPACE,
-			StorageTarget.USER,
-		);
-		this._refresh();
-		this._onDidChangeState.fire();
-	}
-
-	// Idempotent: callers that should never re-add a favorite (e.g. the per-item
-	// delete button on suggestions) must use this rather than `_toggle`.
-	private _remove(url: string): void {
-		if (!this._urls.has(url)) {
-			return;
-		}
-		this._urls.delete(url);
-		this._storageService.store(
-			BrowserFavoritesFeature.STORAGE_KEY,
-			JSON.stringify([...this._urls]),
-			StorageScope.WORKSPACE,
-			StorageTarget.USER,
-		);
-		this._refresh();
-		this._onDidChangeState.fire();
-	}
 }
 
 BrowserEditor.registerContribution(BrowserFavoritesFeature);

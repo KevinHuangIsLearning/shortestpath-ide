@@ -55,6 +55,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	private readonly _overlayPauseContent: IBrowserEditorWidget;
 
 	private readonly _screenshotHandle = this._register(new MutableDisposable());
+	private _screenshotRequest = 0;
 	private _focusTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
@@ -201,6 +202,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			void this._model.setVisible(false);
 		}
 		this._model = undefined;
+		this._screenshotRequest++;
 		this._screenshotHandle.clear();
 		this._cancelFocusTimeout();
 		this._setBackgroundImage(undefined);
@@ -208,6 +210,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	}
 
 	override dispose(): void {
+		this._screenshotRequest++;
 		this._cancelFocusTimeout();
 		super.dispose();
 	}
@@ -281,13 +284,19 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	private async _doScreenshot(): Promise<void> {
 		this._screenshotHandle.clear();
-		if (!this._model?.url || this._model.error || !this._model.visible) {
+		const request = ++this._screenshotRequest;
+		const model = this._model;
+		if (!model?.url || model.error || !model.visible) {
 			return;
 		}
+		const url = model.url;
+		const isCurrent = () => request === this._screenshotRequest && this._model === model && model.url === url;
 		try {
-			const screenshot = await this._model.captureScreenshot({ quality: 80 });
+			const screenshot = await model.captureScreenshot({ quality: 80 });
+			if (!isCurrent()) { return; }
 			this._setBackgroundImage(screenshot);
 		} catch (error) {
+			if (!isCurrent()) { return; }
 			// A browser view can be visible before Electron has produced a frame.
 			// This best-effort placeholder refresh retries every second, so reporting
 			// the transient capture failure as an error only floods the window log.

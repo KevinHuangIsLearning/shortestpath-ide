@@ -447,3 +447,15 @@ export function getBrowserSearchEngineLabel(engineId: BrowserSearchEngineId): st
 		BROWSER_SEARCH_ENGINES[0];
 	return engine.label;
 }
+
+/** Primary navigation choices shared by the address bar and floating New Tab panel. */
+export function getBrowserNavigationChoices(text: string, engineId: BrowserSearchEngineId | undefined): readonly { label: string; url: string; search: boolean }[] {
+	const goTo = { label: text, url: text, search: false };
+	if (!engineId) { return [goTo]; }
+	const search = { label: localize('browser.searchFor', "{0} - {1} Search", text, getBrowserSearchEngineLabel(engineId)), url: buildSearchUrl(text, engineId), search: true };
+	switch (resolveAddressBarInputType(text)) {
+		case 'url': return [goTo, search];
+		case 'query': return [search];
+		default: return [search, goTo];
+	}
+}

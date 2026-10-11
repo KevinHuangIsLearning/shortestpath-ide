@@ -49,6 +49,14 @@ suite('BrowserOverlayManager', () => {
 		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Dialog]);
 	});
 
+	test('detects the browser-owned floating new tab panel and releases it on close', () => {
+		const browserContainer = addElement('browser-container', { position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px' });
+		const overlay = addElement('browser-new-tab-overlay', { position: 'fixed', left: '0px', top: '0px', width: '400px', height: '400px', zIndex: '2600' });
+		const open = manager.getOverlappingOverlays(browserContainer).map(item => item.type);
+		overlay.remove();
+		assert.deepStrictEqual({ open, closed: manager.getOverlappingOverlays(browserContainer) }, { open: [BrowserOverlayType.Dialog], closed: [] });
+	});
+
 	test('does not detect an overlay that does not overlap the browser container', () => {
 		const browserContainer = addElement('browser-container', {
 			position: 'absolute', left: '0px', top: '0px', width: '100px', height: '100px'

@@ -323,6 +323,8 @@ export interface IBrowserUrlSuggestion {
 	readonly id: string;
 	/** Label shown in the suggestion list. */
 	readonly label: string;
+	/** Destination for navigation suggestions; allows New Tab to open without replacing the source. */
+	readonly navigationUrl?: string;
 	/** Optional secondary description (e.g. host, date, source). */
 	readonly description?: string;
 	/** Optional leading icon (codicon). */
@@ -579,6 +581,12 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		this._inputDisposables.clear();
+		// The pane is reused across tabs. Release the previous page before waiting
+		// for the next model so its native view and screenshot cannot cover loading.
+		if (this._model && this._model !== input.model) {
+			this._model = undefined;
+			this._onDidChangeModel.fire({ model: undefined, isNew: false });
+		}
 
 		let model = input.model;
 		const isNew = !model;

@@ -7,6 +7,7 @@ import { ITextEditorService } from '../../../../services/textfile/common/textEdi
 import { BrowserNewTabPlacementSettingId, BrowserViewWorkbenchService } from '../../../browserView/electron-browser/browserViewWorkbenchService.js';
 import { BrowserSourceEditorInput } from '../../../browserView/common/browserSourceEditorInput.js';
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -605,6 +606,25 @@ suite('ShortestPath browser routing', () => {
 		},
 			{ handled: false, mode: 'browse', owns: true, active: true, sourcePair: true, dirty: true });
 	});
+
+	for (const mode of ['browse', 'solve'] as const) {
+		test(`floating new tab in ${mode} creates only after accepting a URL`, async () => {
+			const { service, known, navigations } = setup();
+			service.mode = mode;
+			service.newBrowserTab();
+			const first = document.getElementsByClassName('browser-new-tab-overlay')[0];
+			first?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			assert.strictEqual(known.size, 0);
+			service.newBrowserTab();
+			const overlay = document.getElementsByClassName('browser-new-tab-overlay')[0];
+			const input = overlay.getElementsByTagName('input')[0];
+			input.value = 'https://example.com/new'; input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			assert.strictEqual(known.size, 0);
+			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			await new Promise(resolve => setTimeout(resolve, 10));
+			assert.deepStrictEqual({ created: known.size, navigations, overlays: document.getElementsByClassName('browser-new-tab-overlay').length }, { created: 1, navigations: ['https://example.com/new'], overlays: 0 });
+		});
+	}
 
 	test('native browser pane rejects auxiliary windows before resolving or attaching a view', async () => {
 		const { instantiation } = setup();

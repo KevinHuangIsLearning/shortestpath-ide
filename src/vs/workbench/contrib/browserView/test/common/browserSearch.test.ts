@@ -9,11 +9,23 @@ import {
 	BrowserSearchEngineId,
 	buildSearchUrl,
 	getBrowserSearchEngineLabel,
+	getBrowserNavigationChoices,
 	resolveAddressBarInputType,
 } from '../../common/browserSearch.js';
 
 suite('BrowserSearch - resolveAddressBarInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('address bar and New Tab share search and navigation choice order', () => {
+		const kinds = (text: string, engine: BrowserSearchEngineId | undefined) => getBrowserNavigationChoices(text, engine).map(choice => choice.search ? 'search' : 'url');
+		assert.deepStrictEqual([
+			kinds('https://example.com', BrowserSearchEngineId.Google),
+			kinds('state dp', BrowserSearchEngineId.Google),
+			kinds('intranet', BrowserSearchEngineId.Google),
+			kinds('state dp', undefined),
+			getBrowserNavigationChoices('state dp', BrowserSearchEngineId.Google)[0].url,
+		], [['url', 'search'], ['search'], ['search', 'url'], ['url'], 'https://www.google.com/search?q=state+dp']);
+	});
 
 	test('recognized schemes are URLs', () => {
 		const inputs = [

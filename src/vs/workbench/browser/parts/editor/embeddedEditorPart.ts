@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -12,10 +12,12 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IEmbeddedEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { IEmbeddedEditorPart, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IEditorPartsView } from './editor.js';
+import { $, append } from '../../../../base/browser/dom.js';
+import { EditorGroupView } from './editorGroupView.js';
 import { EditorPart } from './editorPart.js';
 
 /** A native editor part hosted inside an existing main-window surface. */
@@ -45,6 +47,18 @@ export class EmbeddedEditorPart extends EditorPart implements IEmbeddedEditorPar
 		this.editorInstantiationService = this.scopedServices.add(this.scopedInstantiationService.createChild(new ServiceCollection(
 			[IEditorService, this.editorService.createScoped(this, this.scopedServices)]
 		)));
+	}
+
+	createGroupSidebar(group: IEditorGroup, width: number): { readonly container: unknown; dispose(): void } {
+		const view = this.getGroup(group.id);
+		if (!(view instanceof EditorGroupView) || view !== group) { throw new Error('Sidebar requires a current group of this embedded part.'); }
+		const container = append(view.element, $('.embedded-group-sidebar'));
+		view.setContentLeftInset(width);
+		const disposable = toDisposable(() => {
+			container.remove();
+			if (!view.disposed) { view.setContentLeftInset(0); }
+		});
+		return { container, dispose: () => disposable.dispose() };
 	}
 
 	get editorScopedInstantiationService(): IInstantiationService {

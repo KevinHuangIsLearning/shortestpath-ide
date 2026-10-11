@@ -525,6 +525,8 @@ export interface IEditorPart extends IEditorGroupsContainer {
 
 /** Native editor groups embedded in a main-window container. The caller owns its lifetime. */
 export interface IEmbeddedEditorPart extends IEditorPart, IDisposable {
+	/** Creates owner-managed leading content inside one group, reserving room for its editor. */
+	createGroupSidebar(group: IEditorGroup, width: number): { readonly container: unknown; dispose(): void };
 	layout(width: number, height: number, top: number, left: number): void;
 	setVisible(visible: boolean): void;
 }

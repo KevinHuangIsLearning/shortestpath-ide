@@ -168,6 +168,7 @@ export class EditorTitleControl extends Themable {
 		// Update editor tabs control if options changed
 		if (
 			oldOptions.showTabs !== newOptions.showTabs ||
+			oldOptions.createTabsLeading !== newOptions.createTabsLeading ||
 			(newOptions.showTabs !== 'single' && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
 		) {
 			// Clear old

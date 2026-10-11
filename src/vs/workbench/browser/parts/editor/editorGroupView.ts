@@ -143,6 +143,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 * `0` (default) is a no-op for all other layouts.
 	 */
 	private _contentRightInset = 0;
+	private _contentLeftInset = 0;
 
 	private readonly _onDidRelayout = this._register(new Emitter<void>());
 	readonly onDidRelayout = this._onDidRelayout.event;
@@ -2242,12 +2243,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.lastLayout = { width, height, top, left };
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
-		const contentWidth = Math.max(0, width - this._contentRightInset);
+		const contentLeftInset = Math.min(this._contentLeftInset, Math.floor(width * 0.4));
+		const contentWidth = Math.max(0, width - this._contentRightInset - contentLeftInset);
+		this.titleContainer.style.marginLeft = `${contentLeftInset}px`;
+		this.editorContainer.style.marginLeft = `${contentLeftInset}px`;
+		this.element.style.setProperty('--editor-group-leading-width', `${contentLeftInset}px`);
 
 		// Keep tabs full-width while the header and editor pane follow the content inset.
 		const titleControlSize = this.titleControl.layout({
-			container: new Dimension(width, height),
-			available: new Dimension(width, height - this.editorPane.minimumHeight)
+			container: new Dimension(width - contentLeftInset, height),
+			available: new Dimension(width - contentLeftInset, height - this.editorPane.minimumHeight)
 		}, contentWidth);
 
 		// Update progress bar location
@@ -2258,13 +2263,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editorHeight = Math.max(0, height - titleControlSize.height);
 		this.editorContainer.style.width = `${contentWidth}px`;
 		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height, left });
+		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height, left: left + contentLeftInset });
 	}
 
 	/**
 	 * Sets the right inset reserved beside the editor header and pane while tabs remain full-width.
 	 * `0` restores the default full-width content.
 	 */
+	setContentLeftInset(inset: number): void {
+		this._contentLeftInset = Math.max(0, Math.round(inset));
+		this.relayout();
+	}
+
 	setContentRightInset(inset: number): void {
 		const next = Math.max(0, Math.round(inset));
 		if (next === this._contentRightInset) {

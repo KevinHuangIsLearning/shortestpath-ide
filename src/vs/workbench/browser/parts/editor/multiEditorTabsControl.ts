@@ -36,14 +36,14 @@ import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdenti
 import { Color } from '../../../../base/common/color.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $, isHTMLElement, DisposableResizeObserver } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
 import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { basename, basenameOrAuthority, extname } from '../../../../base/common/resources.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, disposableTimeout } from '../../../../base/common/async.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPath, win32, posix } from '../../../../base/common/path.js';
 import { coalesce, insert } from '../../../../base/common/arrays.js';
@@ -266,10 +266,22 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		super.create(parent);
 
 		this.titleContainer = parent;
+		if (this.groupsView.partOptions.onDidChangeTabVisibility) {
+			this._register(this.groupsView.partOptions.onDidChangeTabVisibility(() => this.redraw()));
+		}
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
 		this.tabsAndActionsContainer = $('.tabs-and-actions-container');
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
+		if (this.groupsView.partOptions.createTabsLeading) {
+			const leading = $('.editor-tabs-leading');
+			this.tabsAndActionsContainer.appendChild(leading);
+			this._register(this.groupsView.partOptions.createTabsLeading(leading, this.groupView.id));
+			// Leading controls can animate independently of the group dimensions.
+			// Keep scroll geometry and the active tab aligned with the remaining space.
+			const observer = this._register(new DisposableResizeObserver('EditorTabsLeading', () => this.layout(this.dimensions, { forceRevealActiveTab: true }), getWindow(parent)));
+			this._register(observer.observe(leading));
+		}
 
 		this.stickyTabsBackground = $('.sticky-tabs-background', { 'aria-hidden': true });
 
@@ -999,6 +1011,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
 			oldOptions.wrapTabs !== newOptions.wrapTabs ||
 			oldOptions.showTabIndex !== newOptions.showTabIndex ||
+			oldOptions.isTabVisible !== newOptions.isTabVisible ||
 			!equals(oldOptions.decorations, newOptions.decorations)
 		) {
 			this.redraw();
@@ -1131,6 +1144,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Open tabs editor
 			const editor = this.tabsModel.getEditorByIndex(tabIndex);
 			if (editor) {
+				// A custom selected-tab click must not race the editor's deferred focus.
+				// Keep drag selection native, and defer the owner's action until click.
+				if (isMouseEvent(e) && this.groupsView.partOptions.onActiveTabClick && editor === this.groupView.activeEditor && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+					this.groupsView.activateGroup(this.groupView.id);
+					return;
+				}
 				if (e.shiftKey) {
 					let anchor: EditorInput;
 					if (this.lastSingleSelectSelectedEditor && this.tabsModel.isSelected(this.lastSingleSelectSelectedEditor)) {
@@ -1169,6 +1188,23 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.onTabContextMenu(editor, e, tab);
 			}
 		};
+
+		let clickedActiveEditor: EditorInput | undefined;
+		const activeClick = disposables.add(new MutableDisposable<IDisposable>());
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, (event: MouseEvent) => {
+			const editor = this.tabsModel.getEditorByIndex(tabIndex);
+			clickedActiveEditor = event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && !this.originatesFromTabActionBar(event) && editor === this.groupView.activeEditor ? editor : undefined;
+		}));
+		disposables.add(addDisposableListener(tab, EventType.DRAG_START, () => { clickedActiveEditor = undefined; }));
+		disposables.add(addDisposableListener(tab, EventType.CLICK, () => {
+			if (clickedActiveEditor && clickedActiveEditor === this.groupView.activeEditor) {
+				const editor = clickedActiveEditor;
+				activeClick.value = disposableTimeout(() => {
+					if (editor === this.groupView.activeEditor) { this.groupsView.partOptions.onActiveTabClick?.(editor, this.groupView.id); }
+				}, 0);
+			}
+			clickedActiveEditor = undefined;
+		}));
 
 		// Open on Click / Touch
 		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => handleClickOrTouch(e, false)));
@@ -1823,6 +1859,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const isTabSticky = this.tabsModel.isSticky(tabIndex);
 		const options = this.groupsView.partOptions;
 
+		tabContainer.style.display = options.isTabVisible?.(editor, this.groupView.id) === false ? 'none' : '';
+
 		// Label
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
 
@@ -2127,6 +2165,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayoutTabs(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
+		const lastVisibleTab = this.getLastTab();
+		this.forEachTab((_editor, _index, tab) => tab.classList.toggle('last-visible-tab', tab === lastVisibleTab));
 		const connected = Boolean(this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs'));
 		this.parent.classList.toggle('connected-tabs-labels', connected);
 		if (connected !== this.connectedTabLabels) {
@@ -2141,7 +2181,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// if wrapping is enabled in settings, there are cases where
 		// wrapping is disabled (e.g. due to space constraints)
 		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
-		const tabs = Array.from(assertReturnsDefined(this.tabsContainer).children).filter(isHTMLElement);
+		const tabs = Array.from(assertReturnsDefined(this.tabsContainer).children).filter(isHTMLElement).filter(tab => tab.style.display !== 'none');
 		const bottom = tabs.at(-1)?.offsetTop;
 		const upperTabBar = this.parent.classList.contains('two-tab-bars') && this.parent.firstElementChild === this.tabsAndActionsContainer;
 		for (const tab of tabs) {
@@ -2163,7 +2203,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 		const minimumWidths = new Map<HTMLElement, number>();
 		for (const [index, tab] of tabs.entries()) {
-			if (!connected || tab.classList.contains('sticky-compact')) {
+			if (!connected || tab.style.display === 'none' || tab.classList.contains('sticky-compact')) {
 				tab.style.removeProperty('--connected-tab-min-width');
 				tab.style.removeProperty('--connected-tab-min-name-width');
 				continue;
@@ -2328,6 +2368,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					continue;
 				}
 				const tab = child as HTMLElement;
+				if (tab.style.display === 'none') { continue; }
 				const tabPosY = tab.offsetTop;
 
 				// Marks a new or the first row of tabs
@@ -2390,6 +2431,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			for (let tabIndex = 0; tabIndex < this.tabsModel.stickyCount; tabIndex++) {
 				const tab = this.getTabAtIndex(tabIndex);
+				if (tab?.style.display === 'none') { continue; }
 				if (tab) {
 					tab.style.left = `${stickyTabsWidth}px`;
 				}
@@ -2451,7 +2493,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		let activeTabPosX: number | undefined;
 		let activeTabWidth: number | undefined;
 
-		if (!this.blockRevealActiveTab && activeTab) {
+		if (!this.blockRevealActiveTab && activeTab && activeTab.offsetWidth > 0) {
 			activeTabPosX = activeTab.offsetLeft;
 			activeTabWidth = activeTab.offsetWidth;
 		}
@@ -2480,7 +2522,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Reveal the active one
 		const tabsContainerScrollPosX = tabsScrollbar.getScrollPosition().scrollLeft;
 		const activeTabShoulderWidth = this.connectedTabBounds?.shoulderExtent ?? 0;
-		const previousTab = this.connectedTabBounds?.tab.previousElementSibling;
+		let previousTab = this.connectedTabBounds?.tab.previousElementSibling;
+		while (isHTMLElement(previousTab) && previousTab.style.display === 'none') { previousTab = previousTab.previousElementSibling; }
 		const activeTabLeftShoulderWidth = previousTab && !previousTab.classList.contains('last-in-row') ? activeTabShoulderWidth : 0;
 		// Round outwards so fractional bounds cannot leave either shoulder clipped.
 		const adjustedActiveTabPosX = (this.connectedTabBounds
@@ -2628,7 +2671,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getLastTab(): HTMLElement | undefined {
-		return this.getTabAtIndex(this.tabsModel.count - 1);
+		for (let index = this.tabsModel.count - 1; index >= 0; index--) {
+			const tab = this.getTabAtIndex(index);
+			if (tab && tab.style.display !== 'none') { return tab; }
+		}
+		return undefined;
 	}
 
 	private blockRevealActiveTabOnce(): void {

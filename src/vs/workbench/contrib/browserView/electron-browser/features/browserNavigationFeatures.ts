@@ -29,9 +29,7 @@ import {
 	BROWSER_SEARCH_NONE,
 	BrowserSearchEngineId,
 	BrowserSearchEngineSettingId,
-	buildSearchUrl,
-	getBrowserSearchEngineLabel,
-	resolveAddressBarInputType,
+	getBrowserNavigationChoices,
 } from '../../common/browserSearch.js';
 import {
 	BROWSER_PANE_ACTIVE,
@@ -192,39 +190,19 @@ class BrowserNavigationBar extends Disposable {
 	 * search-initiated navigation is tracked as such.
 	 */
 	private _resolvePrimaryActions(text: string): IUrlPickerItem[] {
-		const goTo: IUrlPickerItem = {
-			id: text,
-			label: text,
-			iconClass: ThemeIcon.asClassName(Codicon.globe),
-			apply: input => input.navigate(text),
-		};
-		const engineId = this._searchEngine;
-		if (!engineId) {
-			return [goTo];
-		}
 		const configureEngineButton: IBrowserUrlSuggestionAction = {
 			id: 'browser.configureSearchEngine',
 			iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 			tooltip: localize('browser.configureSearchEngine', "Configure Search Engine"),
 			run: () => void this._preferencesService.openSettings({ query: `@id:${BrowserSearchEngineSettingId}` }),
 		};
-		const search: IUrlPickerItem = {
-			id: text,
-			label: localize('browser.searchFor', "{0} - {1} Search", text, getBrowserSearchEngineLabel(engineId)),
-			iconClass: ThemeIcon.asClassName(Codicon.search),
-			buttons: [configureEngineButton],
-			apply: input => input.navigate(buildSearchUrl(text, engineId), { source: 'searchInput' }),
-		};
-		switch (resolveAddressBarInputType(text)) {
-			case 'url':
-				// Looks like a URL: navigate first, but still offer search after.
-				return [goTo, search];
-			case 'query':
-				return [search];
-			default:
-				// Ambiguous: offer both, search first.
-				return [search, goTo];
-		}
+		return getBrowserNavigationChoices(text, this._searchEngine).map(choice => ({
+			id: `${choice.search ? 'search' : 'navigate'}:${text}`,
+			label: choice.label,
+			iconClass: ThemeIcon.asClassName(choice.search ? Codicon.search : Codicon.globe),
+			buttons: choice.search ? [configureEngineButton] : undefined,
+			apply: input => input.navigate(choice.url, choice.search ? { source: 'searchInput' } : undefined),
+		}));
 	}
 }
 

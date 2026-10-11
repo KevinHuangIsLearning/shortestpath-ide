@@ -8,10 +8,18 @@ import '../browser/problemEditorActions.js';
 import { $, addDisposableListener, append, EventHelper, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { getBrowserEditor } from '../../browserView/electron-browser/browserEditor.js';
+import { BrowserNavigationFeatures } from '../../browserView/electron-browser/features/browserNavigationFeatures.js';
+import { ShortestPathBrowserNewTabOverlay, BrowserNewTabEntry } from '../browser/shortestPathBrowserNewTabOverlay.js';
+import { BrowserSearchEngineId, BrowserSearchEngineSettingId, getBrowserNavigationChoices } from '../../browserView/common/browserSearch.js';
+import { BrowserFavoritesStore } from '../../browserView/electron-browser/features/browserFavoritesFeature.js';
+import { browserTabBarLabels, BrowserTabBarItem, ShortestPathBrowserTabBar } from '../browser/shortestPathBrowserTabBar.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { getNLSLanguage, localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewService, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
@@ -35,6 +43,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorsOrder, IEditorWillOpenEvent } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { BrowserEditorInput } from '../../browserView/common/browserEditorInput.js';
 import { BrowserSourceEditorInput } from '../../browserView/common/browserSourceEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
@@ -49,6 +58,7 @@ const browsingContext = new RawContextKey<boolean>('shortestpath.browsing', fals
 const pageContext = new RawContextKey<boolean>('shortestpath.page', false);
 const modeKey = 'shortestpath.mode';
 const tabsKey = 'shortestpath.browser.tabs';
+const verticalTabsKey = 'shortestpath.browser.verticalTabs';
 // allow-any-unicode-next-line
 const drawLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? '草稿' : localize('sp.draw', "Sketchpad");
 // allow-any-unicode-next-line
@@ -75,6 +85,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	declare readonly _serviceBrand: undefined;
 	mode: ShortestPathMode = 'solve';
 	activeBrowser: BrowserEditorInput | undefined;
+	private readonly changeTabVisibility = this._register(new Emitter<void>());
 	private readonly changeActive = this._register(new Emitter<void>());
 	readonly onDidChangeActiveBrowser = this.changeActive.event;
 	private readonly tabs = new Map<string, BrowserEditorInput>();
@@ -82,6 +93,14 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private readonly browserGroupStores = this._register(new DisposableMap<number, DisposableStore>());
 	private readonly openingTabs = new Set<string>();
 	protected browserPart: IEmbeddedEditorPart | undefined;
+	private readonly groupTabBars = new Map<number, ShortestPathBrowserTabBar>();
+	private readonly newTabPicker = this._register(new MutableDisposable<ShortestPathBrowserNewTabOverlay>());
+	private readonly browserTabOptions = this._register(new MutableDisposable<IDisposable>());
+	private readonly verticalBars = this._register(new DisposableMap<number, DisposableStore>());
+	private verticalTabs = false;
+	private browserHost: HTMLElement | undefined;
+	private favorites: BrowserFavoritesStore | undefined;
+	private readonly favoriteTabs = new Map<string, BrowserEditorInput>();
 	private emptyTabPromise: Promise<void> | undefined;
 	private readonly pages = new Map<ShortestPathPageMode, WebviewInput>();
 	private readonly pageStores = this._register(new DisposableMap<ShortestPathPageMode, DisposableStore>());
@@ -121,6 +140,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		@IHoverService private readonly hover: IHoverService,
 		@ICommandService private readonly commands: ICommandService,
 		@IWebviewWorkbenchService webviews: IWebviewWorkbenchService,
+		@IContextMenuService private readonly contextMenu: IContextMenuService,
 	) {
 		super();
 		this.nativeBrowsers = ProxyChannel.toService<IBrowserViewService>(mainProcess.getChannel(ipcBrowserViewChannelName));
@@ -210,7 +230,11 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.surface = append(root, $('section.shortestpath-browser-space', { 'aria-label': localize('sp.browser', "网页浏览") }));
 		this.surface.hidden = true;
 		this.surface.inert = true;
-		this.createBrowserPart(this.surface);
+		this.favorites = this._register(new BrowserFavoritesStore(this.storage));
+		this.browserHost = append(this.surface, $('.shortestpath-browser-host'));
+		this.createBrowserPart(this.browserHost);
+		this.setVerticalTabs(false);
+		this._register(this.favorites.onDidChange(() => this.updateTabBar()));
 		this._register(this.layoutService.onDidLayoutMainContainer(() => this.layout()));
 		this._register(this.layoutService.onDidChangePartVisibility(() => this.layout()));
 		this._register(onDidChangeZoomLevel(() => this.layout()));
@@ -445,6 +469,59 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		return input;
 	}
 
+	/** Opens browser-owned floating UI without allocating a browser until confirmation. */
+	newBrowserTab(): void {
+		if (this.newTabPicker.value) { this.newTabPicker.value.focus(); return; }
+		const group = this.browserPart?.activeGroup;
+		const originMode = this.mode;
+		const originPane = originMode === 'browse' ? group?.activeEditorPane : this.editors.activeEditorPane;
+		const open = (url: string) => {
+			if (group && this.browserPart?.getGroup(group.id) === group) { this.browserPart.activateGroup(group); }
+			void this.openBrowser(url, true).catch(onUnexpectedError);
+		};
+		const getEntries = (): BrowserNewTabEntry[] => {
+			const tabs = this.tabEntries();
+			const entries: BrowserNewTabEntry[] = (this.favorites?.values ?? []).map(url => {
+				const key = group ? `${group.id}|favorite:${url}` : `favorite:${url}`;
+				const input = this.findTab(key)?.input;
+				return {
+					id: `favorite:${url}`, title: input?.getName() ?? url, url, favicon: input?.favicon, favorite: true,
+					run: () => { void this.selectTab(key).catch(onUnexpectedError); },
+				};
+			});
+			entries.push(...tabs.map(entry => ({ id: entry.key, title: entry.input.getName(), url: entry.input.url, favicon: entry.input.favicon, favorite: false, run: () => { void this.selectTab(entry.key).catch(onUnexpectedError); } })));
+			return entries;
+		};
+		const editor = getBrowserEditor(originPane) ?? getBrowserEditor(group?.activeEditorPane);
+		const input = editor?.input;
+		const providers = editor ? [...editor.getContributions()].flatMap(contribution => contribution.urlSuggestionProviders ?? []).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
+		const primary = (text: string): BrowserNewTabEntry[] => {
+			const engine = this.configuration.getValue<string>(BrowserSearchEngineSettingId);
+			return getBrowserNavigationChoices(text, engine && engine !== 'none' ? engine as BrowserSearchEngineId : undefined).map(choice => ({
+				id: `${choice.search}:${text}`, title: choice.label, url: choice.url, favorite: false, search: choice.search, run: () => open(choice.url),
+			}));
+		};
+		this.newTabPicker.value = new ShortestPathBrowserNewTabOverlay(this.layoutService.mainContainer, getEntries(), text => primary(text)[0]?.run(), accepted => {
+			this.newTabPicker.clear();
+			if (!accepted && this.mode === originMode && originPane?.isVisible()) { originPane.focus(); }
+		}, input && providers.length ? {
+			onDidChange: Event.any(...providers.flatMap(provider => provider.onDidChange ? [provider.onDidChange] : [])),
+			getEntries: async (text, token) => {
+				const groups = await Promise.all(providers.map(async provider => {
+					try { return { provider, suggestions: await provider.getSuggestions({ text, input }, token) }; }
+					catch { return { provider, suggestions: [] }; }
+				}));
+				return [...getEntries(), ...groups.flatMap(({ provider, suggestions }) => suggestions.filter(suggestion => !suggestion.id.startsWith('favorite:') && !!suggestion.navigationUrl).map(suggestion => ({
+					id: `${provider.label}:${suggestion.id}`, title: suggestion.label, url: suggestion.navigationUrl ?? suggestion.description ?? '',
+					section: provider.label, favorite: false, navigate: !!suggestion.navigationUrl,
+					favicon: suggestion.iconPath?.dark.toString(true),
+					run: () => open(suggestion.navigationUrl!),
+				})))];
+			},
+		} : undefined, primary);
+
+	}
+
 	ownsBrowserTab(input: BrowserEditorInput): boolean {
 		return this.tabs.get(input.id) === input;
 	}
@@ -472,7 +549,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 
 	protected createBrowserPart(container: HTMLElement): void {
 		const part = this.browserPart = this._register(this.editorGroups.createEmbeddedEditorPart(container));
-		this._register(part.enforcePartOptions({ showTabs: 'multiple', enablePreview: false, closeEmptyGroups: true }));
+		this._register(part.enforcePartOptions({ showTabs: 'multiple', enablePreview: false, closeEmptyGroups: true, pinnedTabsOnSeparateRow: false, wrapTabs: false }));
 		// Native editor tabs create an untitled file on an empty-strip double-click.
 		// Route this gesture before that handler runs in the browsing surface.
 		this._register(addDisposableListener(container, EventType.DBLCLICK, event => {
@@ -480,17 +557,18 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 				return;
 			}
 			EventHelper.stop(event, true);
-			void this.openBrowser('', true).catch(onUnexpectedError);
+			this.newBrowserTab();
 		}, true));
 		const track = (group: IEditorGroup) => {
 			const store = new DisposableStore();
 			this.browserGroupStores.set(group.id, store);
 			store.add(group.onDidModelChange(() => this.renderTabs()));
+			if (this.verticalTabs) { this.createVerticalBar(group); }
 			store.add(group.onDidCloseEditor(() => queueMicrotask(() => { if (!this.stopped) { this.renderTabs(); } })));
 		};
 		part.groups.forEach(track);
 		this._register(part.onDidAddGroup(track));
-		this._register(part.onDidRemoveGroup(group => { this.browserGroupStores.deleteAndDispose(group.id); this.renderTabs(); }));
+		this._register(part.onDidRemoveGroup(group => { this.browserGroupStores.deleteAndDispose(group.id); this.verticalBars.deleteAndDispose(group.id); this.renderTabs(); }));
 		this._register(part.onDidChangeActiveGroup(() => this.renderTabs()));
 		part.setVisible(false);
 	}
@@ -515,7 +593,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.tabs.set(input.id, input);
 		const store = new DisposableStore();
 		this.tabStores.set(input.id, store);
-		store.add(input.onDidChangeLabel(() => this.saveTabs()));
+		store.add(input.onDidChangeLabel(() => { this.updateTabBar(); this.saveTabs(); }));
 		store.add(input.onWillDispose(() => {
 			this.tabs.delete(input.id);
 			this.tabStores.deleteAndDispose(input.id);
@@ -537,9 +615,184 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		const active = part.activeGroup.activeEditor;
 		this.activeBrowser = active instanceof BrowserEditorInput && !active.isDisposed() ? active : undefined;
 		this.changeActive.fire();
+		this.updateTabBar();
 		this.refresh();
 		this.saveTabs();
 		void this.ensureBrowserTab().catch(onUnexpectedError);
+	}
+
+	private createTabBar(container: HTMLElement, group: IEditorGroup, vertical: boolean): IDisposable {
+		const favoriteKey = (key: string) => key.startsWith('favorite:') ? `${group.id}|${key}` : key;
+		const bar = new ShortestPathBrowserTabBar(container, {
+			select: key => this.selectTab(favoriteKey(key)),
+			editUrl: key => this.editTabUrl(favoriteKey(key)),
+			close: key => this.closeTab(favoriteKey(key)),
+			move: (key, target) => this.moveTab(key, target),
+			create: () => { this.browserPart?.activateGroup(group); this.newBrowserTab(); },
+			setVertical: value => this.setVerticalTabs(value),
+			getMenu: key => this.tabMenu(favoriteKey(key)),
+		}, this.hover, this.contextMenu);
+		bar.setVertical(vertical);
+		bar.element.classList.toggle('native-leading', !vertical);
+		this.groupTabBars.set(group.id, bar);
+		this.updateTabBar();
+		return toDisposable(() => {
+			if (this.groupTabBars.get(group.id) === bar) { this.groupTabBars.delete(group.id); }
+			bar.dispose();
+			bar.element.remove();
+		});
+	}
+
+	private createVerticalBar(group: IEditorGroup): void {
+		const sidebar = this.browserPart!.createGroupSidebar(group, 200);
+		if (!isHTMLElement(sidebar.container)) { sidebar.dispose(); return; }
+		const store = new DisposableStore();
+		store.add(sidebar);
+		store.add(this.createTabBar(sidebar.container, group, true));
+		this.verticalBars.set(group.id, store);
+	}
+
+	private setVerticalTabs(vertical: boolean): void {
+		const part = this.browserPart;
+		if (!part) { return; }
+		this.verticalTabs = vertical;
+		this.verticalBars.clearAndDisposeAll();
+		this.browserTabOptions.value = part.enforcePartOptions({
+			showTabs: vertical ? 'none' : 'multiple',
+			isTabVisible: (input, groupId) => !(input instanceof BrowserEditorInput && this.favorites?.values.some(url => this.findTab(`${groupId}|favorite:${url}`)?.input === input)),
+			onDidChangeTabVisibility: this.changeTabVisibility.event,
+			createTabsLeading: (container: unknown, groupId: number) => {
+				const store = new DisposableStore();
+				// A newly constructed group is registered after its title control is created.
+				queueMicrotask(() => {
+					const group = part.getGroup(groupId);
+					if (!store.isDisposed && group && isHTMLElement(container)) {
+						store.add(this.createTabBar(container, group, false));
+						this.refresh();
+					}
+				});
+				return store;
+			},
+			onActiveTabClick: (input: EditorInput, groupId: number) => { if (input instanceof BrowserEditorInput) { this.editTabUrl(`${groupId}:${input.id}`); } },
+		});
+		if (vertical) { part.groups.forEach(group => this.createVerticalBar(group)); }
+		this.storage.store(verticalTabsKey, vertical, StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.refresh();
+	}
+
+	private tabEntries(): { key: string; group: IEditorGroup; input: BrowserEditorInput }[] {
+		return this.browserPart?.getGroups(GroupsOrder.GRID_APPEARANCE).flatMap(group => group.editors
+			.filter((input): input is BrowserEditorInput => input instanceof BrowserEditorInput && !input.isDisposed())
+			.map(input => ({ key: `${group.id}:${input.id}`, group, input }))) ?? [];
+	}
+
+	private findTab(key: string): { group: IEditorGroup; input: BrowserEditorInput } | undefined {
+		const separator = key.indexOf('|favorite:');
+		const groupId = separator >= 0 ? Number(key.slice(0, separator)) : undefined;
+		if (separator >= 0) { key = key.slice(separator + 1); }
+		const entries = this.tabEntries().filter(entry => groupId === undefined || entry.group.id === groupId);
+		if (key.startsWith('favorite:')) {
+			const url = key.slice('favorite:'.length);
+			const favoriteKey = groupId === undefined ? undefined : `${groupId}|${key}`;
+			const linked = favoriteKey ? this.favoriteTabs.get(favoriteKey) : undefined;
+			const linkedEntry = linked ? entries.find(entry => entry.input === linked) : undefined;
+			if (linkedEntry && this.favorites?.isFavorite(url)) { return linkedEntry; }
+			const candidates = entries.filter(entry => ![...this.favoriteTabs].some(([binding, input]) => input === entry.input && binding !== favoriteKey && binding.startsWith(`${entry.group.id}|`)));
+			return candidates.find(entry => (groupId === undefined ? entry.input === this.activeBrowser : entry.group.activeEditor === entry.input) && entry.input.url === url)
+				?? candidates.find(entry => entry.input.url === url);
+		}
+		return entries.find(entry => entry.key === key);
+	}
+
+	private async selectTab(key: string): Promise<void> {
+		const entry = this.findTab(key);
+		if (entry) {
+			await this.editors.openEditor(entry.input, { pinned: true }, entry.group);
+			this.browserPart?.activateGroup(entry.group);
+			this.renderTabs();
+		} else if (key.includes('favorite:')) {
+			const separator = key.indexOf('|favorite:');
+			if (separator >= 0) { this.browserPart?.activateGroup(Number(key.slice(0, separator))); }
+			await this.openBrowser(key.slice(key.indexOf('favorite:') + 'favorite:'.length), true);
+		}
+	}
+
+	private editTabUrl(key: string): void {
+		const entry = this.findTab(key);
+		const editor = getBrowserEditor(entry?.group.activeEditorPane);
+		if (editor && editor.input === entry?.input) {
+			editor.getContribution(BrowserNavigationFeatures)?.openUrlPicker();
+		}
+	}
+
+	private closeTab(key: string): void {
+		const entry = this.findTab(key);
+		if (entry) { void entry.group.closeEditor(entry.input).catch(onUnexpectedError); }
+	}
+
+	private moveTab(key: string, targetKey: string): void {
+		const source = this.findTab(key);
+		const target = this.findTab(targetKey);
+		if (!source || !target || source.group !== target.group || source.group.isSticky(source.input) !== target.group.isSticky(target.input)) { return; }
+		source.group.moveEditor(source.input, source.group, { index: source.group.getIndexOfEditor(target.input) });
+	}
+
+	private tabMenu(key: string): IAction[] {
+		const entry = this.findTab(key);
+		const url = key.includes('favorite:') ? key.slice(key.indexOf('favorite:') + 'favorite:'.length) : entry?.input.url;
+		const action = (id: string, label: string, run: () => void | Promise<void>): IAction => ({ id, label, enabled: true, checked: false, tooltip: label, class: undefined, run: async () => run() });
+		const actions: IAction[] = [];
+		if (url) {
+			const favorited = !!this.favorites?.isFavorite(url);
+			actions.push(action('favorite', favorited ? browserTabBarLabels.removeFavorite : browserTabBarLabels.addFavorite, () => this.favorites?.toggle(url)));
+		}
+		if (entry) {
+			const entries = this.tabEntries().filter(tab => tab.group === entry.group);
+			const index = entries.findIndex(tab => tab.input === entry.input);
+			if (index > 0) { actions.push(action('previous', browserTabBarLabels.previous, () => this.moveTab(key, entries[index - 1].key))); }
+			if (index < entries.length - 1) { actions.push(action('next', browserTabBarLabels.next, () => this.moveTab(key, entries[index + 1].key))); }
+			actions.push(action('close', browserTabBarLabels.close, () => this.closeTab(key)));
+			actions.push(action('splitRight', browserTabBarLabels.splitRight, async () => {
+				await this.selectTab(key);
+				await this.commands.executeCommand('workbench.action.splitEditorRight', { groupId: entry.group.id });
+			}));
+			actions.push(action('splitDown', browserTabBarLabels.splitDown, async () => {
+				await this.selectTab(key);
+				await this.commands.executeCommand('workbench.action.splitEditorDown', { groupId: entry.group.id });
+			}));
+		}
+		return actions;
+	}
+
+	private updateTabBar(): void {
+		if (!this.groupTabBars.size) { return; }
+		const entries = this.tabEntries();
+		const favoriteUrls = this.favorites?.values ?? [];
+		for (const [key, input] of this.favoriteTabs) {
+			if (!entries.some(entry => entry.input === input && key.startsWith(`${entry.group.id}|`)) || !favoriteUrls.includes(key.slice(key.indexOf('|favorite:') + '|favorite:'.length))) { this.favoriteTabs.delete(key); }
+		}
+		const item = (key: string, input: BrowserEditorInput, group: IEditorGroup): BrowserTabBarItem => ({
+			key, title: input.title || input.url || browserTabBarLabels.new, url: input.url ?? '', favicon: input.favicon,
+			active: group.activeEditor === input, loading: input.model?.loading,
+
+		});
+		for (const [groupId, bar] of this.groupTabBars) {
+			const group = this.browserPart?.getGroup(groupId);
+			if (!group) { continue; }
+			const favorites = favoriteUrls.map(url => {
+				const key = `favorite:${url}`;
+				const entry = this.findTab(`${groupId}|${key}`);
+				if (entry) {
+					this.favoriteTabs.set(`${groupId}|${key}`, entry.input);
+					return { ...item(key, entry.input, entry.group), opened: true };
+				}
+				const model = entries.find(entry => entry.input.model)?.input.model;
+				const history = model?.history.entries.items.findLast(entry => entry.url === url);
+				return { key, title: history?.title || URL.parse(url)?.hostname || url, url, favicon: history?.icon ? model?.history.favicons.get(history.icon) : undefined, active: false };
+			});
+			bar.update(this.verticalTabs ? entries.filter(entry => entry.group === group).map(entry => item(entry.key, entry.input, group)) : [], favorites);
+		}
+		this.changeTabVisibility.fire();
 	}
 
 	private openHomeIfOnlyBlankTab(): void {
@@ -582,7 +835,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	protected refresh(): void {
 		if (!this.surface || this.stopped) { return; }
 		if (this.mode === 'browse') {
-			const bounds = this.surface.getBoundingClientRect();
+			const bounds = (this.browserHost ?? this.surface).getBoundingClientRect();
 			this.browserPart?.layout(bounds.width, bounds.height, bounds.top, bounds.left);
 		}
 	}
@@ -668,7 +921,7 @@ for (const [id, title, primary, run] of [
 	// allow-any-unicode-next-line
 	['address', localize2('sp.focusAddress', "浏览：聚焦地址栏"), KeyMod.CtrlCmd | KeyCode.KeyL, (service: ShortestPathModeService) => service.focusAddress()],
 	// allow-any-unicode-next-line
-	['newTab', localize2('sp.openTab', "浏览：新建标签页"), KeyMod.CtrlCmd | KeyCode.KeyT, (service: ShortestPathModeService) => service.openBrowser('', true)],
+	['newTab', localize2('sp.openTab', "浏览：新建标签页"), KeyMod.CtrlCmd | KeyCode.KeyT, (service: ShortestPathModeService) => service.newBrowserTab()],
 	// allow-any-unicode-next-line
 	['closeTab', localize2('sp.closeActive', "浏览：关闭标签页"), KeyMod.CtrlCmd | KeyCode.KeyW, (service: ShortestPathModeService) => service.closeActiveTab()],
 ] as const) {

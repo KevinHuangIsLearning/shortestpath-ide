@@ -121,11 +121,7 @@ class BrowserTabQuickPick extends Disposable {
 			if (selected === this._openNewTabPick) {
 				logBrowserOpen(telemetryService, 'quickOpenWithoutUrl');
 				this._quickPick.hide();
-				if (this._modeService.mode === 'browse') {
-					await this._modeService.openBrowser('', true);
-				} else {
-					await this._editorService.openEditor({ resource: BrowserViewUri.forId(generateUuid()) }, await this._browserViewService.getPreferredGroup());
-				}
+				this._modeService.newBrowserTab();
 			} else if (this._modeService.ownsBrowserTab(selected.editor)) {
 				this._quickPick.hide();
 				await this._modeService.showBrowser(selected.editor);
@@ -487,15 +483,8 @@ class NewTabAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		const modeService = accessor.get(IShortestPathModeService);
-		if (modeService.mode === 'browse') { await modeService.openBrowser('', true); return; }
-		const editorService = accessor.get(IEditorService);
-		const telemetryService = accessor.get(ITelemetryService);
-		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
-		const resource = BrowserViewUri.forId(generateUuid());
-
-		logBrowserOpen(telemetryService, 'newTabCommand');
-
-		await editorService.openEditor({ resource }, await browserViewService.getPreferredGroup());
+		modeService.newBrowserTab();
+		return;
 	}
 }
 

@@ -39,6 +39,8 @@ export interface IShortestPathModeService {
 	readonly onDidChangeActiveBrowser: Event<void>;
 	switchMode(mode: ShortestPathMode): Promise<void>;
 	openBrowser(url?: string, newTab?: boolean, preserveFocus?: boolean, options?: IEditorOptions & { group?: PreferredGroup }): Promise<BrowserEditorInput>;
+	/** Shows the floating browser panel; creates a page only after confirmation. */
+	newBrowserTab(): void;
 	/** Whether a tab belongs to the standalone browsing surface. */
 	ownsBrowserTab(input: BrowserEditorInput): boolean;
 	showBrowser(input: BrowserEditorInput, preserveFocus?: boolean): Promise<void>;

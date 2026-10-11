@@ -1,0 +1,256 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.shortestpath-browser-tabbar {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60, 6px);
+	padding: var(--vscode-spacing-size60, 6px);
+	box-sizing: border-box;
+	min-width: 0;
+	flex: 0 0 48px;
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+	color: var(--vscode-tab-inactiveForeground);
+}
+
+.shortestpath-browser-tabbar .browser-favorites,
+.shortestpath-browser-tabbar .browser-tab-list {
+	display: flex;
+	gap: var(--vscode-spacing-size40, 4px);
+	min-width: 0;
+	overflow: auto;
+}
+
+.shortestpath-browser-tabbar .browser-favorites {
+	flex: 0 1 auto;
+	max-width: 35%;
+	padding: var(--vscode-spacing-size40, 4px);
+}
+
+.shortestpath-browser-tabbar .browser-favorites-container {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	max-width: 35%;
+	border-radius: var(--vscode-cornerRadius-large);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.shortestpath-browser-tabbar .browser-favorites-container[hidden] { display: none; }
+.shortestpath-browser-tabbar .browser-favorites-reveal {
+	display: grid;
+	grid-template-columns: 1fr;
+	min-width: 0;
+	transition: grid-template-columns 180ms ease, opacity 180ms ease;
+}
+.shortestpath-browser-tabbar .browser-favorites-reveal .browser-favorites { max-width: none; }
+.shortestpath-browser-tabbar .browser-favorites-container .browser-favorites-toggle.browser-tab-action {
+	gap: var(--vscode-spacing-size20, 2px);
+	width: 36px;
+	flex-basis: 36px;
+}
+.shortestpath-browser-tabbar .browser-favorites-chevron { font-size: var(--vscode-fontSize-label1, 12px); transition: transform 180ms ease; }
+.shortestpath-browser-tabbar .collapsed .browser-favorites-chevron { transform: rotate(180deg); }
+.shortestpath-browser-tabbar .collapsed .browser-favorites-reveal { grid-template-columns: 0fr; opacity: 0; }
+.shortestpath-browser-tabbar .collapsed .browser-favorites { overflow: hidden; padding: 0; }
+
+.monaco-workbench.monaco-reduce-motion .shortestpath-browser-tabbar .browser-favorites-reveal,
+.monaco-workbench.monaco-reduce-motion .shortestpath-browser-tabbar .browser-favorites-chevron { transition: none; }
+
+.shortestpath-browser-tabbar .browser-favorites[hidden] { display: none; }
+.shortestpath-browser-tabbar .browser-tab-list { flex: 1; }
+
+.shortestpath-browser-tabbar .browser-tab-row {
+	display: flex;
+	align-items: center;
+	flex: 0 0 200px;
+	min-width: 0;
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.shortestpath-browser-tabbar .browser-tab-row.active {
+	background: var(--vscode-tab-activeBackground);
+	color: var(--vscode-tab-activeForeground);
+	box-shadow: inset 0 0 0 1px var(--vscode-contrastActiveBorder, transparent);
+}
+
+.shortestpath-browser-tabbar .browser-tab-row:hover { background: var(--vscode-tab-hoverBackground); }
+.shortestpath-browser-tabbar .browser-tab-row.active:hover { background: var(--vscode-tab-activeBackground); }
+
+.shortestpath-browser-tabbar button {
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.shortestpath-browser-tabbar button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.shortestpath-browser-tabbar .browser-tab {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size100, 10px);
+	min-width: 0;
+	flex: 1;
+	padding: var(--vscode-spacing-size80, 8px);
+	text-align: left;
+}
+
+.shortestpath-browser-tabbar .browser-tab-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.shortestpath-browser-tabbar .browser-tab-icon {
+	position: relative;
+	flex: 0 0 16px;
+	width: 16px;
+	height: 16px;
+}
+
+.shortestpath-browser-tabbar .browser-tab-icon img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+}
+
+.shortestpath-browser-tabbar .browser-tab-action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 28px;
+	width: 28px;
+	height: 28px;
+}
+
+.shortestpath-browser-tabbar .browser-tab-action:hover { background: var(--vscode-toolbar-hoverBackground); }
+.shortestpath-browser-tabbar .browser-tab-more { display: none; }
+.shortestpath-browser-tabbar .browser-tab-row:hover .browser-tab-more,
+.shortestpath-browser-tabbar .browser-tab-row:focus-within .browser-tab-more { display: flex; }
+.shortestpath-browser-tabbar .favorite { flex: 0 0 32px; }
+.shortestpath-browser-tabbar .favorite .browser-tab-title { display: none; }
+.shortestpath-browser-tabbar .favorite .browser-tab-more { display: none; }
+.shortestpath-browser-tabbar .browser-tab-group { display: none; }
+.shortestpath-browser-tabbar.vertical {
+	flex: 0 0 224px;
+	width: 224px;
+	max-width: 40%;
+	align-items: stretch;
+	flex-direction: column;
+	padding: var(--vscode-spacing-size80, 8px);
+}
+
+.shortestpath-browser-tabbar.vertical .browser-favorites,
+.shortestpath-browser-tabbar.vertical .browser-tab-list {
+	flex-direction: column;
+}
+
+.shortestpath-browser-tabbar.vertical .browser-favorites {
+	flex: 0 1 auto;
+	max-width: none;
+	max-height: 35%;
+	background: transparent;
+	padding: 0 0 var(--vscode-spacing-size120, 12px);
+	border-bottom: 1px solid var(--vscode-editorGroup-border);
+	border-radius: 0;
+}
+
+.shortestpath-browser-tabbar.vertical .browser-tab-row { flex: 0 0 auto; min-height: 40px; }
+.shortestpath-browser-tabbar.vertical .favorite .browser-tab-title { display: block; }
+.shortestpath-browser-tabbar.vertical .favorite:hover .browser-tab-more,
+.shortestpath-browser-tabbar.vertical .favorite:focus-within .browser-tab-more { display: flex; }
+.shortestpath-browser-tabbar.vertical .browser-tab-group {
+	display: block;
+	padding: var(--vscode-spacing-size80, 8px);
+	color: var(--vscode-descriptionForeground);
+}
+
+.shortestpath-browser-host {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	position: relative;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.shortestpath-browser-host > .content { width: 100%; height: 100%; border-radius: inherit; overflow: hidden; }
+.shortestpath-browser-space.browser-vertical-tabs { flex-direction: row; }
+
+.shortestpath-browser-tabbar .browser-tab-icon:has(img)::before { visibility: hidden; }
+.shortestpath-browser-tabbar .browser-new-tab > span:not(.codicon) { display: none; }
+.shortestpath-browser-tabbar.vertical .browser-new-tab {
+	width: auto;
+	gap: var(--vscode-spacing-size100, 10px);
+	justify-content: flex-start;
+	padding: var(--vscode-spacing-size80, 8px);
+	order: 1;
+}
+.shortestpath-browser-tabbar.vertical .browser-new-tab > span:not(.codicon) { display: inline; }
+.shortestpath-browser-tabbar.vertical .browser-tab-list { order: 2; }
+
+.shortestpath-browser-host .editor-tabs-leading {
+	flex: 0 1 auto;
+	max-width: 35%;
+	min-width: 0;
+}
+
+.shortestpath-browser-tabbar.native-leading {
+	height: var(--editor-group-tab-height);
+	padding: 0 4px;
+	gap: 4px;
+	background: transparent;
+}
+
+.shortestpath-browser-tabbar.native-leading .browser-layout-toggle,
+.shortestpath-browser-tabbar.native-leading .browser-tab-list,
+.shortestpath-browser-tabbar.native-leading .browser-new-tab { display: none; }
+.shortestpath-browser-tabbar.native-leading .browser-favorites { max-width: none; padding: 0; }
+.shortestpath-browser-tabbar.native-leading .browser-favorites-container { max-width: none; }
+.shortestpath-browser-tabbar.native-leading .favorite { flex-basis: 28px; }
+.shortestpath-browser-tabbar.native-leading .browser-tab { padding: 4px 6px; }
+.shortestpath-browser-tabbar.native-leading .browser-tab-action { height: 24px; width: 24px; flex-basis: 24px; }
+
+.shortestpath-browser-host .embedded-group-sidebar {
+	position: absolute;
+	inset: 0 auto 0 0;
+	width: var(--editor-group-leading-width);
+	overflow: hidden;
+	z-index: 1;
+}
+
+.shortestpath-browser-host .embedded-group-sidebar .shortestpath-browser-tabbar.vertical {
+	width: 100%;
+	max-width: none;
+	height: 100%;
+}
+
+.shortestpath-browser-tabbar.native-leading .favorite.opened {
+	flex: 0 1 200px;
+	min-width: 100px;
+	max-width: 200px;
+}
+.shortestpath-browser-tabbar.native-leading .favorite.opened .browser-tab-title { display: block; }
+
+.shortestpath-browser-tabbar .browser-favorites-summary {
+	display: flex;
+	gap: var(--vscode-spacing-size40, 4px);
+	min-width: 0;
+	overflow: auto;
+}
+.shortestpath-browser-tabbar .browser-favorites-summary[hidden] { display: none; }
+.shortestpath-browser-tabbar .browser-favorites-summary .favorite.opened { flex: 0 0 28px; min-width: 28px; max-width: 28px; }
+.shortestpath-browser-tabbar .browser-favorites-summary .favorite.opened .browser-tab-title,
+.shortestpath-browser-tabbar .browser-favorites-summary .favorite .browser-tab-more,
+.shortestpath-browser-tabbar .browser-favorites-summary .favorite .browser-tab-close { display: none; }

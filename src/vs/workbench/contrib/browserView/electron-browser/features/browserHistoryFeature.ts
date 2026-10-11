@@ -170,6 +170,7 @@ function toSuggestion(model: IBrowserViewModel, history: BrowserHistoryStore, en
 	};
 	return {
 		id: 'history:' + entry.id,
+		navigationUrl: entry.url,
 		label,
 		description,
 		icon: faviconUri ? undefined : Codicon.globe,

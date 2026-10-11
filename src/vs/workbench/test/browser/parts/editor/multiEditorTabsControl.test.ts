@@ -649,8 +649,8 @@ suite('MultiEditorTabsControl', () => {
 			measurements.push({ tabHeight, layout: control.getHeight(), tab: tab.getBoundingClientRect().height, topInset: mainWindow.getComputedStyle(tab).borderTopWidth });
 		}
 		assert.deepStrictEqual(measurements, [
-			{ tabHeight: 'default', layout: 34, tab: 34, topInset: '4px' },
-			{ tabHeight: 'compact', layout: 30, tab: 30, topInset: '4px' },
+			{ tabHeight: 'default', layout: 30, tab: 30, topInset: '0px' },
+			{ tabHeight: 'compact', layout: 26, tab: 26, topInset: '0px' },
 		]);
 	});
 

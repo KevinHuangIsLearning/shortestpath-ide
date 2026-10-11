@@ -1340,6 +1340,13 @@ interface IEditorPartConfiguration {
 export interface IEditorPartOptions extends DeepRequiredNonNullable<IEditorPartConfiguration> {
 	hasIcons: boolean;
 	showBreadcrumbs?: boolean;
+	/** Optional leading content for each native tab strip. The owner supplies an HTML container renderer. */
+	createTabsLeading?: (container: unknown, groupId: GroupIdentifier) => IDisposable;
+	/** Editors represented by leading content may suppress their normal tab without changing the group model. */
+	isTabVisible?: (editor: EditorInput, groupId: GroupIdentifier) => boolean;
+	onDidChangeTabVisibility?: Event<void>;
+	/** An unmodified click on the already selected tab, after native tab activation. */
+	onActiveTabClick?: (editor: EditorInput, groupId: GroupIdentifier) => void;
 }
 
 export interface IEditorPartOptionsChangeEvent {
