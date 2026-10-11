@@ -18,10 +18,6 @@ import localize from '../i18n';
 
 /** One standalone page per extension instance; all paths and URLs come from the host snapshot. */
 export function registerDashboard(context: vscode.ExtensionContext): void {
-	context.subscriptions.push(vscode.window.registerTreeDataProvider('shortestpath.dashboard', {
-		getTreeItem: (item: vscode.TreeItem) => item,
-		getChildren: () => [],
-	}));
 	let panel: vscode.WebviewPanel | undefined;
 	let refresh: (() => Promise<void>) | undefined;
 	context.subscriptions.push(vscode.commands.registerCommand('judger.refreshDashboard', () => refresh?.()));
