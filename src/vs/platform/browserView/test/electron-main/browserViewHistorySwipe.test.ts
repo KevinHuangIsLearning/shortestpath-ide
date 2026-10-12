@@ -91,9 +91,20 @@ suite('BrowserView history swipe', () => {
 		view.swipe('back');
 		view.setAvailable(true);
 		view.setHistory(false, false);
-		view.swipe('back');
 		view.swipe('forward');
 		assert.deepStrictEqual(view.navigations, []);
+	});
+
+	test('back swipe closes a tab with no previous page only after release', () => {
+		const view = setup();
+		view.setHistory(false, false);
+		view.input('gestureScrollBegin');
+		view.swipe('back');
+		assert.deepStrictEqual(view.navigations, []);
+		view.input('gestureScrollEnd');
+		view.swipe('back');
+		view.swipe('back');
+		assert.deepStrictEqual(view.navigations, ['close']);
 	});
 
 	test('cancels release on blur or navigation', () => {

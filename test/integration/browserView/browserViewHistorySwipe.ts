@@ -36,8 +36,10 @@ async function run() {
 	await win.loadURL('data:text/html,<!doctype html><html><body></body></html>');
 	const contents = view.webContents;
 	const navigations: string[] = [];
+	let closes = 0;
 	let onPhase: (event: { phase: 'begin' | 'end' | 'cancel'; timestamp: number }) => void;
 	const listener = registerBrowserViewHistorySwipe(contents, () => view.getVisible(), direction => {
+		if (direction === 'close') { closes++; return; }
 		navigations.push(direction);
 		const history = contents.navigationHistory;
 		if (direction === 'back' && history.canGoBack()) {
@@ -60,9 +62,9 @@ async function run() {
 			input('gestureScrollBegin');
 			await delay(30);
 		};
-		const wheel = async (deltaX: number, deltaY = 0, target = '', prevented = false, trusted = true, control = false) => {
+		const wheel = async (deltaX: number, deltaY = 0, target = '', prevented = false, trusted = true, control = false, stopped = false, windowStopped = false) => {
 			input('mouseWheel');
-			await contents.executeJavaScript(`__historySwipeTest.wheel(${JSON.stringify(deltaX)}, ${JSON.stringify(deltaY)}, ${JSON.stringify(target)}, ${prevented}, ${trusted}, ${control})`);
+			await contents.executeJavaScript(`__historySwipeTest.wheel(${JSON.stringify(deltaX)}, ${JSON.stringify(deltaY)}, ${JSON.stringify(target)}, ${prevented}, ${trusted}, ${control}, ${stopped}, ${windowStopped})`);
 			await delay(110);
 		};
 		const end = async () => {
@@ -73,6 +75,9 @@ async function run() {
 		await begin();
 		await wheel(-60);
 		assert.deepStrictEqual(await hint(), { visible: true, opacity: '0.55', left: '-32px', right: 'auto', transform: '', sheets: 1 });
+		await wheel(0, 0.5);
+		await delay(500);
+		assert.deepStrictEqual(await hint(), { visible: true, opacity: '0.55', left: '-32px', right: 'auto', transform: '', sheets: 1 }, 'stationary vertical jitter preserves partial progress');
 		await wheel(-70);
 		assert.strictEqual((await hint()).opacity, '1');
 		await delay(500);
@@ -95,6 +100,17 @@ async function run() {
 			await end();
 			assert.deepStrictEqual([navigations, await hint()], [[], { visible: false }]);
 		}
+		// Sites can consume the gesture on an element or on window itself.
+		for (const onWindow of [false, true]) {
+			await begin();
+			await wheel(-130);
+			assert.strictEqual((await hint()).visible, true);
+			await wheel(-20, 0, '', false, true, false, !onWindow, onWindow);
+			assert.deepStrictEqual(await hint(), { visible: false });
+			await end();
+			assert.deepStrictEqual(navigations, [], 'page-owned horizontal gestures do not navigate');
+		}
+
 		await begin();
 		await contents.executeJavaScript('document.body.style.overscrollBehaviorX = "contain"');
 		await wheel(-150);
@@ -127,6 +143,15 @@ async function run() {
 		contents.emit('blur');
 		await end();
 		assert.deepStrictEqual([navigations, await hint()], [['back', 'forward'], { visible: false }]);
+
+		contents.navigationHistory.clear();
+		await begin();
+		await wheel(-150);
+		assert.strictEqual((await hint()).visible, true, 'back swipe shows a close hint when history is empty');
+		assert.strictEqual(closes, 0, 'holding the gesture never closes the tab');
+		await end();
+		assert.strictEqual(closes, 1, 'release closes a tab without a previous page');
+		assert.deepStrictEqual(await hint(), { visible: false });
 
 		console.log('Browser history swipe integration passed');
 		writeFileSync(HISTORY_SWIPE_TEST_REPORT, 'passed');

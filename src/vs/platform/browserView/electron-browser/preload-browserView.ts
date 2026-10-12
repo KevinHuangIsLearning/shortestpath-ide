@@ -40,6 +40,9 @@ function init() {
 	if (navigator.platform.indexOf('Mac') >= 0 && window === window.top) {
 		let token = -1;
 		let distance = 0;
+		let horizontal = false;
+		let intentX = 0;
+		let intentY = 0;
 		let blocked = false;
 		let ended = true;
 		let beginTimestamp = Infinity;
@@ -47,7 +50,8 @@ function init() {
 		let submitted = false;
 		let releaseTimer: ReturnType<typeof setTimeout> | undefined;
 		let blurred = false;
-		const pending: { event: WheelEvent; elements: Element[]; timestamp: number; processed: boolean }[] = [];
+		const pending: { event: WheelEvent; elements: Element[]; timestamp: number; processed: boolean; reachedBubble: boolean }[] = [];
+		const samplesByEvent = new WeakMap<WheelEvent, typeof pending[number]>();
 		let canGoBack = false;
 		let canGoForward = false;
 		let hint: HTMLDivElement | undefined;
@@ -61,7 +65,7 @@ function init() {
 		};
 		const updateHint = () => {
 			const back = distance < 0;
-			if (endTimestamp !== Infinity || Math.abs(distance) < 8 || !(back ? canGoBack : canGoForward)) {
+			if (endTimestamp !== Infinity || Math.abs(distance) < 8 || (!back && !canGoForward)) {
 				hideHint();
 				return;
 			}
@@ -100,12 +104,15 @@ function init() {
 			circle!.style.left = back ? `${-76 + progress * 88}px` : 'auto';
 			circle!.style.right = back ? 'auto' : `${-76 + progress * 88}px`;
 			circle!.style.opacity = Math.abs(distance) >= 120 ? '1' : '0.55';
+			arrow!.firstElementChild!.setAttribute('d', back && !canGoBack ? 'M20 20L44 44M44 20L20 44' : 'M46 32H18M30 20L18 32L30 44');
 			arrow!.style.transform = back ? '' : 'scaleX(-1)';
 		};
 		ipcRenderer.on('vscode:browserView:historySwipeState', (_event: Electron.IpcRendererEvent, state: { token: number; beginTimestamp: number; released: boolean; canGoBack: boolean; canGoForward: boolean }) => {
 			if (state.token !== token) {
 				token = state.token;
 				distance = 0;
+				horizontal = false;
+				intentX = intentY = 0;
 				blocked = false;
 				ended = state.released;
 				beginTimestamp = state.beginTimestamp;
@@ -124,7 +131,7 @@ function init() {
 		});
 		const confirmRelease = () => {
 			if (ended && endTimestamp !== Infinity && !submitted && !blocked && Math.abs(distance) >= 120
-				&& (distance < 0 ? canGoBack : canGoForward)) {
+				&& (distance < 0 || canGoForward)) {
 				submitted = true;
 				ipcRenderer.send('vscode:browserView:historySwipe', distance < 0 ? 'back' : 'forward', token);
 			}
@@ -148,6 +155,8 @@ function init() {
 			// Momentum can beat the native end IPC to the renderer. Recompute
 			// from physical finger samples so those earlier arrivals are excluded.
 			distance = 0;
+			horizontal = false;
+			intentX = intentY = 0;
 			blocked = blurred;
 			for (const sample of pending) {
 				if (sample.timestamp >= beginTimestamp - 2 && sample.timestamp <= endTimestamp) {
@@ -169,9 +178,8 @@ function init() {
 			sample.processed = true;
 			const { event, elements } = sample;
 			if (event.deltaX === 0 && event.deltaY === 0) { return; }
-			if (event.defaultPrevented || event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL
-				|| event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
-				|| Math.abs(event.deltaX) <= Math.abs(event.deltaY) * 2) {
+			if (event.defaultPrevented || !sample.reachedBubble || event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL
+				|| event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
 				blocked = true;
 				hideHint();
 				return;
@@ -189,24 +197,48 @@ function init() {
 					return;
 				}
 			}
-			distance = Math.max(-180, Math.min(180, distance + event.deltaX));
+			// Decide the axis from meaningful initial motion, then keep it locked.
+			// Tiny vertical wheel deltas while fingers rest must not erase progress.
+			if (!horizontal) {
+				intentX += event.deltaX;
+				intentY += event.deltaY;
+				if (Math.abs(intentX) >= 8 && Math.abs(intentX) > Math.abs(intentY) * 2) {
+					horizontal = true;
+					distance = Math.max(-180, Math.min(180, intentX));
+				} else {
+					if (Math.abs(intentY) >= 8 && Math.abs(intentY) >= Math.abs(intentX)) { blocked = true; }
+					return;
+				}
+			} else {
+				distance = Math.max(-180, Math.min(180, distance + event.deltaX));
+			}
 			updateHint();
 			if (endTimestamp !== Infinity) { settleRelease(); }
+		};
+		const onWheelBubble = (event: WheelEvent) => {
+			const sample = samplesByEvent.get(event);
+			if (sample) { sample.reachedBubble = !event.cancelBubble; }
 		};
 		window.addEventListener('wheel', event => {
 			if (!event.isTrusted) { return; }
 			const sample = {
 				event, elements: event.composedPath().filter((target): target is Element => target instanceof Element),
-				timestamp: performance.timeOrigin + event.timeStamp, processed: false
+				timestamp: performance.timeOrigin + event.timeStamp, processed: false, reachedBubble: false
 			};
-			// Wait for all page listeners before inspecting defaultPrevented.
+			samplesByEvent.set(event, sample);
+			// Observe after the page's existing window handlers too. cancelBubble
+			// is cleared when dispatch ends, so inspect it during bubbling.
+			window.removeEventListener('wheel', onWheelBubble);
+			window.addEventListener('wheel', onWheelBubble, { passive: true });
+			// Capture before page handlers can stop propagation, then inspect both
+			// default cancellation and whether the event reached window bubbling.
 			setTimeout(() => {
 				const retainFrom = ended ? sample.timestamp - 1000 : Math.min(sample.timestamp - 1000, beginTimestamp - 2);
 				while (pending.length && pending[0].timestamp < retainFrom) { pending.shift(); }
 				pending.push(sample);
 				processSample(sample);
 			}, 0);
-		}, { passive: true });
+		}, { passive: true, capture: true });
 	}
 
 	// #######################################################################

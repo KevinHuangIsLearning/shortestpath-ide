@@ -27,8 +27,16 @@ const testWheelListeners = [];
 const testShadows = new WeakMap();
 const originalAddListener = window.addEventListener;
 window.addEventListener = (...args) => {
-	if (args[0] === 'wheel') testWheelListeners.push(args[1]);
+	if (args[0] === 'wheel') testWheelListeners.push({callback: args[1], capture: args[2]?.capture === true});
 	return Reflect.apply(originalAddListener, window, args);
+};
+const originalRemoveListener = window.removeEventListener;
+window.removeEventListener = (...args) => {
+	if (args[0] === 'wheel') {
+		const index = testWheelListeners.findIndex(listener => listener.callback === args[1] && listener.capture === (args[2]?.capture === true));
+		if (index >= 0) testWheelListeners.splice(index, 1);
+	}
+	return Reflect.apply(originalRemoveListener, window, args);
 };
 const originalAttachShadow = Element.prototype.attachShadow;
 Element.prototype.attachShadow = function(options) {
@@ -37,13 +45,15 @@ Element.prototype.attachShadow = function(options) {
 	return shadow;
 };
 require('electron').contextBridge.exposeInMainWorld('__historySwipeTest', {
-	wheel: (deltaX, deltaY, targetId, prevented = false, trusted = true, control = false) => {
+	wheel: (deltaX, deltaY, targetId, prevented = false, trusted = true, control = false, stopped = false, windowStopped = false) => {
 		const target = targetId ? document.getElementById(targetId) : document.body;
 		const path = [];
 		for (let el = target; el; el = el.parentElement) path.push(el);
 		const event = {deltaX, deltaY, isTrusted: trusted, timeStamp: performance.now(), deltaMode: 0, defaultPrevented: prevented,
 			ctrlKey: control, metaKey: false, altKey: false, shiftKey: false, composedPath: () => path};
-		for (const listener of testWheelListeners) listener(event);
+		for (const listener of testWheelListeners) { if (listener.capture) listener.callback(event); }
+		event.cancelBubble = windowStopped;
+		if (!stopped) { for (const listener of testWheelListeners) { if (!listener.capture) listener.callback(event); } }
 	},
 	hint: () => {
 		const host = document.querySelector('[data-vscode-history-swipe]');

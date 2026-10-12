@@ -10,7 +10,7 @@ import type { ITrackpadPhase } from './browserViewTrackpadGesture.js';
 export function registerBrowserViewHistorySwipe(
 	contents: Electron.WebContents,
 	isAvailable: () => boolean,
-	navigate: (direction: 'back' | 'forward') => void,
+	navigate: (action: 'back' | 'forward' | 'close') => void,
 	subscribe: (listener: (event: ITrackpadPhase) => void) => IDisposable,
 ): IDisposable {
 	let beginTimestamp = Infinity;
@@ -60,11 +60,11 @@ export function registerBrowserViewHistorySwipe(
 	const onSwipe = (event: Electron.IpcMainEvent, direction: string, requestToken: number) => {
 		if ((direction !== 'back' && direction !== 'forward') || !released || handled
 			|| requestToken !== token || event.senderFrame !== contents.mainFrame || !isAvailable()
-			|| !(direction === 'back' ? contents.navigationHistory.canGoBack() : contents.navigationHistory.canGoForward())) {
+			|| (direction === 'forward' && !contents.navigationHistory.canGoForward())) {
 			return;
 		}
 		handled = true;
-		navigate(direction);
+		navigate(direction === 'back' && !contents.navigationHistory.canGoBack() ? 'close' : direction);
 	};
 	const onNavigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
 		if (details.isMainFrame) { cancel(); }
