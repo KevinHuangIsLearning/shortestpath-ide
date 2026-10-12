@@ -317,6 +317,9 @@ export default defineConfig(
 		files: [
 			'extensions/shortestpath.judger/src/webview/editorChange.ts',
 			'extensions/shortestpath.judger/src/compiler.ts',
+			'extensions/shortestpath.judger/src/companion.ts',
+			'extensions/shortestpath.judger/src/preferences.ts',
+			'extensions/shortestpath.judger/src/types.ts',
 		],
 		rules: { 'header/header': 'off' },
 	},

@@ -6,7 +6,7 @@
 import path from 'path';
 
 /** Fixed workspace-relative C++ paths for supported ShortestPath pages. */
-export function getShortestPathProblemPath(problemUrl: string, title: string): string | undefined {
+export function getShortestPathProblemPath(problemUrl: string, title: string, prefix = ''): string | undefined {
 	let url: URL;
 	try { url = new URL(problemUrl); } catch { return undefined; }
 	if (url.origin !== 'https://shortestpath.cn') { return undefined; }
@@ -26,7 +26,8 @@ export function getShortestPathProblemPath(problemUrl: string, title: string): s
 	} else {
 		return undefined;
 	}
-	return path.join(...directories.map(fileComponent), `${fileComponent(label)}_${fileComponent(title)}.cpp`);
+	const prefixDirectories = prefix.trim().split(/[/\\]/).filter(Boolean).map(fileComponent);
+	return path.join(...prefixDirectories, ...directories.map(fileComponent), `${fileComponent(label)}_${fileComponent(title)}.cpp`);
 }
 
 // Keep Chinese and spaces, replacing only characters unusable on Windows/macOS.

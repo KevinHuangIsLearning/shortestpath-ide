@@ -25,7 +25,8 @@ import {
     doTemplateFileVariableReplacement,
     getFileNameTemplate,
     getFileNameTemplateOverrides,
-    getShortestPathFixedTemplate,
+    getShortestPathImportPrefix,
+    getPythonCommand,
     getOjMapping,
     getDefaultProblemSource,
     getVjudgeOjNames,
@@ -42,7 +43,6 @@ import {
 } from './problemDisplay';
 import { getProblemName } from './submit';
 import { runTool } from './toolProcess';
-import { getPythonCommand } from './preferences';
 import { getJudgeViewProvider } from './extension';
 import { initializeProblemSourceFile } from './problemSourceFile';
 import { getShortestPathProblemPath } from './shortestpathProblemPath';
@@ -65,7 +65,7 @@ export const submitKattisProblem = async (problem: Problem) => {
     globalThis.reporter.sendTelemetryEvent(telmetry.SUBMIT_TO_KATTIS);
     const srcPath = problem.srcPath;
     const homedir = os.homedir();
-    const directoryChar = process.platform == 'win32' ? '\\' : '/';
+    const directoryChar = process.platform === 'win32' ? '\\' : '/';
     const submitPath = `${homedir}${directoryChar}.kattis${directoryChar}submit.py`;
 
     if (
@@ -127,15 +127,16 @@ export const setupCompanionServer = () => {
             const addShortestPathTest = headers['x-shortestpath-oj-add-test'] === 'true';
             const preferredSourcePath = decodeShortestPathSourcePath(headers['x-shortestpath-source-path-encoded'], headers['x-shortestpath-source-path']);
 
-            if (headers['cph-submit'] == 'true') {
+            if (headers['cph-submit'] === 'true') {
                 res.write(JSON.stringify(savedResponse));
-                COMPANION_LOGGING &&
+                if (COMPANION_LOGGING) {
                     globalThis.logger.log(
                         'Request was from the cph-submit extension; sending savedResponse and clearing it',
                         savedResponse,
                     );
+                }
 
-                if (savedResponse.empty != true) {
+                if (savedResponse.empty !== true) {
                     getJudgeViewProvider().extensionToJudgeViewMessage({
                         command: 'submit-finished',
                     });
@@ -167,10 +168,11 @@ export const setupCompanionServer = () => {
                     res.statusCode = result.created ? 200 : 422;
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.end(JSON.stringify(result));
-                    COMPANION_LOGGING &&
+                    if (COMPANION_LOGGING) {
                         globalThis.logger.log(
                             'Companion server processed a problem request.',
                         );
+                    }
                 } catch (e) {
                     vscode.window.showErrorMessage(
                         localize(
@@ -246,12 +248,13 @@ const detectOj = (urlStr: string): OjInfo => {
         const hostname = url.hostname;
 
         const mapping = getOjMapping();
-        if (!mapping) return result;
+        if (!mapping) { return result; }
 
         for (const [pattern, entry] of Object.entries(mapping)) {
-            if (!entry) continue;
-            if (!hostname.includes(pattern) && !pattern.includes(hostname))
+            if (!entry) { continue; }
+            if (!hostname.includes(pattern) && !pattern.includes(hostname)) {
                 continue;
+            }
             result.mapped = true;
             result.oj = entry.oj || '';
             result.ojName = entry.ojName || '';
@@ -266,11 +269,11 @@ const detectOj = (urlStr: string): OjInfo => {
             }
             if (entry.contestIdRegex) {
                 const m = urlStr.match(entry.contestIdRegex);
-                if (m) result.contestId = m[1];
+                if (m) { result.contestId = m[1]; }
             }
             if (entry.problemIdRegex) {
                 const m = urlStr.match(entry.problemIdRegex);
-                if (m) result.problemId = m[1];
+                if (m) { result.problemId = m[1]; }
             }
             return result;
         }
@@ -380,7 +383,7 @@ export const getProblemFileName = (problem: Problem, ext: string) => {
 export const handleNewProblem = async (problem: Problem, preferredSourcePath?: string, contextHash?: string, silent = false, promptForFileName = false, browserSourceUrl?: string): Promise<ProblemCreationResult> => {
     globalThis.reporter.sendTelemetryEvent(telmetry.GET_PROBLEM_FROM_COMPANION);
     // If webview may be focused, close it, to prevent layout bug.
-    if (vscode.window.activeTextEditor == undefined) {
+    if (vscode.window.activeTextEditor === undefined) {
         getJudgeViewProvider().extensionToJudgeViewMessage({
             command: 'new-problem',
             problem: undefined,
@@ -394,11 +397,11 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         );
         return { created: false };
     }
-    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name);
+    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name, getShortestPathImportPrefix());
     const defaultLanguage = fixedProblemPath ? 'cpp' : getDefaultLangPref();
     let extn: string;
 
-    if (defaultLanguage == null) {
+    if (defaultLanguage === null) {
         const allChoices = new Set(Object.keys(config.extensions));
         const userChoices = getMenuChoices();
         const choices = userChoices.filter((x) => allChoices.has(x));
@@ -426,7 +429,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         globalThis.logger.error(err);
         return { created: false };
     }
-    if (url.hostname == 'open.kattis.com') {
+    if (url.hostname === 'open.kattis.com') {
         const splitUrl = problem.url.split('/');
         problem.name = splitUrl[splitUrl.length - 1];
     }
@@ -482,10 +485,9 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     }
 
     const previousSourcePath = getPreferredSourcePath(folder, preferredSourcePath);
-    const useFixedPath = Boolean(fixedProblemPath) && getShortestPathFixedTemplate();
     let srcPath: string;
     let replaceSource = false;
-    if (promptForFileName && !previousSourcePath && !detectOj(browserSourceUrl ?? receivedProblemUrl).mapped) {
+    if (promptForFileName && !fixedProblemPath && !previousSourcePath && !detectOj(browserSourceUrl ?? receivedProblemUrl).mapped) {
         const suggested = path.basename(getProblemFileName({ ...problem }, extn));
         const selected = await vscode.window.showSaveDialog({
             title: localize('judger.browserImport.fileNameTitle', 'Import Problem'),
@@ -505,8 +507,8 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
             vscode.window.showErrorMessage(localize('judger.browserImport.fileExists', 'A file with this name already exists.'));
             return { created: false };
         }
-    } else if (fixedProblemPath && useFixedPath) {
-        srcPath = path.join(folder, fixedProblemPath);
+    } else if (fixedProblemPath) {
+        srcPath = previousSourcePath ?? path.join(folder, fixedProblemPath);
     } else {
         let titleFileName: string;
         if (promptForFileName && !previousSourcePath && !configuredFileNameTemplate(problem)) {
@@ -534,15 +536,9 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         const problemFileName = contextHash && !problem.shortestPath && !fixedProblemPath ? path.join(parsedFileName.dir, `${parsedFileName.name}_${contextHash.slice(0, 24)}.${extn}`) : titleFileName;
         srcPath = previousSourcePath ?? path.join(folder, problemFileName);
     }
-    // Preserve solutions from the previous naming scheme, including unsaved edits.
-    // Leave the old file intact and never overwrite an existing canonical file.
-    const previousSource = useFixedPath && previousSourcePath && previousSourcePath !== srcPath && !existsSync(srcPath)
-        ? vscode.workspace.textDocuments.find(document => document.uri.fsPath === previousSourcePath)?.getText() ?? readFileSync(previousSourcePath, 'utf8')
-        : undefined;
-
     const cppTemplate = extn === 'cpp' ? getCppTemplate() : null;
     // Validate before creating files or changing the browser layout, so retry remains safe.
-    if (silent && defaultLanguage && previousSource === undefined && cppTemplate === null && (replaceSource || !existsSync(srcPath))) {
+    if (silent && defaultLanguage && cppTemplate === null && (replaceSource || !existsSync(srcPath))) {
         const templateLocation = getDefaultLanguageTemplateFileLocation();
         if (templateLocation !== null && !existsSync(templateLocation)) {
             throw new Error(localize('judger.companion.templateMissing', 'Template file does not exist: {0}', templateLocation));
@@ -570,9 +566,9 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     problem = preserveIntegratedTests(problem, getProblem(srcPath) ?? (previousSourcePath ? getProblem(previousSourcePath) : null));
 
     if (replaceSource || !existsSync(srcPath)) {
-        let sourceContents = previousSource ?? cppTemplate ?? '';
+        let sourceContents = cppTemplate ?? '';
 
-        if (defaultLanguage && previousSource === undefined) {
+        if (defaultLanguage) {
             const templateLocation = getDefaultLanguageTemplateFileLocation();
             if (cppTemplate === null && templateLocation !== null) {
                 const templateExists = existsSync(templateLocation);
@@ -589,7 +585,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
                     let templateContents =
                         readFileSync(templateLocation).toString();
 
-                    if (extn == 'java') {
+                    if (extn === 'java') {
                         const className = path.basename(
                             srcPath,
                             '.java',

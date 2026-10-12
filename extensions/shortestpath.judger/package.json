@@ -477,12 +477,18 @@
                     "description": "Replace $var$ in the template file with its value. For example, replace $url$ with the problem's url. For more information, please refer to the user guide.",
                     "scope": "resource"
                 },
-                "judger.general.shortestPathFixedTemplate": {
+                "judger.general.shortestPathImportPrefixEnabled": {
                     "type": "boolean",
-                    "default": true,
-                    "description": "%judger.general.shortestPathFixedTemplate.description%",
+                    "default": false,
+                    "description": "%judger.general.shortestPathImportPrefixEnabled.description%",
                     "scope": "resource",
-                    "order": 1000,
+                    "tags": ["advanced"]
+                },
+                "judger.general.shortestPathImportPrefix": {
+                    "type": "string",
+                    "default": "",
+                    "description": "%judger.general.shortestPathImportPrefix.description%",
+                    "scope": "resource",
                     "tags": ["advanced"]
                 },
                 "judger.general.fileNameTemplate": {

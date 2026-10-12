@@ -131,7 +131,8 @@
 	"judger.stressTest.generatorTimeLimit.description": "生成器时间限制（毫秒）。",
 	"judger.stressTest.bruteForceTimeLimit.description": "标程时间限制（毫秒）。",
 	"judger.language.cpp.Template.description": "C++ 代码模板。明确设为空字符串时创建空代码文件。",
-	"judger.general.shortestPathFixedTemplate.description": "为 ShortestPath OJ 导入使用固定的源码目录和文件名。关闭后使用 Judger 文件名模板及模板中的目录；保留已有绑定的解答文件。",
+	"judger.general.shortestPathImportPrefixEnabled.description": "为 ShortestPath OJ 导入的源码路径添加目录前缀；保留已有绑定的解答文件。",
+	"judger.general.shortestPathImportPrefix.description": "ShortestPath OJ 导入使用的工作区相对目录前缀。留空表示无前缀，文件名中的非法字符会替换为下划线。",
 	"judger.openDashboard.title": "做题 Dashboard",
 	"judger.dashboard.containerTitle": "做题统计",
 	"judger.dashboard.welcome": "查看做题热力图、单日 AC 纪录与单题耗时。\n[打开做题统计](command:judger.openDashboard)"

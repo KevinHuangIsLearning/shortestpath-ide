@@ -136,7 +136,8 @@
 	"judger.stressTest.generatorTimeLimit.description": "Generator time limit (ms).",
 	"judger.stressTest.bruteForceTimeLimit.description": "Reference solution time limit (ms).",
 	"judger.language.cpp.Template.description": "C++ source template. An explicit empty value creates an empty source file.",
-	"judger.general.shortestPathFixedTemplate.description": "Use the fixed source directory and filename for ShortestPath OJ imports. Disable to use Judger filename templates, including template directories. Existing bound solutions are preserved.",
+	"judger.general.shortestPathImportPrefixEnabled.description": "Add a directory prefix to source paths when importing ShortestPath OJ problems. Existing bound solutions are preserved.",
+	"judger.general.shortestPathImportPrefix.description": "Workspace-relative directory prefix for ShortestPath OJ imports. Empty means no prefix. Invalid filename characters are replaced with underscores.",
 	"judger.openDashboard.title": "Problem Dashboard",
 	"judger.dashboard.containerTitle": "Dashboard",
 	"judger.dashboard.welcome": "View problem activity, peak daily AC and time spent.\n[Open Dashboard](command:judger.openDashboard)"

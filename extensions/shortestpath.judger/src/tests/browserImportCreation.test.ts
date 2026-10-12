@@ -7,14 +7,14 @@ import path from 'path';
 jest.mock('vscode', () => ({ window: { showQuickPick: jest.fn(), showInputBox: jest.fn(), showSaveDialog: jest.fn(), showErrorMessage: jest.fn(), showTextDocument: jest.fn(async () => ({})) }, ViewColumn: { One: 1 }, Uri: { file: (value: string) => ({ toString: () => `file://${value}` }) }, workspace: { workspaceFolders: [{ uri: { fsPath: require('path').resolve('/workspace') } }], openTextDocument: jest.fn(async () => ({ getText: () => '' })) }, commands: { executeCommand: jest.fn() } }), { virtual: true });
 jest.mock('../extension', () => ({ getJudgeViewProvider: () => ({ extensionToJudgeViewMessage: jest.fn() }) }));
 jest.mock('../toolProcess', () => ({}));
-jest.mock('../preferences', () => ({ getDefaultLangPref: jest.fn(() => 'cpp'), getCppTemplate: () => null, getDefaultLanguageTemplateFileLocation: () => '/template.cpp', getMenuChoices: () => ['cpp'], getVjudgeOjNames: () => null, getVjudgeOpenInBrowser: jest.fn(() => false), getVjudgeBrowserSplitRatio: () => 65, getVjudgeUrlSuffix: () => '#original', getOjMapping: jest.fn(() => null), includeProblemIndex: () => true, getShortestPathFixedTemplate: jest.fn(() => true), getFileNameTemplate: jest.fn(() => '{name}.{ext}'), getFileNameTemplateOverrides: jest.fn(() => null), useShortCodeForcesName: () => false, wordRegex: () => /\w+/g, getDefaultProblemSource: jest.fn(() => 'none'), doTemplateFileVariableReplacement: () => false }));
+jest.mock('../preferences', () => ({ getDefaultLangPref: jest.fn(() => 'cpp'), getCppTemplate: () => null, getDefaultLanguageTemplateFileLocation: () => '/template.cpp', getMenuChoices: () => ['cpp'], getVjudgeOjNames: () => null, getVjudgeOpenInBrowser: jest.fn(() => false), getVjudgeBrowserSplitRatio: () => 65, getVjudgeUrlSuffix: () => '#original', getOjMapping: jest.fn(() => null), includeProblemIndex: () => true, getShortestPathImportPrefix: jest.fn(() => ''), getFileNameTemplate: jest.fn(() => '{name}.{ext}'), getFileNameTemplateOverrides: jest.fn(() => null), useShortCodeForcesName: () => false, wordRegex: () => /\w+/g, getDefaultProblemSource: jest.fn(() => 'none'), doTemplateFileVariableReplacement: () => false }));
 jest.mock('../submit', () => ({}));
 jest.mock('../utils', () => ({ randomId: () => 1, isCodeforcesUrl: () => false, isLuoguUrl: () => false, isAtCoderUrl: () => false }));
 jest.mock('../parser', () => ({ saveProblem: jest.fn(), getProblem: () => null }));
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, text: string) => text }));
 import { handleNewProblem } from '../companion';
 import { saveProblem } from '../parser';
-import { getDefaultLangPref, getShortestPathFixedTemplate, getFileNameTemplate, getFileNameTemplateOverrides, getOjMapping, getVjudgeOpenInBrowser, getDefaultProblemSource } from '../preferences';
+import { getDefaultLangPref, getShortestPathImportPrefix, getFileNameTemplate, getFileNameTemplateOverrides, getOjMapping, getVjudgeOpenInBrowser, getDefaultProblemSource } from '../preferences';
 import { Problem } from '../types';
 import * as vscode from 'vscode';
 
@@ -56,37 +56,49 @@ test('fixing the missing template allows a clean retry with template contents', 
 });
 
 
-describe('ShortestPath OJ optional configured source paths', () => {
+describe('ShortestPath OJ source paths with an optional directory prefix', () => {
 	const importedProblem = (): Problem => ({ name: '字母互换', group: 'dsu', url: 'https://shortestpath.cn/problem/dsu/found/A', tests: [], shortestPath: true, interactive: false, memoryLimit: 256, timeLimit: 1000, srcPath: '' });
 	beforeEach(() => {
 		jest.spyOn(fs, 'existsSync').mockImplementation(file => String(file) === '/template.cpp');
-		(getShortestPathFixedTemplate as jest.Mock).mockReturnValue(false);
 		jest.spyOn(fs, 'mkdirSync').mockReturnValue(undefined);
 		jest.spyOn(fs, 'readFileSync').mockReturnValue(Buffer.from('template contents'));
 		jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
 	});
+	afterEach(() => { (getShortestPathImportPrefix as jest.Mock).mockReturnValue(''); });
 
-	afterEach(() => { (getShortestPathFixedTemplate as jest.Mock).mockReturnValue(true); });
-
-	test('fixed naming remains enabled by default', async () => {
-		(getShortestPathFixedTemplate as jest.Mock).mockReturnValue(true);
-		expect(await handleNewProblem(importedProblem())).toEqual({ created: true, sourcePath: path.resolve('/workspace/dsu/A_字母互换.cpp') });
+	test.each([
+		['/problem/dsu/found/A', 'dsu/A_字母互换.cpp'],
+		['/upsolving/cf/2078/A', 'contest/2078/A_字母互换.cpp'],
+		['/upsolving/cf/2078/B', 'contest/2078/B_字母互换.cpp'],
+		['/upsolving/at/agc078/A', 'contest/agc078/A_字母互换.cpp'],
+		['/upsolving/id/260', 'upsolving/260_字母互换.cpp'],
+		['/upsolving/id/261', 'upsolving/261_字母互换.cpp'],
+	])('imports %s into a distinct path despite the legacy naming template', async (route, relativePath) => {
+		const mapping = require('../../package.json').contributes.configuration.properties['judger.general.ojMapping'].default;
+		(getOjMapping as jest.Mock).mockReturnValue(mapping);
+		(getFileNameTemplateOverrides as jest.Mock).mockReturnValue({ ShortestPath: '{ojName}/{contestId}/{problemId}.{ext}' });
+		try {
+			const result = await handleNewProblem({ ...importedProblem(), url: `https://shortestpath.cn${route}` }, undefined, 'a'.repeat(64));
+			expect(result).toEqual({ created: true, sourcePath: path.resolve(`/workspace/${relativePath}`) });
+			expect(saveProblem).toHaveBeenCalledWith(result.sourcePath, expect.objectContaining({ url: `https://shortestpath.cn${route}`, srcPath: result.sourcePath }));
+		} finally {
+			(getOjMapping as jest.Mock).mockReturnValue(null);
+			(getFileNameTemplateOverrides as jest.Mock).mockReturnValue(null);
+		}
 	});
 
-	test('global filename template controls both directory and filename', async () => {
-		(getFileNameTemplate as jest.Mock).mockReturnValueOnce('solutions/{group}/{name}.{ext}');
+	test('enabled prefix is added before the source directory', async () => {
+		(getShortestPathImportPrefix as jest.Mock).mockReturnValue('ShortestPath/solutions');
 		const result = await handleNewProblem(importedProblem());
-		expect(result).toEqual({ created: true, sourcePath: path.resolve('/workspace/solutions/dsu/字母互换.cpp') });
+		expect(result).toEqual({ created: true, sourcePath: path.resolve('/workspace/ShortestPath/solutions/dsu/A_字母互换.cpp') });
 		expect(fs.writeFileSync).toHaveBeenCalledWith(result.sourcePath, 'template contents', { flag: 'wx' });
 	});
 
-	test('ShortestPath per-OJ template is used verbatim even with a context hash', async () => {
-		(getOjMapping as jest.Mock).mockReturnValue({ 'shortestpath.cn': { oj: 'ShortestPath', ojName: 'ShortestPath', contestIdRegex: 'problem/([^/]+)/', problemIdRegex: '/([^/]+)$' } });
-		(getFileNameTemplateOverrides as jest.Mock).mockReturnValueOnce({ ShortestPath: 'custom/{contestId}/{problemId}.{ext}' });
-		try {
-			const result = await handleNewProblem(importedProblem(), undefined, 'a'.repeat(64));
-			expect(result).toEqual({ created: true, sourcePath: path.resolve('/workspace/custom/dsu/A.cpp') });
-		} finally { (getOjMapping as jest.Mock).mockReturnValue(null); }
+	test('ShortestPath browser imports keep their path even without an OJ mapping', async () => {
+		const problem = { ...importedProblem(), url: 'https://shortestpath.cn/upsolving/cf/2078/A' };
+		expect(await handleNewProblem(problem, undefined, undefined, true, true)).toEqual({ created: true, sourcePath: path.resolve('/workspace/contest/2078/A_字母互换.cpp') });
+		expect(vscode.window.showSaveDialog).not.toHaveBeenCalled();
+		expect(vscode.window.showInputBox).not.toHaveBeenCalled();
 	});
 
 	test('ShortestPath special-evaluation imports outside fixed URL patterns do not gain a suffix', async () => {
@@ -96,15 +108,16 @@ describe('ShortestPath OJ optional configured source paths', () => {
 	});
 
 	test('other OJ imports retain context isolation and template directories', async () => {
+		(getShortestPathImportPrefix as jest.Mock).mockReturnValue('ShortestPath');
 		(getFileNameTemplate as jest.Mock).mockReturnValueOnce('custom/{name}.{ext}');
 		const problem = { ...importedProblem(), name: 'A', url: 'https://example.com/A', shortestPath: false };
 		expect(await handleNewProblem(problem, undefined, 'a'.repeat(64))).toEqual({ created: true, sourcePath: path.resolve(`/workspace/custom/A_${'a'.repeat(24)}.cpp`) });
 	});
 
-	test('re-import keeps the bound solution when naming settings change', async () => {
-		const previous = path.resolve('/workspace/dsu/A_字母互换.cpp');
+	test('re-import keeps the bound solution when prefix settings change', async () => {
+		const previous = path.resolve('/workspace/old/solution.cpp');
 		jest.spyOn(fs, 'existsSync').mockImplementation(file => String(file) === previous);
-		(getFileNameTemplate as jest.Mock).mockReturnValueOnce('new/{name}.{ext}');
+		(getShortestPathImportPrefix as jest.Mock).mockReturnValue('new');
 		const result = await handleNewProblem(importedProblem(), previous);
 		expect(result).toEqual({ created: true, sourcePath: previous });
 		expect(fs.writeFileSync).not.toHaveBeenCalled();

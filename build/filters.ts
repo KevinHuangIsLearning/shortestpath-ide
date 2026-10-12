@@ -106,6 +106,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	// newly authored Judger files remain subject to the normal checks.
 	'!extensions/shortestpath.judger/src/companion.ts',
 	'!extensions/shortestpath.judger/src/extension.ts',
+	'!extensions/shortestpath.judger/src/preferences.ts',
 	'!extensions/shortestpath.judger/src/parser.ts',
 	'!extensions/shortestpath.judger/src/compiler.ts',
 	'!extensions/shortestpath.judger/src/types.ts',
@@ -215,8 +216,11 @@ export const indentationFilter = Object.freeze<string[]>([
 
 export const copyrightFilter = Object.freeze<string[]>([
 	'**',
-	// This inherited CPH file has no upstream copyright header.
+	// These inherited CPH files have no upstream copyright header.
 	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
+	'!extensions/shortestpath.judger/src/companion.ts',
+	'!extensions/shortestpath.judger/src/preferences.ts',
+	'!extensions/shortestpath.judger/src/types.ts',
 	// Preserve the inherited compiler's absent notice and the original Judger runner notice.
 	'!extensions/shortestpath.judger/src/compiler.ts',
 	'!extensions/shortestpath.judger/src/nativeRunner.ts',
@@ -288,6 +292,9 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 	// Preserve the formatting of this inherited CPH file.
 	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
 	'!extensions/shortestpath.judger/src/compiler.ts',
+	'!extensions/shortestpath.judger/src/companion.ts',
+	'!extensions/shortestpath.judger/src/preferences.ts',
+	'!extensions/shortestpath.judger/src/types.ts',
 	// These files are emitted by the external contract generator.
 	'!extensions/shortestpath.oj/src/generated/api-contract.ts',
 	'!extensions/shortestpath.oj/src/generated/ide-bridge-contract.ts',

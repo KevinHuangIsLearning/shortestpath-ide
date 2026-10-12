@@ -95,7 +95,8 @@
 	"judger.utils.unsupported": "サポートされていないファイル拡張子です。以下の形式のみ有効です: {0}",
 	"judger.preferences.invalidSaveLocation": "保存場所が無効です。デフォルトに復元します。存在しないパス: {0}",
 	"judger.processRunSingle.invalidChecker": "カスタム判題スクリプトが '{0}' に見つかりません",
-	"judger.general.shortestPathFixedTemplate.description": "ShortestPath OJ のインポートに固定のソースディレクトリとファイル名を使用します。無効にすると Judger のファイル名テンプレートとそのディレクトリを使用します。既存の関連付けられた解答は保持されます。",
+	"judger.general.shortestPathImportPrefixEnabled.description": "ShortestPath OJ のインポート時にソースパスへディレクトリ接頭辞を追加します。既存の関連付けられた解答は保持されます。",
+	"judger.general.shortestPathImportPrefix.description": "ShortestPath OJ インポート用のワークスペース相対ディレクトリ接頭辞。空の場合は接頭辞なし。無効なファイル名文字はアンダースコアに置換されます。",
 	"judger.openDashboard.title": "問題ダッシュボード",
 	"judger.dashboard.containerTitle": "Dashboard",
 	"judger.dashboard.welcome": "問題アクティビティ、1 日の最多 AC、所要時間を確認します。\n[ダッシュボードを開く](command:judger.openDashboard)"

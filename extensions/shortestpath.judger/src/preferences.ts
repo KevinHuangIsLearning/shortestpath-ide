@@ -27,7 +27,7 @@ export const getAutoShowJudgePref = (): boolean =>
 
 export const getSaveLocationPref = (): string => {
     const pref = getPreference('general.saveLocation');
-    const validSaveLocation = pref == '' || fs.existsSync(pref);
+    const validSaveLocation = pref === '' || fs.existsSync(pref);
     if (!validSaveLocation) {
         vscode.window.showErrorMessage(
             localize(
@@ -174,7 +174,7 @@ export type VjudgeOjMapping = {
 
 export const getDefaultLangPref = (): string | null => {
     const pref = getPreference('general.defaultLanguage');
-    if (pref === 'none' || pref == ' ' || !pref) {
+    if (pref === 'none' || pref === ' ' || !pref) {
         return null;
     }
     return pref;
@@ -218,8 +218,9 @@ export const doTemplateFileVariableReplacement = (): boolean => {
     return getPreference('general.doTemplateFileVariableReplacement');
 };
 
-export const getShortestPathFixedTemplate = (): boolean =>
-    getPreference('general.shortestPathFixedTemplate') !== false;
+export const getShortestPathImportPrefix = (): string =>
+    getPreference('general.shortestPathImportPrefixEnabled') === true
+        ? getPreference('general.shortestPathImportPrefix') || '' : '';
 
 export const getFileNameTemplate = (): string | null => {
     const pref = getPreference('general.fileNameTemplate');
@@ -328,12 +329,12 @@ export const getLanguageId = (srcPath: string): number => {
         //     break;
         // }
     }
-    if (compiler == null) return -1;
+    if (compiler === null || compiler === undefined) { return -1; }
     for (const [_compiler, id] of Object.entries(config.compilerToId)) {
         if (_compiler === compiler) {
             return id;
         }
     }
-    globalThis.logger.error("Couldn't find id for compiler " + compiler);
+    globalThis.logger.error('Couldn\'t find id for compiler ' + compiler);
     return -1;
 };

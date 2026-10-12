@@ -29,6 +29,15 @@ describe('fixed ShortestPath source paths', () => {
 	])('leaves unsupported pages unchanged: %s', url => {
 		expect(getShortestPathProblemPath(url, 'title')).toBeUndefined();
 	});
+	test.each([
+		['', ['dsu', 'A_Title.cpp']],
+		['ShortestPath', ['ShortestPath', 'dsu', 'A_Title.cpp']],
+		['  ShortestPath/solutions  ', ['ShortestPath', 'solutions', 'dsu', 'A_Title.cpp']],
+		['ShortestPath\\solutions', ['ShortestPath', 'solutions', 'dsu', 'A_Title.cpp']],
+		['/../CON/', ['_', '_CON', 'dsu', 'A_Title.cpp']],
+	])('directory prefix %s stays relative to the workspace', (prefix, expected) => {
+		expect(getShortestPathProblemPath('https://shortestpath.cn/problem/dsu/found/A', 'Title', prefix)).toBe(path.join(...expected));
+	});
 	test('encoded separators, traversal, reserved names and invalid title characters stay inside the workspace', () => {
 		expect(getShortestPathProblemPath('https://shortestpath.cn/problem/%2e%2e%2fdsu/found/A', '重排 ABC: a/b?')).toBe(path.join('.._dsu', 'A_重排 ABC_ a_b_.cpp'));
 		expect(getShortestPathProblemPath('https://shortestpath.cn/problem/CON/found/A', 'title. ')).toBe(path.join('_CON', 'A_title.cpp'));
