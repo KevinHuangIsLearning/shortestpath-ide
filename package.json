@@ -1,7 +1,7 @@
 {
   "name": "shortestpath-ide-dev",
   "version": "1.139.1",
-  "description": "The shortest path to OI.",
+  "description": "Your Competitive Programming Workflow",
   "distro": "8c7e9eebe250686ee086ffb96a4c570302ece3e3",
   "author": {
     "name": "ShortestPath IDE contributors"
