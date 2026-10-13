@@ -94,6 +94,8 @@ const english: Readonly<Record<string, string>> = {
 	'测试程序的输出不符合预期。': 'The test program output is unexpected.',
 	'检查 clangd 的 C++20 语法与系统头文件…': 'Checking C++20 syntax and system headers with clangd…',
 	'编译、运行与代码提示自测全部通过。': 'Compilation, execution, and code completion self-tests passed.',
+	'ShortestPath OJ 按分类导入': 'Import ShortestPath OJ Problems by Category',
+	'在专题目录下添加 found/adv/chal/past 子目录，避免不同分类的题目路径冲突；已有绑定的解答文件保留原路径。': 'Add found/adv/chal/past subdirectories under the topic directory to avoid path conflicts between categories. Existing bound solutions keep their paths.',
 	'Judger 默认提交方式': 'Judger Default Submission Method',
 	'当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。': 'Used when both original OJ and VJudge submission are available. Per-OJ custom scripts are unaffected.',
 	'测试 VJudge URL': 'Test VJudge URL',

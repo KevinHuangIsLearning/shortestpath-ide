@@ -218,6 +218,9 @@ export const doTemplateFileVariableReplacement = (): boolean => {
     return getPreference('general.doTemplateFileVariableReplacement');
 };
 
+export const getShortestPathImportCategoryEnabled = (): boolean =>
+    getPreference('general.shortestPathImportCategoryEnabled') ?? true;
+
 export const getShortestPathImportPrefix = (): string =>
     getPreference('general.shortestPathImportPrefixEnabled') === true
         ? getPreference('general.shortestPathImportPrefix') || '' : '';

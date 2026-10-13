@@ -33,7 +33,7 @@ test('settings groups preserve each control and expose only the three left navig
 	assert.deepStrictEqual(controls, {
 		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'compactMode', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
 		compiler: ['cppStandard', 'compilerFlags', 'executableCleanupEnabled', 'executableCleanupDelaySeconds', 'toolchainDiagnostics'],
-		tools: ['cppTemplate', 'cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
+		tools: ['cppTemplate', 'cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'shortestPathImportCategoryEnabled', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
 	});
 	const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 	assert.equal(new Set(ids).size, ids.length);
@@ -347,4 +347,38 @@ test('Dark Reader controls serialize hostnames and restore values without treati
 	assert.equal(values.browserDarkReaderMode, 'off');
 	assert.equal(values.browserDarkReaderDetectDarkTheme, false);
 	assert.deepEqual(values.browserDarkReaderExcludedHosts, ['www.example.com', '<script>']);
+});
+
+
+test('ShortestPath category import defaults on, saves globally and refreshes external changes', async () => {
+	const host = createSettingsHost();
+	const state = () => {
+		host.onConfiguration({ affectsConfiguration: key => key === 'judger.general.shortestPathImportCategoryEnabled' });
+		return host.messages.at(-1)!.value as Record<string, unknown>;
+	};
+	assert.equal(state().shortestPathImportCategoryEnabled, true);
+	for (const shortestPathImportCategoryEnabled of [false, true]) {
+		await host.receive({ type: 'save', value: { ...state(), shortestPathImportCategoryEnabled } });
+		assert.equal(host.savedValues['judger.general.shortestPathImportCategoryEnabled'], shortestPathImportCategoryEnabled);
+		assert.equal(state().shortestPathImportCategoryEnabled, shortestPathImportCategoryEnabled);
+	}
+	host.savedValues['judger.general.shortestPathImportCategoryEnabled'] = false;
+	assert.equal(state().shortestPathImportCategoryEnabled, false);
+	host.onDispose();
+});
+
+test('category import checkbox restores and serializes both values', () => {
+	const html = renderSettings();
+	assert.match(html, /<input id="shortestPathImportCategoryEnabled" type="checkbox"/);
+	const elements: Record<string, { value: string; checked: boolean }> = {};
+	const byId = (id: string) => elements[id] ??= { value: '', checked: false };
+	const context = vm.createContext({ byId, serializeFont: () => '', selectedFont: '', Number });
+	const binding = html.match(/byId\('shortestPathImportCategoryEnabled'\)\.checked[^;]+;/)?.[0];
+	const collect = html.match(/function value\(\) \{[^\n]+/)?.[0];
+	assert.ok(binding && collect);
+	for (const enabled of [false, true]) {
+		vm.runInContext(`var state = { shortestPathImportCategoryEnabled: ${enabled} };\n${binding}\n${collect}`, context);
+		assert.equal(byId('shortestPathImportCategoryEnabled').checked, enabled);
+		assert.equal(vm.runInContext('value().shortestPathImportCategoryEnabled', context), enabled);
+	}
 });

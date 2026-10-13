@@ -26,6 +26,7 @@ import {
     getFileNameTemplate,
     getFileNameTemplateOverrides,
     getShortestPathImportPrefix,
+    getShortestPathImportCategoryEnabled,
     getPythonCommand,
     getOjMapping,
     getDefaultProblemSource,
@@ -397,7 +398,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         );
         return { created: false };
     }
-    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name, getShortestPathImportPrefix());
+    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name, getShortestPathImportPrefix(), getShortestPathImportCategoryEnabled());
     const defaultLanguage = fixedProblemPath ? 'cpp' : getDefaultLangPref();
     let extn: string;
 

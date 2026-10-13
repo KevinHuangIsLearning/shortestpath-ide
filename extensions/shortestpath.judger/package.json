@@ -477,6 +477,12 @@
                     "description": "Replace $var$ in the template file with its value. For example, replace $url$ with the problem's url. For more information, please refer to the user guide.",
                     "scope": "resource"
                 },
+                "judger.general.shortestPathImportCategoryEnabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%judger.general.shortestPathImportCategoryEnabled.description%",
+                    "scope": "resource"
+                },
                 "judger.general.shortestPathImportPrefixEnabled": {
                     "type": "boolean",
                     "default": false,

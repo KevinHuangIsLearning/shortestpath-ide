@@ -59,6 +59,7 @@ type SimpleSettingsState = {
 	browserDarkReaderMode: 'off' | 'on' | 'auto';
 	browserDarkReaderDetectDarkTheme: boolean;
 	browserDarkReaderExcludedHosts: string[];
+	shortestPathImportCategoryEnabled: boolean;
 	shortestPathCppSubmissionLanguage: string;
 	defaultSubmitMethod: string;
 	themes: ThemeOption[];
@@ -599,6 +600,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('editor.formatOnPaste')
 			|| event.affectsConfiguration('judger.language.cpp.Args')
 			|| event.affectsConfiguration('judger.language.cpp.Template')
+			|| event.affectsConfiguration('judger.general.shortestPathImportCategoryEnabled')
 			|| event.affectsConfiguration('c-cpp-compile-run.cpp-flags')
 			|| event.affectsConfiguration('editor.inlayHints.enabled')
 			|| event.affectsConfiguration('errorLens.enabled')
@@ -663,6 +665,7 @@ function getState(): SimpleSettingsState {
 		browserDarkReaderMode: workbench.get<SimpleSettingsState['browserDarkReaderMode']>('browser.darkReader.mode') ?? 'auto',
 		browserDarkReaderDetectDarkTheme: workbench.get<boolean>('browser.darkReader.detectDarkTheme') ?? true,
 		browserDarkReaderExcludedHosts: workbench.get<string[]>('browser.darkReader.excludedHosts') ?? [],
+		shortestPathImportCategoryEnabled: vscode.workspace.getConfiguration('judger.general', null).get<boolean>('shortestPathImportCategoryEnabled') ?? true,
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'cpp20',
 		defaultSubmitMethod: vscode.workspace.getConfiguration('judger.general', null).get<string>('defaultSubmitMethod') ?? 'ask',
 		themes: getThemeOptions(colorTheme)
@@ -729,6 +732,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		...(value.browserDarkReaderMode === 'off' || value.browserDarkReaderMode === 'on' || value.browserDarkReaderMode === 'auto' ? [settings.update('workbench.browser.darkReader.mode', value.browserDarkReaderMode, vscode.ConfigurationTarget.Global)] : []),
 		...(typeof value.browserDarkReaderDetectDarkTheme === 'boolean' ? [settings.update('workbench.browser.darkReader.detectDarkTheme', value.browserDarkReaderDetectDarkTheme, vscode.ConfigurationTarget.Global)] : []),
 		...(Array.isArray(value.browserDarkReaderExcludedHosts) && value.browserDarkReaderExcludedHosts.every(host => typeof host === 'string') ? [settings.update('workbench.browser.darkReader.excludedHosts', [...new Set(value.browserDarkReaderExcludedHosts.map(host => host.trim().toLowerCase().replace(/\.$/, '')).filter(Boolean))], vscode.ConfigurationTarget.Global)] : []),
+		...(typeof value.shortestPathImportCategoryEnabled === 'boolean' ? [settings.update('judger.general.shortestPathImportCategoryEnabled', value.shortestPathImportCategoryEnabled, vscode.ConfigurationTarget.Global)] : []),
 		settings.update('shortestpath.oj.cppSubmissionLanguage', value.shortestPathCppSubmissionLanguage === 'cpp14' || value.shortestPathCppSubmissionLanguage === 'cpp20' ? value.shortestPathCppSubmissionLanguage : 'ask', vscode.ConfigurationTarget.Global),
 		settings.update('judger.general.defaultSubmitMethod', value.defaultSubmitMethod === 'vjudge' || value.defaultSubmitMethod === 'native' ? value.defaultSubmitMethod : 'ask', vscode.ConfigurationTarget.Global)
 	]);
@@ -819,6 +823,7 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 </section>
 <section class="card" data-category="tools" hidden><h3>提交与评测</h3>
 <div class="row"><div><label>Judger 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 Judger 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 Judger</button></div><div class="row"><div><label>Judger 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 Judger 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div><div class="row"><div><label for="shortestPathCppSubmissionLanguage">ShortestPath OJ 提交语言</label><div class="hint">“每次询问”会在 C++ 提交前选择 C++14 或 C++20。</div></div><select id="shortestPathCppSubmissionLanguage"><option value="ask">每次询问</option><option value="cpp14">C++14</option><option value="cpp20">C++20</option></select></div>
+<div class="row"><div><label for="shortestPathImportCategoryEnabled">ShortestPath OJ 按分类导入</label><div class="hint">在专题目录下添加 found/adv/chal/past 子目录，避免不同分类的题目路径冲突；已有绑定的解答文件保留原路径。</div></div><input id="shortestPathImportCategoryEnabled" type="checkbox" /></div>
 <div class="row"><div><label for="defaultSubmitMethod">Judger 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div>
 </section>
 <section class="card" data-category="tools" hidden><h3>内置浏览器</h3>
@@ -1021,6 +1026,7 @@ function apply(state) {
   byId('fontSize').value = state.fontSize;
 	byId('autoFormat').checked = !!state.autoFormat;
   byId('cppStandard').value = state.cppStandard;
+	byId('shortestPathImportCategoryEnabled').checked = state.shortestPathImportCategoryEnabled;
 	byId('shortestPathCppSubmissionLanguage').value = state.shortestPathCppSubmissionLanguage;
 	byId('defaultSubmitMethod').value = state.defaultSubmitMethod;
   byId('compilerFlags').value = state.compilerFlags;
@@ -1044,7 +1050,7 @@ function apply(state) {
 	byId('browserDarkReaderExcludedHosts').value = (state.browserDarkReaderExcludedHosts ?? []).join('\\n');
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, cppTemplate: byId('cppTemplate').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, compactMode: byId('compactMode').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked, browserDarkReaderMode: byId('browserDarkReaderMode').value, browserDarkReaderDetectDarkTheme: byId('browserDarkReaderDetectDarkTheme').checked, browserDarkReaderExcludedHosts: byId('browserDarkReaderExcludedHosts').value.split(/\\r?\\n/) }; }
+function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathImportCategoryEnabled: byId('shortestPathImportCategoryEnabled').checked, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, cppTemplate: byId('cppTemplate').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, compactMode: byId('compactMode').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked, browserDarkReaderMode: byId('browserDarkReaderMode').value, browserDarkReaderDetectDarkTheme: byId('browserDarkReaderDetectDarkTheme').checked, browserDarkReaderExcludedHosts: byId('browserDarkReaderExcludedHosts').value.split(/\\r?\\n/) }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily), textarea').forEach(control => {

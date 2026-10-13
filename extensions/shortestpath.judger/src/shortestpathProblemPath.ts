@@ -6,7 +6,7 @@
 import path from 'path';
 
 /** Fixed workspace-relative C++ paths for supported ShortestPath pages. */
-export function getShortestPathProblemPath(problemUrl: string, title: string, prefix = ''): string | undefined {
+export function getShortestPathProblemPath(problemUrl: string, title: string, prefix = '', includeCategory = true): string | undefined {
 	let url: URL;
 	try { url = new URL(problemUrl); } catch { return undefined; }
 	if (url.origin !== 'https://shortestpath.cn') { return undefined; }
@@ -15,7 +15,7 @@ export function getShortestPathProblemPath(problemUrl: string, title: string, pr
 	let directories: string[];
 	let label: string;
 	if (parts.length === 4 && parts[0] === 'problem' && ['found', 'adv', 'chal', 'past'].includes(parts[2])) {
-		directories = [parts[1]];
+		directories = includeCategory ? [parts[1], parts[2]] : [parts[1]];
 		label = parts[3];
 	} else if (parts.length === 4 && parts[0] === 'upsolving' && ['at', 'cf'].includes(parts[1])) {
 		directories = ['contest', parts[2]];

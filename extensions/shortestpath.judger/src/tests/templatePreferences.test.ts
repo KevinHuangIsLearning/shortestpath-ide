@@ -7,7 +7,7 @@ jest.mock('vscode', () => ({ window: {}, workspace: { getConfiguration: jest.fn(
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, fallback: string) => fallback }));
 
 import { workspace } from 'vscode';
-import { getCppTemplate, getDefaultLanguageTemplateFileLocation, getShortestPathImportPrefix } from '../preferences';
+import { getCppTemplate, getDefaultLanguageTemplateFileLocation, getShortestPathImportPrefix, getShortestPathImportCategoryEnabled } from '../preferences';
 
 globalThis.logger = { ...console, log: jest.fn() };
 
@@ -35,4 +35,10 @@ test.each([
 ])('ShortestPath import prefix is disabled by default (%p, %p)', (enabled, prefix, expected) => {
 	(workspace.getConfiguration as jest.Mock).mockReturnValue({ get: (key: string) => key === 'general.shortestPathImportPrefixEnabled' ? enabled : prefix });
 	expect(getShortestPathImportPrefix()).toBe(expected);
+});
+
+
+test.each([[undefined, true], [true, true], [false, false]])('category directories default on and respect an explicit %p', (configured, expected) => {
+	(workspace.getConfiguration as jest.Mock).mockReturnValue({ get: () => configured });
+	expect(getShortestPathImportCategoryEnabled()).toBe(expected);
 });

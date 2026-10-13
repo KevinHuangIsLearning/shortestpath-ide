@@ -56,6 +56,7 @@ export type prefSection =
     | 'general.autoShowJudge'
     | 'general.defaultLanguageTemplateFileLocation'
     | 'general.doTemplateFileVariableReplacement'
+    | 'general.shortestPathImportCategoryEnabled'
     | 'general.shortestPathImportPrefixEnabled'
     | 'general.shortestPathImportPrefix'
     | 'general.fileNameTemplate'

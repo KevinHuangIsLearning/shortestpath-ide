@@ -7,14 +7,14 @@ import path from 'path';
 jest.mock('vscode', () => ({ window: { showQuickPick: jest.fn(), showInputBox: jest.fn(), showSaveDialog: jest.fn(), showErrorMessage: jest.fn(), showTextDocument: jest.fn(async () => ({})) }, ViewColumn: { One: 1 }, Uri: { file: (value: string) => ({ toString: () => `file://${value}` }) }, workspace: { workspaceFolders: [{ uri: { fsPath: require('path').resolve('/workspace') } }], openTextDocument: jest.fn(async () => ({ getText: () => '' })) }, commands: { executeCommand: jest.fn() } }), { virtual: true });
 jest.mock('../extension', () => ({ getJudgeViewProvider: () => ({ extensionToJudgeViewMessage: jest.fn() }) }));
 jest.mock('../toolProcess', () => ({}));
-jest.mock('../preferences', () => ({ getDefaultLangPref: jest.fn(() => 'cpp'), getCppTemplate: () => null, getDefaultLanguageTemplateFileLocation: () => '/template.cpp', getMenuChoices: () => ['cpp'], getVjudgeOjNames: () => null, getVjudgeOpenInBrowser: jest.fn(() => false), getVjudgeBrowserSplitRatio: () => 65, getVjudgeUrlSuffix: () => '#original', getOjMapping: jest.fn(() => null), includeProblemIndex: () => true, getShortestPathImportPrefix: jest.fn(() => ''), getFileNameTemplate: jest.fn(() => '{name}.{ext}'), getFileNameTemplateOverrides: jest.fn(() => null), useShortCodeForcesName: () => false, wordRegex: () => /\w+/g, getDefaultProblemSource: jest.fn(() => 'none'), doTemplateFileVariableReplacement: () => false }));
+jest.mock('../preferences', () => ({ getDefaultLangPref: jest.fn(() => 'cpp'), getCppTemplate: () => null, getDefaultLanguageTemplateFileLocation: () => '/template.cpp', getMenuChoices: () => ['cpp'], getVjudgeOjNames: () => null, getVjudgeOpenInBrowser: jest.fn(() => false), getVjudgeBrowserSplitRatio: () => 65, getVjudgeUrlSuffix: () => '#original', getOjMapping: jest.fn(() => null), includeProblemIndex: () => true, getShortestPathImportCategoryEnabled: jest.fn(() => true), getShortestPathImportPrefix: jest.fn(() => ''), getFileNameTemplate: jest.fn(() => '{name}.{ext}'), getFileNameTemplateOverrides: jest.fn(() => null), useShortCodeForcesName: () => false, wordRegex: () => /\w+/g, getDefaultProblemSource: jest.fn(() => 'none'), doTemplateFileVariableReplacement: () => false }));
 jest.mock('../submit', () => ({}));
 jest.mock('../utils', () => ({ randomId: () => 1, isCodeforcesUrl: () => false, isLuoguUrl: () => false, isAtCoderUrl: () => false }));
 jest.mock('../parser', () => ({ saveProblem: jest.fn(), getProblem: () => null }));
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, text: string) => text }));
 import { handleNewProblem } from '../companion';
 import { saveProblem } from '../parser';
-import { getDefaultLangPref, getShortestPathImportPrefix, getFileNameTemplate, getFileNameTemplateOverrides, getOjMapping, getVjudgeOpenInBrowser, getDefaultProblemSource } from '../preferences';
+import { getDefaultLangPref, getShortestPathImportCategoryEnabled, getShortestPathImportPrefix, getFileNameTemplate, getFileNameTemplateOverrides, getOjMapping, getVjudgeOpenInBrowser, getDefaultProblemSource } from '../preferences';
 import { Problem } from '../types';
 import * as vscode from 'vscode';
 
@@ -67,7 +67,10 @@ describe('ShortestPath OJ source paths with an optional directory prefix', () =>
 	afterEach(() => { (getShortestPathImportPrefix as jest.Mock).mockReturnValue(''); });
 
 	test.each([
-		['/problem/dsu/found/A', 'dsu/A_字母互换.cpp'],
+		['/problem/dsu/found/A', 'dsu/found/A_字母互换.cpp'],
+		['/problem/dsu/adv/A', 'dsu/adv/A_字母互换.cpp'],
+		['/problem/dsu/chal/A', 'dsu/chal/A_字母互换.cpp'],
+		['/problem/dsu/past/A', 'dsu/past/A_字母互换.cpp'],
 		['/upsolving/cf/2078/A', 'contest/2078/A_字母互换.cpp'],
 		['/upsolving/cf/2078/B', 'contest/2078/B_字母互换.cpp'],
 		['/upsolving/at/agc078/A', 'contest/agc078/A_字母互换.cpp'],
@@ -87,10 +90,15 @@ describe('ShortestPath OJ source paths with an optional directory prefix', () =>
 		}
 	});
 
+	test('disabling category directories restores the legacy topic path', async () => {
+		(getShortestPathImportCategoryEnabled as jest.Mock).mockReturnValueOnce(false);
+		expect(await handleNewProblem(importedProblem())).toEqual({ created: true, sourcePath: path.resolve('/workspace/dsu/A_字母互换.cpp') });
+	});
+
 	test('enabled prefix is added before the source directory', async () => {
 		(getShortestPathImportPrefix as jest.Mock).mockReturnValue('ShortestPath/solutions');
 		const result = await handleNewProblem(importedProblem());
-		expect(result).toEqual({ created: true, sourcePath: path.resolve('/workspace/ShortestPath/solutions/dsu/A_字母互换.cpp') });
+		expect(result).toEqual({ created: true, sourcePath: path.resolve('/workspace/ShortestPath/solutions/dsu/found/A_字母互换.cpp') });
 		expect(fs.writeFileSync).toHaveBeenCalledWith(result.sourcePath, 'template contents', { flag: 'wx' });
 	});
 
