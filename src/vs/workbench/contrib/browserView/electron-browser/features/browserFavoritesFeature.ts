@@ -101,6 +101,9 @@ export class BrowserFavoritesStore extends Disposable {
 
 	constructor(private readonly _storageService: IStorageService) {
 		super();
+		if (_storageService.get(BrowserFavoritesStore.STORAGE_KEY, StorageScope.WORKSPACE) === undefined) {
+			_storageService.store(BrowserFavoritesStore.STORAGE_KEY, JSON.stringify(['https://shortestpath.cn/']), StorageScope.WORKSPACE, StorageTarget.USER);
+		}
 		this.load();
 		const listeners = this._register(new DisposableStore());
 		this._register(_storageService.onDidChangeValue(StorageScope.WORKSPACE, BrowserFavoritesStore.STORAGE_KEY, listeners)(() => {

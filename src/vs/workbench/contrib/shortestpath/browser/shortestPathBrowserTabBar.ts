@@ -220,9 +220,11 @@ export class ShortestPathBrowserTabBar extends Disposable {
 		}
 		const menu = () => this.contextMenu.showContextMenu({ getAnchor: () => tab, getActions: () => this.actions.getMenu(item.key) });
 		this.rows.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (event: MouseEvent) => { event.preventDefault(); menu(); }));
-		const more = this.button(row, browserTabBarLabels.more, 'ellipsis', menu, this.rows);
-		more.classList.add('browser-tab-more');
-		more.dataset.key = item.key;
+		if (!favorite) {
+			const more = this.button(row, browserTabBarLabels.more, 'ellipsis', menu, this.rows);
+			more.classList.add('browser-tab-more');
+			more.dataset.key = item.key;
+		}
 		if (!favorite || item.opened) {
 			const close = this.button(row, browserTabBarLabels.close, 'close', () => this.actions.close(item.key), this.rows);
 			close.classList.add('browser-tab-close');

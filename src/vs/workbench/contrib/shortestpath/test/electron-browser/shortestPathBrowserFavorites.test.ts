@@ -11,6 +11,15 @@ import { BrowserFavoritesStore } from '../../../browserView/electron-browser/fea
 suite('ShortestPath browser favorites', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('initializes the default favorite once and respects its removal across reloads', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const first = store.add(new BrowserFavoritesStore(storage));
+		const initial = first.values;
+		first.remove('https://shortestpath.cn/');
+		const reloaded = store.add(new BrowserFavoritesStore(storage));
+		assert.deepStrictEqual({ initial, reloaded: reloaded.values }, { initial: ['https://shortestpath.cn/'], reloaded: [] });
+	});
+
 	test('uses the existing workspace favorites and synchronizes both APIs including external writes', () => {
 		const storage = store.add(new InMemoryStorageService());
 		storage.store('workbench.browser.favorites', JSON.stringify(['https://one.example/', 42]), StorageScope.WORKSPACE, StorageTarget.USER);

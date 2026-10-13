@@ -23,7 +23,7 @@ suite('ShortestPath browser tab bar', () => {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		return store.add(new ShortestPathBrowserTabBar(container, {
 			select: async () => { }, editUrl: () => { }, close: () => { }, move: () => { }, create: () => { }, setVertical: () => { }, getMenu: () => [], ...actions,
-		}, instantiation.invokeFunction(accessor => accessor.get(IHoverService)), new class extends mock<IContextMenuService>() { override showContextMenu() { } }));
+		}, instantiation.invokeFunction(accessor => accessor.get(IHoverService)), new class extends mock<IContextMenuService>() { override showContextMenu(options: Parameters<IContextMenuService['showContextMenu']>[0]) { options.getActions(); } }));
 	}
 
 	test('switches inactive tabs and delegates selected-tab URL editing to the existing address bar', async () => {
@@ -65,6 +65,57 @@ suite('ShortestPath browser tab bar', () => {
 		bar.update([], [{ ...favorite, active: true }]);
 		bar.element.querySelector<HTMLButtonElement>('.favorite .browser-tab')!.click();
 		assert.deepStrictEqual(calls, [`select:${favorite.key}`, `edit:${favorite.key}`]);
+	});
+
+	test('favorites use their context menu without a more button in either layout', () => {
+		const calls: string[] = [];
+		const bar = create({ getMenu: key => { calls.push(key); return []; } });
+		const favorite = { key: 'favorite:https://a.example/', title: 'A', url: 'https://a.example/', active: false };
+		for (const vertical of [false, true]) {
+			bar.setVertical(vertical);
+			bar.update([], [favorite]);
+			assert.strictEqual(bar.element.querySelector('.favorite .browser-tab-more'), null);
+			bar.element.querySelector<HTMLButtonElement>('.favorite .browser-tab')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		}
+		assert.deepStrictEqual(calls, [favorite.key, favorite.key]);
+	});
+
+	test('gives the favorites star and arrow equal slots with each icon centered in both layouts', () => {
+		const bar = create();
+		bar.update([], [{ key: 'favorite:https://a.example/', title: 'A', url: 'https://a.example/', active: false }]);
+		for (const vertical of [false, true]) {
+			bar.setVertical(vertical);
+			bar.element.classList.toggle('native-leading', !vertical);
+			for (const collapsed of [false, true]) {
+				const toggle = bar.element.querySelector<HTMLButtonElement>('.browser-favorites-toggle')!;
+				if ((toggle.getAttribute('aria-expanded') === 'false') !== collapsed) { toggle.click(); }
+				const button = toggle.getBoundingClientRect();
+				const [star, chevron] = Array.from(toggle.children, child => child.getBoundingClientRect());
+				assert.ok(button.width > 0 && Math.abs(star.width - button.width / 2) < 1 && Math.abs(chevron.width - star.width) < 1);
+				assert.ok(Math.abs(star.left + star.width / 2 - button.left - button.width / 4) < 1);
+				assert.ok(Math.abs(chevron.left + chevron.width / 2 - button.left - button.width * 3 / 4) < 1);
+				assert.ok(Math.abs(star.top + star.height / 2 - button.top - button.height / 2) < 1);
+				assert.ok(Math.abs(chevron.top + chevron.height / 2 - button.top - button.height / 2) < 1);
+			}
+		}
+	});
+
+	test('centers favorite icons in horizontal, native and collapsed layouts', () => {
+		const bar = create();
+		const favorite = { key: 'favorite:https://a.example/', title: 'A', url: 'https://a.example/', active: false };
+		const assertCentered = (selector: string) => {
+			const tab = bar.element.querySelector<HTMLElement>(selector)!;
+			const button = tab.getBoundingClientRect();
+			const icon = tab.querySelector<HTMLElement>('.browser-tab-icon')!.getBoundingClientRect();
+			assert.ok(button.width > 0 && Math.abs(icon.left + icon.width / 2 - button.left - button.width / 2) < 1);
+		};
+		bar.update([], [favorite]);
+		assertCentered('.favorite .browser-tab');
+		bar.element.classList.add('native-leading');
+		assertCentered('.favorite .browser-tab');
+		bar.update([], [{ ...favorite, opened: true }]);
+		bar.element.querySelector<HTMLButtonElement>('.browser-favorites-toggle')!.click();
+		assertCentered('.browser-favorites-summary .browser-tab');
 	});
 
 	test('lays out chrome outside the webpage and sizes favorites to their content', () => {
