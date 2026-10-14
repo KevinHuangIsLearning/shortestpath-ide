@@ -1612,6 +1612,13 @@ body {
 	font-weight: var(--vscode-editor-font-weight);
 }
 
+.editorial-container pre,
+.editorial-container pre *,
+.editorial-container code {
+	-webkit-user-select: none;
+	user-select: none;
+}
+
 .editorial-container pre {
 	background: var(--vscode-editor-background) !important;
 	color: var(--vscode-editor-foreground);

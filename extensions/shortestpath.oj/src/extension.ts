@@ -2895,6 +2895,24 @@ ${renderEditorialContents(editorial, problem, canLike)}
 const vscode = acquireVsCodeApi();
 const editorialContainer = document.querySelector('.editorial-container');
 const editorialResizer = document.querySelector('.editorial-resizer');
+const selectionIncludesEditorialCode = () => {
+	const selection = window.getSelection();
+	if (!selection || selection.isCollapsed) { return false; }
+	const codeElements = document.querySelectorAll('.editorial-container pre, .editorial-container code');
+	for (const codeElement of codeElements) {
+		for (let index = 0; index < selection.rangeCount; index++) {
+			if (selection.getRangeAt(index).intersectsNode(codeElement)) { return true; }
+		}
+	}
+	return false;
+};
+for (const eventName of ['copy', 'cut']) {
+	document.addEventListener(eventName, event => {
+		const target = event.target;
+		if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea'))) { return; }
+		if (selectionIncludesEditorialCode()) { event.preventDefault(); }
+	}, true);
+}
 const savedLayout = vscode.getState() || {};
 let editorialCodeWidth = typeof savedLayout.editorialCodeWidth === 'number' ? Math.min(80, Math.max(0, savedLayout.editorialCodeWidth)) : 45;
 const editorialSections = Array.from(document.querySelectorAll('.editorial-collapsible[data-persist-key]'));

@@ -196,3 +196,55 @@ test('modal refresh restores collapsed sections and resizing preserves their sta
 	vm.runInContext('editorialCodeWidth = 60; saveEditorialLayout();', context);
 	assert.equal(JSON.stringify(saved), JSON.stringify({ editorialCodeWidth: 60, editorialSections: { 'editorial-hints': false, 'editorial-simple': false, 'editorial-detailed': false } }));
 });
+
+test('both report views block code selections while preserving prose and editable field copying', () => {
+	class Element {
+		constructor(readonly tagName: string, readonly isContentEditable = false) { }
+		closest() { return ['INPUT', 'TEXTAREA'].includes(this.tagName) ? this : null; }
+	}
+	const reportCode = new Element('PRE');
+	const dynamicCode = new Element('CODE');
+	const prose = new Element('P');
+	type ClipboardEvent = { target: Element; preventDefault(): void };
+	for (const view of ['problemView.js', 'extension.js']) {
+		const source = fs.readFileSync(path.resolve(__dirname, '..', view), 'utf8');
+		const start = source.indexOf('const selectionIncludesEditorialCode =');
+		const end = source.indexOf(view === 'problemView.js' ? 'document.addEventListener(\'keydown\'' : 'const savedLayout =', start);
+		assert.ok(start >= 0 && end > start);
+		let selected: Element[][] = [];
+		const codeElements = [reportCode];
+		const listeners = new Map<string, (event: ClipboardEvent) => void>();
+		const context = vm.createContext({
+			HTMLElement: Element,
+			window: { getSelection: () => ({
+				isCollapsed: selected.length === 0,
+				rangeCount: selected.length,
+				getRangeAt: (index: number) => ({ intersectsNode: (element: Element) => selected[index].includes(element) }),
+			}) },
+			document: {
+				querySelectorAll: () => codeElements,
+				addEventListener: (type: string, listener: (event: ClipboardEvent) => void) => listeners.set(type, listener),
+			},
+		});
+		vm.runInContext(source.slice(start, end), context);
+		codeElements.push(dynamicCode);
+		for (const type of ['copy', 'cut']) {
+			const scenarios = [
+				{ ranges: [], target: prose, blocked: false },
+				{ ranges: [[prose]], target: prose, blocked: false },
+				{ ranges: [[reportCode]], target: reportCode, blocked: true },
+				{ ranges: [[prose], [prose, dynamicCode]], target: prose, blocked: true },
+				{ ranges: [[reportCode]], target: new Element('TEXTAREA'), blocked: false },
+				{ ranges: [[reportCode]], target: new Element('INPUT'), blocked: false },
+				{ ranges: [[reportCode]], target: new Element('DIV', true), blocked: false },
+			];
+			const results = scenarios.map(scenario => {
+				selected = scenario.ranges;
+				let blocked = false;
+				listeners.get(type)!({ target: scenario.target, preventDefault: () => { blocked = true; } });
+				return blocked;
+			});
+			assert.deepEqual(results, scenarios.map(scenario => scenario.blocked), `${view}: ${type}`);
+		}
+	}
+});

@@ -466,6 +466,33 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		});
 	}
 
+	const selectionIncludesEditorialCode = (): boolean => {
+		const selection = window.getSelection();
+		if (!selection || selection.isCollapsed) {
+			return false;
+		}
+		const codeElements = document.querySelectorAll('.editorial-container pre, .editorial-container code');
+		for (const codeElement of codeElements) {
+			for (let index = 0; index < selection.rangeCount; index++) {
+				if (selection.getRangeAt(index).intersectsNode(codeElement)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+	for (const eventName of ['copy', 'cut'] as const) {
+		document.addEventListener(eventName, event => {
+			const target = event.target;
+			if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea'))) {
+				return;
+			}
+			if (selectionIncludesEditorialCode()) {
+				event.preventDefault();
+			}
+		}, true);
+	}
+
 	document.addEventListener('keydown', event => {
 		if (ratingOverlay && !ratingOverlay.hidden) {
 			if (event.key === 'Escape') { event.preventDefault(); dismissRatingDialog(); return; }
