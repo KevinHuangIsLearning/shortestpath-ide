@@ -466,15 +466,15 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		});
 	}
 
-	const selectionIncludesEditorialCode = (): boolean => {
+	const selectionIncludesProtectedContent = (): boolean => {
 		const selection = window.getSelection();
 		if (!selection || selection.isCollapsed) {
 			return false;
 		}
-		const codeElements = document.querySelectorAll('.editorial-container pre, .editorial-container code');
-		for (const codeElement of codeElements) {
+		const protectedElements = document.querySelectorAll('[data-copy-protected], .editorial-container pre, .editorial-container code');
+		for (const element of protectedElements) {
 			for (let index = 0; index < selection.rangeCount; index++) {
-				if (selection.getRangeAt(index).intersectsNode(codeElement)) {
+				if (selection.getRangeAt(index).intersectsNode(element)) {
 					return true;
 				}
 			}
@@ -487,7 +487,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 			if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea'))) {
 				return;
 			}
-			if (selectionIncludesEditorialCode()) {
+			if (selectionIncludesProtectedContent()) {
 				event.preventDefault();
 			}
 		}, true);

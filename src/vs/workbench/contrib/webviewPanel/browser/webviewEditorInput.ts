@@ -26,7 +26,8 @@ export interface WebviewInputInitInfo {
 export class WebviewInput extends EditorInput implements IModalEditorOptionsProvider {
 
 	getModalEditorOptions(): IModalEditorOptions | undefined {
-		return this._webview.options.modalCloseOnly ? { closeOnly: true } : undefined;
+		const { modalCloseOnly, modalHideHeader } = this._webview.options;
+		return modalCloseOnly || modalHideHeader ? { closeOnly: modalCloseOnly, hideHeader: modalHideHeader } : undefined;
 	}
 
 	public static typeId = 'workbench.editors.webviewInput';

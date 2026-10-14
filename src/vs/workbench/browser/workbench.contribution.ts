@@ -785,11 +785,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
-			'shortestpath.compactMode': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('shortestpath.compactMode', "Move ShortestPath navigation to the custom title bar to give the workspace more room."),
-			},
 			'workbench.navigationControl.enabled': {
 				'type': 'boolean',
 				'default': false,

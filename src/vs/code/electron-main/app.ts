@@ -679,9 +679,10 @@ export class CodeApplication extends Disposable {
 
 				// about:blank windows can open as window witho our default options
 				if (details.url === 'about:blank') {
-					if (details.features.split(',').includes('vscode-native-browser-overlay=yes')) {
+					const navigationOverlay = details.features.split(',').includes('vscode-native-browser-overlay=navigation');
+					if (navigationOverlay || details.features.split(',').includes('vscode-native-browser-overlay=yes')) {
 						const trusted = contents.getURL().startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) || !!this.auxiliaryWindowsMainService?.getWindowByWebContents(contents);
-						return trusted ? this.browserOverlayWindows.createWindowOpenHandler(contents) : { action: 'deny' };
+						return trusted ? this.browserOverlayWindows.createWindowOpenHandler(contents, navigationOverlay ? 'navigation' : 'notification') : { action: 'deny' };
 					}
 					this.logService.trace('[aux window] webContents#setWindowOpenHandler: Allowing auxiliary window to open on about:blank');
 

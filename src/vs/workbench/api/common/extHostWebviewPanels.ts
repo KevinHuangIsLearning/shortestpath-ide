@@ -329,6 +329,7 @@ function serializeWebviewPanelOptions(options: vscode.WebviewPanelOptions): extH
 	return {
 		modal: options.modal,
 		modalCloseOnly: options.modalCloseOnly,
+		modalHideHeader: options.modalHideHeader,
 		sourceEditor: options.sourceEditor,
 		sourceEditorRatio: options.sourceEditorRatio,
 		enableFindWidget: options.enableFindWidget,

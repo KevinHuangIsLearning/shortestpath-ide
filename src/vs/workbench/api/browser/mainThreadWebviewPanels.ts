@@ -406,6 +406,7 @@ function reviveWebviewOptions(panelOptions: extHostProtocol.IWebviewPanelOptions
 	return {
 		requiresModal: panelOptions.modal,
 		modalCloseOnly: panelOptions.modal && panelOptions.modalCloseOnly,
+		modalHideHeader: panelOptions.modal && panelOptions.modalHideHeader,
 		enableFindWidget: panelOptions.enableFindWidget,
 		retainContextWhenHidden: panelOptions.retainContextWhenHidden,
 	};

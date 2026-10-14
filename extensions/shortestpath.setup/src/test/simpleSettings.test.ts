@@ -15,7 +15,7 @@ function renderSettings(showSupport = true): string {
 	const source = fs.readFileSync(path.resolve(__dirname, '../simpleSettings.js'), 'utf8');
 	vm.runInNewContext(source + '\nexports.render = getHtml;', {
 		exports,
-		require: () => ({ localize: (text: string) => text, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) })
+		require: (id: string) => id === './templateEditor' ? require('../templateEditor') : ({ localize: (text: string) => text, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) })
 	});
 	return exports.render!({}, showSupport);
 }
@@ -31,9 +31,9 @@ test('settings groups preserve each control and expose only the three left navig
 		controls[match[1]].push(...[...match[2].matchAll(/<(?:input|select|button|textarea)[^>]*id="([^"]+)"/g)].map(control => control[1]));
 	}
 	assert.deepStrictEqual(controls, {
-		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'compactMode', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
+		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'tabSize', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
 		compiler: ['cppStandard', 'compilerFlags', 'executableCleanupEnabled', 'executableCleanupDelaySeconds', 'toolchainDiagnostics'],
-		tools: ['cppTemplate', 'cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
+		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
 	});
 	const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 	assert.equal(new Set(ids).size, ids.length);
@@ -206,6 +206,7 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 		exports, console,
 		require(id: string) {
 			if (id === 'vscode') { return vscode; }
+			if (id === './templateEditor') { return require('../templateEditor'); }
 			if (id === './bundledFont') { return { withBundledCodeFont: (html: string) => html }; }
 			if (id === './systemFonts') { return { getSystemFonts: async () => ({ fonts: [] }) }; }
 			if (id === './compilerRuntime') { return require('../compilerRuntime'); }
@@ -215,6 +216,60 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 	exports.open!({ subscriptions: [], globalState: { get: () => undefined } });
 	return { receive, onTheme, onConfiguration, onDispose, commands, updates, savedFlags, savedValues, panel, messages, disposedListeners: () => disposedListeners };
 }
+
+test('tab width in the font settings saves globally and refreshes after external changes', async () => {
+	const host = createSettingsHost();
+	const state = () => {
+		host.onConfiguration({ affectsConfiguration: key => key === 'editor.tabSize' });
+		return host.messages.at(-1)!.value as Record<string, unknown>;
+	};
+	assert.equal(state().tabSize, 2);
+	for (const tabSize of [4, 8, 3, 1, 100]) {
+		await host.receive({ type: 'save', value: { ...state(), tabSize } });
+		assert.deepEqual({
+			tabSize: state().tabSize,
+			insertSpaces: host.savedValues['editor.insertSpaces'],
+			detectIndentation: host.savedValues['editor.detectIndentation']
+		}, { tabSize, insertSpaces: true, detectIndentation: false });
+	}
+	host.savedValues['editor.tabSize'] = 6;
+	assert.equal(state().tabSize, 6);
+	host.onDispose();
+});
+
+test('other settings and invalid tab widths leave indentation preferences untouched', async () => {
+	const host = createSettingsHost();
+	Object.assign(host.savedValues, { 'editor.tabSize': 4, 'editor.insertSpaces': false, 'editor.detectIndentation': true });
+	for (const tabSize of [undefined, 4, 0, -1, 1.5, 101, Number.MAX_SAFE_INTEGER, NaN, Infinity, '8']) {
+		await host.receive({ type: 'save', value: { fontSize: 16, tabSize } });
+	}
+	assert.deepEqual(host.updates.filter(key => ['editor.tabSize', 'editor.insertSpaces', 'editor.detectIndentation'].includes(key)), []);
+	host.onDispose();
+});
+
+test('font settings populate and serialize the tab width control', () => {
+	const html = renderSettings();
+	const fontCard = html.match(/<section class="card" data-category="editor"><h3>字体<\/h3>([\s\S]*?)<\/section>/)?.[1];
+	assert.ok(fontCard);
+	assert.match(fontCard, /<label for="tabSize">缩进<\/label><\/div><input id="tabSize"/);
+	const localization: { localize?: (text: string) => string; localizeWebviewHtml?: (html: string) => string } = {};
+	vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, '../localization.js'), 'utf8'), {
+		exports: localization, require: () => ({ env: { language: 'en' } })
+	});
+	assert.equal(localization.localize!('缩进'), 'Indentation');
+	assert.match(localization.localizeWebviewHtml!(html), /"缩进":"Indentation"/);
+	const elements = new Map<string, { value: string | number; checked: boolean; textContent: string; replaceChildren(): void }>();
+	const byId = (id: string) => {
+		if (!elements.has(id)) { elements.set(id, { value: '', checked: false, textContent: '', replaceChildren() { } }); }
+		return elements.get(id)!;
+	};
+	const context = vm.createContext({ byId, normalizeFont: (font: string) => font, serializeFont: (font: string) => font, setPreview() { }, renderFonts() { } });
+	vm.runInContext('let selectedFont;\n' + html.slice(html.indexOf('function apply(state)'), html.indexOf('let saveTimer;')), context);
+	vm.runInContext('apply({ fontFamily: "Fira Code", tabSize: 6, themes: [] });', context);
+	assert.equal(byId('tabSize').value, 6);
+	byId('tabSize').value = '8';
+	assert.equal(vm.runInContext('value().tabSize', context), 8);
+});
 
 test('saving custom compiler options retains junction flags for each configured compiler', async () => {
 	const alias = 'C:\\.shortestpath-toolchain-0123456789ab\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\winlibs\\mingw64-ucrt-15\\bin\\g++.exe';
@@ -275,20 +330,6 @@ test('Error Lens toggle controls the extension enable setting', async () => {
 });
 
 
-test('Compact Mode defaults on and round-trips through ShortestPath IDE settings', async () => {
-	const host = createSettingsHost();
-	const state = () => {
-		host.onConfiguration({ affectsConfiguration: key => key === 'shortestpath.compactMode' });
-		return host.messages.at(-1)!.value as Record<string, unknown>;
-	};
-	assert.equal(state().compactMode, true);
-	for (const compactMode of [false, true]) {
-		await host.receive({ type: 'save', value: { ...state(), compactMode } });
-		assert.equal(host.savedValues['shortestpath.compactMode'], compactMode);
-		assert.equal(state().compactMode, compactMode);
-	}
-});
-
 test('Better switches in custom settings preserve independent values and refresh from configuration', async () => {
 	const host = createSettingsHost();
 	const state = () => {
@@ -347,4 +388,38 @@ test('Dark Reader controls serialize hostnames and restore values without treati
 	assert.equal(values.browserDarkReaderMode, 'off');
 	assert.equal(values.browserDarkReaderDetectDarkTheme, false);
 	assert.deepEqual(values.browserDarkReaderExcludedHosts, ['www.example.com', '<script>']);
+});
+
+
+test('template reserves native editor space and settings autosaves do not carry stale code', async () => {
+	const html = renderSettings();
+	assert.match(html, /<div id="cppTemplate"[^>]*role="group"[^>]*data-i18n-ignore><\/div>/);
+	assert.doesNotMatch(html, /<textarea[^>]*id="cppTemplate"/);
+	const collect = html.match(/function value\(\) \{[^\n]+/)![0];
+	assert.doesNotMatch(collect, /cppTemplate/);
+	const host = createSettingsHost();
+	await host.receive({ type: 'templateEditorLayout', bounds: { left: 20, top: 100, width: 400, height: 360, clipTop: 80, clipBottom: 700 } });
+	assert.deepEqual(host.commands, ['_shortestpath.layoutTemplateEditor']);
+	await host.receive({ type: 'save', value: { fontSize: 18 } });
+	assert.equal(host.updates.includes('judger.language.cpp.Template'), false);
+	host.onDispose();
+});
+
+test('template geometry follows scroll clipping and hides when its settings category is hidden', () => {
+	const html = renderSettings();
+	const layout = html.match(/function layoutTemplateEditor\(\) \{[\s\S]*?\n\}/)![0];
+	const rect = { left: 220, top: 40 };
+	const slot = { clientLeft: 1, clientTop: 1, clientWidth: 600, clientHeight: 360, getBoundingClientRect: () => rect };
+	const messages: Array<{ bounds: object }> = [];
+	const context = vm.createContext({
+		byId: (id: string) => id === 'cppTemplate' ? slot : { getBoundingClientRect: () => ({ top: 100, bottom: 900 }) },
+		window: { innerHeight: 800 }, vscode: { postMessage: (message: typeof messages[number]) => messages.push(message) }
+	});
+	vm.runInContext(layout + '\nlayoutTemplateEditor()', context);
+	Object.assign(slot, { clientLeft: 0, clientTop: 0, clientWidth: 0, clientHeight: 0 });
+	vm.runInContext('layoutTemplateEditor()', context);
+	assert.deepEqual(JSON.parse(JSON.stringify(messages.map(message => message.bounds))), [
+		{ left: 221, top: 41, width: 600, height: 360, clipTop: 100, clipBottom: 800 },
+		{ left: 220, top: 40, width: 0, height: 0, clipTop: 100, clipBottom: 800 }
+	]);
 });

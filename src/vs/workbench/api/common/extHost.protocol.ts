@@ -1043,6 +1043,7 @@ export interface IWebviewContentOptions {
 export interface IWebviewPanelOptions {
 	readonly modal?: boolean;
 	readonly modalCloseOnly?: boolean;
+	readonly modalHideHeader?: boolean;
 	readonly sourceEditor?: UriComponents;
 	readonly sourceEditorRatio?: number;
 	readonly enableFindWidget?: boolean;

@@ -270,6 +270,13 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 
 		// Check against all precomputed overlay rectangles
 		for (const overlay of overlays) {
+			// Navigation labels are mirrored above the native page in their own
+			// bounded view. Neither the label nor its context view pauses the page.
+			if (overlay.element.classList.contains('shortestpath-navigation-hover')
+				// eslint-disable-next-line no-restricted-syntax
+				|| (overlay.element.classList.contains('context-view') && overlay.element.querySelector('.shortestpath-navigation-hover'))) {
+				continue;
+			}
 			// Skip overlays that are ancestors of the target element,
 			// e.g., the modal editor backdrop when the browser is inside the modal
 			if (overlay.element.contains(element)) {

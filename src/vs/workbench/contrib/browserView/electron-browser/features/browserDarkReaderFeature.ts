@@ -31,7 +31,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('darkReader.onDescription', "Use Dark Reader on websites."),
 				localize('darkReader.autoDescription', "Use Dark Reader when the IDE uses a dark theme."),
 			],
-			default: 'auto',
+			default: 'off',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('darkReader.modeDescription', "Controls Dark Reader in the integrated browser. Applies immediately to open HTTP and HTTPS pages."),
 		},
@@ -98,7 +98,7 @@ class BrowserDarkReaderFeature extends BrowserEditorContribution {
 	}
 
 	private update(): void {
-		const mode = this.configurationService.getValue<BrowserDarkReaderMode>(browserDarkReaderModeSetting) ?? 'auto';
+		const mode = this.configurationService.getValue<BrowserDarkReaderMode>(browserDarkReaderModeSetting) ?? 'off';
 		this.canUse.set(!!browserDarkReaderHostname(this.url));
 		this.enabled.set(isBrowserDarkReaderEnabled(this.url, {
 			enabled: mode === 'on' || (mode === 'auto' && isDark(this.themeService.getColorTheme().type)),
@@ -135,7 +135,7 @@ registerAction2(class extends Action2 {
 		}
 		const configuration = accessor.get(IConfigurationService);
 		const quickInput = accessor.get(IQuickInputService);
-		const mode = configuration.getValue<BrowserDarkReaderMode>(browserDarkReaderModeSetting) ?? 'auto';
+		const mode = configuration.getValue<BrowserDarkReaderMode>(browserDarkReaderModeSetting) ?? 'off';
 		const excludedHosts = configuration.getValue<string[]>(browserDarkReaderExcludedHostsSetting) ?? [];
 		const url = editor.model?.url ?? (editor.input instanceof BrowserEditorInput ? editor.input.url ?? '' : '');
 		const hostname = browserDarkReaderHostname(url);

@@ -257,6 +257,7 @@ const english: Readonly<Record<string, string>> = {
 	, '网页提供的题目状态不兼容，已关闭计时、提示和题解等辅助功能。': 'The problem state provided by the webpage is incompatible. Timer, hints, editorial, and related features have been disabled.'
 	, '网页提供的功能信息不兼容，已关闭提交、对拍等增强功能。': 'The capability information provided by the webpage is incompatible. Submission, stress testing, and related features have been disabled.'
 	, '选择 ShortestPath OJ 提交语言': 'Select ShortestPath OJ Submission Language'
+	, '不想每次询问，去设置': 'Don\'t Ask Every Time, Go to Settings'
 	, '使用网站当前提供的语言': 'Use a language currently provided by the website'
 	, '{0} & ShortestPath OJ 上的 {1}': '{0} & {1} on ShortestPath OJ'
 	, '{0}题面': '{0} Problem Statement'

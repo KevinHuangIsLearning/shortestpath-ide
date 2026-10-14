@@ -704,20 +704,22 @@ class ShortestPathOjProblemPanel {
 				enableScripts: true,
 				modal: true,
 				modalCloseOnly: true,
+				modalHideHeader: true,
 				localResourceRoots: [this.extensionUri],
 				retainContextWhenHidden: true,
 			},
 		);
 		this.editorialPanel = panel;
 		panel.webview.onDidReceiveMessage(async (message) => {
-			if (!this.state) {
-				return;
-			}
 			if (typeof message !== 'object' || message === null) {
 				return;
 			}
 			const value = message as { command?: unknown; hintId?: unknown; target?: unknown; liked?: unknown };
-			if (value.command === 'like') {
+			if (value.command === 'close') {
+				panel.dispose();
+				return;
+			}
+			if (this.state && value.command === 'like') {
 				await this.handleMessage({ ...value, command: 'editorialLike' });
 			}
 		});
@@ -2382,10 +2384,19 @@ async function selectSubmissionLanguage(languages: SubmissionLanguage[], sourceP
 	if (languages.length === 1) {
 		return languages[0];
 	}
+	const choices: (vscode.QuickPickItem & { language?: SubmissionLanguage; openSettings?: boolean })[] =
+		languages.map(language => ({ label: language.name, description: language.compileArgs, language }));
+	if (extension === 'cpp' && configured === 'ask') {
+		choices.push({ label: localize('不想每次询问，去设置'), openSettings: true });
+	}
 	const selected = await vscode.window.showQuickPick(
-		languages.map(language => ({ label: language.name, description: language.compileArgs, language })),
+		choices,
 		{ title: localize('选择 ShortestPath OJ 提交语言'), placeHolder: localize('使用网站当前提供的语言') },
 	);
+	if (selected?.openSettings) {
+		await vscode.commands.executeCommand('workbench.action.openSettings', '@id:shortestpath.oj.cppSubmissionLanguage');
+		return undefined;
+	}
 	return selected?.language;
 }
 
@@ -2701,7 +2712,7 @@ function renderStatement(problem: ImportedProblem, previousStatements: ProblemSt
 	];
 	const statement = sections
 		.filter((entry): entry is [string, string, MarkdownContent] => entry[2] !== undefined)
-		.map(([key, title, content]) => `<details class="section-collapsible" data-persist-key="statement:${key}" open><summary><h2>${title}</h2></summary><div data-i18n-ignore>${renderMarkdownContent(content, selected.url)}</div></details>`)
+		.map(([key, title, content]) => `<details class="section-collapsible" data-persist-key="statement:${key}" open><summary><h2>${title}</h2></summary><div data-copy-protected data-i18n-ignore>${renderMarkdownContent(content, selected.url)}</div></details>`)
 		.join('');
 	const samples = selected.samples
 		.map((sample, index) => {
@@ -2801,7 +2812,7 @@ function renderHints(state: ProblemPanelState): string {
 			? `<details class="hint-item" data-persist-key="hint:${escapeAttribute(hint.id)}" data-hint-id="${escapeAttribute(hint.id)}"><summary class="hint-list-item${viewedClass}"${label}>${heading}</summary>${renderHintContent(state, hint)}</details>`
 			: `<button type="button" class="hint-list-item${remainingMs > 0 ? ' locked' : ''}${viewedClass}" data-command="openHint" data-hint-id="${escapeAttribute(hint.id)}"${state.connected && remainingMs === 0 && !state.operationsInFlight.has('refreshHints') ? '' : ' disabled'}${label}${remainingAttr}>${heading}</button>`;
 	}).join('');
-	return `<section class="hints"><h2>提示</h2><div class="hint-list">${items}</div></section>`;
+	return `<section class="hints" aria-label="${localize('提示')}"><div class="hint-list">${items}</div></section>`;
 }
 
 const likeSvgOutlined = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-thumbs-up size-3.5" aria-hidden="true"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"></path><path d="M7 10v12"></path></svg>';
@@ -2826,14 +2837,13 @@ function renderHintContent(state: ProblemPanelState, hint: ProblemHint): string 
 		? `<div data-render-math data-i18n-ignore>${renderMarkdownContent(answer, state.problem.url)}</div>`
 		: `<button type="button" data-command="answer" data-hint-id="${escapeAttribute(hint.id)}" data-can-request="${canRequestAnswer}"${canShowAnswer && !state.operationsInFlight.has(`answer:${hint.id}`) ? '' : ' disabled'}${!unlocked && hint.remainingMs > 0 ? ` data-remaining-ms="${hint.remainingMs}"` : ''}>${state.operationsInFlight.has(`answer:${hint.id}`) ? localize('加载中…') : unlocked ? '显示答案' : `<span class="hint-countdown">剩余 ${formatDuration(hint.remainingMs)}</span>`}</button>`;
 	const feedback = state.hintMessages.get(hint.id);
-	return `<div class="hint-body">${feedback ? `<p class="hint-feedback" role="status">${escapeHtml(feedback)}</p>` : ''}<div class="hint-columns"><div><div class="hint-section-heading"><h4>问题</h4>${questionLike}</div>${questionContent}</div><div><div class="hint-section-heading"><h4>答案</h4>${answerLike}</div>${answerContent}</div></div></div>`;
+	return `<div class="hint-body">${feedback ? `<p class="hint-feedback" role="status">${escapeHtml(feedback)}</p>` : ''}<div class="hint-rows"><div class="hint-row"><h4 class="hint-label hint-label-question">问题</h4><div class="hint-content">${questionContent}</div><div class="like-row">${questionLike}</div></div><div class="hint-row"><h4 class="hint-label hint-label-answer">答案</h4><div class="hint-content">${answerContent}</div><div class="like-row">${answerLike}</div></div></div></div>`;
 }
 
 function renderEditorialTab(state: ProblemPanelState, requestInFlight: boolean): string {
 	const editorial = state.editorial;
 	if (editorial?.state === 'available') {
-		const label = escapeAttribute(localize('弹框查看'));
-		return `<div class="editorial-toolbar"><button type="button" class="editorial-popup-button" data-command="editorialModal" title="${label}" aria-label="${label}"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M10 2h4v4M14 2 8 8M7 3H3v10h10V9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>${renderEditorialContents(editorial, state.problem, state.connected, state.operationsInFlight)}`;
+		return renderEditorialContents(editorial, state.problem, state.connected, state.operationsInFlight, true);
 	}
 	if (requestInFlight) {
 		return `<p role="status">${localize('正在加载解题报告…')}</p>`;
@@ -2846,16 +2856,20 @@ function renderEditorialTab(state: ProblemPanelState, requestInFlight: boolean):
 	return notice;
 }
 
-function renderEditorialContents(editorial: Extract<EditorialResult, { state: 'available' }>, problem: ImportedProblem, canLike: boolean, operationsInFlight: ReadonlySet<string> = new Set()): string {
+function renderEditorialContents(editorial: Extract<EditorialResult, { state: 'available' }>, problem: ImportedProblem, canLike: boolean, operationsInFlight: ReadonlySet<string> = new Set(), showPopupButton = false): string {
 	const baseUrl = problem.url;
+	const popupLabel = localize('弹框查看');
+	const popupButton = showPopupButton
+		? `<button type="button" class="editorial-popup-button" data-command="editorialModal" title="${escapeAttribute(popupLabel)}" aria-label="${escapeAttribute(popupLabel)}"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M10 2h4v4M14 2 8 8M7 3H3v10h10V9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${escapeHtml(popupLabel)}</span></button>`
+		: '';
 	const hintsHtml = editorial.hints.map(hint => {
 		const qLike = renderLikeButton(hint.hintId, 'question', { liked: hint.questionLiked, count: hint.questionLikeCount }, canLike, operationsInFlight.has(`like:${hint.hintId}:question`), true);
 		const aLike = renderLikeButton(hint.hintId, 'answer', { liked: hint.answerLiked, count: hint.answerLikeCount }, canLike, operationsInFlight.has(`like:${hint.hintId}:answer`), true);
 		return `<article class="editorial-hint">
 <div class="editorial-hint-header"><span class="editorial-hint-title">提示 ${hint.seq}</span></div>
 <div class="editorial-hint-body">
-<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label">问题</span><div class="like-row">${qLike}</div></div><div class="editorial-hint-content" data-render-math data-i18n-ignore>${renderMarkdownContent(hint.question, baseUrl)}</div></div>
-<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label">答案</span><div class="like-row">${aLike}</div></div><div class="editorial-hint-content" data-render-math data-i18n-ignore>${renderMarkdownContent(hint.answer, baseUrl)}</div></div>
+<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label hint-label-question">问题</span><div class="like-row">${qLike}</div></div><div class="editorial-hint-content" data-render-math data-i18n-ignore>${renderMarkdownContent(hint.question, baseUrl)}</div></div>
+<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label hint-label-answer">答案</span><div class="like-row">${aLike}</div></div><div class="editorial-hint-content" data-render-math data-i18n-ignore>${renderMarkdownContent(hint.answer, baseUrl)}</div></div>
 </div>
 </article>`;
 	}).join('');
@@ -2863,7 +2877,7 @@ function renderEditorialContents(editorial: Extract<EditorialResult, { state: 'a
 	const codeHtml = renderMarkdownContent(codeBlock, baseUrl);
 	return `<div class="editorial-container">
 <div class="editorial-text">
-<details class="editorial-section editorial-collapsible" data-persist-key="editorial-hints" open><summary><h2>提示回顾</h2></summary>${hintsHtml}</details>
+<details class="editorial-section editorial-collapsible" data-persist-key="editorial-hints" open><summary><h2>提示回顾</h2>${popupButton}</summary>${hintsHtml}</details>
 <details class="editorial-section editorial-collapsible" data-persist-key="editorial-simple" open><summary><h2>简化题解</h2></summary><div data-render-math data-i18n-ignore>${renderMarkdownContent(editorial.simpleContent, baseUrl)}</div></details>
 <details class="editorial-section editorial-collapsible" data-persist-key="editorial-detailed" open><summary><h2>详细题解</h2></summary><div data-render-math data-i18n-ignore>${renderMarkdownContent(editorial.content, baseUrl)}</div></details>
 ${(editorial.subtaskSolutions ?? []).map((solution, index) => `<details class="editorial-section editorial-collapsible" data-persist-key="editorial-subtask:${index}" data-i18n-ignore open><summary><h2>${escapeHtml(solution.title || solution.kind)}</h2></summary><p>${escapeHtml(solution.appliesToSubtasks.join(', '))}</p>${renderProblemMarkdown(solution.solution, baseUrl)}${solution.acCode ? renderProblemMarkdown('```cpp\n' + solution.acCode + '\n```', baseUrl) : ''}</details>`).join('')}
@@ -2889,7 +2903,7 @@ function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProb
 <link id="oj-main-styles" rel="stylesheet" href="${styles}">
 </head>
 <body class="editorial-body">
-<h1 class="editorial-title">解题报告</h1>
+<button type="button" class="editorial-close-button" data-command="close" title="${escapeAttribute(localize('关闭'))}" aria-label="${escapeAttribute(localize('关闭'))}"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
 ${renderEditorialContents(editorial, problem, canLike)}
 <script>
 const vscode = acquireVsCodeApi();
@@ -3014,6 +3028,10 @@ window.addEventListener('message', (event) => {
 	});
 });
 document.addEventListener('click', (event) => {
+	if (event.target instanceof Element && event.target.closest('[data-command="close"]')) {
+		vscode.postMessage({ command: 'close' });
+		return;
+	}
 	const button = event.target.closest('[data-command="like"]');
 	if (!(button instanceof HTMLButtonElement) || button.disabled || pendingEditorialLikes.has(button)) {
 		return;

@@ -941,7 +941,7 @@
                 },
                 "judger.general.defaultProblemSource": {
                     "type": "string",
-                    "default": "vjudge",
+                    "default": "original",
                     "enum": [
                         "vjudge",
                         "original"

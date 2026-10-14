@@ -34,22 +34,13 @@ let localizedStrings: IBrowserViewPreloadLocalizedStrings = {
 function init() {
 	const { contextBridge, ipcRenderer } = require('electron');
 
-	// Keep the page gesture and its hint in the isolated world. The main process
-	// supplies history availability and the native end signal; wheel inactivity
-	// alone must never confirm navigation while fingers remain on the trackpad.
+	// AppKit supplies swipe progress and completion. This isolated preload only
+	// checks page scroll boundaries and renders the hint; it never sums wheel deltas.
 	if (navigator.platform.indexOf('Mac') >= 0 && window === window.top) {
 		let token = -1;
-		let distance = 0;
-		let blocked = false;
-		let ended = true;
-		let beginTimestamp = Infinity;
-		let endTimestamp = Infinity;
-		let submitted = false;
-		let releaseTimer: ReturnType<typeof setTimeout> | undefined;
-		let blurred = false;
-		const pending: { event: WheelEvent; elements: Element[]; timestamp: number; processed: boolean }[] = [];
-		let canGoBack = false;
-		let canGoForward = false;
+		let active = false;
+		let tracking = false;
+		let amount = 0;
 		let hint: HTMLDivElement | undefined;
 		let circle: HTMLDivElement | undefined;
 		let arrow: SVGSVGElement | undefined;
@@ -60,8 +51,8 @@ function init() {
 			arrow = undefined;
 		};
 		const updateHint = () => {
-			const back = distance < 0;
-			if (endTimestamp !== Infinity || Math.abs(distance) < 8 || !(back ? canGoBack : canGoForward)) {
+			const back = amount > 0;
+			if (!active || Math.abs(amount) < 0.01) {
 				hideHint();
 				return;
 			}
@@ -96,117 +87,75 @@ function init() {
 				shadow.appendChild(circle);
 				document.documentElement.appendChild(hint);
 			}
-			const progress = Math.min(Math.abs(distance) / 120, 1);
+			// This only scales the hint; AppKit alone decides whether to navigate.
+			const progress = Math.min(Math.abs(amount) / 0.3, 1);
 			circle!.style.left = back ? `${-76 + progress * 88}px` : 'auto';
 			circle!.style.right = back ? 'auto' : `${-76 + progress * 88}px`;
-			circle!.style.opacity = Math.abs(distance) >= 120 ? '1' : '0.55';
+			circle!.style.opacity = progress >= 1 ? '1' : '0.55';
 			arrow!.style.transform = back ? '' : 'scaleX(-1)';
 		};
-		ipcRenderer.on('vscode:browserView:historySwipeState', (_event: Electron.IpcRendererEvent, state: { token: number; beginTimestamp: number; released: boolean; canGoBack: boolean; canGoForward: boolean }) => {
-			if (state.token !== token) {
-				token = state.token;
-				distance = 0;
-				blocked = false;
-				ended = state.released;
-				beginTimestamp = state.beginTimestamp;
-				endTimestamp = Infinity;
-				submitted = false;
-				blurred = false;
-				clearTimeout(releaseTimer);
-				hideHint();
-				for (const sample of pending) {
-					if (!state.released && sample.timestamp >= beginTimestamp - 2) { sample.processed = false; }
-				}
-			}
-			canGoBack = state.canGoBack;
-			canGoForward = state.canGoForward;
-			for (const sample of pending) { processSample(sample); }
-		});
-		const confirmRelease = () => {
-			if (ended && endTimestamp !== Infinity && !submitted && !blocked && Math.abs(distance) >= 120
-				&& (distance < 0 ? canGoBack : canGoForward)) {
-				submitted = true;
-				ipcRenderer.send('vscode:browserView:historySwipe', distance < 0 ? 'back' : 'forward', token);
-			}
-		};
-		const settleRelease = () => {
-			clearTimeout(releaseTimer);
-			const releaseToken = token;
-			// Drain a batch after actual finger release, including any late wheel
-			// dispatch. Pausing with fingers down never starts this timer.
-			releaseTimer = setTimeout(() => {
-				if (releaseToken !== token || endTimestamp === Infinity) { return; }
-				ended = true;
-				hideHint();
-				confirmRelease();
-			}, 32);
-		};
-		ipcRenderer.on('vscode:browserView:historySwipeEnd', (_event: Electron.IpcRendererEvent, release: { token: number; timestamp: number }) => {
-			if (release.token !== token || ended) { return; }
-			endTimestamp = release.timestamp;
+		const cancel = () => {
+			if (active) { ipcRenderer.send('vscode:browserView:historySwipeCancel', token); }
+			active = false;
+			tracking = false;
 			hideHint();
-			// Momentum can beat the native end IPC to the renderer. Recompute
-			// from physical finger samples so those earlier arrivals are excluded.
-			distance = 0;
-			blocked = blurred;
-			for (const sample of pending) {
-				if (sample.timestamp >= beginTimestamp - 2 && sample.timestamp <= endTimestamp) {
-					sample.processed = false;
-					processSample(sample);
-				}
-			}
-			settleRelease();
-		});
-		ipcRenderer.send('vscode:browserView:historySwipeReady');
-		window.addEventListener('blur', () => { blurred = true; blocked = true; clearTimeout(releaseTimer); hideHint(); });
-		// A quick gesture can reach the renderer before the native begin IPC.
-		// Retain recent samples and match them by the native event timestamps.
-		const processSample = (sample: typeof pending[number]) => {
-			if (sample.processed || submitted || blocked || (ended && endTimestamp === Infinity) || token < 0 || sample.timestamp < beginTimestamp - 2
-				|| sample.timestamp > endTimestamp) {
-				return;
-			}
-			sample.processed = true;
-			const { event, elements } = sample;
-			if (event.deltaX === 0 && event.deltaY === 0) { return; }
-			if (event.defaultPrevented || event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL
-				|| event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
-				|| Math.abs(event.deltaX) <= Math.abs(event.deltaY) * 2) {
-				blocked = true;
-				hideHint();
-				return;
-			}
-			if (document.scrollingElement && !elements.includes(document.scrollingElement)) {
-				elements.push(document.scrollingElement);
-			}
-			for (const element of elements) {
-				const style = getComputedStyle(element);
-				if (style.overscrollBehaviorX === 'contain' || style.overscrollBehaviorX === 'none'
-					|| (element.scrollWidth > element.clientWidth + 1
-						&& (element === document.scrollingElement || /^(auto|scroll|overlay)$/.test(style.overflowX)))) {
-					blocked = true;
-					hideHint();
-					return;
-				}
-			}
-			distance = Math.max(-180, Math.min(180, distance + event.deltaX));
-			updateHint();
-			if (endTimestamp !== Infinity) { settleRelease(); }
 		};
+		ipcRenderer.on('vscode:browserView:historySwipeStart', (_event: Electron.IpcRendererEvent, state: { token: number; x: number; y: number; canGoBack: boolean; canGoForward: boolean }) => {
+			token = state.token;
+			active = true;
+			tracking = false;
+			amount = 0;
+			hideHint();
+			let back = state.canGoBack;
+			let forward = state.canGoForward;
+			let element = document.elementFromPoint(state.x, state.y);
+			// Descend open shadow roots, then inspect the actual hit's ancestors.
+			while (element?.shadowRoot) {
+				const child = element.shadowRoot.elementFromPoint(state.x, state.y);
+				if (!child || child === element) { break; }
+				element = child;
+			}
+			if (!element || element instanceof HTMLIFrameElement) { back = false; forward = false; }
+			const elements = new Set<Element>();
+			while (element) {
+				elements.add(element);
+				const root = element.getRootNode();
+				element = element.parentElement ?? (root instanceof ShadowRoot ? root.host : null);
+			}
+			if (document.scrollingElement) { elements.add(document.scrollingElement); }
+			for (const target of elements) {
+				const style = getComputedStyle(target);
+				if (style.overscrollBehaviorX === 'contain' || style.overscrollBehaviorX === 'none') {
+					back = false; forward = false;
+					break;
+				}
+				const maximum = target.scrollWidth - target.clientWidth;
+				if (maximum > 1 && (target === document.scrollingElement || /^(auto|scroll|overlay)$/.test(style.overflowX))) {
+					const position = Math.max(0, Math.min(maximum, style.direction === 'rtl' ? maximum + target.scrollLeft : target.scrollLeft));
+					// Allow history navigation at the outward edge, while preserving
+					// horizontal scrolling in every ancestor that can still consume it.
+					back &&= position <= 1;
+					forward &&= position >= maximum - 1;
+				}
+			}
+			ipcRenderer.send('vscode:browserView:historySwipeAllow', token, back, forward);
+		});
+		ipcRenderer.on('vscode:browserView:historySwipeProgress', (_event: Electron.IpcRendererEvent, state: { token: number; amount: number }) => {
+			if (state.token !== token || !active) { return; }
+			amount = state.amount;
+			tracking = amount !== 0;
+			updateHint();
+		});
+		window.addEventListener('blur', cancel);
+		// Native events still reach Chromium. Consume only a tracked swipe in an
+		// eligible area; vertical scrolling and website handlers remain in control.
 		window.addEventListener('wheel', event => {
-			if (!event.isTrusted) { return; }
-			const sample = {
-				event, elements: event.composedPath().filter((target): target is Element => target instanceof Element),
-				timestamp: performance.timeOrigin + event.timeStamp, processed: false
-			};
-			// Wait for all page listeners before inspecting defaultPrevented.
-			setTimeout(() => {
-				const retainFrom = ended ? sample.timestamp - 1000 : Math.min(sample.timestamp - 1000, beginTimestamp - 2);
-				while (pending.length && pending[0].timestamp < retainFrom) { pending.shift(); }
-				pending.push(sample);
-				processSample(sample);
-			}, 0);
-		}, { passive: true });
+			if (!event.isTrusted || !active) { return; }
+			if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) { cancel(); return; }
+			if (tracking && Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+				event.preventDefault();
+			}
+		}, { passive: false });
 	}
 
 	// #######################################################################

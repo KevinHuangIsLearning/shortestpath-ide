@@ -280,24 +280,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 1
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'shortestpath.action.toggleCompactMode',
-			title: localize2('shortestpath.toggleCompactMode', "Toggle Compact Mode"),
-			category: Categories.View,
-			f1: true,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.not('isWeb'), IsSessionsWindowContext.toNegated(), IsAuxiliaryWindowContext.toNegated()),
-			toggled: { condition: ContextKeyExpr.equals('config.shortestpath.compactMode', true), title: localize('shortestpath.compactMode', "Compact Mode") },
-			menu: [MenuId.MenubarAppearanceMenu, MenuId.TitleBarContext].map(id => ({ id, group: '2_workbench_layout', order: 0 })),
-		});
-	}
-	run(accessor: ServicesAccessor): Promise<void> {
-		const configuration = accessor.get(IConfigurationService);
-		return configuration.updateValue('shortestpath.compactMode', !configuration.getValue<boolean>('shortestpath.compactMode'));
-	}
-});
-
 // Toggle Sidebar Visibility
 
 export class ToggleSidebarVisibilityAction extends Action2 {

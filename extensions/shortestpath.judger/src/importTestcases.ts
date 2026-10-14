@@ -106,22 +106,28 @@ async function importTestcasesNow(
 			let usePair = behavior === 'always';
 			if (behavior === 'ask' && paired?.input && paired?.output) {
 				const yes = localize('judger.import.pairYes', 'Import both files');
-				usePair =
-					(await vscode.window.showQuickPick(
-						[
-							yes,
-							localize(
-								'judger.import.pairNo',
-								'Import only this file',
-							),
-						],
-						{
-							title: localize(
-								'judger.import.pair',
-								'A matching testcase file was found',
-							),
-						},
-					)) === yes;
+				const settings = localize('judger.prompt.openSettings', "Don't Ask Every Time, Go to Settings");
+				const selected = await vscode.window.showQuickPick(
+					[
+						yes,
+						localize(
+							'judger.import.pairNo',
+							'Import only this file',
+						),
+						settings,
+					],
+					{
+						title: localize(
+							'judger.import.pair',
+							'A matching testcase file was found',
+						),
+					},
+				);
+				if (selected === settings) {
+					await vscode.commands.executeCommand('workbench.action.openSettings', '@id:judger.problem.foundMatchTestcaseBehavior');
+					return [];
+				}
+				usePair = selected === yes;
 			}
 			pairs =
 				usePair && paired

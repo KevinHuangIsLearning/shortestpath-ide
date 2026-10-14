@@ -51,6 +51,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	private readonly _overlayPauseEl = $('.browser-overlay-paused');
 	private readonly _overlayManager: BrowserOverlayManager;
 	private readonly _nativeOverlay: ReturnType<typeof ShortestPathBrowserOverlay.acquire>;
+	private readonly _navigationOverlay: ReturnType<typeof ShortestPathBrowserOverlay.acquire>;
 
 	private readonly _placeholderContent: IBrowserEditorWidget;
 	private readonly _overlayPauseContent: IBrowserEditorWidget;
@@ -68,6 +69,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 		this._overlayManager = this._register(new BrowserOverlayManager(editor.window));
 		this._nativeOverlay = this._register(ShortestPathBrowserOverlay.acquire(editor.window, logService));
+		this._navigationOverlay = this._register(ShortestPathBrowserOverlay.acquire(editor.window, logService, 'navigation'));
 
 		this._placeholderContent = { location: BrowserWidgetLocation.ContentArea, element: this._placeholderScreenshot, order: 100 };
 		this._overlayPauseContent = { location: BrowserWidgetLocation.ContentArea, element: this._overlayPauseEl, order: 200 };
@@ -224,6 +226,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	private _refresh(restartScreenshot = false): void {
 		if (this._container) {
 			this._nativeOverlay.setVisible(this._container, this._shouldShowPage());
+			this._navigationOverlay.setVisible(this._container, this._shouldShowPage());
 		}
 		// Placeholder screenshot: shown whenever there's a page to render
 		// (covered by the WCV when it's up, visible during hide/show swaps).

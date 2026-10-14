@@ -4,84 +4,87 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import type { ITrackpadPhase } from './browserViewTrackpadGesture.js';
+import type { ITrackpadGesture, ITrackpadGestureSubscription } from './browserViewTrackpadGesture.js';
 
-/** Confirms page swipes only after the native trackpad finger phase ends. */
+/** Lets AppKit decide completion after the page permits history swiping. */
 export function registerBrowserViewHistorySwipe(
 	contents: Electron.WebContents,
 	isAvailable: () => boolean,
 	navigate: (direction: 'back' | 'forward') => void,
-	subscribe: (listener: (event: ITrackpadPhase) => void) => IDisposable,
+	subscribe: (listener: (event: ITrackpadGesture) => void) => ITrackpadGestureSubscription,
 ): IDisposable {
-	let beginTimestamp = Infinity;
 	let token = 0;
 	let active = false;
-	let released = true;
-	let handled = false;
-	const sendState = () => contents.send('vscode:browserView:historySwipeState', {
-		token,
-		beginTimestamp,
-		released,
-		canGoBack: contents.navigationHistory.canGoBack(),
-		canGoForward: contents.navigationHistory.canGoForward(),
-	});
+	let approved = false;
+	let allowedBack = false;
+	let allowedForward = false;
+	const hide = () => contents.send('vscode:browserView:historySwipeProgress', { token, amount: 0 });
 	const cancel = () => {
-		token++;
 		active = false;
-		released = true;
-		handled = false;
-		beginTimestamp = Infinity;
-		sendState();
+		approved = false;
+		gestureSubscription.cancel();
+		hide();
+		token++;
 	};
-	const phaseSubscription = subscribe(({ phase, timestamp }) => {
+	const gestureSubscription = subscribe(({ phase, amount, x, y }) => {
 		if (phase === 'begin') {
-			if (!isAvailable()) {
-				return;
-			}
-			token++;
-			beginTimestamp = timestamp;
-			active = true;
-			released = false;
-			handled = false;
-			sendState();
-		} else if (phase === 'cancel') {
-			cancel();
-		} else if (active) {
 			active = false;
-			released = true;
-			contents.send('vscode:browserView:historySwipeEnd', { token, timestamp });
-		}
-	});
-	const onReady = (event: Electron.IpcMainEvent) => {
-		if (event.senderFrame === contents.mainFrame) {
-			sendState();
-		}
-	};
-	const onSwipe = (event: Electron.IpcMainEvent, direction: string, requestToken: number) => {
-		if ((direction !== 'back' && direction !== 'forward') || !released || handled
-			|| requestToken !== token || event.senderFrame !== contents.mainFrame || !isAvailable()
-			|| !(direction === 'back' ? contents.navigationHistory.canGoBack() : contents.navigationHistory.canGoForward())) {
+			approved = false;
+			hide();
+			token++;
+			if (!isAvailable()) { gestureSubscription.cancel(); return; }
+			allowedBack = contents.navigationHistory.canGoBack();
+			allowedForward = contents.navigationHistory.canGoForward();
+			if (!allowedBack && !allowedForward) { gestureSubscription.cancel(); return; }
+			active = true;
+			const zoom = contents.getZoomFactor();
+			contents.send('vscode:browserView:historySwipeStart', {
+				token, x: x / zoom, y: y / zoom, canGoBack: allowedBack, canGoForward: allowedForward,
+			});
 			return;
 		}
-		handled = true;
-		navigate(direction);
+		if (!active) { return; }
+		if (phase === 'cancel' || !isAvailable()) { cancel(); return; }
+		if (phase === 'end' && !approved) { cancel(); return; }
+		if (!approved || !Number.isFinite(amount)) { return; }
+		const back = amount > 0;
+		if (phase === 'update') {
+			contents.send('vscode:browserView:historySwipeProgress', {
+				token, amount: (back ? allowedBack : allowedForward) ? amount : 0,
+			});
+		} else if (phase === 'end') {
+			active = false;
+			hide();
+			if (amount !== 0 && (back ? allowedBack && contents.navigationHistory.canGoBack() : allowedForward && contents.navigationHistory.canGoForward())) {
+				navigate(back ? 'back' : 'forward');
+			}
+		}
+	});
+	const onAllow = (event: Electron.IpcMainEvent, requestToken: number, back: boolean, forward: boolean) => {
+		if (event.senderFrame !== contents.mainFrame || requestToken !== token || !active || approved
+			|| typeof back !== 'boolean' || typeof forward !== 'boolean') { return; }
+		if (!isAvailable()) { cancel(); return; }
+		allowedBack &&= back && contents.navigationHistory.canGoBack();
+		allowedForward &&= forward && contents.navigationHistory.canGoForward();
+		if (!allowedBack && !allowedForward) { cancel(); return; }
+		approved = true;
+		gestureSubscription.start(allowedBack, allowedForward);
+	};
+	const onCancel = (event: Electron.IpcMainEvent, requestToken: number) => {
+		if (event.senderFrame === contents.mainFrame && requestToken === token && active) { cancel(); }
 	};
 	const onNavigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
 		if (details.isMainFrame) { cancel(); }
 	};
 	contents.on('blur', cancel);
 	contents.on('did-start-navigation', onNavigation);
-	contents.on('did-navigate', sendState);
-	contents.on('did-navigate-in-page', sendState);
-	contents.ipc.on('vscode:browserView:historySwipeReady', onReady);
-	contents.ipc.on('vscode:browserView:historySwipe', onSwipe);
+	contents.ipc.on('vscode:browserView:historySwipeAllow', onAllow);
+	contents.ipc.on('vscode:browserView:historySwipeCancel', onCancel);
 	return toDisposable(() => {
-		phaseSubscription.dispose();
+		gestureSubscription.dispose();
 		contents.removeListener('blur', cancel);
 		contents.removeListener('did-start-navigation', onNavigation);
-		contents.removeListener('did-navigate', sendState);
-		contents.removeListener('did-navigate-in-page', sendState);
-		contents.ipc.removeListener('vscode:browserView:historySwipeReady', onReady);
-		contents.ipc.removeListener('vscode:browserView:historySwipe', onSwipe);
+		contents.ipc.removeListener('vscode:browserView:historySwipeAllow', onAllow);
+		contents.ipc.removeListener('vscode:browserView:historySwipeCancel', onCancel);
 	});
 }

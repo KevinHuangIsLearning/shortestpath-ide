@@ -1,8 +1,9 @@
 jest.mock('../preferences', () => ({ getSaveLocationPref: () => '', getCollectProblemsInRoot: () => false }));
 jest.mock('vscode', () => ({
 	Uri: { file: (fsPath: string) => ({ scheme: 'file', fsPath }) },
-	workspace: { getWorkspaceFolder: () => undefined, getConfiguration: () => ({ get: (_key: string, fallback: unknown) => fallback }) },
+	workspace: { getWorkspaceFolder: () => undefined, getConfiguration: jest.fn(() => ({ get: (_key: string, fallback: unknown) => fallback })) },
 	window: { showQuickPick: jest.fn(async values => values), showWarningMessage: jest.fn(), showOpenDialog: jest.fn() },
+	commands: { executeCommand: jest.fn() },
 }), { virtual: true });
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, text: string) => text }));
 import fs from 'fs';
@@ -13,6 +14,20 @@ import * as vscode from 'vscode';
 import { importTestcases, importTestcasesWithPicker } from '../importTestcases';
 import { getProblemDirectory } from '../parser';
 import { stageDroppedTestcases } from '../droppedTestcases';
+
+test('the matching-file settings choice opens its preference without importing either file', async () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'judger-import-settings-'));
+	try {
+		const input = path.join(root, '1.in');
+		fs.writeFileSync(input, 'input');
+		fs.writeFileSync(path.join(root, '1.out'), 'answer');
+		(vscode.workspace.getConfiguration as jest.Mock).mockReturnValueOnce({ get: (key: string, fallback: unknown) => key === 'foundMatchTestcaseBehavior' ? 'ask' : fallback });
+		(vscode.window.showQuickPick as jest.Mock).mockImplementationOnce(async items => items[2]);
+		expect(await importTestcases(path.join(root, 'main.cpp'), input)).toEqual([]);
+		expect(vscode.commands.executeCommand).toHaveBeenLastCalledWith('workbench.action.openSettings', '@id:judger.problem.foundMatchTestcaseBehavior');
+		expect(fs.readdirSync(root)).toEqual(['1.in', '1.out']);
+	} finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
 
 test('pathless plain text files retain single-file import semantics', async () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'judger-import-test-'));

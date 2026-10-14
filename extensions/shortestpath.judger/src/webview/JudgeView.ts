@@ -382,9 +382,14 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
                                     { label: 'VJudge', value: 'vjudge' as const },
                                     // allow-any-unicode-next-line
                                     { label: localize('judger.submit.native', '原 OJ'), value: 'native' as const },
+                                    { label: localize('judger.prompt.openSettings', "Don't Ask Every Time, Go to Settings"), value: 'settings' as const },
                                 // allow-any-unicode-next-line
                                 ], { placeHolder: localize('judger.submit.chooseMethod', '选择提交方式') });
                                 if (!selection) { break; }
+                                if (selection.value === 'settings') {
+                                    await vscode.commands.executeCommand('workbench.action.openSettings', '@id:judger.general.defaultSubmitMethod');
+                                    break;
+                                }
                                 method = selection.value;
                             }
                             if (method === 'vjudge') {
