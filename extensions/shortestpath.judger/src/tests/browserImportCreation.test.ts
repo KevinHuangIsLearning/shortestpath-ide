@@ -72,6 +72,13 @@ describe('ShortestPath OJ optional configured source paths', () => {
 		(getShortestPathFixedTemplate as jest.Mock).mockReturnValue(true);
 		expect(await handleNewProblem(importedProblem())).toEqual({ created: true, sourcePath: path.resolve('/workspace/dsu/A_字母互换.cpp') });
 	});
+	test('integrated imports never attach a competing browser preview', async () => {
+		(getVjudgeOpenInBrowser as jest.Mock).mockReturnValueOnce(true);
+		(getDefaultProblemSource as jest.Mock).mockReturnValueOnce('original');
+		(vscode.commands.executeCommand as jest.Mock).mockClear();
+		await handleNewProblem({ ...importedProblem(), url: 'http://127.0.0.1:13000/problem/dsu/found/A' });
+		expect((vscode.commands.executeCommand as jest.Mock).mock.calls.some(([command]) => command === 'workbench.action.browser.open')).toBe(false);
+	});
 
 	test('global filename template controls both directory and filename', async () => {
 		(getFileNameTemplate as jest.Mock).mockReturnValueOnce('solutions/{group}/{name}.{ext}');

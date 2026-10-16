@@ -13,6 +13,7 @@ import { readFileSync, existsSync } from 'fs';
 import { isCodeforcesUrl, isLuoguUrl, isAtCoderUrl, randomId } from './utils';
 import {
     getDefaultLangPref,
+    getPythonCommand,
     getLanguageId,
     useShortCodeForcesName,
     useShortLuoguName,
@@ -42,7 +43,6 @@ import {
 } from './problemDisplay';
 import { getProblemName } from './submit';
 import { runTool } from './toolProcess';
-import { getPythonCommand } from './preferences';
 import { getJudgeViewProvider } from './extension';
 import { initializeProblemSourceFile } from './problemSourceFile';
 import { getShortestPathProblemPath } from './shortestpathProblemPath';
@@ -129,11 +129,12 @@ export const setupCompanionServer = () => {
 
             if (headers['cph-submit'] == 'true') {
                 res.write(JSON.stringify(savedResponse));
-                COMPANION_LOGGING &&
+                if (COMPANION_LOGGING) {
                     globalThis.logger.log(
                         'Request was from the cph-submit extension; sending savedResponse and clearing it',
                         savedResponse,
                     );
+                }
 
                 if (savedResponse.empty != true) {
                     getJudgeViewProvider().extensionToJudgeViewMessage({
@@ -167,10 +168,11 @@ export const setupCompanionServer = () => {
                     res.statusCode = result.created ? 200 : 422;
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.end(JSON.stringify(result));
-                    COMPANION_LOGGING &&
+                    if (COMPANION_LOGGING) {
                         globalThis.logger.log(
                             'Companion server processed a problem request.',
                         );
+                    }
                 } catch (e) {
                     vscode.window.showErrorMessage(
                         localize(
@@ -394,7 +396,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         );
         return { created: false };
     }
-    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name);
+    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name, process.env.SHORTESTPATH_OJ_DEV_ORIGIN);
     const defaultLanguage = fixedProblemPath ? 'cpp' : getDefaultLangPref();
     let extn: string;
 
@@ -550,7 +552,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     }
 
     const displayTarget = getProblemDisplayTarget(
-        getVjudgeOpenInBrowser(),
+        getVjudgeOpenInBrowser() && !usesIntegratedTests(problem),
         getProblemSourceForUrl(
             problem.url,
             getOjMapping(),

@@ -30,6 +30,7 @@ export interface IWebViewShowOptions {
 	readonly preserveFocus?: boolean;
 	readonly sourceEditor?: URI;
 	readonly sourceEditorRatio?: number;
+	readonly sourceEditorAttachmentOnly?: boolean;
 }
 
 /** Allows a workbench surface to own panels outside the editor groups. */
@@ -327,8 +328,13 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 			if (!handler.shouldOpenEditor(webviewInput, !!showOptions.preserveFocus)) { return webviewInput; }
 		}
 		const source = showOptions.sourceEditor && this.textEditorService.createTextEditor({ resource: showOptions.sourceEditor });
-		const input = source ? this._instantiationService.createInstance(WebviewSourceEditorInput, webviewInput, source, showOptions.sourceEditorRatio) : webviewInput;
 		const existing = source && this._editorService.findEditors(source.resource!).find(editor => editor.editor === source);
+		if (source && showOptions.sourceEditorAttachmentOnly && !existing) {
+			// Creation arrived after its source closed. Let the API customer register
+			// the input before disposal so the extension receives the close event.
+			queueMicrotask(() => webviewInput.dispose());
+			return webviewInput;
+		}
 		const options = {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
@@ -336,9 +342,16 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: showOptions.preserveFocus ? EditorActivation.RESTORE : undefined
 		};
+		const input = source ? this._instantiationService.createInstance(WebviewSourceEditorInput, webviewInput, source, showOptions.sourceEditorRatio) : webviewInput;
 		if (existing) {
 			// Both tabs share the same source input, including its unsaved text.
-			void this.editorGroupsService.getGroup(existing.groupId)?.replaceEditors([{ editor: source!, replacement: input, options, forceReplaceDirty: true }]);
+			const group = this.editorGroupsService.getGroup(existing.groupId);
+			void group?.replaceEditors([{
+				editor: source!, replacement: input, options: {
+					...options,
+					...(showOptions.sourceEditorAttachmentOnly ? { preserveFocus: true, inactive: group.activeEditor !== source } : {}),
+				}, forceReplaceDirty: true
+			}]);
 		} else {
 			void this._editorService.openEditor(input, options, showOptions.group);
 		}

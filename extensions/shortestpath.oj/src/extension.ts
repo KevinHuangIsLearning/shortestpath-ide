@@ -3,11 +3,13 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getReaderKeys, protectedMarkdownSlot, discardLegacyReadingText } from './protectedReaderHost';
 import { LocalTestRequest, LocalTestsSnapshot, readLocalTestsSnapshot, localTestErrorMessage, isOfficialLocalTest } from './localTests';
 import { renderLocalTests, renderLocalTestsToolbar } from './localTestsView';
 import { ProblemRatingSession, isRating, Rating } from './problemRating';
 import { renderLocalJudgingMarkdown } from './localJudgingMarkdown';
 import { ConnectionRecovery, RecoveryState } from './connectionRecovery';
+import { SolveCoordinator, SolveContent, SolveDocument } from './solveCoordinator';
 import { SessionLinkPage } from './sessionLinkPage';
 import { CorrectionView } from './correctionView';
 import { AuxiliaryOperationRecovery } from './auxiliaryOperationRecovery';
@@ -22,6 +24,7 @@ import { canRequestEditorial, describeEditorialLockReason, getCurrentEditorialRe
 import { describeJudgeType, describeSubmissionDetailStatus, describeSubmissionStage, describeSubmissionStatus } from './judgeDisplay';
 import { createProblemMarkdownRenderer, ProblemMarkdownRenderer } from './markdownRenderer';
 import { EditorCodeTheme } from './editorCodeTheme';
+import type { ThemeRegistration } from 'shiki';
 import { defaultProblemSourceRatio } from './problemPanelLayout';
 import { findOpenFileViewColumn, OpenFileTabGroup, shouldHideProblemPanelWhenSourceCloses } from './problemPanelLifecycle';
 import { ImportAction, LocalBridgeHandlers, OutcomeUnknownError, ShortestPathOjLocalBridge } from './shortestpathOjLocalBridge';
@@ -120,9 +123,11 @@ function hasIncompatibleProblemState(problem: ImportedProblem): boolean {
 	return problem.compatibilityWarnings.some(warning => warning.includes('题目状态不兼容'));
 }
 
-let renderProblemMarkdown: ProblemMarkdownRenderer = (content) => {
+let renderPlainMarkdown: ProblemMarkdownRenderer = (content) => {
 	return content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
 };
+const renderProblemMarkdown: ProblemMarkdownRenderer = (content, baseUrl) => protectedMarkdownSlot(content, baseUrl) ?? renderPlainMarkdown(content, baseUrl);
+let getReaderCodeTheme: () => string | ThemeRegistration = getShikiTheme;
 let markdownContentCache = new WeakMap<MarkdownContent, Map<string, string>>();
 const hintAnswerCache = new Map<string, MarkdownContent>();
 
@@ -246,7 +251,7 @@ class ShortestPathOjProblemPanel {
 		private readonly unknownStressStarts: Set<string>,
 	) { }
 
-	showProblem(problem: ImportedProblem, connected: boolean, sourcePath?: string, fromWebsite = false): void {
+	updateProblem(problem: ImportedProblem, connected: boolean, sourcePath?: string, fromWebsite = false): void {
 		if (!this.state || recoveryContext(this.state.problem) !== recoveryContext(problem) || hasProblemStatementChanged(this.state.problem, problem)) {
 			this.state?.rating?.dispose();
 			this.longRunningOperationNoticeCount = 0;
@@ -333,14 +338,10 @@ class ShortestPathOjProblemPanel {
 			}
 			this.refreshEditorial();
 		}
-		if (!connected) { this.actions.recover(problem); }
 		this.updateProblemPanelTitle();
-		const panelCreated = this.ensureProblemPanel();
+		this.ensureProblemPanel();
 		this.render();
-		const panel = this.panel;
-		if (!panelCreated && panel) {
-			panel.reveal(panel.viewColumn, true);
-		}
+		void this.panel?.webview.postMessage({ type: 'protectedReaderKey', theme: getReaderCodeTheme(), ...getReaderKeys(new URL(problem.url).origin, problem.accountId ?? '', problem.ref) });
 	}
 
 	updateProblemState(problemRef: string, state: ProblemState, capabilities?: ProblemCapabilities): void {
@@ -459,7 +460,7 @@ class ShortestPathOjProblemPanel {
 		return { ...this.state.problem.state.timer };
 	}
 
-	reveal(): void {
+	reveal(preserveFocus = false): void {
 		if (!this.state) {
 			return;
 		}
@@ -467,7 +468,7 @@ class ShortestPathOjProblemPanel {
 		this.render();
 		const panel = this.panel;
 		if (!panelCreated && panel) {
-			panel.reveal(panel.viewColumn, false);
+			panel.reveal(panel.viewColumn, preserveFocus);
 		}
 	}
 
@@ -554,6 +555,7 @@ class ShortestPathOjProblemPanel {
 	}
 
 	refreshEditorial(): void {
+		void this.panel?.webview.postMessage({ type: 'protectedReaderTheme', theme: getReaderCodeTheme() });
 		this.render();
 		if (!this.editorialPanel || !this.state?.editorial) {
 			return;
@@ -715,6 +717,9 @@ class ShortestPathOjProblemPanel {
 				return;
 			}
 			const value = message as { command?: unknown; hintId?: unknown; target?: unknown; liked?: unknown };
+			if (value.command === 'protectedReaderReady') {
+				void panel.webview.postMessage({ type: 'protectedReaderKey', theme: getReaderCodeTheme(), ...getReaderKeys(new URL(problem.url).origin, problem.accountId ?? '', problem.ref) }); return;
+			}
 			if (value.command === 'close') {
 				panel.dispose();
 				return;
@@ -745,6 +750,7 @@ class ShortestPathOjProblemPanel {
 				retainContextWhenHidden: true,
 				sourceEditor: this.state?.sourcePath ? vscode.Uri.file(this.state.sourcePath) : undefined,
 				sourceEditorRatio: vscode.workspace.getConfiguration('shortestpath.oj').get<number>('problemSplitRatio', defaultProblemSourceRatio),
+				sourceEditorAttachmentOnly: true,
 			},
 		);
 		this.restorePanel(panel);
@@ -777,7 +783,7 @@ class ShortestPathOjProblemPanel {
 			if (panel.active) { this.actions.activatePanel?.(); }
 		});
 		panel.webview.onDidReceiveMessage(message => {
-			if ((message as { command?: unknown })?.command !== 'ready') { this.actions.activatePanel?.(); }
+			if (panel.active && (message as { command?: unknown })?.command !== 'ready') { this.actions.activatePanel?.(); }
 			void this.handleMessage(message);
 		});
 		this.panel = panel;
@@ -873,6 +879,9 @@ class ShortestPathOjProblemPanel {
 					return;
 				case 'dismissRating':
 					state.rating?.dismiss();
+					return;
+				case 'protectedReaderReady':
+					void this.panel?.webview.postMessage({ type: 'protectedReaderKey', theme: getReaderCodeTheme(), ...getReaderKeys(new URL(state.problem.url).origin, state.problem.accountId ?? '', state.problem.ref) });
 					return;
 				case 'ready':
 					void this.closeEmptyCompanionGroup();
@@ -1340,20 +1349,14 @@ class ShortestPathOjProblemPanels {
 
 	constructor(private readonly extensionUri: vscode.Uri, private readonly template: string, private readonly actions: ProblemPanelActions, private readonly unknownStressStarts: Set<string>) { }
 
-	showProblem(problem: ImportedProblem, connected: boolean, sourcePath?: string, fromWebsite = false, restoredPanel?: vscode.WebviewPanel): void {
+	updateProblem(problem: ImportedProblem, connected: boolean, sourcePath?: string, fromWebsite = false, restoredPanel?: vscode.WebviewPanel): ShortestPathOjProblemPanel {
 		const key = sourcePath ?? problem.ref;
 		let child = this.panels.get(key);
 		if (restoredPanel && child) { child.dispose(); this.panels.delete(key); child = undefined; }
 		if (!child) {
 			child = new ShortestPathOjProblemPanel(this.extensionUri, this.template, {
 				...this.actions,
-				activatePanel: () => {
-					if (this.active !== child) {
-						this.active = child;
-						child?.reveal();
-						this.actions.recover(child?.currentProblem ?? problem);
-					}
-				},
+				activatePanel: () => this.actions.activatePanel?.(),
 				sourceChanged: async (problem, previous, sourcePath) => {
 					if (previous && this.panels.get(previous) === child) { this.panels.delete(previous); }
 					this.panels.set(sourcePath, child!);
@@ -1366,9 +1369,22 @@ class ShortestPathOjProblemPanels {
 			}, this.unknownStressStarts);
 			this.panels.set(key, child);
 		}
-		this.active = child;
 		if (restoredPanel) { child.restorePanel(restoredPanel); }
-		child.showProblem(problem, connected, sourcePath, fromWebsite);
+		child.updateProblem(problem, connected, sourcePath, fromWebsite);
+		return child;
+	}
+
+	selectSource(sourcePath: string): void {
+		this.active = this.panels.get(sourcePath);
+		if (this.active?.currentProblem) { this.actions.recover(this.active.currentProblem); }
+	}
+
+	/** Only explicit navigation may reveal an existing editor. */
+	openProblem(problem: ImportedProblem, connected: boolean, sourcePath?: string, fromWebsite = false): void {
+		const child = this.updateProblem(problem, connected, sourcePath, fromWebsite);
+		this.active = child;
+		this.actions.recover(problem);
+		child.reveal(true);
 	}
 
 	async hideProblemWhenSourceCloses(): Promise<void> {
@@ -1430,6 +1446,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 	const unknownStressStarts = new Set<string>();
 	const restoringPanels = new Map<string, vscode.WebviewPanel>();
 	const panel = new ShortestPathOjProblemPanels(context.extensionUri, template, {
+		activatePanel: () => scheduleProblemPanelSync(),
 		answer: (problem, hintId) => bridge.requestHintAnswer(problem.ref, hintId),
 		refreshHints: async problem => {
 			await bridgeHandlers.updateProblemState(problem.ref, await bridge.requestHintState(problem.ref));
@@ -1514,6 +1531,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 			return cache.previousStatements[problem.ref];
 		}, true),
 	}, unknownStressStarts);
+	const contentFromCache = (cache: WorkspaceProblemCache, ref: string | undefined): SolveContent | undefined => {
+		if (!ref || !cache.sourcePaths[ref]) { return undefined; }
+		const problem = cache.problems[ref];
+		const identity = problem ?? cache.recoveryContexts[ref];
+		return identity ? { context: identity, problem, sourcePath: cache.sourcePaths[ref] } : undefined;
+	};
+	const coordinator = new SolveCoordinator({
+		currentDocument: getActiveSolveDocument,
+		loadSource: async sourcePath => {
+			const cache = await readWorkspaceProblemCache(cache => findProblemRefForSourcePath(cache.sourcePaths, sourcePath));
+			return contentFromCache(cache, findProblemRefForSourcePath(cache.sourcePaths, sourcePath));
+		},
+		loadUrl: async url => {
+			const findRef = (cache: WorkspaceProblemCache) => Object.values(cache.problems).find(item => item.url === url)?.ref
+				?? Object.values(cache.recoveryContexts).find(item => item.url === url)?.ref;
+			const cache = await readWorkspaceProblemCache(findRef);
+			return contentFromCache(cache, findRef(cache));
+		},
+		update: content => {
+			if (content.problem) { panel.updateProblem(content.problem, content.connected ?? bridge.isBound(content.context.ref), content.sourcePath); }
+		},
+		select: content => {
+			panel.selectSource(content.sourcePath);
+			if (!content.problem) { recovery.select(content.context); }
+		},
+		open: async content => {
+			await vscode.window.showTextDocument(vscode.Uri.file(content.sourcePath), { preview: false });
+			if (!isActiveEditor(content.sourcePath)) { return; }
+			if (content.problem) { panel.openProblem(content.problem, bridge.isBound(content.context.ref), content.sourcePath); }
+			else { recovery.select(content.context); }
+		},
+	});
+	context.subscriptions.push(coordinator);
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.localTestsChanged', (value: unknown) => {
 		const snapshot = readLocalTestsSnapshot(value);
 		if (snapshot) { panel.updateLocalTests(snapshot); }
@@ -1531,11 +1581,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 				webviewPanel.webview.html = localizeWebviewHtml('<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\';"></head><body><p role="status">正在重新连接…</p></body></html>');
 				restoringPanels.set(ref, webviewPanel);
 				context.subscriptions.push(webviewPanel.onDidDispose(() => { if (restoringPanels.get(ref) === webviewPanel) { restoringPanels.delete(ref); recovery.stop(ref); } }));
-				context.subscriptions.push(webviewPanel.onDidChangeViewState(() => { if (webviewPanel.active && restoringPanels.get(ref) === webviewPanel) { recovery.select(recoveryContext); } }));
-				recovery.select(recoveryContext);
+				context.subscriptions.push(webviewPanel.onDidChangeViewState(scheduleProblemPanelSync));
+				scheduleProblemPanelSync();
 				return;
 			}
-			panel.showProblem(problem, bridge.isBound(problem.ref), cache.sourcePaths[problem.ref], false, webviewPanel);
+			panel.updateProblem(problem, bridge.isBound(problem.ref), cache.sourcePaths[problem.ref], false, webviewPanel);
+			coordinator.restore({ problem, context: problem, sourcePath: cache.sourcePaths[problem.ref] });
 		},
 	}));
 	if (context.extensionMode === vscode.ExtensionMode.Development) {
@@ -1556,11 +1607,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 			panel.refreshEditorial();
 		},
 	);
+	getReaderCodeTheme = () => codeTheme.value;
 	context.subscriptions.push(codeTheme);
 	context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => { void codeTheme.refresh(); }));
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+		if (event.affectsConfiguration('editor.tokenColorCustomizations') || event.affectsConfiguration('workbench.colorCustomizations')) { void codeTheme.refresh(); }
+	}));
 	void codeTheme.refresh();
 	void createProblemMarkdownRenderer(() => codeTheme.value).then(renderer => {
-		renderProblemMarkdown = renderer;
+		renderPlainMarkdown = renderer;
 		markdownContentCache = new WeakMap();
 		panel.refreshEditorial();
 		log('Problem Markdown renderer initialized.');
@@ -1628,10 +1683,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 				await vscode.commands.executeCommand('shortestpath.mode.solve');
 				if (sourcePath) { await vscode.window.showTextDocument(vscode.Uri.file(sourcePath), { viewColumn: vscode.ViewColumn.One, preview: false }); }
 				await vscode.commands.executeCommand('workbench.action.focusWindow');
+				if ((isCurrent && !isCurrent()) || (sourcePath && !isActiveEditor(sourcePath))) { return; }
 			}
 			const restoredPanel = restoringPanels.get(problem.ref);
 			restoringPanels.delete(problem.ref);
-			panel.showProblem(problem, true, sourcePath, true, restoredPanel);
+			if (restoredPanel) { panel.updateProblem(problem, true, sourcePath, true, restoredPanel); }
+			if (resumed) {
+				if (sourcePath) { coordinator.restore({ problem, context: problem, sourcePath, connected: true }); }
+			} else { panel.openProblem(problem, true, sourcePath, true); }
 		},
 		async activateBoundProblem(problemRef) {
 			const cache = await readWorkspaceProblemCache(problemRef);
@@ -1669,13 +1728,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 		},
 	};
 	bridge = new ShortestPathOjLocalBridge(bridgeHandlers, bridgePort, '127.0.0.1', 125_000, 1000, getAllowedBridgeOrigins());
+	const recoveryReturns = new WeakMap<object, number>();
 	const recovery = new ConnectionRecovery({
 		open: url => vscode.window.openBrowserTab(url, { hidden: true, preserveFocus: true }),
 		prepare: problem => bridge.prepareRecovery(problem),
 		cancel: () => bridge.cancelRecovery(),
 		isBound: ref => bridge.isBound(ref),
 		status: (ref, status) => panel.setRecoveryState(ref, status),
-		returnToSolve: () => vscode.commands.executeCommand('shortestpath.mode.solve'),
+		present: async page => {
+			await page.show();
+			const revision = await vscode.commands.executeCommand<number | undefined>('_shortestpath.captureBrowserReturn', page.id);
+			if (revision !== undefined) { recoveryReturns.set(page, revision); }
+		},
+		returnToSolve: async page => {
+			const revision = recoveryReturns.get(page);
+			recoveryReturns.delete(page);
+			if (revision !== undefined) { await vscode.commands.executeCommand('_shortestpath.returnFromBrowser', page.id, revision); }
+		},
 	});
 	context.subscriptions.push(recovery, vscode.window.onDidCloseBrowserTab(tab => recovery.pageClosed(tab.id)));
 	context.subscriptions.push(
@@ -1687,7 +1756,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 		url => vscode.window.openBrowserTab(url, { hidden: true, preserveFocus: true }),
 		() => log('Session association page unavailable; retrying.'), () => bridge.sessionLink.nativeConnected);
 	bridge.onListening(() => {
-		log(`WebSocket bridge listening at ws://127.0.0.1:${bridgePort}/shortestpath-oj with shortestpath-oj-v2/v1.`);
+		log(`WebSocket bridge listening at ws://127.0.0.1:${bridgePort}/shortestpath-oj with shortestpath-oj-v3.`);
 		if (getAllowedBridgeOrigins().has(sessionOrigin)) { sessionPage.start(); }
 	});
 	context.subscriptions.push(sessionPage, vscode.window.onDidCloseBrowserTab(tab => sessionPage.pageClosed(tab.id)));
@@ -1708,25 +1777,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 		},
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblem', () => panel.reveal()));
-	const pendingImport = context.globalState.get<{ problem: ImportedProblem; folder: string; createdAt: number }>('shortestpath.oj.pendingImport');
+	const pendingImport = discardLegacyReadingText(context.globalState.get<{ problem: ImportedProblem; folder: string; createdAt: number }>('shortestpath.oj.pendingImport'));
+	await context.globalState.update('shortestpath.oj.pendingImport', undefined);
 	if (pendingImport && vscode.workspace.workspaceFolders?.[0]?.uri.toString() === pendingImport.folder) {
 		void (async () => {
 			await context.globalState.update('shortestpath.oj.pendingImport', undefined);
 			if (Date.now() - pendingImport.createdAt > 5 * 60_000) { return; }
 			await bridgeHandlers.importProblem(pendingImport.problem, new AbortController().signal);
 			const sourcePath = (await readWorkspaceProblemCache()).sourcePaths[pendingImport.problem.ref];
-			panel.showProblem(pendingImport.problem, false, sourcePath, true);
+			panel.openProblem(pendingImport.problem, false, sourcePath, true);
 		})().catch(error => { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)); });
 	}
-	const syncProblemPanelWithActiveTab = async (): Promise<void> => {
-		await panel.hideProblemWhenSourceCloses();
-	};
-	const scheduleProblemPanelSync = () => {
-		setTimeout(() => {
-			void syncProblemPanelWithActiveTab();
+	let panelSyncTimer: ReturnType<typeof setTimeout> | undefined;
+	function scheduleProblemPanelSync(): void {
+		coordinator.selectionChanged();
+		clearTimeout(panelSyncTimer);
+		panelSyncTimer = setTimeout(() => {
+			panelSyncTimer = undefined;
+			void panel.hideProblemWhenSourceCloses().then(() => coordinator.synchronize()).catch(error => log(`Problem synchronization failed: ${String(error)}`));
 		}, 0);
-	};
+	}
 	context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(scheduleProblemPanelSync));
+	context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabGroups(scheduleProblemPanelSync));
+	context.subscriptions.push(new vscode.Disposable(() => clearTimeout(panelSyncTimer)));
+	scheduleProblemPanelSync();
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.openIntegratedBrowser', async () => {
 		await openUrl('https://shortestpath.cn/topics');
 	}));
@@ -1762,16 +1836,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 		const problem = Object.values(cache.problems).find(item => item.url === url && cache.sourcePaths[item.ref] === sourcePath);
 		return problem ? { ...problem.state.timer } : undefined;
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblemForCph', async (url: string) => {
-		const cache = await readWorkspaceProblemCache(cache => Object.values(cache.problems).find(item => item.url === url)?.ref);
-		const problem = Object.values(cache.problems).find(item => item.url === url);
-		if (problem) {
-			panel.showProblem(problem, bridge.isBound(problem.ref), cache.sourcePaths[problem.ref]);
-		} else {
-			const recoveryContext = Object.values(cache.recoveryContexts).find(item => item.url === url);
-			if (recoveryContext) { recovery.select(recoveryContext); }
-		}
-	}));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblemForCph', (url: string, activeSourcePath?: string) => coordinator.openUrl(url, activeSourcePath)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.hideProblemForCphSourcePath', async (sourcePath: string) => {
 		const ref = findProblemRefForSourcePath((await readWorkspaceProblemCache()).sourcePaths, sourcePath);
 		if (ref) {
@@ -2006,7 +2071,9 @@ async function readWorkspaceProblemCacheFiles(directory = getWorkspaceCacheDirec
 				if (!content.trim()) {
 					continue;
 				}
-				const record = JSON.parse(content) as Partial<WorkspaceProblemRecord>;
+				const originalRecord = JSON.parse(content) as Partial<WorkspaceProblemRecord>;
+				const record = discardLegacyReadingText({ ...originalRecord, editorial: undefined, previousStatements: [] });
+				needsRewrite ||= JSON.stringify(record) !== JSON.stringify(originalRecord);
 				if ((record.version !== 1 && record.version !== workspaceProblemRecordVersion) || !record.problem || typeof record.problem !== 'object') {
 					continue;
 				}
@@ -2067,7 +2134,7 @@ async function readLegacyWorkspaceProblemCache(directory = getWorkspaceCacheDire
 		if (!content.trim()) {
 			return undefined;
 		}
-		const value = JSON.parse(content) as CachedWorkspaceProblemCache;
+		const value = discardLegacyReadingText({ ...JSON.parse(content), editorials: undefined, previousStatements: undefined }) as CachedWorkspaceProblemCache;
 		if (value.version !== 3 && value.version !== 4) {
 			console.warn(`ShortestPath OJ cache ${legacyWorkspaceCacheFileName} has unsupported version and was left unchanged.`);
 			return undefined;
@@ -2174,11 +2241,12 @@ async function writeWorkspaceProblemCache(cache: WorkspaceProblemCache, enforceL
 			problem,
 			sourcePath: cache.sourcePaths[problemRef],
 			submissions: cache.submissions[problemRef] ?? [],
-			editorial: cache.editorials[problemRef],
-			previousStatements: cache.previousStatements[problemRef] ?? [],
+			editorial: undefined,
+			previousStatements: [],
 			lastUsedAt: cache.lastUsedAt[problemRef] ?? 0,
 		};
-		const content = `${JSON.stringify(record, undefined, '\t')}\n`;
+		const persisted = discardLegacyReadingText({ ...record, editorial: undefined, previousStatements: [] });
+		const content = `${JSON.stringify(persisted, undefined, '\t')}\n`;
 		if (recordContents.get(problemRef) !== content) {
 			const location = workspaceCacheRecordLocations.get(cache)?.get(problemRef);
 			await vscode.workspace.fs.writeFile(location ? problemRecordUri(directory, location) : getWorkspaceProblemRecordUri(problemRef, directory), new TextEncoder().encode(content));
@@ -2614,6 +2682,7 @@ function getProblemWebviewHtml(state: ProblemPanelState, sections: ProblemViewSe
 		KATEX_STYLES_URI: katexStyles.toString(),
 		STYLES_URI: styles.toString(),
 		SCRIPT_URI: script.toString(),
+		READER_SCRIPT_URI: webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'out', 'protectedReader.bundle.js')).toString(),
 		STYLE_RELOAD_SCRIPT_URI: webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'out', 'styleHotReload.js')).toString(),
 		ELAPSED_MS: String(timer.elapsedMs),
 		TIMER_RUNNING: String(timer.running),
@@ -2898,7 +2967,7 @@ function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProb
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${webview.cspSource} 'unsafe-inline'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; img-src https:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${webview.cspSource} 'unsafe-inline'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; img-src https: data:;">
 <link rel="stylesheet" href="${katexStyles}">
 <link id="oj-main-styles" rel="stylesheet" href="${styles}">
 </head>
@@ -2907,6 +2976,7 @@ function getEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProb
 ${renderEditorialContents(editorial, problem, canLike)}
 <script>
 const vscode = acquireVsCodeApi();
+window.addEventListener('protected-reader-ready', () => vscode.postMessage({ command: 'protectedReaderReady' }));
 const editorialContainer = document.querySelector('.editorial-container');
 const editorialResizer = document.querySelector('.editorial-resizer');
 const selectionIncludesEditorialCode = () => {
@@ -3047,6 +3117,7 @@ document.addEventListener('click', (event) => {
 });
 </script>
 <script src="${webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'out', 'styleHotReload.js'))}"></script>
+<script src="${webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'out', 'protectedReader.bundle.js'))}"></script>
 </body>
 </html>`;
 }
@@ -3177,11 +3248,15 @@ function getOpenFileTabGroups(): OpenFileTabGroup[] {
 }
 
 function getActiveEditorPath(): string | undefined {
+	return getActiveSolveDocument()?.sourcePath;
+}
+
+function getActiveSolveDocument(): SolveDocument | undefined {
 	const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
 	if (!(activeTab?.input instanceof vscode.TabInputText) || activeTab.input.uri.scheme !== 'file') {
 		return undefined;
 	}
-	return activeTab.input.uri.fsPath;
+	return { sourcePath: activeTab.input.uri.fsPath, instance: activeTab };
 }
 
 function isAddressInUseError(error: Error): boolean {
@@ -3222,7 +3297,7 @@ function renderPublicContent(problem: ImportedProblem): string {
 		parts.push(section('interaction', localize('交互协议'), [eventMarkdown(interaction.session_start), eventMarkdown(interaction.case_start), ...interaction.phases.map(phase => `### ${phase.name}\n\n${phase.condition}\n\n${eventMarkdown(phase.events)}`), interaction.flush, interaction.termination, interaction.failure].filter(Boolean).join('\n\n')));
 		parts.push(section('interaction-limits', localize('限制要求'), [...interaction.budgets.map(budget => `${budget.scope} ${budget.name}：${budget.limit}\n\n${budget.cost ?? ''}`), interaction.requirements].join('\n\n')));
 		const samples = interaction.samples.map((sample, index) => {
-			const hidden = (sample.hidden_states ?? []).map(state => `<div class="interaction-hidden" data-i18n-ignore><strong>${localize('固定隐藏内容')} ${state.case}</strong><pre><code>${escapeHtml(state.content)}</code></pre></div>`).join('');
+			const hidden = (sample.hidden_states ?? []).map(state => `<div class="interaction-hidden" data-i18n-ignore><strong>${localize('固定隐藏内容')} ${state.case}</strong>${renderProblemMarkdown(`\`\`\`text\n${state.content}\n\`\`\``, problem.url)}</div>`).join('');
 			const trace = sample.events.map(event => `<div data-message-from="${event.from === 'solver' ? 'solver' : 'interactor'}" data-i18n-ignore><strong>${event.from === 'solver' ? localize('用户输出') : localize('交互器回复')}</strong><pre><code>${escapeHtml(event.text)}</code></pre>${event.note ? renderProblemMarkdown(event.note, problem.url) : ''}</div>`).join('');
 			return `<article class="sample"><h3>${localizeFormat('样例 {0}', String(index + 1))}</h3>${hidden}${trace}<div data-i18n-ignore>${renderProblemMarkdown(sample.explanation, problem.url)}</div></article>`;
 		}).join('');

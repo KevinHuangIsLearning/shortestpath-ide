@@ -44,6 +44,9 @@ export interface IShortestPathModeService {
 	/** Whether a tab belongs to the standalone browsing surface. */
 	ownsBrowserTab(input: BrowserEditorInput): boolean;
 	showBrowser(input: BrowserEditorInput, preserveFocus?: boolean): Promise<void>;
+	/** Native desktop navigation capability; unavailable in web and Sessions. */
+	captureBrowserReturn?(browserId: string): number | undefined;
+	returnFromBrowser?(browserId: string, revision: number): Promise<void>;
 	notifyResult(): void;
 }
 

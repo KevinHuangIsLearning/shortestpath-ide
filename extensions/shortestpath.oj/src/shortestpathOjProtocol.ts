@@ -6,7 +6,7 @@
 import { validatePublicProblemContent } from './publicProblemValidation';
 import type { BridgeCorrectionSnapshot, PublicProblemContent, SolveTarget } from './generated/ide-bridge-contract';
 
-export const bridgeProtocolV2 = 'shortestpath-oj-v2';
+export const bridgeProtocolV3 = 'shortestpath-oj-v3';
 export const bridgePort = 21474;
 export const bridgePath = '/shortestpath-oj';
 export const bridgeProtocol = 'shortestpath-oj-v1';
@@ -132,7 +132,7 @@ export type WebsiteError = {
 };
 
 export type ProtocolRequest = {
-	version: 1 | 2;
+	version: 1 | 2 | 3;
 	id: string;
 	type: string;
 	sessionId?: string;
@@ -140,7 +140,7 @@ export type ProtocolRequest = {
 };
 
 export type ProtocolResponse = {
-	version: 1 | 2;
+	version: 1 | 2 | 3;
 	id: string;
 	replyTo: string;
 	type: string;
@@ -291,7 +291,7 @@ export function problemKey(problem: Pick<ImportedProblem, 'ref'> | string): stri
 	return typeof problem === 'string' ? problem : problem.ref;
 }
 
-export function parseMessage(value: unknown, expectedVersion: 1 | 2 = 1): ProtocolRequest | ProtocolResponse {
+export function parseMessage(value: unknown, expectedVersion: 1 | 2 | 3 = 1): ProtocolRequest | ProtocolResponse {
 	const message = record(value, '消息必须是 JSON 对象。');
 	if (message.version !== expectedVersion) {
 		throw new ProtocolValidationError('unsupported_version', '不支持的协议版本。');
@@ -319,7 +319,7 @@ export function parseMessage(value: unknown, expectedVersion: 1 | 2 = 1): Protoc
 	return { version: expectedVersion, id, type, sessionId, data: message.data };
 }
 
-export function parseProblemBindData(value: unknown, version: 1 | 2 = 1): ImportedProblem {
+export function parseProblemBindData(value: unknown, version: 1 | 2 | 3 = 1): ImportedProblem {
 	const data = record(value, 'problem.bind.data 无效。');
 	const problem = parseProblem(data.problem, version);
 	const compatibilityWarnings: string[] = [];
@@ -427,10 +427,12 @@ export function parseEditorialResult(value: unknown): EditorialResult {
 		simpleContent: markdown(data.simpleContent, 'simpleContent'),
 		content: markdown(data.content, 'content'),
 		solutionCode: stringValue(data.solutionCode, 'solutionCode'),
-		...(data.subtaskSolutions === undefined ? {} : { subtaskSolutions: array(data.subtaskSolutions, 'subtaskSolutions').map(value => {
-			const solution = record(value, 'subtaskSolution');
-			return { title: optionalString(solution.title, 'title') ?? '', kind: stringValue(solution.kind, 'kind'), appliesToSubtasks: stringArray(solution.applies_to_subtasks ?? [], 'applies_to_subtasks'), acceptedSubtasks: stringArray(solution.accepted_subtasks ?? [], 'accepted_subtasks'), solution: optionalString(solution.solution, 'solution') ?? '', acCode: optionalString(solution.ac_code, 'ac_code') ?? '' };
-		}) }),
+		...(data.subtaskSolutions === undefined ? {} : {
+			subtaskSolutions: array(data.subtaskSolutions, 'subtaskSolutions').map(value => {
+				const solution = record(value, 'subtaskSolution');
+				return { title: optionalString(solution.title, 'title') ?? '', kind: stringValue(solution.kind, 'kind'), appliesToSubtasks: stringArray(solution.applies_to_subtasks ?? [], 'applies_to_subtasks'), acceptedSubtasks: stringArray(solution.accepted_subtasks ?? [], 'accepted_subtasks'), solution: optionalString(solution.solution, 'solution') ?? '', acCode: optionalString(solution.ac_code, 'ac_code') ?? '' };
+			})
+		}),
 		updatedAt: optionalString(data.updatedAt, 'updatedAt'),
 	};
 }
@@ -491,7 +493,7 @@ export function parseStressStartResult(value: unknown): StressStartResult {
 	};
 }
 
-export function parseIncomingEvent(type: string, value: unknown, version: 1 | 2 = 1): IncomingEvent {
+export function parseIncomingEvent(type: string, value: unknown, version: 1 | 2 | 3 = 1): IncomingEvent {
 	const data = record(value, `${type}.data 无效。`);
 	switch (type) {
 		case 'correction.snapshot': {
@@ -612,7 +614,7 @@ export class ProtocolValidationError extends Error {
 	}
 }
 
-function parseProblem(value: unknown, version: 1 | 2 = 1): Omit<ImportedProblem, 'state' | 'capabilities' | 'compatibilityWarnings'> {
+function parseProblem(value: unknown, version: 1 | 2 | 3 = 1): Omit<ImportedProblem, 'state' | 'capabilities' | 'compatibilityWarnings'> {
 	const problem = record(value, 'problem 无效。');
 	const url = nonEmptyString(problem.url, 'problem.url');
 	if (version === 1 && !shortestPathProblemUrl.test(url)) {
@@ -643,7 +645,7 @@ function parseProblem(value: unknown, version: 1 | 2 = 1): Omit<ImportedProblem,
 		throw new ProtocolValidationError('invalid_request', 'problem.ref 必须与 problem.url 和 problem.topic.slug 一致。');
 	}
 	return {
-		...(version === 2 ? parseProblemV2(problem, ref, url) : {}),
+		...(version >= 2 ? parseProblemV2(problem, ref, url) : {}),
 		ref,
 		title: nonEmptyString(problem.title, 'problem.title'),
 		url,
@@ -825,7 +827,7 @@ function parseSubmissionSnapshot(value: unknown, finished: boolean): SubmissionS
 		throw new ProtocolValidationError('invalid_request', 'submission.finished 必须包含 detailState。');
 	}
 	const detailError = data.detailError === undefined ? undefined : parseWebsiteError(data.detailError);
-		if (detailState === 'unavailable' && detailError === undefined) {
+	if (detailState === 'unavailable' && detailError === undefined) {
 		throw new ProtocolValidationError('invalid_request', 'detailState 为 unavailable 时必须包含 detailError。');
 	}
 	if (detailState === 'complete' && detailError !== undefined) {

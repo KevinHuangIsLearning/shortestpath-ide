@@ -311,10 +311,27 @@ export default defineConfig(
 	// These inherited CPH files have no upstream copyright header.
 	{
 		files: [
+			'extensions/shortestpath.judger/src/companion.ts',
 			'extensions/shortestpath.judger/src/webview/editorChange.ts',
 			'extensions/shortestpath.judger/src/compiler.ts',
 		],
 		rules: { 'header/header': 'off' },
+	},
+	// Preserve inherited CPH conventions when checking the companion server.
+	{
+		files: ['extensions/shortestpath.judger/src/companion.ts'],
+		rules: {
+			'eqeqeq': 'off',
+			'curly': 'off',
+		},
+	},
+	// Contract generator output retains the canonical website's text and style.
+	{
+		files: ['extensions/shortestpath.oj/src/generated/ide-bridge-contract.ts'],
+		rules: {
+			'curly': 'off',
+			'local/code-no-unexternalized-strings': 'off',
+		},
 	},
 	// Keep the runner's original GPL notice without inventing a copyright owner.
 	{

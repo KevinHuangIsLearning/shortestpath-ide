@@ -51,7 +51,7 @@ export async function createProblemMarkdownRenderer(getTheme: () => string | The
 	return createMarkdownRendererWithHighlighter(highlighter, getTheme);
 }
 
-function createMarkdownRendererWithHighlighter(highlighter: HighlighterCore, getTheme: () => string | ThemeRegistration): ProblemMarkdownRenderer {
+export function createMarkdownRendererWithHighlighter(highlighter: HighlighterCore, getTheme: () => string | ThemeRegistration): ProblemMarkdownRenderer {
 	const markdown = new MarkdownIt({
 		html: false,
 		breaks: true,

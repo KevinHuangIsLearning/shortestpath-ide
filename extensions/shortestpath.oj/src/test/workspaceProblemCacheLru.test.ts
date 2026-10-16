@@ -3,6 +3,8 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SolveCoordinator } from '../solveCoordinator';
+import * as protectedReaderHost from '../protectedReaderHost';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs/promises';
@@ -31,11 +33,13 @@ type Cache = {
 
 function problem(index: number): protocol.ImportedProblem {
 	const ref = `topic/found/P${index}`;
-	return protocol.parseProblemBindData({ ...structuredClone(bindPayload), problem: {
-		...structuredClone(bindPayload.problem), ref, url: `https://shortestpath.cn/problem/${ref}`, accountId: '11',
-		target: { kind: 'training', problemId: String(index + 1), problemRef: ref },
-		publicContent: { title: bindPayload.problem.title }, localTest: { enabled: true, reason: '' },
-	} }, 2);
+	return protocol.parseProblemBindData({
+		...structuredClone(bindPayload), problem: {
+			...structuredClone(bindPayload.problem), ref, url: `https://shortestpath.cn/problem/${ref}`, accountId: '11',
+			target: { kind: 'training', problemId: String(index + 1), problemRef: ref },
+			publicContent: { title: bindPayload.problem.title }, localTest: { enabled: true, reason: '' },
+		}
+	}, 2);
 }
 
 async function fixture() {
@@ -73,42 +77,49 @@ async function fixture() {
 		const context = vm.createContext({
 			console: { ...console, warn: (message: string) => warnings.push(message) }, TextDecoder, TextEncoder,
 			context: { subscriptions: [] },
-			panel: { showProblem: (value: protocol.ImportedProblem) => shown.push(value.ref) },
+			getActiveSolveDocument: () => undefined, isActiveEditor: () => true,
+			solveCoordinator_1: { SolveCoordinator },
+			panel: { openProblem: (value: protocol.ImportedProblem) => shown.push(value.ref) },
 			bridge: { isBound: () => false }, recovery: { select: (identity: recency.WorkspaceProblemRecoveryContext) => recoveries.push(identity) },
 			workspaceCacheDirectoryName: '.shortestpath', legacyWorkspaceCacheFileName: 'oj-problems.json', workspaceProblemRecordVersion: 2,
 			workspaceCacheMutationTail: Promise.resolve(), workspaceCacheMigration: undefined,
 			workspaceCacheStorageRoot: uri(storageRoot), workspaceCacheLocationsMigrated: new Set(), workspaceCacheLegacyContents: new WeakMap(),
 			workspaceCachesNeedingRewrite: new WeakSet(), workspaceCacheRecordContents: new WeakMap(), workspaceCacheRecordLocations: new WeakMap(), workspaceCacheSourceContents: new WeakMap(),
 			hintAnswerCache: new Map(),
-			path: path, path_1: { default: path }, workspaceProblemRecordStorage_1: recordStorage, workspaceProblemCache_1: recency, workspaceProblemCacheMigration_1: migration,
+			path: path, path_1: { default: path }, workspaceProblemRecordStorage_1: recordStorage, protectedReaderHost_1: protectedReaderHost, workspaceProblemCache_1: recency, workspaceProblemCacheMigration_1: migration,
 			crypto_1: { createHash },
 			shortestpathOjProtocol_1: protocol, problemStatementVersion_1: versions, submissionHistory_1: history, sourcePath_1: sourcePath,
 			localization_1: { localizeFormat: (text: string) => text },
 			vscode: {
+				window: { showTextDocument: async () => undefined },
 				commands: { registerCommand: (_name: string, handler: (url: string) => Promise<void>) => { showForCph = handler; return {}; } },
 				FileSystemError, FileType: { File: 1, Directory: 2, SymbolicLink: 64 },
 				Uri: { file: uri, joinPath: (parent: { path: string }, ...segments: string[]) => uri(path.join(parent.path, ...segments)) },
-				workspace: { workspaceFolders: [{ uri: uri(workspaceRoot) }], fs: {
-					readDirectory: (uri: { path: string }) => io(async () => (await fs.readdir(uri.path, { withFileTypes: true })).map(entry => [entry.name, entry.isFile() ? 1 : 2])),
-					readFile: (uri: { path: string }) => io(() => fs.readFile(uri.path)),
-					stat: (uri: { path: string }) => io(async () => { const stat = await fs.lstat(uri.path); return { mtime: stat.mtimeMs, type: stat.isSymbolicLink() ? 64 : stat.isDirectory() ? 2 : 1 }; }),
-					createDirectory: (uri: { path: string }) => fs.mkdir(uri.path, { recursive: true }),
-					writeFile: async (uri: { path: string }, content: Uint8Array) => {
-						if (path.basename(uri.path) === failedWrite) { throw new Error('simulated write failure'); }
-						if (path.basename(uri.path) === delayedWrite?.name) {
-							const delay = delayedWrite; delayedWrite = undefined; delay.started(); await delay.ready;
-						}
-						if (path.basename(uri.path) === corruptedWrite) { corruptedWrite = undefined; content = new TextEncoder().encode('corrupted'); }
-						await fs.writeFile(uri.path, content); writes.push(path.basename(uri.path));
-					},
-					delete: (uri: { path: string }) => io(async () => { if ((await fs.lstat(uri.path)).isDirectory()) { await fs.rmdir(uri.path); } else { await fs.unlink(uri.path); } deletes.push(path.basename(uri.path)); }),
-				} },
+				workspace: {
+					workspaceFolders: [{ uri: uri(workspaceRoot) }], fs: {
+						readDirectory: (uri: { path: string }) => io(async () => (await fs.readdir(uri.path, { withFileTypes: true })).map(entry => [entry.name, entry.isFile() ? 1 : 2])),
+						readFile: (uri: { path: string }) => io(() => fs.readFile(uri.path)),
+						stat: (uri: { path: string }) => io(async () => { const stat = await fs.lstat(uri.path); return { mtime: stat.mtimeMs, type: stat.isSymbolicLink() ? 64 : stat.isDirectory() ? 2 : 1 }; }),
+						createDirectory: (uri: { path: string }) => fs.mkdir(uri.path, { recursive: true }),
+						writeFile: async (uri: { path: string }, content: Uint8Array) => {
+							if (path.basename(uri.path) === failedWrite) { throw new Error('simulated write failure'); }
+							if (path.basename(uri.path) === delayedWrite?.name) {
+								const delay = delayedWrite; delayedWrite = undefined; delay.started(); await delay.ready;
+							}
+							if (path.basename(uri.path) === corruptedWrite) { corruptedWrite = undefined; content = new TextEncoder().encode('corrupted'); }
+							await fs.writeFile(uri.path, content); writes.push(path.basename(uri.path));
+						},
+						delete: (uri: { path: string }) => io(async () => { if ((await fs.lstat(uri.path)).isDirectory()) { await fs.rmdir(uri.path); } else { await fs.unlink(uri.path); } deletes.push(path.basename(uri.path)); }),
+					}
+				},
 			},
 		});
 		vm.runInContext(`${compiled.slice(start, end)}; globalThis.api = { read: readWorkspaceProblemCache, mutate: mutateWorkspaceProblemCache };`, context);
 		const commandStart = compiled.indexOf(`context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.showProblemForCph'`);
 		const commandEnd = compiled.indexOf(`context.subscriptions.push(vscode.commands.registerCommand('shortestpath.oj.hideProblemForCphSourcePath'`, commandStart);
-		vm.runInContext(compiled.slice(commandStart, commandEnd), context);
+		const coordinatorStart = compiled.indexOf('const contentFromCache =');
+		const coordinatorEnd = compiled.indexOf('context.subscriptions.push(coordinator)', coordinatorStart);
+		vm.runInContext(compiled.slice(coordinatorStart, coordinatorEnd) + compiled.slice(commandStart, commandEnd), context);
 		return { read: context.api.read as (access?: string) => Promise<Cache>, mutate: context.api.mutate as (action: (cache: Cache) => void, write: boolean) => Promise<void>, hints: context.hintAnswerCache as Map<string, object>, showForCph, recoveries, shown };
 	};
 	const insert = (cache: Cache, index: number) => {
@@ -221,8 +232,10 @@ test('legacy aggregate migration retains the selected snapshot and all source as
 		assert.equal((await f.files()).length, 30);
 		assert.ok(restored.problems[problem(0).ref]);
 		assert.equal(Object.keys(restored.sourcePaths).length, 36);
-		assert.deepEqual(structuredClone(restored.editorials?.[ref]), editorial);
-		assert.equal(restored.previousStatements?.[ref][0].title, 'previous title');
+		assert.equal(restored.editorials?.[ref], undefined);
+		assert.equal(restored.problems[ref].statement.description?.content, '');
+		assert.equal((await fs.readFile(path.join(f.directory, f.fileName(0)), 'utf8')).includes('cached solution'), false);
+		assert.equal(restored.previousStatements?.[ref]?.length ?? 0, 0);
 		assert.deepEqual(structuredClone(restored.recoveryContexts?.[evicted.ref]), recency.getWorkspaceProblemRecoveryContext(evicted));
 		assert.ok(f.deletes.includes('oj-problems.json'));
 	} finally { await f.cleanup(); }
@@ -265,7 +278,7 @@ test('a corrupt source index falls back to surviving snapshot identities and pat
 	} finally { await f.cleanup(); }
 });
 
-test('project caches migrate into internal storage with complete contents and unchanged source and test files', async () => {
+test('project caches migrate metadata and remove reading history without changing source and tests', async () => {
 	const f = await fixture();
 	try {
 		const ref = problem(0).ref;
@@ -283,8 +296,8 @@ test('project caches migrate into internal storage with complete contents and un
 		await fs.writeFile(path.join(f.root, 'P0.cph'), 'custom cases');
 		const restored = await f.load().read();
 		assert.equal(await fs.stat(f.projectDirectory).then(() => true, () => false), false);
-		assert.deepEqual({ recency: restored.lastUsedAt[ref], editorial: structuredClone(restored.editorials?.[ref]), previous: restored.previousStatements?.[ref]?.[0].title, submissions: structuredClone(restored.submissions?.[ref]) }, {
-			recency: 1, editorial, previous: 'previous title', submissions: [submission],
+		assert.deepEqual({ recency: restored.lastUsedAt[ref], editorial: structuredClone(restored.editorials?.[ref]), previous: restored.previousStatements?.[ref]?.[0]?.title, submissions: structuredClone(restored.submissions?.[ref]) }, {
+			recency: 1, editorial: undefined, previous: undefined, submissions: [submission],
 		});
 		assert.deepEqual([await fs.readFile(path.join(f.root, 'P0.cpp'), 'utf8'), await fs.readFile(path.join(f.root, 'P0.cph'), 'utf8')], ['user source', 'custom cases']);
 		const reloaded = f.load();
@@ -348,7 +361,7 @@ test('one internal storage root isolates different workspaces and leaves project
 	} finally { await f.cleanup(); }
 });
 
-test('project-level legacy aggregates relocate without losing cached editorials or LRU metadata', async () => {
+test('project-level legacy aggregates remove protected reading text and retain LRU metadata', async () => {
 	const f = await fixture();
 	try {
 		await fs.mkdir(f.projectDirectory);
@@ -357,27 +370,29 @@ test('project-level legacy aggregates relocate without losing cached editorials 
 		await fs.writeFile(path.join(f.projectDirectory, 'oj-problems.json'), JSON.stringify({ version: 4, problems: { [ref]: problem(0) }, sourcePaths: { [ref]: path.join(f.root, 'P0.cpp') }, editorials: { [ref]: editorial }, lastUsedAt: { [ref]: 123 } }));
 		const restored = await f.load().read();
 		assert.equal(restored.lastUsedAt[ref], 123);
-		assert.deepEqual(structuredClone(restored.editorials?.[ref]), editorial);
+		assert.equal(restored.editorials?.[ref], undefined);
+		assert.equal(restored.problems[ref].statement.description?.content, '');
+		assert.equal((await fs.readFile(path.join(f.directory, f.fileName(0)), 'utf8')).includes('cached solution'), false);
 		assert.equal(await fs.stat(f.projectDirectory).then(() => true, () => false), false);
 	} finally { await f.cleanup(); }
 });
 
 
 test('indexed project records relocate to private snapshots while preserving Judger cases and custom source files', async () => {
-    const f = await fixture();
-    try {
-        const value = problem(1), source = path.join(f.root, 'custom.cpp');
-        const owned = path.join(f.root, 'custom.prob.judger');
-        const record = path.join(owned, `oj-${f.fileName(1)}`);
-        await fs.mkdir(owned, { recursive: true }); await fs.mkdir(f.projectDirectory, { recursive: true });
-        await fs.writeFile(source, 'user source');
-        await fs.writeFile(path.join(owned, 'problem.json'), 'user cases');
-        await fs.writeFile(record, JSON.stringify({ version: 2, problem: value, sourcePath: source, submissions: [], previousStatements: [], lastUsedAt: 42 }));
-        await fs.writeFile(path.join(f.projectDirectory, 'oj-index.json'), JSON.stringify([{ problemRef: value.ref, path: path.relative(f.projectDirectory, record) }]));
-        const restored = await f.load().read(value.ref);
-        assert.equal(restored.problems[value.ref].ref, value.ref); assert.equal(restored.sourcePaths[value.ref], source);
-        assert.deepEqual([await fs.readFile(source, 'utf8'), await fs.readFile(path.join(owned, 'problem.json'), 'utf8')], ['user source', 'user cases']);
-        await assert.rejects(fs.stat(record), { code: 'ENOENT' });
-        assert.deepEqual(await f.files(), [f.fileName(1)]);
-    } finally { await f.cleanup(); }
+	const f = await fixture();
+	try {
+		const value = problem(1), source = path.join(f.root, 'custom.cpp');
+		const owned = path.join(f.root, 'custom.prob.judger');
+		const record = path.join(owned, `oj-${f.fileName(1)}`);
+		await fs.mkdir(owned, { recursive: true }); await fs.mkdir(f.projectDirectory, { recursive: true });
+		await fs.writeFile(source, 'user source');
+		await fs.writeFile(path.join(owned, 'problem.json'), 'user cases');
+		await fs.writeFile(record, JSON.stringify({ version: 2, problem: value, sourcePath: source, submissions: [], previousStatements: [], lastUsedAt: 42 }));
+		await fs.writeFile(path.join(f.projectDirectory, 'oj-index.json'), JSON.stringify([{ problemRef: value.ref, path: path.relative(f.projectDirectory, record) }]));
+		const restored = await f.load().read(value.ref);
+		assert.equal(restored.problems[value.ref].ref, value.ref); assert.equal(restored.sourcePaths[value.ref], source);
+		assert.deepEqual([await fs.readFile(source, 'utf8'), await fs.readFile(path.join(owned, 'problem.json'), 'utf8')], ['user source', 'user cases']);
+		await assert.rejects(fs.stat(record), { code: 'ENOENT' });
+		assert.deepEqual(await f.files(), [f.fileName(1)]);
+	} finally { await f.cleanup(); }
 });

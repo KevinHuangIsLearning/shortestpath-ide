@@ -3,6 +3,7 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { protectFixture, protectedWire } from './protectedFixtures';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { WebSocket } from 'ws';
@@ -10,7 +11,8 @@ import { randomUUID } from 'crypto';
 import { ShortestPathOjLocalBridge } from '../shortestpathOjLocalBridge';
 import { parseProblemBindData } from '../shortestpathOjProtocol';
 import { ConnectionRecovery, RecoveryState } from '../connectionRecovery';
-import { bindPayload } from './fixtures';
+import { bindPayload as plainBindPayload } from './fixtures';
+const bindPayload = protectFixture(plainBindPayload);
 import { getWorkspaceProblemRecoveryContext, readWorkspaceProblemRecoveryContext } from '../workspaceProblemCache';
 
 const payload = { ...bindPayload, problem: { ...bindPayload.problem, target: { kind: 'training', problemId: '1', problemRef: bindPayload.problem.ref }, accountId: '1', publicContent: { title: 'A' }, localTest: { enabled: true, reason: '' } } };
@@ -22,13 +24,13 @@ test('real bridge resumes an evicted problem from its minimal persisted identity
 	let activations = 0;
 	const states: string[] = [];
 	const bridge = new ShortestPathOjLocalBridge({ importProblem: async () => { imports++; return 'created'; }, resumeProblem: async () => { resumes++; }, activateProblem: () => {}, activateBoundProblem: async () => { activations++; }, updateProblemState: async () => {}, handleEvent() {}, handleDisconnect() {}, handleRecoveryStatus: (_ref, state) => states.push(state) }, 0);
-	const socket = new WebSocket(`ws://127.0.0.1:${await bridge.listeningPort()}/shortestpath-oj`, 'shortestpath-oj-v2', { origin: 'https://shortestpath.cn' });
+	const socket = new WebSocket(`ws://127.0.0.1:${await bridge.listeningPort()}/shortestpath-oj`, 'shortestpath-oj-v3', { origin: 'https://shortestpath.cn' });
 	await new Promise<void>(resolve => socket.once('open', resolve));
 	const request = (type: string, data: object, sessionId?: string) => new Promise<{ ok: boolean; sessionId?: string; data?: { accountId?: string }; error?: { code: string } }>(resolve => {
 		const id = randomUUID();
 		const listener = (raw: Buffer) => { const value = JSON.parse(raw.toString()); if (value.replyTo === id) { socket.off('message', listener); resolve(value); } };
 		socket.on('message', listener);
-		socket.send(JSON.stringify({ version: 2, kind: 'request', id, type, data, sessionId }));
+		socket.send(protectedWire({ version: 3, kind: 'request', id, type, data, sessionId }));
 	});
 	try {
 		const identity = readWorkspaceProblemRecoveryContext(JSON.parse(JSON.stringify(getWorkspaceProblemRecoveryContext(problem))));
@@ -59,12 +61,12 @@ test('a selected problem change expires a resume already awaiting state refresh'
 	const waiting = new Promise<void>(resolve => { entered = resolve; });
 	let activated = 0;
 	const bridge = new ShortestPathOjLocalBridge({ importProblem: async () => 'created', resumeProblem: async () => { entered(); await new Promise<void>(resolve => { release = resolve; }); }, activateProblem: () => { activated++; }, updateProblemState: async () => {}, handleEvent() {}, handleDisconnect() {} }, 0);
-	const socket = new WebSocket(`ws://127.0.0.1:${await bridge.listeningPort()}/shortestpath-oj`, 'shortestpath-oj-v2', { origin: 'https://shortestpath.cn' });
+	const socket = new WebSocket(`ws://127.0.0.1:${await bridge.listeningPort()}/shortestpath-oj`, 'shortestpath-oj-v3', { origin: 'https://shortestpath.cn' });
 	await new Promise<void>(resolve => socket.once('open', resolve));
 	try {
 		const token = bridge.prepareRecovery(problem);
 		const response = new Promise<{ ok: boolean }>(resolve => socket.once('message', raw => resolve(JSON.parse(raw.toString()))));
-		socket.send(JSON.stringify({ version: 2, kind: 'request', id: randomUUID(), type: 'problem.resume', data: { ...payload, token } }));
+		socket.send(protectedWire({ version: 3, kind: 'request', id: randomUUID(), type: 'problem.resume', data: { ...payload, token } }));
 		await waiting;
 		bridge.prepareRecovery({ ...problem, ref: 'DSU/found/B' });
 		release();

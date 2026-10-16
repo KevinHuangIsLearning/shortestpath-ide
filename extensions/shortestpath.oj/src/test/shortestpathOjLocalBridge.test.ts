@@ -3,12 +3,15 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { protectFixture, protectedWire } from './protectedFixtures';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { RawData, WebSocket } from 'ws';
 import { OutcomeUnknownError, ShortestPathOjLocalBridge } from '../shortestpathOjLocalBridge';
-import { bridgeProtocol, ImportedProblem, IncomingEvent, ProblemState } from '../shortestpathOjProtocol';
-import { bindPayload, statePayload } from './fixtures';
+import { bridgeProtocolV3 as bridgeProtocol, ImportedProblem, IncomingEvent, ProblemState } from '../shortestpathOjProtocol';
+import { bindPayload as plainBindPayload, statePayload as plainStatePayload } from './fixtures';
+const bindPayload = protectFixture(plainBindPayload);
+const statePayload = protectFixture(plainStatePayload);
 
 test('enforces one active session, reuses same binding, and replaces the old page', async () => {
 	const imports: ImportedProblem[] = [];
@@ -20,7 +23,7 @@ test('enforces one active session, reuses same binding, and replaces the old pag
 	const first = await openSocket(port);
 	try {
 		const initial = await sendRequest(first, 'problem.bind', bindPayload);
-		const sessionId = stringField(initial, 'sessionId');
+		let sessionId = stringField(initial, 'sessionId');
 		assert.deepStrictEqual(
 			{ type: initial.type, ok: initial.ok, action: recordField(initial, 'data').action, sessionId: sessionId.length > 0 },
 			{ type: 'problem.bind.result', ok: true, action: 'created', sessionId: true },
@@ -29,9 +32,11 @@ test('enforces one active session, reuses same binding, and replaces the old pag
 		const reactivated = await sendRequest(first, 'problem.bind', bindPayload);
 		assert.deepStrictEqual(
 			{ sessionId: reactivated.sessionId, action: recordField(reactivated, 'data').action },
-			{ sessionId, action: 'reactivated' },
+			{ sessionId: stringField(reactivated, 'sessionId'), action: 'reactivated' },
 		);
 
+		assert.notEqual(reactivated.sessionId, sessionId);
+		sessionId = stringField(reactivated, 'sessionId');
 		const mismatch = await sendRequest(first, 'problem.state.sync', { state: statePayload }, 'wrong-session');
 		assert.equal(recordField(mismatch, 'error').code, 'session_mismatch');
 		const synced = await sendRequest(first, 'problem.state.sync', { state: statePayload }, sessionId);
@@ -66,7 +71,7 @@ test('enforces one active session, reuses same binding, and replaces the old pag
 					active: bridge.getActiveSession()?.problemRef,
 				},
 				{
-					version: 1,
+					version: 3,
 					hasId: true,
 					type: 'session.replaced',
 					sessionId,
@@ -95,7 +100,7 @@ test('explicit hint reads cross the real bridge and validate the returned state'
 			const request = JSON.parse(data.toString()) as Record<string, unknown>;
 			if (request.type !== 'hint.state.request') { return; }
 			reads++;
-			socket.send(JSON.stringify({ version: 1, id: 'hint-response', replyTo: request.id, type: 'hint.state.result', sessionId, ok: true, data: { state: reads === 1 ? statePayload : {} } }));
+			socket.send(protectedWire({ version: 3, id: 'hint-response', replyTo: request.id, type: 'hint.state.result', sessionId, ok: true, data: { state: reads === 1 ? statePayload : {} } }));
 		});
 		assert.deepStrictEqual(await bridge.requestHintState('DSU/found/A'), statePayload);
 		await assert.rejects(bridge.requestHintState('DSU/found/A'));
@@ -121,8 +126,8 @@ test('validates IDE request responses and accepts terminal event snapshots', asy
 			if (request.type !== 'hint.answer.request') {
 				return;
 			}
-			socket.send(JSON.stringify({
-				version: 1,
+			socket.send(protectedWire({
+				version: 3,
 				id: 'website-response',
 				replyTo: request.id,
 				type: 'hint.answer.result',
@@ -142,8 +147,8 @@ test('validates IDE request responses and accepts terminal event snapshots', asy
 		});
 		assert.equal((await bridge.requestHintAnswer('DSU/found/A', '123')).state, 'revealed');
 
-		socket.send(JSON.stringify({
-			version: 1,
+		socket.send(protectedWire({
+			version: 3,
 			id: 'finished-event',
 			type: 'stress.finished',
 			sessionId,
@@ -194,8 +199,8 @@ test('reports a request that takes longer than the configured notice delay', asy
 		const request = await requestReceived;
 		await waitFor(() => activity.length === 1);
 		assert.deepStrictEqual(activity, [{ problemRef: 'DSU/found/A', active: true }]);
-		socket.send(JSON.stringify({
-			version: 1,
+		socket.send(protectedWire({
+			version: 3,
 			id: 'website-response',
 			replyTo: request.id,
 			type: 'hint.answer.result',
@@ -350,7 +355,7 @@ test('preserves outcome-unknown semantics when replacing a session with a pendin
 	const second = await openSocket(port);
 	try {
 		await sendRequest(first, 'problem.bind', bindPayload);
-		const requestReceived = nextMessage(first, message => message.type === 'submission.request');
+		const requestReceived = nextMessage(first, message => message.type === 'submission.create.request');
 		const pending = bridge.requestSubmission('DSU/found/A', 'operation-id', 'cpp20', 'int main() {}');
 		const rejected = assert.rejects(pending, error => error instanceof OutcomeUnknownError);
 		await requestReceived;
@@ -382,8 +387,8 @@ test('treats a mismatched side-effect response as outcome unknown', async () => 
 			if (request.type !== 'hint.answer.request') {
 				return;
 			}
-			socket.send(JSON.stringify({
-				version: 1,
+			socket.send(protectedWire({
+				version: 3,
 				id: 'mismatched-response',
 				replyTo: request.id,
 				type: 'hint.answer.result',
@@ -416,13 +421,13 @@ for (const succeed of [false, true]) {
 		const socket = await openSocket(await bridge.listeningPort());
 		try {
 			const bound = await sendRequest(socket, 'problem.bind', bindPayload);
-			const received = nextMessage(socket, message => message.type === 'submission.request');
+			const received = nextMessage(socket, message => message.type === 'submission.create.request');
 			const pending = bridge.requestSubmission('DSU/found/A', 'activity-id', 'cpp20', 'int main() {}');
 			const completed = succeed ? pending : assert.rejects(pending);
 			const request = await received;
 			assert.deepEqual(activity, [['DSU/found/A', true]]);
-			socket.send(JSON.stringify({
-				version: 1, id: 'activity-result', replyTo: request.id, type: 'submission.result',
+			socket.send(protectedWire({
+				version: 3, id: 'activity-result', replyTo: request.id, type: 'submission.create.result',
 				sessionId: bound.sessionId, ok: succeed,
 				...(succeed ? { data: { state: 'submitted', submissionId: '45', language: 'cpp20', status: 'pending', message: 'submitted' } }
 					: { error: { code: 'submission_failed', message: 'failed' } }),
@@ -470,7 +475,7 @@ function sendRequest(socket: WebSocket, type: string, data: unknown, sessionId?:
 			resolve(response);
 		};
 		socket.on('message', listener);
-		socket.send(JSON.stringify({ version: 1, id, type, sessionId, data }));
+		socket.send(protectedWire({ version: 3, id, type, sessionId, data }));
 	});
 }
 
@@ -509,3 +514,27 @@ async function waitFor(predicate: () => boolean): Promise<void> {
 		await new Promise(resolve => setTimeout(resolve, 5));
 	}
 }
+
+test('rejects legacy and absent subprotocols, and refuses plaintext on a v3 socket', async () => {
+	const imports: ImportedProblem[] = [];
+	const bridge = createBridge(imports, [], []);
+	const port = await bridge.listeningPort();
+	try {
+		for (const protocol of ['shortestpath-oj-v1', 'shortestpath-oj-v2']) {
+			await assert.rejects(new Promise<void>((resolve, reject) => {
+				const socket = new WebSocket(`ws://127.0.0.1:${port}/shortestpath-oj`, protocol, { origin: 'https://shortestpath.cn' });
+				socket.once('error', reject); socket.once('open', () => { socket.terminate(); resolve(); });
+			}), /subprotocol/i);
+		}
+		const unversioned = new WebSocket(`ws://127.0.0.1:${port}/shortestpath-oj`, { origin: 'https://shortestpath.cn' });
+		const code = await new Promise<number>((resolve, reject) => { unversioned.once('close', resolve); unversioned.once('error', reject); });
+		assert.equal(code, 1002);
+		const socket = await openSocket(port);
+		try {
+			const response = nextMessage(socket, message => message.replyTo === 'plaintext');
+			socket.send(JSON.stringify({ version: 3, id: 'plaintext', type: 'problem.bind', data: plainBindPayload }));
+			assert.equal((await response).ok, false);
+			assert.equal(imports.length, 0);
+		} finally { socket.terminate(); }
+	} finally { await bridge.close(); }
+});

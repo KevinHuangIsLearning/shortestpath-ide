@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import * as protectedReaderHost from '../protectedReaderHost';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { applySourceFileChanges } from '../sourceFileChanges';
@@ -26,7 +27,7 @@ test('cache writer preserves indexed record locations across source rename and r
 	const records = new WeakMap<object, Map<string, string>>();
 	const writer = vm.runInNewContext(compiled.slice(start, end) + '\nwriteWorkspaceProblemCache', {
 		TextEncoder, vscode: { workspace: { fs: { createDirectory: async () => {}, writeFile: async (file: string, contents: Uint8Array) => { files.set(file, contents); } } } },
-		getWorkspaceCacheDirectoryUri: () => '/cache', workspaceProblemCache_1: { assertUniqueWorkspaceProblemRecordFileNames: () => {}, getWorkspaceProblemCacheEvictions: () => [], getWorkspaceProblemRecoveryContext: () => ({}) },
+		getWorkspaceCacheDirectoryUri: () => '/cache', protectedReaderHost_1: protectedReaderHost, workspaceProblemCache_1: { assertUniqueWorkspaceProblemRecordFileNames: () => {}, getWorkspaceProblemCacheEvictions: () => [], getWorkspaceProblemRecoveryContext: () => ({}) },
 		assertUniqueWorkspaceProblemRecordFileNames: () => {}, getWorkspaceProblemCacheEvictions: () => [],
 		getWorkspaceProblemRecoveryContext: () => ({}), workspaceCacheSourceContents: new WeakMap(), workspaceCacheRecordContents: records, workspaceCacheRecordLocations: locations,
 		getWorkspaceSourceIndexUri: () => '/cache/.source-paths.json', workspaceProblemRecordVersion: 2,

@@ -4,7 +4,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{CSP_SOURCE}} 'unsafe-inline'; script-src {{CSP_SOURCE}}; font-src {{CSP_SOURCE}}; img-src https:;">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{CSP_SOURCE}} 'unsafe-inline'; script-src {{CSP_SOURCE}}; font-src {{CSP_SOURCE}}; img-src https: data:;">
 	<link rel="stylesheet" href="{{KATEX_STYLES_URI}}">
 	<link id="oj-main-styles" rel="stylesheet" href="{{STYLES_URI}}">
 </head>
@@ -49,5 +49,6 @@
 	</div>
 	<script src="{{STYLE_RELOAD_SCRIPT_URI}}"></script>
 	<script src="{{SCRIPT_URI}}"></script>
+	<script src="{{READER_SCRIPT_URI}}"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ export SHORTESTPATH_IDE_E2E_ROOT="${SHORTESTPATH_IDE_E2E_ROOT:-/tmp/shortestpath
 export SHORTESTPATH_IDE_E2E_WORKSPACE="${SHORTESTPATH_IDE_E2E_WORKSPACE:-$SHORTESTPATH_IDE_E2E_ROOT/workspace}"
 export SHORTESTPATH_IDE_TEST_READY="$SHORTESTPATH_IDE_E2E_ROOT/ready"
 mkdir -p "$SHORTESTPATH_IDE_E2E_WORKSPACE" "$SHORTESTPATH_IDE_E2E_ROOT/fork-user/User" "$SHORTESTPATH_IDE_E2E_ROOT/extensions"
+export SHORTESTPATH_IDE_E2E_WORKSPACE="$(cd "$SHORTESTPATH_IDE_E2E_WORKSPACE" && pwd -P)"
 node - <<'JS'
 const fs = require('node:fs');
 const p = process.env.SHORTESTPATH_IDE_E2E_ROOT + '/fork-user/User/settings.json';
@@ -16,4 +17,4 @@ fs.writeFileSync(p, JSON.stringify(settings, null, 2));
 JS
 cd "$IDE_ROOT"
 export VSCODE_SKIP_PRELAUNCH=1
-exec ./scripts/code.sh --user-data-dir="$SHORTESTPATH_IDE_E2E_ROOT/fork-user" --extensions-dir="$SHORTESTPATH_IDE_E2E_ROOT/extensions" --extensionDevelopmentPath="$IDE_ROOT/extensions/shortestpath.oj" --extensionDevelopmentPath="$IDE_ROOT/extensions/shortestpath.judger" --extensionDevelopmentPath="$IDE_ROOT/test/ide-bridge" --disable-workspace-trust --enable-proposed-api=shortestpath.judger "$SHORTESTPATH_IDE_E2E_WORKSPACE"
+exec ./scripts/code.sh --user-data-dir="$SHORTESTPATH_IDE_E2E_ROOT/fork-user" --shared-data-dir="$SHORTESTPATH_IDE_E2E_ROOT/shared-data" --extensions-dir="$SHORTESTPATH_IDE_E2E_ROOT/extensions" --extensionDevelopmentPath="$IDE_ROOT/extensions/shortestpath.oj" --extensionDevelopmentPath="$IDE_ROOT/extensions/shortestpath.judger" --extensionDevelopmentPath="$IDE_ROOT/test/ide-bridge" --disable-workspace-trust --enable-proposed-api=shortestpath.judger "$SHORTESTPATH_IDE_E2E_WORKSPACE"

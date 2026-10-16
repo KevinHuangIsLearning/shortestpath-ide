@@ -18,8 +18,10 @@ function createManager() {
 	const recoveries: string[] = [];
 	const changes: string[] = [];
 	const confirmations: string[] = [];
+	const reveals: string[] = [];
+	const messages: object[] = [];
 	const context = vm.createContext({
-		console, setTimeout, clearTimeout,
+		console, setTimeout, clearTimeout, getReaderCodeTheme: () => ({ name: 'shortestpath-editor', settings: [] }),
 		localTests_1: localTests,
 		defaultProblemSourceRatio: 60,
 		problemPanelLayout_1: { defaultProblemSourceRatio: 60 },
@@ -29,33 +31,55 @@ function createManager() {
 			commands: { executeCommand: async (_name: string, request: { sourcePath: string }) => ({ sourcePath: request.sourcePath, status: 'idle', diagnostics: '', tests: [] }) },
 			Uri: { file: (fsPath: string) => ({ fsPath }) },
 			workspace: { getConfiguration: () => ({ get: () => 60 }) },
-			window: { createWebviewPanel: (_type: string, _title: string, _show: object, options: object) => {
-				const view: Record<string, any> = { options, active: false, webview: { postMessage: () => true } };
-				view.onDidDispose = (listener: () => void) => { view.disposed = listener; };
-				view.onDidChangeViewState = (listener: () => void) => { view.changed = listener; };
-				view.webview.onDidReceiveMessage = (listener: (message: object) => void) => { view.message = listener; };
-				view.dispose = () => view.disposed();
-				views.push(view);
-				return view;
-			} },
+			window: {
+				createWebviewPanel: (_type: string, _title: string, _show: object, options: object) => {
+					const view: Record<string, any> = { options, active: false, sent: [], webview: { postMessage: (message: object) => { view.sent.push(message); return true; } } };
+					view.onDidDispose = (listener: () => void) => { view.disposed = listener; };
+					view.onDidChangeViewState = (listener: () => void) => { view.changed = listener; };
+					view.webview.onDidReceiveMessage = (listener: (message: object) => void) => { view.message = listener; };
+					view.dispose = () => view.disposed();
+					views.push(view);
+					return view;
+				}
+			},
 		},
 	});
 	vm.runInContext(`${compiled.slice(start, end)}; globalThis.Manager = ShortestPathOjProblemPanels; globalThis.Child = ShortestPathOjProblemPanel;`, context);
-	context.Child.prototype.showProblem = function (problem: { ref: string }, connected: boolean, sourcePath: string) {
+	context.Child.prototype.updateProblem = function (problem: { ref: string }, connected: boolean, sourcePath: string) {
 		this.state = { problem, connected, sourcePath, submissions: new Map(), finishedSubmissions: new Set(), disconnectedSubmissions: new Set(), stressTasks: new Map() };
 		this.ensurePanel(1);
 	};
-	context.Child.prototype.reveal = function () { };
+	context.Child.prototype.reveal = function () { reveals.push(this.problemRef); };
+	context.Child.prototype.handleMessage = async function (message: object) { messages.push(message); };
 	context.Child.prototype.render = function () { };
 	context.Child.prototype.confirm = function () { confirmations.push(this.problemRef); return Promise.resolve(true); };
 	const manager = new context.Manager({}, '', {
+		activatePanel: () => { const index = views.findIndex(view => view.active); if (index >= 0) { manager.selectSource(index === 0 ? '/A.cpp' : '/B.cpp'); } },
 		recover: (problem: { ref: string }) => recoveries.push(problem.ref), stopRecovery() { },
 		sourceChanged: async (_problem: object, _previous: string, sourcePath: string) => changes.push(sourcePath),
 	}, new Set());
-	manager.showProblem({ ref: 'A', title: 'A' }, false, '/A.cpp');
-	manager.showProblem({ ref: 'B', title: 'B' }, false, '/B.cpp');
-	return { manager, views, recoveries, changes, confirmations };
+	manager.updateProblem({ ref: 'A', title: 'A' }, false, '/A.cpp');
+	manager.updateProblem({ ref: 'B', title: 'B' }, false, '/B.cpp');
+	manager.selectSource('/B.cpp');
+	recoveries.length = 0;
+	return { manager, views, recoveries, changes, confirmations, reveals, messages };
 }
+
+test('queued activation notifications do not send reveal commands back to the workbench', () => {
+	const { manager, views, reveals, recoveries } = createManager();
+	for (const index of [0, 1, 0, 1]) {
+		views.forEach((view, i) => { view.active = i === index; });
+		views[index].changed();
+	}
+	assert.deepEqual({ active: manager.active.problemRef, reveals, recoveries }, { active: 'B', reveals: [], recoveries: ['A', 'B', 'A', 'B'] });
+});
+
+test('delayed messages from a hidden panel are handled without selecting its problem', () => {
+	const { manager, views, reveals, recoveries, messages } = createManager();
+	const message = { command: 'dismissCompatibilityWarning' };
+	views[0].message(message);
+	assert.deepEqual({ active: manager.active.problemRef, reveals, recoveries, messages }, { active: 'B', reveals: [], recoveries: [], messages: [message] });
+});
 
 test('activating an existing problem tab restores its connection; inactive disconnects do not hijack it', () => {
 	const { manager, views, recoveries } = createManager();
@@ -88,4 +112,13 @@ test('source changes move the owning panel identity and update persisted problem
 	assert.deepEqual(changes, ['/renamed.cpp']);
 	assert.strictEqual(manager.panels.has('/A.cpp'), false);
 	assert.strictEqual(manager.panels.get('/renamed.cpp').problemRef, 'A');
+});
+
+
+test('editor theme refresh reaches every open reading panel', () => {
+	const { manager, views } = createManager();
+	manager.refreshEditorial();
+	for (const view of views) {
+		assert.deepEqual(structuredClone(view.sent.at(-1)), { type: 'protectedReaderTheme', theme: { name: 'shortestpath-editor', settings: [] } });
+	}
 });

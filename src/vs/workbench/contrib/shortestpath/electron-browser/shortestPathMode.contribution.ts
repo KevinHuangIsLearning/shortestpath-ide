@@ -5,6 +5,7 @@
 
 import '../browser/media/shortestPathMode.css';
 import '../browser/problemEditorActions.js';
+import { ShortestPathNavigation } from '../common/shortestPathNavigation.js';
 import { $, addDisposableListener, append, EventHelper, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -93,6 +94,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private readonly changeTabVisibility = this._register(new Emitter<void>());
 	private readonly changeActive = this._register(new Emitter<void>());
 	readonly onDidChangeActiveBrowser = this.changeActive.event;
+	private readonly navigation = new ShortestPathNavigation();
 	private readonly tabs = new Map<string, BrowserEditorInput>();
 	private readonly tabStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly browserGroupStores = this._register(new DisposableMap<number, DisposableStore>());
@@ -248,6 +250,8 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.registerLayoutListeners();
 		this._register(addDisposableListener(mainWindow, 'focus', () => this.refresh()));
 		this._register(this.editors.onWillOpenEditor(event => this.revealEditorMode(event)));
+		this._register(this.editors.onDidActiveEditorChange(() => this.observeNavigation()));
+		this._register(this.changeActive.event(() => this.observeNavigation()));
 		this.layout();
 		const state = parseBrowserState(this.storage.get(tabsKey, StorageScope.PROFILE));
 		// Native pages survive a workbench reload. Reuse them so development reloads
@@ -598,6 +602,26 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 
 	ownsBrowserTab(input: BrowserEditorInput): boolean {
 		return this.tabs.get(input.id) === input;
+	}
+
+	private observeNavigation(): number {
+		const group = this.mode === 'browse' ? this.browserPart?.activeGroup
+			: this.mode === 'draw' ? this.drawingPart?.activeGroup : this.editorGroups.activeGroup;
+		return this.navigation.observe(this.mode, this.mode === 'browse' ? this.activeBrowser : group?.activeEditor ?? undefined, group?.id ?? -1);
+	}
+
+	captureBrowserReturn(browserId: string): number | undefined {
+		const active = this.mode === 'browse' ? this.activeBrowser : this.mode === 'solve' ? this.editors.activeEditor : undefined;
+		const revision = this.observeNavigation();
+		return active instanceof BrowserEditorInput && active.id === browserId ? revision : undefined;
+	}
+
+	async returnFromBrowser(browserId: string, revision: number): Promise<void> {
+		await this.ready;
+		if (this.stopped || this.captureBrowserReturn(browserId) !== revision) { return; }
+		// No await between validation and navigation: a later user selection wins.
+		this.applyMode('solve');
+		this.layoutService.focusPart(Parts.EDITOR_PART, mainWindow);
 	}
 
 	async showBrowser(input: BrowserEditorInput, preserveFocus = false): Promise<void> {
@@ -1097,6 +1121,8 @@ registerAction2(class extends Action2 {
 
 CommandsRegistry.registerCommand('shortestpath.browser.open', (accessor, url?: string, newTab?: boolean) => accessor.get(IShortestPathModeService).openBrowser(url, newTab));
 CommandsRegistry.registerCommand('shortestpath.mode.notifyResult', accessor => accessor.get(IShortestPathModeService).notifyResult());
+CommandsRegistry.registerCommand('_shortestpath.captureBrowserReturn', (accessor, browserId: string) => accessor.get(IShortestPathModeService).captureBrowserReturn?.(browserId));
+CommandsRegistry.registerCommand('_shortestpath.returnFromBrowser', (accessor, browserId: string, revision: number) => accessor.get(IShortestPathModeService).returnFromBrowser?.(browserId, revision));
 for (const [id, title, primary, run] of [
 	// allow-any-unicode-next-line
 	['address', localize2('sp.focusAddress', "浏览：聚焦地址栏"), KeyMod.CtrlCmd | KeyCode.KeyL, (service: ShortestPathModeService) => service.focusAddress()],

@@ -6,10 +6,12 @@
 import path from 'path';
 
 /** Fixed workspace-relative C++ paths for supported ShortestPath pages. */
-export function getShortestPathProblemPath(problemUrl: string, title: string): string | undefined {
+export function getShortestPathProblemPath(problemUrl: string, title: string, developmentOrigin?: string): string | undefined {
 	let url: URL;
 	try { url = new URL(problemUrl); } catch { return undefined; }
-	if (url.origin !== 'https://shortestpath.cn') { return undefined; }
+	const isDevelopmentOrigin = url.origin === developmentOrigin && ['http:', 'https:'].includes(url.protocol)
+		&& ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
+	if (url.origin !== 'https://shortestpath.cn' && !isDevelopmentOrigin) { return undefined; }
 	let parts: string[];
 	try { parts = url.pathname.replace(/\/$/, '').split('/').slice(1).map(decodeURIComponent); } catch { return undefined; }
 	let directories: string[];

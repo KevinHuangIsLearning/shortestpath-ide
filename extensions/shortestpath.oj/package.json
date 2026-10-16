@@ -33,7 +33,7 @@
 	"main": "./dist/extension.js",
 	"scripts": {
 		"clean": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
-		"compile": "npm run clean && node ../../node_modules/typescript/bin/tsc6 -p ./",
+		"compile": "npm run clean && node ../../node_modules/typescript/bin/tsc6 -p ./ && node .reader-build.mts",
 		"test": "npm run compile && node --test out/test/*.test.js",
 		"vscode:prepublish": "npm run compile && node .esbuild.mts"
 	},
@@ -79,6 +79,7 @@
 	},
 	"dependencies": {
 		"@vscode/markdown-it-katex": "^1.1.2",
+		"html2canvas-pro": "2.4.0",
 		"katex": "^0.16.47",
 		"markdown-it": "^14.3.0",
 		"shiki": "^4.3.1",

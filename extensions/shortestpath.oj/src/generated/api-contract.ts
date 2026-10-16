@@ -17,6 +17,7 @@ export type APIResponse = {
   details?: unknown;
   error_code?: string;
   message: string;
+  meta?: ResponseMeta;
   request_id?: string;
 };
 
@@ -142,77 +143,8 @@ export type AdminContestProblemMutationResponse = {
   problem: AdminContestProblem;
 };
 
-export type AdminContestSetDetail = {
-  announcement: string;
-  content_sha256: string;
-  contest_type: string;
-  created_at: string;
-  difficulty_tier: string;
-  document_content: string;
-  document_title: string;
-  duration_seconds: number;
-  id: number;
-  last_sync_batch_id?: number;
-  problem_count: number;
-  source_contest_id: string;
-  source_set_id: string;
-  source_system: string;
-  title: string;
-  updated_at: string;
-};
-
-export type AdminContestSetDetailResponse = {
-  contest_set: AdminContestSetDetail;
-  problems: Array<AdminContestSetProblem>;
-};
-
-export type AdminContestSetListItem = {
-  announcement: string;
-  content_sha256: string;
-  contest_type: string;
-  created_at: string;
-  difficulty_tier: string;
-  document_title: string;
-  duration_seconds: number;
-  id: number;
-  last_sync_batch_id?: number;
-  problem_count: number;
-  source_contest_id: string;
-  source_set_id: string;
-  source_system: string;
-  title: string;
-  updated_at: string;
-};
-
-export type AdminContestSetListResponse = {
-  contest_sets: Array<AdminContestSetListItem>;
-};
-
-export type AdminContestSetMemberResponse = {
-  problem: ContestSetMember;
-};
-
-export type AdminContestSetMutationResponse = {
-  contest_set: AdminContestSetDetail;
-};
-
-export type AdminContestSetProblem = {
-  id: number;
-  judge_mode: string;
-  label: string;
-  local_test_url: string;
-  position: number;
-  problem_id: number;
-  source_problem_id: string;
-  testdata_revision_id?: number;
-  testdata_validation_status?: string;
-  testdata_validation_verdict?: string;
-  title: string;
-};
-
 export type AdminCreateContestRequest = {
   available_at?: string;
-  contest_set_id?: number;
   end_at: string;
   public_id: string;
   source_contest_id: string;
@@ -238,10 +170,13 @@ export type AdminCreatedProblem = {
   judge_mode: string;
   memory_limit_mb: number;
   output_format: string;
+  reference_time_estimated: boolean;
+  reference_time_ms: number;
   samples: string;
   scoring_rules: string;
   seq: number;
   time_limit_ms: number;
+  time_limit_multiplier: number;
   title: string;
   topic_attached: boolean;
   updated_at: string;
@@ -314,12 +249,19 @@ export type AdminFeedbackListResponse = {
 
 export type AdminFeedbackSummary = {
   applied_count: number;
+  cases_completed: number;
+  cases_total: number;
   change_count: number;
+  claimed_by?: number;
+  claimed_by_name: string;
   content: string;
+  content_changed: boolean;
   created_at: string;
+  duplicate_of?: number;
   id: number;
   problem_id: number;
   problem_title: string;
+  resolution: string;
   review_note: string;
   reviewed_at?: string;
   reviewed_by?: number;
@@ -328,9 +270,12 @@ export type AdminFeedbackSummary = {
   rewarded_at?: string;
   scope: string;
   status: string;
+  submission_id?: number;
   type: string;
   updated_at: string;
   user_id: number;
+  user_name: string;
+  validation_state: string;
   version: number;
 };
 
@@ -365,6 +310,21 @@ export type AdminListResponse = {
   page: number;
   page_size: number;
   total: number;
+};
+
+export type AdminNotificationConfigResponse = {
+  admins: Array<AdminNotificationRecipientOption>;
+  values: AdminNotificationRecipientsConfig;
+};
+
+export type AdminNotificationRecipientOption = {
+  id: number;
+  nickname: string;
+  username: string;
+};
+
+export type AdminNotificationRecipientsConfig = {
+  user_ids: Array<number>;
 };
 
 export type AdminOIProblem = {
@@ -755,6 +715,7 @@ export type AdminWalletTransactionItem = {
   source_id: string;
   source_type: string;
   summary: string;
+  topic_id?: number;
   type: string;
   user_id: number;
   username: string;
@@ -784,6 +745,7 @@ export type AlgorithmTag = {
 };
 
 export type ApplyFeedbackRequest = {
+  note?: string;
   reward_coins?: number;
   token: string;
 };
@@ -853,6 +815,40 @@ export type CheckoutAction = {
   qr_url?: string;
 };
 
+export type ClientNotifications = {
+  observed_at: number;
+  unread: number;
+};
+
+export type ClientSession = {
+  user: AuthUser | null;
+};
+
+export type ConfirmEmailVerificationRequest = {
+  code?: string;
+  email?: string;
+  token?: string;
+};
+
+export type ConfirmEmailVerificationResponse = {
+  user: AuthUser;
+};
+
+export type ContentSessionRequest = {
+  cookie: string;
+  session: string;
+  session_id: string;
+  v: number;
+};
+
+export type ContentSessionResponse = {
+  cookie: string;
+  session: string;
+  session_id: string;
+  state: string;
+  v: number;
+};
+
 export type Contest = {
   available_at?: string;
   contest_type: string;
@@ -862,7 +858,6 @@ export type Contest = {
   hidden?: boolean;
   hint_policy?: string;
   id: number;
-  identity_revealed: boolean;
   kind: string;
   phase: "scheduled" | "active" | "ended";
   public_id: string;
@@ -932,9 +927,12 @@ export type ContestListItem = {
   hidden?: boolean;
   hint_policy?: string;
   id: number;
-  identity_revealed: boolean;
   kind: string;
   phase: "scheduled" | "active" | "ended";
+  problem_progress?: Array<{
+    accepted: boolean;
+    label: string;
+  }>;
   problem_scores?: Array<ContestProblemScore>;
   public_id: string;
   ranking_policy_version: string;
@@ -954,10 +952,7 @@ export type ContestListResponse = {
 };
 
 export type ContestOverviewResponse = {
-  announcement?: string;
   contest: Contest;
-  document_content?: string;
-  document_title?: string;
   participation?: TeamContestParticipation;
   problems: Array<ContestProblemSummary>;
   waiting_for_first_problem: boolean;
@@ -1120,6 +1115,7 @@ export type ContestProblemSummary = {
   ac_at?: string;
   capabilities: ContestCapabilities;
   current_score: number;
+  difficulty?: number;
   elapsed_seconds: number;
   guidance_supported: boolean;
   hint_score_penalty: number;
@@ -1133,6 +1129,7 @@ export type ContestProblemSummary = {
   problem_kind: string;
   raw_score: number;
   related_problems?: Array<RelatedUpsolvingProblem>;
+  related_topics?: Array<RelatedTopic>;
   score_hidden?: boolean;
   solution_state: "pending" | "queued" | "validating" | "active" | "failed";
   source_problem_id: string;
@@ -1189,34 +1186,6 @@ export type ContestScoreboardItem = {
   total_score_time_seconds: number;
   user_id: number;
   username: string;
-};
-
-export type ContestSetMember = {
-  contest_set_id: number;
-  created_at: string;
-  id: number;
-  label: string;
-  local_test_url?: string;
-  position: number;
-  problem_id: number;
-  source_problem_id: string;
-};
-
-export type ContestSetMetadata = {
-  announcement: string;
-  content_sha256: string;
-  contest_type: string;
-  created_at: string;
-  difficulty_tier: string;
-  document_title: string;
-  duration_seconds: number;
-  id: number;
-  last_sync_batch_id?: number;
-  source_contest_id: string;
-  source_set_id: string;
-  source_system: string;
-  title: string;
-  updated_at: string;
 };
 
 export type ContestSubmissionReadinessResponse = {
@@ -1415,7 +1384,9 @@ export type DailyRecommendationResponse = {
 
 export type DecideFeedbackRequest = {
   item_ids: Array<number>;
+  item_notes?: Array<FeedbackItemRejection>;
   note: string;
+  resolution?: string;
   reward_coins?: number;
   status: string;
 };
@@ -1539,6 +1510,7 @@ export type EditorialResponse = {
 
 export type EmailVerificationDetails = {
   email: string;
+  verification_required?: boolean;
 };
 
 export type Event = {
@@ -1632,12 +1604,29 @@ export type FeedbackDetailResponse = {
   attempts?: Array<FeedbackReviewAttempt>;
   change_count: number;
   current_fields?: Array<FeedbackField>;
+  events?: Array<FeedbackEvent>;
   feedback: ProblemFeedback;
   impacts?: Array<FeedbackImpact>;
   items: Array<ProblemFeedbackItem>;
   overrides?: Array<FeedbackOverride>;
+  problem_href?: string;
+  problem_title?: string;
   redacted: boolean;
+  related?: Array<FeedbackRelated>;
+  review?: FeedbackReviewState;
   revisions: Array<ProblemContentRevision>;
+  scope_label?: string;
+  submission?: FeedbackSubmissionSummary;
+  submitter?: FeedbackSubmitter;
+};
+
+export type FeedbackEvent = {
+  actor_id?: number;
+  actor_name: string;
+  created_at: string;
+  id: number;
+  kind: string;
+  note: string;
 };
 
 export type FeedbackField = {
@@ -1655,9 +1644,22 @@ export type FeedbackImpact = {
   name: string;
 };
 
+export type FeedbackItemRejection = {
+  item_id: number;
+  note: string;
+};
+
 export type FeedbackListResponse = {
   items: Array<FeedbackDetailResponse>;
   total: number;
+};
+
+export type FeedbackMergeRequest = {
+  target_id: number;
+};
+
+export type FeedbackNoteRequest = {
+  note: string;
 };
 
 export type FeedbackNotification = {
@@ -1710,6 +1712,7 @@ export type FeedbackPreviewField = {
 
 export type FeedbackPreviewRequest = {
   items: Array<FeedbackReviewSelection>;
+  rejections?: Array<FeedbackItemRejection>;
 };
 
 export type FeedbackPreviewResponse = {
@@ -1720,8 +1723,20 @@ export type FeedbackPreviewResponse = {
   validation_required: boolean;
 };
 
-export type FeedbackReviewAttempt = {
+export type FeedbackRelated = {
+  content: string;
   created_at: string;
+  duplicate_of?: number;
+  id: number;
+  status: string;
+  user_name: string;
+};
+
+export type FeedbackReviewAttempt = {
+  cases_completed?: number;
+  cases_total?: number;
+  created_at: string;
+  current_case?: string;
   error_message?: string;
   id: number;
   reviewer_id: number;
@@ -1735,6 +1750,30 @@ export type FeedbackReviewAttempt = {
 export type FeedbackReviewSelection = {
   final?: string;
   item_id: number;
+};
+
+export type FeedbackReviewState = {
+  claimed_at?: string;
+  claimed_by?: number;
+  claimed_by_name?: string;
+  duplicate_of?: number;
+  resolution: string;
+};
+
+export type FeedbackSubmissionSummary = {
+  created_at: string;
+  failed_case?: string;
+  id: number;
+  language: string;
+  score: number;
+  status: string;
+};
+
+export type FeedbackSubmitter = {
+  accepted: number;
+  id: number;
+  name: string;
+  total: number;
 };
 
 export type FeedbackUpdatedResponse = {
@@ -1777,6 +1816,7 @@ export type HintViewResponse = {
   seq: number;
   state: string;
   unlock_at?: string;
+  viewed: boolean;
   viewed_at?: number;
 };
 
@@ -2018,8 +2058,42 @@ export type NotificationActor = {
   username: string;
 };
 
+export type NotificationCoins = {
+  amount: number;
+  reason?: string;
+  source: string;
+};
+
 export type NotificationContactsResponse = {
   items: Array<NotificationActor>;
+};
+
+export type NotificationDetail = {
+  coins?: NotificationCoins;
+  feedback?: NotificationFeedback;
+  order?: NotificationOrder;
+  problem?: NotificationProblem;
+  steps?: Array<NotificationStep>;
+  submission_id?: number;
+  topic?: NotificationTopic;
+};
+
+export type NotificationFeedback = {
+  content: string;
+  edits?: Array<NotificationFeedbackEdit>;
+  fields: Array<string>;
+  reply?: string;
+  suggestions: number;
+  type: string;
+};
+
+export type NotificationFeedbackEdit = {
+  after?: string;
+  before?: string;
+  field: string;
+  inserted?: string;
+  reason?: string;
+  removed?: string;
 };
 
 export type NotificationItem = {
@@ -2028,11 +2102,13 @@ export type NotificationItem = {
   body: string;
   conversation_id?: number;
   created_at: string;
+  detail?: NotificationDetail;
   feedback_id?: number;
   id: number;
   kind: string;
   read_at?: string;
   status: string;
+  subject: string;
   title: string;
   updated_at: string;
   version: number;
@@ -2042,9 +2118,37 @@ export type NotificationListResponse = {
   items: Array<NotificationItem>;
   page: number;
   page_size: number;
+  pending_reviews: number;
   read_before: string;
   total: number;
   unread: number;
+  unread_by_kind: Record<string, number>;
+};
+
+export type NotificationOrder = {
+  amount_fen: number;
+  credited_at?: string;
+  credits: number;
+  paid_at?: string;
+  public_id: string;
+};
+
+export type NotificationProblem = {
+  id: number;
+  title: string;
+};
+
+export type NotificationStep = {
+  at: string;
+  coins?: number;
+  fields?: Array<string>;
+  note?: string;
+  status: string;
+};
+
+export type NotificationTopic = {
+  slug: string;
+  title: string;
 };
 
 export type OIJudgeMetadata = {
@@ -2086,7 +2190,6 @@ export type OIJudgeUploadResponse = {
   upload_limits: {
     cases_per_test_point_limit: number;
     extracted_bytes: number;
-    replay: boolean;
     test_point_limit: number;
     total_case_limit: number;
     zip_bytes: number;
@@ -2745,6 +2848,8 @@ export type ProblemEditorialResponse = EditorialLockedResponse | EditorialRespon
 
 export type ProblemEntryDetails = {
   completed?: number;
+  open_limit?: number;
+  opened_unaccepted?: number;
   required_action: string;
   required_percent?: number;
   total?: number;
@@ -2752,6 +2857,7 @@ export type ProblemEntryDetails = {
 
 export type ProblemEntryResponse = {
   breakthrough?: {
+    attempts_remaining?: number;
     expires_at?: string;
     problem_ref?: string;
     problem_title?: string;
@@ -2763,11 +2869,12 @@ export type ProblemEntryResponse = {
   editorial_unlock_delay_seconds?: number;
   entry_details?: ProblemEntryDetails;
   entry_message?: string;
-  entry_state: "login_required" | "purchase_required" | "group_locked" | "ready_to_start" | "opened";
+  entry_state: "login_required" | "purchase_required" | "group_locked" | "open_limit_reached" | "ready_to_start" | "opened";
   hints?: Array<ProblemHint>;
   problem?: Problem;
   problem_ref: string;
   problem_title: string;
+  rating?: ProblemRatingResponse;
   source_contest_problems?: Array<{
     contest_id: string;
     href: string;
@@ -2792,6 +2899,7 @@ export type ProblemFeedback = {
   rewarded_at?: string;
   scope: string;
   status: string;
+  submission_id?: number;
   type: string;
   updated_at: string;
   user_id: number;
@@ -2929,6 +3037,7 @@ export type ProblemUpdateRequest = {
   secondary_algorithm_ids?: Array<number>;
   seq?: number;
   time_limit_ms?: number;
+  time_limit_multiplier?: number;
   title?: string;
 };
 
@@ -2965,6 +3074,7 @@ export type ProblemWriteRequest = {
   secondary_algorithm_ids?: Array<number>;
   seq?: number;
   time_limit_ms?: number;
+  time_limit_multiplier?: number;
   title: string;
 };
 
@@ -3172,9 +3282,22 @@ export type RequiredActionDetails = {
   required_action: string;
 };
 
+export type ResendEmailVerificationRequest = {
+  email: string;
+};
+
+export type ResendEmailVerificationResponse = {
+  ok: boolean;
+};
+
 export type ResourceForbiddenDetails = {
   resource: string;
   submission_id: number;
+};
+
+export type ResponseMeta = {
+  notifications?: ClientNotifications;
+  session?: ClientSession;
 };
 
 export type RetryAfterDetails = {
@@ -3739,14 +3862,6 @@ export type SuiteRequest = {
       contest_id: number;
       contest_problem_id: number;
     };
-    contest_set?: {
-      content_sha256: string;
-      contest_type: string;
-      duration_seconds: number;
-      source_contest_id: string;
-      source_set_id: string;
-      title: string;
-    };
     oi_problem?: {
       content_sha256: string;
       expected_problem_id?: number;
@@ -3874,6 +3989,7 @@ export type TopicAccessMutationResponse = {
 
 export type TopicBreakthroughAttemptResponse = {
   attempt: {
+    attempts_remaining?: number;
     expires_at?: string;
     problem_ref?: string;
     problem_title?: string;
@@ -3900,6 +4016,7 @@ export type TopicCoursewareResponse = {
 export type TopicDetailResponse = {
   authenticated: boolean;
   breakthroughs?: Array<{
+    attempts_remaining?: number;
     expires_at?: string;
     problem_ref?: string;
     problem_title?: string;
@@ -3962,6 +4079,7 @@ export type TopicGroupListResponse = {
 export type TopicGroupProgress = {
   code: string;
   locked_reason?: string;
+  star_earned: boolean;
   unlocked: boolean;
 };
 
@@ -3973,12 +4091,15 @@ export type TopicGroupRequest = {
 };
 
 export type TopicListItem = {
+  adv_problem_count: number;
   adv_solved_count: number;
   adv_star_earned: boolean;
+  chal_problem_count: number;
   chal_solved_count: number;
   chal_star_earned: boolean;
   complete: boolean;
   difficulty_level: string;
+  found_problem_count: number;
   found_solved_count: number;
   found_star_earned: boolean;
   id: number;
@@ -4027,6 +4148,11 @@ export type TopicMaterials = {
   template: TopicTemplateSummary;
   video_count: number;
   video_duration_seconds: number;
+};
+
+export type TopicNavigationResponse = {
+  group_problems: Record<string, Array<TopicProblem>>;
+  problem_user_status: Record<string, TopicProblemUserStatus>;
 };
 
 export type TopicProblem = {
@@ -4111,6 +4237,7 @@ export type TopicRankingOverviewResponse = {
 export type TopicRankingProblem = {
   code: string;
   difficulty: number;
+  title: string;
 };
 
 export type TopicRankingTopic = {
@@ -4205,15 +4332,8 @@ export type TopicVideoSummary = {
   title: string;
 };
 
-export type UpdateContestSetLocalTestRequest = {
-  local_test_url: string | null;
-};
-
-export type UpdateContestSetRequest = {
-  announcement?: string | null;
-  difficulty_tier?: string | null;
-  document_content?: string | null;
-  document_title?: string | null;
+export type UpdateAdminNotificationConfigRequest = {
+  values: AdminNotificationRecipientsConfig | null;
 };
 
 export type UpdateCoursewareRequest = {
@@ -4319,6 +4439,8 @@ export type WalletSpendAllocation = {
 };
 
 export type CoreOperationResponseMap = {
+  resendEmailVerification: ResendEmailVerificationResponse;
+  confirmEmailVerification: ConfirmEmailVerificationResponse;
   adminUpdateUsername: AdminUpdateUsernameResponse;
   getIDEOperation: IDEOperationResponse;
   adminDashboard: AdminDashboardResponse;
@@ -4380,10 +4502,6 @@ export type CoreOperationResponseMap = {
   adminDeleteProblemEditorial: CatalogDeletedResponse;
   createProblem: AdminCreatedProblem;
   updateProblem: CatalogUpdatedResponse;
-  adminListContestSets: AdminContestSetListResponse;
-  adminGetContestSet: AdminContestSetDetailResponse;
-  adminUpdateContestSet: AdminContestSetMutationResponse;
-  adminUpdateContestSetProblemLocalTestURL: AdminContestSetMemberResponse;
   adminUpdateProblemOrder: CatalogUpdatedResponse;
   adminMoveProblemGroup: MoveProblemGroupResponse;
   deleteProblem: CatalogDeletedResponse;
@@ -4499,6 +4617,7 @@ export type CoreOperationResponseMap = {
   adminDeleteOIProblemSampleTestData: AdminDeleteOIProblemSampleResponse;
   adminDeleteContest: AdminContestDeleteResponse;
   listTopics: TopicListResponse;
+  getTopicNavigation: TopicNavigationResponse;
   getTopicDetail: TopicDetailResponse;
   startTopicBreakthrough: TopicBreakthroughAttemptResponse;
   getTopicTemplate: TopicTemplateResponse;
@@ -4539,6 +4658,8 @@ export type CoreOperationResponseMap = {
   getNotifications: NotificationListResponse;
   readNotifications: ReadNotificationsResponse;
   getMessageContacts: NotificationContactsResponse;
+  getAdminNotificationConfig: AdminNotificationConfigResponse;
+  updateAdminNotificationConfig: AdminNotificationConfigResponse;
   createPrivateConversation: PrivateMessageSentResponse;
   getPrivateConversation: PrivateConversationResponse;
   replyPrivateConversation: PrivateMessageSentResponse;
@@ -4551,6 +4672,12 @@ export type CoreOperationResponseMap = {
   applyFeedback: FeedbackApplyResponse;
   decideFeedback: FeedbackApplyResponse;
   cancelFeedback: FeedbackApplyResponse;
+  claimFeedback: FeedbackReviewState;
+  releaseFeedback: FeedbackReviewState;
+  addFeedbackNote: FeedbackEvent;
+  replyFeedback: FeedbackApplyResponse;
+  reopenFeedback: FeedbackApplyResponse;
+  mergeFeedback: FeedbackReviewState;
   legacyReviewFeedback: FeedbackUpdatedResponse;
   getAdminFeedbackNotifications: FeedbackNotificationsResponse;
   readAdminFeedbackNotifications: FeedbackNotificationsResponse;
@@ -4569,6 +4696,8 @@ export type CoreOperationResponseMap = {
 };
 
 export type CoreOperationRequestMap = {
+  resendEmailVerification: ResendEmailVerificationRequest;
+  confirmEmailVerification: ConfirmEmailVerificationRequest;
   adminUpdateUsername: AdminUpdateUsernameRequest;
   getIDEOperation: undefined;
   adminDashboard: undefined;
@@ -4630,10 +4759,6 @@ export type CoreOperationRequestMap = {
   adminDeleteProblemEditorial: undefined;
   createProblem: ProblemWriteRequest;
   updateProblem: ProblemUpdateRequest;
-  adminListContestSets: undefined;
-  adminGetContestSet: undefined;
-  adminUpdateContestSet: UpdateContestSetRequest;
-  adminUpdateContestSetProblemLocalTestURL: UpdateContestSetLocalTestRequest;
   adminUpdateProblemOrder: ProblemOrderRequest;
   adminMoveProblemGroup: MoveProblemGroupRequest;
   deleteProblem: undefined;
@@ -4749,6 +4874,7 @@ export type CoreOperationRequestMap = {
   adminDeleteOIProblemSampleTestData: undefined;
   adminDeleteContest: undefined;
   listTopics: undefined;
+  getTopicNavigation: undefined;
   getTopicDetail: undefined;
   startTopicBreakthrough: StartTopicBreakthroughRequest;
   getTopicTemplate: undefined;
@@ -4789,6 +4915,8 @@ export type CoreOperationRequestMap = {
   getNotifications: undefined;
   readNotifications: ReadNotificationsRequest;
   getMessageContacts: undefined;
+  getAdminNotificationConfig: undefined;
+  updateAdminNotificationConfig: UpdateAdminNotificationConfigRequest;
   createPrivateConversation: CreatePrivateConversationRequest;
   getPrivateConversation: undefined;
   replyPrivateConversation: ReplyPrivateConversationRequest;
@@ -4801,6 +4929,12 @@ export type CoreOperationRequestMap = {
   applyFeedback: ApplyFeedbackRequest;
   decideFeedback: DecideFeedbackRequest;
   cancelFeedback: ApplyFeedbackRequest;
+  claimFeedback: undefined;
+  releaseFeedback: undefined;
+  addFeedbackNote: FeedbackNoteRequest;
+  replyFeedback: FeedbackNoteRequest;
+  reopenFeedback: undefined;
+  mergeFeedback: FeedbackMergeRequest;
   legacyReviewFeedback: LegacyReviewFeedbackRequest;
   getAdminFeedbackNotifications: undefined;
   readAdminFeedbackNotifications: undefined;
@@ -4821,6 +4955,8 @@ export type CoreOperationRequestMap = {
 export type CoreOperationId = keyof CoreOperationResponseMap;
 
 export const coreOperationMethods = {
+  resendEmailVerification: "POST",
+  confirmEmailVerification: "POST",
   adminUpdateUsername: "PUT",
   getIDEOperation: "GET",
   adminDashboard: "GET",
@@ -4882,10 +5018,6 @@ export const coreOperationMethods = {
   adminDeleteProblemEditorial: "DELETE",
   createProblem: "POST",
   updateProblem: "PUT",
-  adminListContestSets: "GET",
-  adminGetContestSet: "GET",
-  adminUpdateContestSet: "PUT",
-  adminUpdateContestSetProblemLocalTestURL: "PUT",
   adminUpdateProblemOrder: "PUT",
   adminMoveProblemGroup: "PUT",
   deleteProblem: "DELETE",
@@ -5001,6 +5133,7 @@ export const coreOperationMethods = {
   adminDeleteOIProblemSampleTestData: "DELETE",
   adminDeleteContest: "DELETE",
   listTopics: "GET",
+  getTopicNavigation: "GET",
   getTopicDetail: "GET",
   startTopicBreakthrough: "POST",
   getTopicTemplate: "GET",
@@ -5041,6 +5174,8 @@ export const coreOperationMethods = {
   getNotifications: "GET",
   readNotifications: "POST",
   getMessageContacts: "GET",
+  getAdminNotificationConfig: "GET",
+  updateAdminNotificationConfig: "PUT",
   createPrivateConversation: "POST",
   getPrivateConversation: "GET",
   replyPrivateConversation: "POST",
@@ -5053,6 +5188,12 @@ export const coreOperationMethods = {
   applyFeedback: "POST",
   decideFeedback: "POST",
   cancelFeedback: "POST",
+  claimFeedback: "POST",
+  releaseFeedback: "POST",
+  addFeedbackNote: "POST",
+  replyFeedback: "POST",
+  reopenFeedback: "POST",
+  mergeFeedback: "POST",
   legacyReviewFeedback: "PUT",
   getAdminFeedbackNotifications: "GET",
   readAdminFeedbackNotifications: "POST",
@@ -5069,6 +5210,26 @@ export const coreOperationMethods = {
   getLatestSubmissionCorrection: "GET",
   getSubmissionCorrection: "GET",
 } as const satisfies Record<CoreOperationId, string>;
+
+export const contentSessionRoutes = [
+  ["GET", "/api/contests/{contest}/problems/{label}"],
+  ["POST", "/api/contests/{contest}/problems/{label}/open"],
+  ["GET", "/api/contests/{contest}/problems/{label}/editorial"],
+  ["GET", "/api/contests/{contest}/problems/{label}/hints"],
+  ["POST", "/api/contests/{contest}/problems/{label}/hints/{seq}/view"],
+  ["GET", "/api/problem-ref/{topic}/{group}/{code}"],
+  ["POST", "/api/problem-ref/{topic}/{group}/{code}/open"],
+  ["GET", "/api/problem-ref/{topic}/{group}/{code}/editorial"],
+  ["GET", "/api/problem-ref/{topic}/{group}/{code}/hints"],
+  ["POST", "/api/problem-ref/{topic}/{group}/{code}/hints/{seq}/view"],
+  ["GET", "/api/problem-ref/{topic}/{group}/{code}/feedback-context"],
+  ["POST", "/api/problem-ref/{topic}/{group}/{code}/feedback"],
+  ["GET", "/api/problem-ref/{topic}/{group}/{code}/feedback"],
+  ["GET", "/api/me/feedback"],
+  ["GET", "/api/contests/{contest}/problems/{label}/feedback"],
+  ["GET", "/api/contests/{contest}/problems/{label}/feedback-context"],
+  ["POST", "/api/contests/{contest}/problems/{label}/feedback"],
+] as const;
 
 export type CoreWebSocketMessageMap = {
   wsLocalCoursewareDraft: { initial: CoursewareDraftEvent; incremental: CoursewareDraftEvent };

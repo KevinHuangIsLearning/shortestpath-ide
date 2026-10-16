@@ -42,6 +42,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 
 (() => {
 	const vscode = acquireVsCodeApi();
+	window.addEventListener('protected-reader-ready', () => vscode.postMessage({ command: 'protectedReaderReady' }));
 	const body = document.body;
 	/* ---- Preview zoom ---- */
 	const savedZoom = vscode.getState()?.zoom;

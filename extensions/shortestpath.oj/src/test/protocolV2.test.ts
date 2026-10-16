@@ -3,6 +3,7 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { protectFixture, protectedWire } from './protectedFixtures';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { WebSocket } from 'ws';
@@ -10,7 +11,8 @@ import { randomUUID } from 'crypto';
 import { OutcomeUnknownError, ShortestPathOjLocalBridge } from '../shortestpathOjLocalBridge';
 import type { Memento } from 'vscode';
 import { parseIncomingEvent, parseProblemBindData } from '../shortestpathOjProtocol';
-import { bindPayload } from './fixtures';
+import { bindPayload as plainBindPayload } from './fixtures';
+const bindPayload = protectFixture(plainBindPayload);
 import { hasProblemStatementChanged } from '../problemStatementVersion';
 import { sanitizeSubmissionHistoryEntry } from '../submissionHistory';
 import { validatePublicProblemContent } from '../publicProblemValidation';
@@ -18,17 +20,17 @@ import { AuxiliaryOperationRecovery } from '../auxiliaryOperationRecovery';
 
 const v2 = { ...bindPayload, problem: { ...bindPayload.problem, target: { kind: 'training', problemId: '1', problemRef: bindPayload.problem.ref }, accountId: '1', publicContent: { title: 'A' }, localTest: { enabled: true, reason: '' } } };
 
-test('v2 hello, binding, renewed sessions and handshake Origin are validated by the real bridge', async () => {
+test('v3 hello, binding, renewed sessions and handshake Origin are validated by the real bridge', async () => {
 	const bridge = new ShortestPathOjLocalBridge({ importProblem: async () => 'created', activateProblem: async () => {}, updateProblemState: async () => {}, handleEvent() {}, handleDisconnect() {} }, 0);
-	const socket = new WebSocket(`ws://127.0.0.1:${await bridge.listeningPort()}/shortestpath-oj`, ['shortestpath-oj-v2', 'shortestpath-oj-v1'], { origin: 'https://shortestpath.cn' });
+	const socket = new WebSocket(`ws://127.0.0.1:${await bridge.listeningPort()}/shortestpath-oj`, ['shortestpath-oj-v3', 'shortestpath-oj-v1'], { origin: 'https://shortestpath.cn' });
 	await new Promise<void>(resolve => socket.once('open', resolve));
 	const send = (type: string, data: unknown) => new Promise<any>(resolve => {
 		const id = randomUUID(); const listener = (raw: Buffer) => { const message = JSON.parse(raw.toString()); if (message.replyTo === id) { socket.off('message', listener); resolve(message); } };
-		socket.on('message', listener); socket.send(JSON.stringify({ version: 2, kind: 'request', id, type, data }));
+		socket.on('message', listener); socket.send(protectedWire({ version: 3, kind: 'request', id, type, data }));
 	});
 	try {
-		assert.equal(socket.protocol, 'shortestpath-oj-v2');
-		const hello = await send('bridge.hello', {}); assert.equal(hello.ok, true); assert.equal(hello.sessionId, undefined); assert.equal(hello.data.protocolMajor, 2);
+		assert.equal(socket.protocol, 'shortestpath-oj-v3');
+		const hello = await send('bridge.hello', { accountId: '1', problemRef: 'DSU/found/A' }); assert.equal(hello.ok, true); assert.equal(hello.sessionId, undefined); assert.equal(hello.data.protocolMajor, 3); assert.match(hello.data.readerKey, /^B[A-Za-z0-9_-]{86}$/); assert.ok(hello.data.features.includes('protected-reader-v1'));
 		const first = await send('problem.bind', v2); assert.equal(first.ok, true);
 		const second = await send('problem.bind', v2); assert.equal(second.ok, true); assert.notEqual(second.sessionId, first.sessionId);
 		const wrongOrigin = await send('problem.bind', { ...v2, problem: { ...v2.problem, url: 'https://example.com/problem/DSU/found/A' } }); assert.equal(wrongOrigin.ok, false);
@@ -39,7 +41,7 @@ test('v2 isolates contest/standalone identity and validates every rendered publi
 	const contest = { ...v2, problem: { ...v2.problem, ref: 'contest/e2e/A', url: 'https://shortestpath.cn/contests/e2e/problems/A', target: { kind: 'contest', problemId: '1', contestId: '2', contestRef: 'e2e', contestProblemId: '3', problemLabel: 'A' } } };
 	assert.equal(parseProblemBindData(contest, 2).target?.kind, 'contest');
 	assert.throws(() => parseProblemBindData({ ...contest, problem: { ...contest.problem, ref: 'contest/e2e/B' } }, 2));
-	assert.throws(() => validatePublicProblemContent({ interaction: { schema_version: 1 } }));
+	assert.throws(() => validatePublicProblemContent({ interaction: { schema_version: 3 } }));
 	assert.throws(() => validatePublicProblemContent({ judge_runtime: { components: [] } }));
 	assert.throws(() => validatePublicProblemContent({ local_judging: { schema_version: 999, kind: 'grader', files: [] } }));
 	const problem = parseProblemBindData(v2, 2);
