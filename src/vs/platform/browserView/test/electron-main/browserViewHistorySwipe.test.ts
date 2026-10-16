@@ -96,12 +96,14 @@ suite('BrowserView history swipe', () => {
 		assert.deepStrictEqual([view.starts, view.navigations], [[[true, false], [true, false]], ['back']]);
 	});
 
-	test('rechecks visibility at release and closes the tab once history is gone', () => {
+	test('rechecks visibility at release and closes the tab once history is gone', async () => {
 		const view = setup();
 		view.gesture('begin'); view.allow(); view.setAvailable(false); view.gesture('end', 0.5);
 		assert.deepStrictEqual(view.navigations, [], 'an unavailable view never navigates');
 		view.setAvailable(true);
 		view.gesture('begin'); view.allow(); view.setHistory(false, false); view.gesture('end', 0.5);
+		assert.deepStrictEqual(view.navigations, [], 'closing must not run inside the native gesture dispatch');
+		await new Promise(resolve => setTimeout(resolve, 0));
 		assert.deepStrictEqual(view.navigations, ['close'], 'a backward swipe without history closes the tab');
 	});
 

@@ -58,9 +58,14 @@ export function registerBrowserViewHistorySwipe(
 			hide();
 			if (amount === 0) { return; }
 			if (back) {
-				if (allowedBack) {
-					// Without a previous page the same swipe closes the tab instead.
-					navigate(contents.navigationHistory.canGoBack() ? 'back' : 'close');
+				if (!allowedBack) { return; }
+				if (contents.navigationHistory.canGoBack()) {
+					navigate('back');
+				} else {
+					// Closing tears down this very subscription. Calling it from
+					// inside the native gesture callback would dispose the object
+					// that is still dispatching, so defer to the next task.
+					setTimeout(() => navigate('close'), 0);
 				}
 			} else if (allowedForward && contents.navigationHistory.canGoForward()) {
 				navigate('forward');
