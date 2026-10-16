@@ -54,7 +54,7 @@ function getState(): State {
 		fileNameTemplate: c.get<string>('fileNameTemplate') ?? defaultFileNameTemplate,
 		fileNameTemplateOverrides: JSON.stringify(c.get<Record<string, string>>('fileNameTemplateOverrides') ?? defaultFileNameTemplateOverrides, undefined, 2),
 		useShortAtCoderName: c.get<boolean>('useShortAtCoderName') ?? false, useShortCodeForcesName: c.get<boolean>('useShortCodeForcesName') ?? false, useShortLuoguName: c.get<boolean>('useShortLuoguName') ?? false,
-		vjudgeOpenInBrowser: c.get<boolean>('vjudgeOpenInBrowser') ?? false, defaultProblemSource: c.get<string>('defaultProblemSource') === 'original' ? 'original' : 'vjudge', vjudgeUrlSuffix: c.get<string>('vjudgeUrlSuffix') ?? '', vjudgeBrowserSplitRatio: c.get<number>('vjudgeBrowserSplitRatio') ?? 65,
+		vjudgeOpenInBrowser: c.get<boolean>('vjudgeOpenInBrowser') ?? false, defaultProblemSource: c.get<string>('defaultProblemSource') === 'vjudge' ? 'vjudge' : 'original', vjudgeUrlSuffix: c.get<string>('vjudgeUrlSuffix') ?? '', vjudgeBrowserSplitRatio: c.get<number>('vjudgeBrowserSplitRatio') ?? 65,
 		availableOjNames
 	};
 }
@@ -77,7 +77,7 @@ async function save(value: State): Promise<void> {
 		c.update('defaultLanguage', String(value.defaultLanguage || 'cpp'), true), c.update('hideStderrorWhenCompiledOK', value.hideStderrorWhenCompiledOK !== false, true),
 		c.update('ignoreSTDERROR', value.ignoreSTDERROR === true, true), c.update('defaultOnlineJudge', value.defaultOnlineJudge === true, true),
 		c.update('includeProblemIndex', value.includeProblemIndex === true, true), c.update('autoShowJudge', value.autoShowJudge !== false, true),
-		c.update('collectProblemsInRoot', value.collectProblemsInRoot !== false, true), c.update('vjudgeOpenInBrowser', value.vjudgeOpenInBrowser === true, true), c.update('defaultProblemSource', value.defaultProblemSource === 'original' ? 'original' : 'vjudge', true),
+		c.update('collectProblemsInRoot', value.collectProblemsInRoot !== false, true), c.update('vjudgeOpenInBrowser', value.vjudgeOpenInBrowser === true, true), c.update('defaultProblemSource', value.defaultProblemSource === 'vjudge' ? 'vjudge' : 'original', true),
 		c.update('fileNameTemplate', String(value.fileNameTemplate ?? '').trim(), true), c.update('fileNameTemplateOverrides', fileNameTemplateOverrides, true),
 		c.update('useShortAtCoderName', value.useShortAtCoderName === true, true), c.update('useShortCodeForcesName', value.useShortCodeForcesName === true, true), c.update('useShortLuoguName', value.useShortLuoguName === true, true),
 		c.update('vjudgeUrlSuffix', String(value.vjudgeUrlSuffix ?? ''), true), c.update('vjudgeBrowserSplitRatio', clamp(value.vjudgeBrowserSplitRatio, 10, 90, 65), true)

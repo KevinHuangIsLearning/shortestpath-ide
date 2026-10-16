@@ -44,7 +44,8 @@ test('checklist renders host progress, gates finishing, and preserves external l
 	const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));
 	const messages: unknown[] = [];
 	let update!: (event: { data: Record<string, unknown> }) => void;
-	vm.runInNewContext(script, { acquireVsCodeApi: () => ({ postMessage: (message: unknown) => messages.push(message) }), document: { getElementById: (id: string) => elements.get(id), createElement: () => new Element() }, window: { addEventListener: (_event: string, handler: typeof update) => { update = handler; } } });
+	vm.runInNewContext(script, { requestAnimationFrame: () => 0, cancelAnimationFrame() {}, ResizeObserver: class { observe() {} disconnect() {} },
+		acquireVsCodeApi: () => ({ postMessage: (message: unknown) => messages.push(message) }), document: { addEventListener() {}, getElementById: (id: string) => elements.get(id), createElement: () => new Element() }, window: { addEventListener: (_event: string, handler: typeof update) => { update = handler; } } });
 	const finish = elements.get('finish')!, start = elements.get('start')!;
 	assert.equal(finish.disabled, true); finish.onclick!(); assert.equal(messages.length, 1);
 	start.onclick!(); assert.equal(JSON.stringify(messages.at(-1)), '{"type":"startEnvironment"}');
@@ -83,18 +84,13 @@ test('checklist renders host progress, gates finishing, and preserves external l
 	elements.get('nextTemplate')!.onclick!();
 	assert.equal((messages.at(-1) as { type: string }).type, 'nextTemplate');
 	update({ data: { type: 'firstRunPage', value: 'template', state: editor } });
-	const templateRequest = messages.at(-1) as { requestId: number; source: string; page: string };
-	assert.deepEqual([templateRequest.page, templateRequest.source], ['template', editor.cppTemplate]);
-	assert.equal(elements.get('templatePreview')!.children[0].children[0].textContent, editor.cppTemplate);
-	update({ data: { type: 'editorPreview', requestId: templateRequest.requestId, message: 'preview unavailable' } });
-	assert.equal(elements.get('templatePreview')!.children[0].children[0].textContent, editor.cppTemplate);
-	update({ data: { type: 'editorPreview', requestId: templateRequest.requestId, value: { source: editor.cppTemplate, lines: [[{ text: 'int main() {}', style: 'color:blue' }]], hints: [] } } });
-	assert.equal(elements.get('templatePreview')!.children[0].children[0].style.cssText, 'color:blue');
-	assert.equal(elements.get('templatePreview')!.style.fontSize, '14px');
-	elements.get('cppTemplate')!.onfocus!();
-	assert.equal((messages.at(-1) as { autoFormat: boolean }).autoFormat, false);
-	elements.get('cppTemplate')!.value = 'int main(){return 3;}'; elements.get('cppTemplate')!.oninput!();
-	assert.equal((messages.at(-1) as { source: string }).source, 'int main(){return 3;}');
+	assert.match(html, /<div id="cppTemplate"[^>]*role="group"[^>]*data-i18n-ignore/);
+	assert.doesNotMatch(html, /<textarea|templatePreview/);
+	assert.equal(elements.get('cppTemplate')!.oninput, undefined);
+	update({ data: { type: 'templateSaveStatus', message: 'save failed' } });
+	assert.equal(elements.get('templateSaved')!.textContent, 'save failed');
+	update({ data: { type: 'templateSaveStatus', saved: true } });
+	assert.equal(elements.get('templateSaved')!.hidden, true);
 	const edited = { ...editor, cppTemplate: 'int main(){return 3;}' };
 	finish.onclick!(); assert.notEqual((messages.at(-1) as { type: string }).type, 'complete');
 	elements.get('nextWorkspace')!.onclick!();
@@ -152,7 +148,7 @@ test('platform differences are confined to preparation items', () => {
 	assert.doesNotMatch(gettingStarted, /configureLocale|pickWorkspaceFolder|type: 'skip'/);
 });
 
-test('font choices and ligatures save immediately, style both previews, and survive font detection', async () => {
+test('font choices and ligatures save immediately, style the preview, and survive font detection', async () => {
 	const state: EnvironmentSetupState = { running: false, ready: true, steps: [] };
 	const editor: FirstRunEditorState = { fontFamily: 'Fira Code', fontSize: 14, tabSize: 2, cppTemplate: 'int main() {}', fontLigatures: true, colorTheme: 'dark', autoDetectColorScheme: false, themes: [], autoSave: 'off', autoFormat: false, clangdVariableTypeHints: false };
 	const ui = { fontLabel: 'Code Font', fontLigaturesLabel: 'Enable Font Ligatures', fontLigaturesHint: 'Requires font support.', fontLoading: 'Loading fonts', fontDetectionError: 'Detection failed' };
@@ -165,13 +161,14 @@ test('font choices and ligatures save immediately, style both previews, and surv
 	};
 	const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1]; assert.ok(script);
 	vm.runInNewContext(script, {
+		requestAnimationFrame: () => 0, cancelAnimationFrame() {}, ResizeObserver: class { observe() {} disconnect() {} },
 		acquireVsCodeApi: () => ({ postMessage: (message: typeof messages[number]) => messages.push(JSON.parse(JSON.stringify(message))) }),
-		document: { getElementById: (id: string) => elements.get(id), createElement: (tag: string) => tag === 'canvas' ? { getContext: () => context } : new Element() },
+		document: { addEventListener() {}, getElementById: (id: string) => elements.get(id), createElement: (tag: string) => tag === 'canvas' ? { getContext: () => context } : new Element() },
 		window: { addEventListener: (_event: string, handler: typeof update) => { update = handler; } }
 	});
 	const family = elements.get('fontFamily')!, ligatures = elements.get('fontLigatures')!;
-	const snapshot = () => ({ value: family.value, fonts: family.children.map(child => child.value), checked: ligatures.checked, styles: ['preview', 'templatePreview', 'cppTemplate'].map(id => [elements.get(id)!.style.fontFamily, elements.get(id)!.style.fontVariantLigatures]) });
-	assert.deepEqual(snapshot(), { value: 'Fira Code', fonts: ['Fira Code'], checked: true, styles: Array(3).fill(['Fira Code', 'normal']) });
+	const snapshot = () => ({ value: family.value, fonts: family.children.map(child => child.value), checked: ligatures.checked, styles: ['preview'].map(id => [elements.get(id)!.style.fontFamily, elements.get(id)!.style.fontVariantLigatures]) });
+	assert.deepEqual(snapshot(), { value: 'Fira Code', fonts: ['Fira Code'], checked: true, styles: Array(1).fill(['Fira Code', 'normal']) });
 	assert.equal(messages.filter(message => message.type === 'systemFonts').length, 1);
 	assert.deepEqual(['fontLabel', 'fontLigaturesLabel', 'fontLigaturesHint'].map(id => elements.get(id)!.textContent), [ui.fontLabel, ui.fontLigaturesLabel, ui.fontLigaturesHint]);
 	const receiveFonts = async (value: { fonts: string[]; error?: string }) => {
@@ -185,7 +182,7 @@ test('font choices and ligatures save immediately, style both previews, and surv
 	ligatures.checked = false; ligatures.onchange!();
 	const saved = messages.at(-1)!;
 	assert.deepEqual({ type: saved.type, page: saved.page, family: saved.value?.fontFamily, ligatures: saved.value?.fontLigatures, styles: snapshot().styles }, {
-		type: 'save', page: 'font', family: '"Menlo"', ligatures: false, styles: Array(3).fill(['"Menlo"', 'none'])
+		type: 'save', page: 'font', family: '"Menlo"', ligatures: false, styles: Array(1).fill(['"Menlo"', 'none'])
 	});
 	await receiveFonts({ fonts: [], error: 'Font service unavailable' });
 	assert.deepEqual({ value: family.value, fonts: snapshot().fonts, status: elements.get('fontStatus')!.textContent }, { value: 'Menlo', fonts: ['Fira Code', 'Menlo'], status: 'Font service unavailable' });

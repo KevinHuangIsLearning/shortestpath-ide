@@ -97,6 +97,33 @@ suite('Native browser notification overlays', () => {
 		assert.deepStrictEqual(bounds, []);
 	});
 
+	test('navigation and notification views have independent bounds and visibility for the same owner', async () => {
+		create();
+		const notificationView = view;
+		const navigationBounds: Electron.Rectangle[] = [];
+		const navigationVisibility: boolean[] = [];
+		const navigationContents = Object.assign(new EventEmitter(), {
+			isDestroyed: () => false, close: () => { }, setWindowOpenHandler: () => { }, setZoomFactor: () => { },
+		}) as unknown as Electron.WebContents;
+		view = new class extends mock<Electron.WebContentsView>() {
+			override readonly webContents = navigationContents;
+			override setBounds(value: Electron.Rectangle) { navigationBounds.push(value); }
+			override setVisible(value: boolean) { navigationVisibility.push(value); }
+			override setBackgroundColor() { }
+		};
+		manager.createWindowOpenHandler(owner, 'navigation').createWindow!({});
+		const layout = { x: 500, y: 400, width: 200, height: 100, viewportWidth: 900, viewportHeight: 600, zoomFactor: 1 };
+		await handler(event(), layout);
+		await handler(event(), { ...layout, x: 60, y: 140, width: 100, height: 40 }, 'navigation');
+		await handler(event(), undefined, 'navigation');
+		await assert.rejects(handler(event(), layout, 'unknown'), /Unknown browser overlay owner/);
+		assert.deepStrictEqual({ bounds, visible, navigationBounds, navigationVisibility, attached }, {
+			bounds: [{ x: 500, y: 400, width: 200, height: 100 }], visible: [false, true],
+			navigationBounds: [{ x: 60, y: 140, width: 100, height: 40 }], navigationVisibility: [false, true, false],
+			attached: [notificationView, view, notificationView, view],
+		});
+	});
+
 	test('cleans up on owner navigation and permits a new overlay afterward', () => {
 		create();
 		assert.strictEqual(manager.createWindowOpenHandler(owner).action, 'deny');

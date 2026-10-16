@@ -124,9 +124,9 @@ export const getOjMapping = (): Record<
 };
 
 export const getDefaultProblemSource = (): ProblemSource =>
-    getPreference('general.defaultProblemSource') === 'original'
-        ? 'original'
-        : 'vjudge';
+    getPreference('general.defaultProblemSource') === 'vjudge'
+        ? 'vjudge'
+        : 'original';
 
 export const getVjudgeOjNames = (): Record<
     string,
@@ -219,7 +219,7 @@ export const doTemplateFileVariableReplacement = (): boolean => {
 };
 
 export const getShortestPathImportCategoryEnabled = (): boolean =>
-    getPreference('general.shortestPathImportCategoryEnabled') ?? true;
+    getPreference('general.shortestPathImportCategoryEnabled') ?? false;
 
 export const getShortestPathImportPrefix = (): string =>
     getPreference('general.shortestPathImportPrefixEnabled') === true

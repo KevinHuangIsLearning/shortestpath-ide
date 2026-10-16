@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import '../../../../browser/parts/editor/media/modalEditorPart.css';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IModalEditorOptions, IModalEditorOptionsProvider, isModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 
@@ -88,5 +89,22 @@ suite('Modal Editor Compact Header', () => {
 
 		// Compact-header variant measured at 40px → measured value wins
 		assert.strictEqual(resolveHeaderHeight({ offsetHeight: 40 }), 40);
+	});
+
+	test('headerless modal gives the content the full height and restores the header for other editors', () => {
+		const block = document.body.appendChild(document.createElement('div'));
+		block.className = 'monaco-modal-editor-block hidden-header';
+		disposables.add(toDisposable(() => block.remove()));
+		const part = block.appendChild(document.createElement('div'));
+		part.className = 'modal-editor-part';
+		part.style.cssText = 'width:400px;height:200px';
+		const header = part.appendChild(document.createElement('div'));
+		header.className = 'modal-editor-header';
+		const content = part.appendChild(document.createElement('div'));
+		content.className = 'content';
+		assert.deepStrictEqual({ header: header.offsetHeight, content: content.offsetHeight }, { header: 0, content: part.clientHeight });
+		block.classList.remove('hidden-header');
+		assert.ok(header.offsetHeight > 0);
+		assert.strictEqual(content.offsetHeight + header.offsetHeight, part.clientHeight);
 	});
 });

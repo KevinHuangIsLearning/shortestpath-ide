@@ -70,6 +70,18 @@ suite('BrowserOverlayManager', () => {
 		assert.deepStrictEqual(overlays, []);
 	});
 
+	test('navigation labels and their context views do not obscure the live page; ordinary hovers still do', () => {
+		const browserContainer = addElement('browser-container', { position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px' });
+		const context = addElement('context-view', { position: 'absolute', left: '0px', top: '0px', width: '100px', height: '40px', zIndex: '2575' });
+		const hover = addElement('monaco-hover', { width: '100px', height: '40px' }, context);
+		hover.classList.add('shortestpath-navigation-hover');
+		const navigation = manager.getOverlappingOverlays(browserContainer);
+		hover.classList.remove('shortestpath-navigation-hover');
+		assert.deepStrictEqual({ navigation, ordinary: manager.getOverlappingOverlays(browserContainer).map(item => item.type) }, {
+			navigation: [], ordinary: [BrowserOverlayType.Hover, BrowserOverlayType.Unknown]
+		});
+	});
+
 	test('detects an overlay beneath detached webview content', () => {
 		const browserContainer = addElement('browser-container', {
 			position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px'

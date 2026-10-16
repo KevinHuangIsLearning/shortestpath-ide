@@ -11,7 +11,7 @@ import {
 } from '../problemDisplay';
 
 describe('problem display target', () => {
-	test('uses VJudge by default when a VJudge route is available', () => {
+	test('uses VJudge when selected and a VJudge route is available', () => {
 		expect(
 			getProblemDisplayTarget(
 				true,

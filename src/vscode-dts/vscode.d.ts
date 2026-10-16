@@ -10060,6 +10060,9 @@ declare module 'vscode' {
 		/** Show only the close action in this panel's modal editor header. Requires `modal`. */
 		readonly modalCloseOnly?: boolean;
 
+		/** Hide the modal editor header. Requires `modal`; the webview must provide its own close action. */
+		readonly modalHideHeader?: boolean;
+
 		/** Show a native source editor on the left, sharing this panel's tab and lifecycle. */
 		readonly sourceEditor?: Uri;
 		/** Initial percentage of space reserved for the source editor. */

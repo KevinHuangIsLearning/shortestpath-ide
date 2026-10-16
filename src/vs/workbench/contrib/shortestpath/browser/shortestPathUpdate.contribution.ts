@@ -34,7 +34,6 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { getShortestPathFastDownloadUrl, getShortestPathReleaseNotesUrl, getShortestPathUpdateDialogKind, getShortestPathUpdateGraceStateForMinimumVersion, getShortestPathUpdateTarget, getShortestPathUpdateWithFallback, IShortestPathUpdate, IShortestPathUpdateGraceState, IShortestPathUpdateTarget, isShortestPathUpdateAvailable, parseShortestPathUpdateDocument, parseShortestPathUpdateGraceState, parseShortestPathWindowsInstallMode } from './shortestPathUpdate.js';
 
@@ -315,7 +314,6 @@ export class ShortestPathUpdateIndicator extends Disposable implements IShortest
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IHoverService hoverService: IHoverService,
-		@ITitleService titleService: ITitleService,
 	) {
 		super();
 		const navigation = layoutService.mainWindowNavigationContainer;
@@ -330,16 +328,6 @@ export class ShortestPathUpdateIndicator extends Disposable implements IShortest
 		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.button, localize('sp.updateAvailable', "有新版本可用，点击查看更新")));
 		this._register(addDisposableListener(this.button, 'click', () => this.open?.()));
 		this._register(toDisposable(() => this.button?.remove()));
-		const updateLocation = () => {
-			const compact = navigation.classList.contains('compact-navigation') && !!titleService.shortestPathUpdateContainer;
-			const host = compact ? titleService.shortestPathUpdateContainer : navigation;
-			if (host && this.button) {
-				if (this.button.parentElement !== host) { host.append(this.button); }
-				this.button.classList.toggle('compact-update-indicator', compact);
-			}
-		};
-		updateLocation();
-		this._register(layoutService.onDidLayoutMainContainer(updateLocation));
 	}
 
 	show(version: string, open: () => void): void {

@@ -751,6 +751,7 @@ export class ModalEditorPart {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			const editorModalOptions = isModalEditorOptionsProvider(activeEditor) ? activeEditor.getModalEditorOptions() : undefined;
 			modalElement.classList.toggle('compact-header', !!editorModalOptions?.compactHeader);
+			modalElement.classList.toggle('hidden-header', !!editorModalOptions?.hideHeader);
 			setVisibility(!editorModalOptions?.closeOnly, standardActionsContainer);
 			setVisibility(!!editorModalOptions?.closeOnly, closeOnlyContainer);
 			layoutModal();
@@ -797,7 +798,7 @@ export class ModalEditorPart {
 		// Prefer the measured header height so the sash aligns with the real chrome
 		// (the compact-header variant is 40px, the default header is 33px). The
 		// constant only applies before the header has been laid out.
-		const getHeaderHeight = () => (headerElement.offsetHeight || MODAL_HEADER_HEIGHT);
+		const getHeaderHeight = () => headerElement.closest('.hidden-header') ? 0 : (headerElement.offsetHeight || MODAL_HEADER_HEIGHT);
 		const sash = disposables.add(new Sash(container, {
 			getVerticalSashLeft: () => sidebarWidth,
 			getVerticalSashTop: () => getHeaderHeight(),

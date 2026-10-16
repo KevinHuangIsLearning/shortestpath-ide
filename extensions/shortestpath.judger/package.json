@@ -479,7 +479,7 @@
                 },
                 "judger.general.shortestPathImportCategoryEnabled": {
                     "type": "boolean",
-                    "default": true,
+                    "default": false,
                     "description": "%judger.general.shortestPathImportCategoryEnabled.description%",
                     "scope": "resource"
                 },
@@ -953,7 +953,7 @@
                 },
                 "judger.general.defaultProblemSource": {
                     "type": "string",
-                    "default": "vjudge",
+                    "default": "original",
                     "enum": [
                         "vjudge",
                         "original"

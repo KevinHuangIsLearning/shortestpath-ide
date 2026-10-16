@@ -23,15 +23,21 @@ const editorial: Extract<protocol.EditorialResult, { state: 'available' }> = {
 function createHarness() {
 	const source = fs.readFileSync(path.resolve(__dirname, '../extension.js'), 'utf8');
 	const posted: object[] = [];
-	const created: { options: { modal?: boolean; modalCloseOnly?: boolean } }[] = [];
+	const created: { options: { modal?: boolean; modalCloseOnly?: boolean; modalHideHeader?: boolean }; disposed: boolean; receive: (message: object) => Promise<void> }[] = [];
 	const context = vm.createContext({
 		console, setTimeout, clearTimeout,
 		editorialAccess_1: access,
 		shortestpathOjProtocol_1: protocol,
 		localization_1: { localize: (text: string) => text, localizeWebviewHtml: (html: string) => html },
-		vscode: { window: { createWebviewPanel: (_type: string, _title: string, _column: object, options: { modal?: boolean; modalCloseOnly?: boolean }) => {
-			created.push({ options });
-			return { webview: { onDidReceiveMessage() { }, postMessage(message: object) { posted.push(message); } }, onDidDispose() { } };
+		vscode: { window: { createWebviewPanel: (_type: string, _title: string, _column: object, options: { modal?: boolean; modalCloseOnly?: boolean; modalHideHeader?: boolean }) => {
+			const entry = { options, disposed: false, receive: async (_message: object) => { } };
+			created.push(entry);
+			let onDispose = () => { };
+			return {
+				dispose() { entry.disposed = true; onDispose(); },
+				webview: { onDidReceiveMessage(listener: (message: object) => Promise<void>) { entry.receive = listener; }, postMessage(message: object) { posted.push(message); } },
+				onDidDispose(listener: () => void) { onDispose = listener; },
+			};
 		} } },
 		getEditorialPanelHtml: () => '<html>split report</html>',
 		OutcomeUnknownError: class extends Error { },
@@ -68,6 +74,27 @@ test('cached and newly loaded reports stay in the problem tab; only the explicit
 	assert.equal(created.length, 1);
 	assert.equal(created[0].options.modal, true);
 	assert.equal(created[0].options.modalCloseOnly, true);
+	assert.equal(created[0].options.modalHideHeader, true);
+	panel.state = undefined;
+	await created[0].receive({ command: 'close' });
+	assert.equal(created[0].disposed, true);
+	assert.equal(panel.editorialPanel, undefined);
+});
+
+test('modal report starts with content and provides a close button without a duplicate title', () => {
+	const source = fs.readFileSync(path.resolve(__dirname, '../extension.js'), 'utf8');
+	const context = vm.createContext({
+		vscode: { Uri: { joinPath: (_uri: object, ...parts: string[]) => parts.join('/') } },
+		localization_1: { localize: (text: string) => text },
+		escapeAttribute: (text: string) => text,
+		renderEditorialContents: () => '<div class="editorial-container">report contents</div>',
+	});
+	const start = source.indexOf('function getEditorialPanelHtml(');
+	const end = source.indexOf('function renderSubmissions(', start);
+	vm.runInContext(`${source.slice(start, end)}; globalThis.render = getEditorialPanelHtml;`, context);
+	const html = context.render(editorial, bindPayload.problem, { asWebviewUri: (uri: string) => uri, cspSource: 'webview:' }, {}, false);
+	assert.match(html, /class="editorial-close-button" data-command="close" title="关闭" aria-label="关闭"/);
+	assert.doesNotMatch(html, /<h1|editorial-title/);
 });
 
 test('cancelled, locked and disconnected reports do not open a modal or populate a cache', async () => {
@@ -164,11 +191,11 @@ test('streamed and modal reports render the same external contents in tips, solu
 	});
 	const start = source.indexOf('function renderEditorialTab(');
 	const end = source.indexOf('function getEditorialPanelHtml(', start);
-	vm.runInContext(`${source.slice(start, end)}; globalThis.render = renderEditorialTab;`, context);
+	vm.runInContext(`${source.slice(start, end)}; globalThis.render = renderEditorialTab; globalThis.renderContents = renderEditorialContents;`, context);
 	const report = { ...editorial, subtaskSolutions: [{ title: 'external subtask title', kind: 'partial', appliesToSubtasks: ['1'], acceptedSubtasks: ['1'], solution: 'external subtask solution', acCode: '' }] };
 	const html = context.render({ editorial: report, problem: bindPayload.problem, connected: false, operationsInFlight: new Set() }, false);
-	assert.match(html, /data-command="editorialModal"/);
-	assert.match(html, /title="弹框查看" aria-label="弹框查看"><svg/);
+	assert.match(html, /<summary><h2>提示回顾<\/h2><button[^>]*data-command="editorialModal"[^>]*title="弹框查看" aria-label="弹框查看"><svg.*?<span>弹框查看<\/span><\/button><\/summary>/);
+	assert.doesNotMatch(context.renderContents(report, bindPayload.problem, false), /data-command="editorialModal"/);
 	assert.deepEqual([...html.matchAll(/<details[^>]*data-persist-key="([^"]+)"[^>]* open/g)].map(match => match[1]), ['editorial-hints', 'editorial-simple', 'editorial-detailed', 'editorial-subtask:0', 'editorial-code']);
 	assert.match(html, /data-i18n-ignore open><summary><h2>external subtask title<\/h2><\/summary>/);
 	assert.ok(html.indexOf('提示回顾') < html.indexOf('简化题解'));
@@ -195,4 +222,66 @@ test('modal refresh restores collapsed sections and resizing preserves their sta
 	toggle({ target: sections[1] });
 	vm.runInContext('editorialCodeWidth = 60; saveEditorialLayout();', context);
 	assert.equal(JSON.stringify(saved), JSON.stringify({ editorialCodeWidth: 60, editorialSections: { 'editorial-hints': false, 'editorial-simple': false, 'editorial-detailed': false } }));
+});
+
+test('problem statements and both report views block protected selections while preserving samples, prose and editable fields', () => {
+	class Element {
+		constructor(readonly tagName: string, readonly isContentEditable = false) { }
+		closest() { return ['INPUT', 'TEXTAREA'].includes(this.tagName) ? this : null; }
+	}
+	const reportCode = new Element('PRE');
+	const dynamicCode = new Element('CODE');
+	const statement = new Element('DIV');
+	const updatedStatement = new Element('DIV');
+	const sample = new Element('PRE');
+	const prose = new Element('P');
+	type ClipboardEvent = { target: Element; preventDefault(): void };
+	for (const view of ['problemView.js', 'extension.js']) {
+		const source = fs.readFileSync(path.resolve(__dirname, '..', view), 'utf8');
+		const start = source.indexOf(view === 'problemView.js' ? 'const selectionIncludesProtectedContent =' : 'const selectionIncludesEditorialCode =');
+		const end = source.indexOf(view === 'problemView.js' ? 'document.addEventListener(\'keydown\'' : 'const savedLayout =', start);
+		assert.ok(start >= 0 && end > start);
+		let selected: Element[][] = [];
+		const protectedElements = view === 'problemView.js' ? [reportCode, statement] : [reportCode];
+		const listeners = new Map<string, (event: ClipboardEvent) => void>();
+		const context = vm.createContext({
+			HTMLElement: Element,
+			window: { getSelection: () => ({
+				isCollapsed: selected.length === 0,
+				rangeCount: selected.length,
+				getRangeAt: (index: number) => ({ intersectsNode: (element: Element) => selected[index].includes(element) }),
+			}) },
+			document: {
+				querySelectorAll: (selector: string) => {
+					assert.equal(selector, view === 'problemView.js' ? '[data-copy-protected], .editorial-container pre, .editorial-container code' : '.editorial-container pre, .editorial-container code');
+					return protectedElements;
+				},
+				addEventListener: (type: string, listener: (event: ClipboardEvent) => void) => listeners.set(type, listener),
+			},
+		});
+		vm.runInContext(source.slice(start, end), context);
+		protectedElements.push(dynamicCode);
+		if (view === 'problemView.js') { protectedElements.push(updatedStatement); }
+		for (const type of ['copy', 'cut']) {
+			const scenarios = [
+				{ ranges: [], target: prose, blocked: false },
+				{ ranges: [[prose]], target: prose, blocked: false },
+				{ ranges: [[sample]], target: sample, blocked: false },
+				{ ranges: [[statement]], target: statement, blocked: view === 'problemView.js' },
+				{ ranges: [[sample], [sample, updatedStatement]], target: sample, blocked: view === 'problemView.js' },
+				{ ranges: [[reportCode]], target: reportCode, blocked: true },
+				{ ranges: [[prose], [prose, dynamicCode]], target: prose, blocked: true },
+				{ ranges: [[reportCode]], target: new Element('TEXTAREA'), blocked: false },
+				{ ranges: [[reportCode]], target: new Element('INPUT'), blocked: false },
+				{ ranges: [[reportCode]], target: new Element('DIV', true), blocked: false },
+			];
+			const results = scenarios.map(scenario => {
+				selected = scenario.ranges;
+				let blocked = false;
+				listeners.get(type)!({ target: scenario.target, preventDefault: () => { blocked = true; } });
+				return blocked;
+			});
+			assert.deepEqual(results, scenarios.map(scenario => scenario.blocked), `${view}: ${type}`);
+		}
+	}
 });

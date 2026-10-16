@@ -135,4 +135,120 @@ suite('Live browser notification portal', () => {
 			expanded: { ...normal, y: 342, height: 256 }, restored: normal
 		});
 	});
+
+	test('navigation labels use separate stable bounds and keep source lifecycle while notifications stay visible', async () => {
+		overlay.setVisible(workbench, true);
+		await settle();
+		const notificationLayout = layouts.at(-1);
+		const frame = source.document.createElement('iframe');
+		frame.style.cssText = 'width: 800px; height: 600px;';
+		source.document.body.appendChild(frame);
+		store.add(toDisposable(() => frame.remove()));
+		const navigationTarget = frame.contentWindow!;
+		const navigationLayouts: (IShortestPathBrowserOverlayLayout | undefined)[] = [];
+		const navigation = store.add(new ShortestPathBrowserOverlay(source, {
+			open: () => navigationTarget,
+			layout: async layout => { navigationLayouts.push(layout); }
+		}, new NullLogService(), 'navigation'));
+		navigation.setVisible(workbench, true);
+		await settle();
+		const idle = navigationLayouts.length;
+		const context = workbench.appendChild($('.context-view'));
+		context.style.cssText = 'position: absolute; left: 60px; top: 140px;';
+		const hover = context.appendChild($('.monaco-hover.shortestpath-navigation-hover'));
+		hover.style.cssText = 'width: 100px; height: 40px;';
+		hover.textContent = '代码片段';
+		await settle();
+		const open = navigationLayouts.at(-1);
+		const count = navigationLayouts.length;
+		await settle();
+		const state = {
+			open, idle, stable: count === navigationLayouts.length,
+			text: navigationTarget.document.querySelector('.shortestpath-navigation-hover')?.textContent,
+			sourceRetained: hover.ownerDocument === source.document,
+			notificationLayout: layouts.at(-1), notificationRetained: toasts.ownerDocument === target.document
+		};
+		context.remove();
+		await settle();
+		assert.deepStrictEqual({ ...state, closed: navigationLayouts.at(-1), removed: navigationTarget.document.querySelector('.shortestpath-navigation-hover') }, {
+			open: { x: 52, y: 132, width: 116, height: 56, viewportWidth: 800, viewportHeight: 600, zoomFactor: 1 },
+			idle: 0, stable: true, text: '代码片段', sourceRetained: true, notificationLayout, notificationRetained: true,
+			closed: undefined, removed: null
+		});
+	});
+
+	for (const zoom of [0.8, 1.25, 1.5]) {
+		test(`navigation mirror stays aligned at CSS zoom ${zoom} and updates when its label moves`, async () => {
+			workbench.style.zoom = String(zoom);
+			const navigation = store.add(new ShortestPathBrowserOverlay(source, {
+				open: () => target,
+				layout: async layout => { layouts.push(layout); }
+			}, new NullLogService(), 'navigation'));
+			const context = workbench.appendChild($('.context-view'));
+			context.style.cssText = 'position: absolute; left: 60px; top: 140px;';
+			const hover = context.appendChild($('.monaco-hover.shortestpath-navigation-hover'));
+			hover.style.cssText = 'width: 100px; height: 40px;';
+			hover.textContent = '浏览';
+			navigation.setVisible(workbench, true);
+			await settle();
+			const initial = layouts.at(-1);
+			const count = layouts.length;
+			await settle();
+			const stable = count === layouts.length;
+			context.style.top = '240px';
+			hover.textContent = '设置';
+			await settle();
+			assert.deepStrictEqual({ initial, stable, moved: layouts.at(-1), text: target.document.querySelector('.shortestpath-navigation-hover')?.textContent }, {
+				initial: { x: Math.floor(60 * zoom - 8), y: Math.floor(140 * zoom - 8), width: 100 * zoom + 16, height: 40 * zoom + 16, viewportWidth: 800, viewportHeight: 600, zoomFactor: 1 },
+				stable: true,
+				moved: { x: Math.floor(60 * zoom - 8), y: Math.floor(240 * zoom - 8), width: 100 * zoom + 16, height: 40 * zoom + 16, viewportWidth: 800, viewportHeight: 600, zoomFactor: 1 }, text: '设置'
+			});
+		});
+	}
+
+	test('navigation mirrors retain the original appearance, language and stylesheets loaded after opening', async () => {
+		source.document.documentElement.lang = 'zh-CN';
+		const fonts = source.document.head.appendChild($('style'));
+		fonts.textContent = 'html:lang(zh-CN) .monaco-workbench { font-family: "PingFang SC", sans-serif; }';
+		const context = workbench.appendChild($('.context-view'));
+		context.style.cssText = 'position: absolute; left: 60px; top: 140px;';
+		const hover = context.appendChild($('.monaco-hover.workbench-hover.compact.shortestpath-navigation-hover'));
+		const contents = hover.appendChild($('.hover-contents'));
+		contents.textContent = '代码片段';
+		const navigation = store.add(new ShortestPathBrowserOverlay(source, {
+			open: () => target,
+			layout: async layout => { layouts.push(layout); }
+		}, new NullLogService(), 'navigation'));
+		navigation.setVisible(workbench, true);
+		await settle();
+
+		const stylesheet = source.document.createElement('link');
+		stylesheet.rel = 'stylesheet';
+		stylesheet.href = new URL('../../../shortestpath/browser/media/shortestPathMode.css', import.meta.url).href;
+		const loaded = new Promise<void>((resolve, reject) => {
+			stylesheet.onload = () => resolve();
+			stylesheet.onerror = () => reject(new Error('Navigation stylesheet failed to load'));
+		});
+		source.document.head.appendChild(stylesheet);
+		await loaded;
+		await settle();
+		const mirror = target.document.querySelector<HTMLElement>('.shortestpath-navigation-hover')!;
+		const mirrorContents = mirror.querySelector<HTMLElement>('.hover-contents')!;
+		function appearance(window: Window, element: HTMLElement) {
+			const style = window.getComputedStyle(element);
+			return { background: style.backgroundColor, color: style.color, radius: style.borderRadius, shadow: style.boxShadow, padding: style.padding, font: style.font };
+		}
+		const original = { hover: appearance(source, hover), contents: appearance(source, contents) };
+		assert.deepStrictEqual({ language: target.document.documentElement.lang, background: original.hover.background, mirrored: { hover: appearance(target, mirror), contents: appearance(target, mirrorContents) } }, {
+			language: 'zh-CN', background: 'rgb(53, 54, 61)', mirrored: original
+		});
+
+		stylesheet.remove();
+		fonts.textContent = 'html:lang(en) .monaco-workbench { font-family: monospace; }';
+		source.document.documentElement.lang = 'en';
+		await settle();
+		assert.deepStrictEqual({ language: target.document.documentElement.lang, hover: appearance(target, mirror), contents: appearance(target, mirrorContents) }, {
+			language: 'en', hover: appearance(source, hover), contents: appearance(source, contents)
+		});
+	});
 });

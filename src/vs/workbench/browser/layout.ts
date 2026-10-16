@@ -200,8 +200,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	readonly mainContainer = document.createElement('div');
 	private readonly navigationView = isWeb ? undefined : this._register(new NavigationView());
-	get mainWindowNavigationContainer(): HTMLElement | undefined { return this.navigationView?.container; }
-	get mainWindowNavigationLayoutContainer(): HTMLElement | undefined { return this.navigationView?.element; }
+	get mainWindowNavigationContainer(): HTMLElement | undefined { return this.navigationView?.element; }
 	get activeContainer() { return this.getContainerFromDocument(getActiveWindow().document); }
 	get containers(): Iterable<HTMLElement> {
 		const containers: HTMLElement[] = [];
@@ -428,10 +427,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				this.doUpdateLayoutConfiguration();
-			}
-
-			if (e.affectsConfiguration('shortestpath.compactMode')) {
-				this.updateCompactNavigation();
 			}
 
 			// Shadows
@@ -1663,7 +1658,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.mainContainer.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
-		this.updateCompactNavigation();
 
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
@@ -1693,7 +1687,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.onDidChangePartVisibility(({ partId }) => {
 			if (partId === Parts.TITLEBAR_PART || partId === Parts.BANNER_PART) {
 				this.updateTopWindowEdgeClass();
-				if (partId === Parts.TITLEBAR_PART) { this.updateCompactNavigation(); }
 			}
 		}));
 
@@ -2306,16 +2299,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
-	}
-
-	private updateCompactNavigation(): void {
-		if (!this.workbenchGrid || !this.navigationView) { return; }
-		// Keep navigation reachable when fullscreen/zen mode or native title bars hide the host.
-		const host = this.configurationService.getValue<boolean>('shortestpath.compactMode') && this.isVisible(Parts.TITLEBAR_PART, mainWindow)
-			? this.titleService.navigationContainer : undefined;
-		this.mainContainer.classList.toggle('shortestpath-compact-mode', !!host);
-		this.navigationView.setTitlebarContainer(host);
-		this.layout();
 	}
 
 	private updateTopWindowEdgeClass(): void {

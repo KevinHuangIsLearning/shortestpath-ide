@@ -503,7 +503,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	private _updateWindowConfiguration(): void {
-		const darkReaderMode = this.configurationService.getValue<BrowserDarkReaderMode>(browserDarkReaderModeSetting) ?? 'auto';
+		const darkReaderMode = this.configurationService.getValue<BrowserDarkReaderMode>(browserDarkReaderModeSetting) ?? 'off';
 		void this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
 			darkReader: {
 				detectDarkTheme: this.configurationService.getValue<boolean>(browserDarkReaderDetectDarkThemeSetting) !== false,

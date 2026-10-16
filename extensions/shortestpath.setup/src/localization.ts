@@ -237,8 +237,6 @@ const english: Readonly<Record<string, string>> = {
 	, 'C++ 与 clangd': 'C++ and clangd'
 	, '外观': 'Appearance'
 	, '外观与保存': 'Appearance and Save'
-	, '紧凑模式（Compact Mode）': 'Compact Mode'
-	, '将页面导航放到窗口顶部，悬停展开，左右滑动切换页面。': 'Move page navigation to the top of the window. Hover to expand and swipe horizontally to switch pages.'
 	, '工具': 'Tools'
 	, '只保留竞赛编程常用选项。更改会自动保存；其他设置可在高级设置中调整。': 'Only commonly used competitive-programming options are shown here. Changes save automatically; adjust other settings in Advanced Settings.'
 	, '仅可从检测到的系统等宽字体中选择，不支持手动输入。': 'Choose only from detected system monospaced fonts; manual input is not supported.'

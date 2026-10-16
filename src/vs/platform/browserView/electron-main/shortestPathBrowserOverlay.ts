@@ -29,15 +29,15 @@ const nativeEnvironment: IShortestPathBrowserOverlayEnvironment = {
 	createView: options => new electron.WebContentsView(options),
 };
 
-/** Hosts workbench notification DOM in a native view above integrated browser pages. */
+/** Hosts workbench floating surfaces in separate native views above integrated browser pages. */
 export class ShortestPathBrowserOverlayWindows extends Disposable {
 	private readonly pendingOwners = new Set<number>();
-	private readonly overlays = new Map<number, IOverlay>();
+	private readonly overlays = new Map<number, Map<string, IOverlay>>();
 
 	constructor(private readonly environment: IShortestPathBrowserOverlayEnvironment = nativeEnvironment) {
 		super();
-		this.environment.ipc.handle('vscode:layoutBrowserOverlay', async (event, layout: Electron.Rectangle & { viewportWidth: number; viewportHeight: number; zoomFactor: number } | undefined) => {
-			const overlay = this.overlays.get(event.sender.id);
+		this.environment.ipc.handle('vscode:layoutBrowserOverlay', async (event, layout: Electron.Rectangle & { viewportWidth: number; viewportHeight: number; zoomFactor: number } | undefined, kind = 'notification') => {
+			const overlay = this.overlays.get(event.sender.id)?.get(kind);
 			if (!overlay || event.senderFrame !== overlay.owner.mainFrame) {
 				throw new Error('Unknown browser overlay owner');
 			}
@@ -52,7 +52,7 @@ export class ShortestPathBrowserOverlayWindows extends Disposable {
 			const z = layout.zoomFactor;
 			const x = Math.floor(layout.x * z);
 			const y = Math.floor(layout.y * z);
-			// A native view must have the notification's actual bounds. A parent
+			// A native view must have the floating surface's actual bounds. A parent
 			// View does not clip a WebContentsView reliably on macOS.
 			overlay.view.setBounds({ x, y, width: Math.ceil((layout.x + layout.width) * z) - x, height: Math.ceil((layout.y + layout.height) * z) - y });
 			overlay.view.webContents.setZoomFactor(z);
@@ -62,8 +62,10 @@ export class ShortestPathBrowserOverlayWindows extends Disposable {
 		this._register(toDisposable(() => this.environment.ipc.removeHandler('vscode:layoutBrowserOverlay')));
 		this._register(toDisposable(() => {
 			this.pendingOwners.clear();
-			for (const overlay of this.overlays.values()) {
-				overlay.store.dispose();
+			for (const overlays of this.overlays.values()) {
+				for (const overlay of overlays.values()) {
+					overlay.store.dispose();
+				}
 			}
 		}));
 	}
@@ -74,9 +76,9 @@ export class ShortestPathBrowserOverlayWindows extends Disposable {
 	}
 
 	/** Only the trusted workbench may request this specialized popup. */
-	createWindowOpenHandler(owner: WebContents): Electron.WindowOpenHandlerResponse {
+	createWindowOpenHandler(owner: WebContents, kind: 'notification' | 'navigation' = 'notification'): Electron.WindowOpenHandlerResponse {
 		const window = this.environment.getWindow(owner);
-		if (!window || this.overlays.has(owner.id) || this.pendingOwners.has(owner.id)) {
+		if (!window || this.overlays.get(owner.id)?.has(kind) || this.pendingOwners.has(owner.id)) {
 			return { action: 'deny' };
 		}
 		this.pendingOwners.add(owner.id);
@@ -92,9 +94,17 @@ export class ShortestPathBrowserOverlayWindows extends Disposable {
 					window.contentView.addChildView(view);
 					const store = new DisposableStore();
 					const overlay: IOverlay = { owner, window, view, store };
-					this.overlays.set(owner.id, overlay);
+					let overlays = this.overlays.get(owner.id);
+					if (!overlays) {
+						overlays = new Map();
+						this.overlays.set(owner.id, overlays);
+					}
+					overlays.set(kind, overlay);
 					store.add(toDisposable(() => {
-						this.overlays.delete(owner.id);
+						overlays.delete(kind);
+						if (!overlays.size) {
+							this.overlays.delete(owner.id);
+						}
 						if (!window.isDestroyed()) {
 							window.contentView.removeChildView(view);
 						}

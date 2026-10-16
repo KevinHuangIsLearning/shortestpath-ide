@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- * Part of ShortestPath Judger.
- * Licensed under GPL-3.0-or-later. See LICENSE for license information.
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import fs from 'fs';
@@ -42,15 +42,15 @@ async function importTestcasesNow(
 			? vscode.Uri.parse(pathOrUri)
 			: vscode.Uri.file(pathOrUri)
 		: (
-				await vscode.window.showOpenDialog({
-					canSelectMany: false,
-					canSelectFolders: fromFolder,
-					canSelectFiles: !fromFolder,
-					filters: fromFolder ? undefined : fromFiles
-						? { Data: ['in', 'out', 'ans', 'txt'] }
-						: { ZIP: ['zip'] },
-				})
-		  )?.[0];
+			await vscode.window.showOpenDialog({
+				canSelectMany: false,
+				canSelectFolders: fromFolder,
+				canSelectFiles: !fromFolder,
+				filters: fromFolder ? undefined : fromFiles
+					? { Data: ['in', 'out', 'ans', 'txt'] }
+					: { ZIP: ['zip'] },
+			})
+		)?.[0];
 	if (!uri) {
 		return [];
 	}
@@ -92,12 +92,12 @@ async function importTestcasesNow(
 				behavior === 'never'
 					? undefined
 					: (isOutput ? extensions.inputs : extensions.outputs)
-							.map((ext) => base + ext)
-							.find(
-								(file) =>
-									fs.existsSync(file) &&
-									fs.statSync(file).isFile(),
-							);
+						.map((ext) => base + ext)
+						.find(
+							(file) =>
+								fs.existsSync(file) &&
+								fs.statSync(file).isFile(),
+						);
 			const paired: ImportPair = {
 				name: path.basename(base),
 				input: isOutput ? candidate : filePath,
@@ -106,34 +106,40 @@ async function importTestcasesNow(
 			let usePair = behavior === 'always';
 			if (behavior === 'ask' && paired?.input && paired?.output) {
 				const yes = localize('judger.import.pairYes', 'Import both files');
-				usePair =
-					(await vscode.window.showQuickPick(
-						[
-							yes,
-							localize(
-								'judger.import.pairNo',
-								'Import only this file',
-							),
-						],
-						{
-							title: localize(
-								'judger.import.pair',
-								'A matching testcase file was found',
-							),
-						},
-					)) === yes;
+				const settings = localize('judger.prompt.openSettings', "Don't Ask Every Time, Go to Settings");
+				const selected = await vscode.window.showQuickPick(
+					[
+						yes,
+						localize(
+							'judger.import.pairNo',
+							'Import only this file',
+						),
+						settings,
+					],
+					{
+						title: localize(
+							'judger.import.pair',
+							'A matching testcase file was found',
+						),
+					},
+				);
+				if (selected === settings) {
+					await vscode.commands.executeCommand('workbench.action.openSettings', '@id:judger.problem.foundMatchTestcaseBehavior');
+					return [];
+				}
+				usePair = selected === yes;
 			}
 			pairs =
 				usePair && paired
 					? [paired]
 					: [
-							{
-								name: path.basename(filePath),
-								...(isOutput
-									? { output: filePath }
-									: { input: filePath }),
-							},
-					  ];
+						{
+							name: path.basename(filePath),
+							...(isOutput
+								? { output: filePath }
+								: { input: filePath }),
+						},
+					];
 		} else {
 			const workspace =
 				vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? path.dirname(srcPath);

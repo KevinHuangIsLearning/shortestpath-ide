@@ -18,6 +18,7 @@ import { findCppStandard, getThemeOptions } from './simpleSettings';
 import { withBundledCodeFont } from './bundledFont';
 import { getSystemFonts } from './systemFonts';
 import { codeFolderLocation, codeFolderCandidates, existingCodeFolder, type CodeFolderLocation } from './rememberedCodeFolder';
+import type { TemplateEditorBounds } from './templateEditor';
 
 const GETTING_STARTED_VERSION = 'shortestpath.gettingStarted.version';
 const GETTING_STARTED_FIRST_RUN_MIGRATION = 'shortestpath.gettingStarted.firstRunMigration.v1';
@@ -37,6 +38,7 @@ type SaveMessage = {
 type FirstRunSetupInfo = { stages: Array<{ id: string; title: string; text: string }> };
 
 type FirstRunMessage =
+	| { type: 'templateEditorLayout'; bounds: TemplateEditorBounds }
 	| { type: 'startEnvironment' }
 	| { type: 'environmentState' }
 	| { type: 'exportEnvironmentLogs' }
@@ -155,6 +157,9 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 		vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar')
 	]);
 	panel.webview.onDidReceiveMessage(async (message: SaveMessage | FirstRunMessage) => {
+		if (message.type === 'templateEditorLayout') {
+			await vscode.commands.executeCommand('_shortestpath.layoutTemplateEditor', message.bounds, getFirstRunEditorState().cppTemplate, 'shortestpath.gettingStarted');
+		}
 		if (message.type === 'environmentState') {
 			await panel.webview.postMessage({ type: 'environmentState', value: environmentRunner?.snapshot });
 		}
@@ -176,6 +181,14 @@ function openGettingStarted(context: vscode.ExtensionContext): void {
 			if (firstRunEditorSession.choosingWorkspace) { return; }
 			if (message.type === 'nextWorkspace' && firstRunEditorSession.page !== 'template') { return; }
 			if (message.type === 'nextTemplate' && firstRunEditorSession.page !== 'editor' && firstRunEditorSession.page !== 'workspace') { return; }
+			if (firstRunEditorSession.page === 'template') {
+				try {
+					await vscode.commands.executeCommand('_shortestpath.flushTemplateEditor', 'shortestpath.gettingStarted');
+				} catch (error) {
+					await panel.webview.postMessage({ type: 'templateSaveStatus', message: localizeFormat('无法保存模板：{0}', String(error)) });
+					return;
+				}
+			}
 			if (await firstRunEditorSession.enter(message.type === 'nextWorkspace' ? 'workspace' : message.type === 'nextTemplate' ? 'template' : message.type === 'nextEditor' ? 'editor' : 'compile', ready)) {
 				await panel.webview.postMessage({ type: 'firstRunPage', value: firstRunEditorSession.page, state: getFirstRunEditorState(), workspaceFolder: firstRunEditorSession.workspaceFolder });
 			}

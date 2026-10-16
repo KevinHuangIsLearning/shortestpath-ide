@@ -32,10 +32,11 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 	let held: { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void } | undefined;
 	const fonts = { fonts: ['Menlo'] };
 	let fontReads = 0;
+	let flushTemplate: () => Promise<void> = async () => {};
 	function createPanel() {
 		let listener!: (message: unknown) => Promise<void>;
 		let disposed!: () => void;
-		const messages: Array<{ type: string; value?: unknown; message?: string; workspaceFolder?: string }> = [];
+		const messages: Array<{ type: string; value?: unknown; message?: string; workspaceFolder?: string; state?: { cppTemplate: string } }> = [];
 		const panel = {
 			closed: false, title: '', reveals: 0,
 			webview: { html: '', async postMessage(message: typeof messages[number]) { messages.push(message); return true; }, onDidReceiveMessage(callback: typeof listener) { listener = callback; } },
@@ -56,6 +57,7 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 		}, async showSaveDialog() { return exportTarget; }, showInformationMessage() {}, showErrorMessage(message: string) { exportErrors.push(message); }, createWebviewPanel(_type: string, title: string) { const panel = createPanel(); panel.title = title; panels.push(panel); return panel; }, async showWarningMessage() {}, onDidChangeActiveColorTheme() { return { dispose() {} }; } },
 		extensions: { all: [], getExtension() { return { packageJSON: { version: '0.1.0' } }; } },
 		commands: { registerCommand(id: string, handler: () => void) { commands.set(id, handler); return { dispose() {} }; }, async executeCommand(command: string, folder?: ReturnType<typeof uri> | { mode: 'recommended' | 'repair'; cppStandard: string; installToolchain: boolean; completeSetup: boolean }, options?: unknown) {
+			if (command === '_shortestpath.flushTemplateEditor') { await flushTemplate(); return; }
 			if (commandResults.has(command)) { return commandResults.get(command); }
 			if (command === 'vscode.openFolder') {
 				const isFolderUri = (value: typeof folder): value is ReturnType<typeof uri> => !!value && Object.hasOwn(value, 'fsPath');
@@ -115,7 +117,7 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 		void held.promise.catch(() => {});
 		return held;
 	};
-	return { exported, exportErrors, commandResults, setExportTarget: (target: string | undefined) => { exportTarget = target ? uri(target) : undefined; }, failExport: (error: Error) => { exportError = error; }, register: () => exports.testApi!.registerGettingStarted(context), runCommand: (id: string) => { const command = commands.get(id); assert.ok(command); command(); }, root, uri, globalState, setupSelections, openedFolders, dialogCalls: () => dialogCalls, setPicker: (picker: typeof pickFolder) => { pickFolder = picker; }, setWorkspace: (folder: string) => { vscode.workspace.workspaceFolders = [{ uri: uri(folder) }]; }, failOpen: (error: Error | undefined) => { openError = error; }, panels, open, settings, holdSave, autoOpen: () => exports.testApi!.maybeAutoOpenGettingStarted(context), scheduled, fontReads: () => fontReads, reopen: () => { const callback = scheduled.shift(); assert.ok(callback); callback(); } };
+	return { setTemplateFlush: (operation: () => Promise<void>) => { flushTemplate = operation; }, exported, exportErrors, commandResults, setExportTarget: (target: string | undefined) => { exportTarget = target ? uri(target) : undefined; }, failExport: (error: Error) => { exportError = error; }, register: () => exports.testApi!.registerGettingStarted(context), runCommand: (id: string) => { const command = commands.get(id); assert.ok(command); command(); }, root, uri, globalState, setupSelections, openedFolders, dialogCalls: () => dialogCalls, setPicker: (picker: typeof pickFolder) => { pickFolder = picker; }, setWorkspace: (folder: string) => { vscode.workspace.workspaceFolders = [{ uri: uri(folder) }]; }, failOpen: (error: Error | undefined) => { openError = error; }, panels, open, settings, holdSave, autoOpen: () => exports.testApi!.maybeAutoOpenGettingStarted(context), scheduled, fontReads: () => fontReads, reopen: () => { const callback = scheduled.shift(); assert.ok(callback); callback(); } };
 }
 
 const editor = { fontFamily: 'Menlo', fontSize: 18, tabSize: 2, cppTemplate: 'int main() {}', fontLigatures: false, colorTheme: 'One Monokai', autoDetectColorScheme: false, autoSave: 'onFocusChange', autoFormat: true, clangdVariableTypeHints: true };
@@ -511,4 +513,32 @@ test('choosing the current fallback folder clears an unavailable pending folder 
 		host.globalState.get('shortestpath.gettingStarted.codeFolder'),
 		(host.globalState.get('shortestpath.gettingStarted.rememberedCodeFolder') as { path: string }).path
 	], [undefined, host.root]);
+});
+
+
+test('leaving the native template editor drains its last save and keeps failures retryable', async () => {
+	const host = createHost();
+	host.open();
+	const panel = host.panels[0];
+	await panel.receive({ type: 'startEnvironment' });
+	await panel.receive({ type: 'nextEditor' });
+	await panel.receive({ type: 'nextTemplate' });
+	let release!: () => void;
+	const pending = new Promise<void>(resolve => { release = resolve; });
+	host.setTemplateFlush(async () => { await pending; host.settings.set('judger.language.cpp.Template', 'int main() { return 7; }'); });
+	const transition = panel.receive({ type: 'nextWorkspace' });
+	await new Promise<void>(resolve => setImmediate(resolve));
+	assert.equal(panel.messages.at(-1)?.value, 'template');
+	release();
+	await transition;
+	const workspace = panel.messages.at(-1)!;
+	assert.deepEqual({ page: workspace.value, source: workspace.state?.cppTemplate }, { page: 'workspace', source: 'int main() { return 7; }' });
+	await panel.receive({ type: 'nextTemplate' });
+	host.setTemplateFlush(async () => { throw new Error('disk full'); });
+	await panel.receive({ type: 'nextWorkspace' });
+	assert.equal(panel.messages.at(-1)?.type, 'templateSaveStatus');
+	assert.match(panel.messages.at(-1)?.message ?? '', /disk full/);
+	host.setTemplateFlush(async () => {});
+	await panel.receive({ type: 'nextWorkspace' });
+	assert.equal(panel.messages.at(-1)?.value, 'workspace');
 });

@@ -482,11 +482,8 @@ export interface IPartVisibilityChangeEvent {
 
 export interface IWorkbenchLayoutService extends ILayoutService {
 
-	/** The main window's navigation controls, hosted in the column or custom title bar. */
+	/** The main window's fixed navigation column. */
 	readonly mainWindowNavigationContainer?: HTMLElement;
-
-	/** Grid anchor for standalone content, including when navigation is in the title bar. */
-	readonly mainWindowNavigationLayoutContainer?: HTMLElement;
 
 	readonly _serviceBrand: undefined;
 

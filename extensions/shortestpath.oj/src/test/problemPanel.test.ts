@@ -51,7 +51,12 @@ test('statement sections and samples are independently collapsible without rewri
 		assert.deepStrictEqual([...html.matchAll(/data-persist-key="([^"]+)" open><summary[^>]*><h2>([^<]+)<\/h2>/g)].map(match => [match[1], match[2]]), [
 			['statement:description', '题目描述'], ['statement:input', '输入格式'], ['statement:output', '输出格式'], ['statement:constraints', '数据范围'], ['statement:samples', '样例'],
 		]);
-		assert.ok(html.includes(`<div data-i18n-ignore>${bindPayload.problem.statement.description.content}</div></details>`));
+		assert.ok(html.includes(`<div data-copy-protected data-i18n-ignore>${bindPayload.problem.statement.description.content}</div></details>`));
+		assert.equal([...html.matchAll(/data-copy-protected/g)].length, 4);
+		if (!integrated) {
+			assert.match(html, /class="copy-btn" aria-label="复制样例输入"/);
+			assert.match(html, /<pre data-i18n-ignore><code>/);
+		}
 		assert.equal(html.includes('id="oj-local-tests"'), integrated);
 		assert.equal(html.includes('<h2>样例</h2><div id="oj-local-tests-toolbar"></div></summary>'), integrated);
 	}

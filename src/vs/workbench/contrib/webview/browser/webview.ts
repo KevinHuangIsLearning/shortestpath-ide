@@ -94,6 +94,8 @@ export interface WebviewOptions {
 	readonly requiresModal?: boolean;
 	/** Whether this webview's modal header offers only the close action. */
 	readonly modalCloseOnly?: boolean;
+	/** Whether the webview supplies its own close action instead of the modal header. */
+	readonly modalHideHeader?: boolean;
 	/**
 	 * The purpose of the webview; this is (currently) only used for filtering in js-debug
 	 */

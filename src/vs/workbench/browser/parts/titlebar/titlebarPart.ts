@@ -93,8 +93,6 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	declare _serviceBrand: undefined;
 
 	readonly mainPart: BrowserTitlebarPart;
-	get navigationContainer(): HTMLElement | undefined { return this.mainPart.navigationContainer; }
-	get shortestPathUpdateContainer(): HTMLElement | undefined { return this.mainPart.shortestPathUpdateContainer; }
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -227,8 +225,6 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 }
 
 export class BrowserTitlebarPart extends Part implements ITitlebarPart {
-	public navigationContainer: HTMLElement | undefined;
-	public shortestPathUpdateContainer: HTMLElement | undefined;
 
 	//#region IView
 
@@ -489,7 +485,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		if (!this.isAuxiliary && hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.createSidebarToggle();
-			this.navigationContainer = append(this.leftContent, $('div.titlebar-navigation-container'));
 		}
 
 		// Draggable region that we can manipulate for #52522
@@ -529,9 +524,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Update Toolbar (before the right-aligned toolbar actions)
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
-			if (!this.isAuxiliary) {
-				this.shortestPathUpdateContainer = append(this.rightContent, $('div.shortestpath-titlebar-update-container'));
-			}
 			const updateToolBarElement = append(this.rightContent, $('div.update-toolbar-container'));
 			this.updateToolBarElement = updateToolBarElement;
 			const updateToolBar = this.updateToolBarDisposable.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, MenuId.TitleBarUpdate, {

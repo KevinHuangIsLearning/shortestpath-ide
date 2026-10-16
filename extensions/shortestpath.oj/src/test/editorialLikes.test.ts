@@ -20,7 +20,7 @@ function createLikeView() {
 		classList = { toggle: (name: string, enabled: boolean) => enabled ? this.classes.add(name) : this.classes.delete(name) };
 		constructor(target: string) { this.dataset = { hintId: 'hint', target, liked: 'false' }; }
 		querySelector() { return this.count; }
-		closest() { return this; }
+		closest(selector: string) { return selector === '[data-command="like"]' ? this : null; }
 		setAttribute(name: string, value: string) { this.attributes.set(name, value); }
 	}
 	const question = new Button('question');
@@ -33,6 +33,7 @@ function createLikeView() {
 	assert.ok(start >= 0);
 	const script = source.slice(start, source.indexOf('</script>', start));
 	vm.runInNewContext(script, {
+		Element: Button,
 		HTMLButtonElement: Button,
 		document: {
 			querySelectorAll: () => [question, answer],

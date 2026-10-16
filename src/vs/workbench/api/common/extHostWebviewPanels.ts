@@ -258,7 +258,7 @@ export class ExtHostWebviewPanels extends Disposable implements extHostProtocol.
 				active: newState.active,
 				visible: newState.visible,
 				viewColumn: typeConverters.ViewColumn.to(newState.position),
-			sourceEditor: newState.sourceEditor && URI.revive(newState.sourceEditor),
+				sourceEditor: newState.sourceEditor && URI.revive(newState.sourceEditor),
 			});
 		}
 	}
@@ -329,6 +329,7 @@ function serializeWebviewPanelOptions(options: vscode.WebviewPanelOptions): extH
 	return {
 		modal: options.modal,
 		modalCloseOnly: options.modalCloseOnly,
+		modalHideHeader: options.modalHideHeader,
 		sourceEditor: options.sourceEditor,
 		sourceEditorRatio: options.sourceEditorRatio,
 		enableFindWidget: options.enableFindWidget,

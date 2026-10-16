@@ -5,10 +5,8 @@
 
 import '../../browser/media/shortestPathMode.css';
 import '../../../../browser/media/floatingPanels.css';
-import '../../../../browser/parts/titlebar/media/titlebarpart.css';
 import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
-import { registerNavigationExpansion, registerNavigationSwipe } from '../../browser/shortestPathNavigationSwipe.js';
 import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -39,129 +37,6 @@ suite('ShortestPath standalone page surface', () => {
 				assert.deepStrictEqual({ left: bounds.left - left, right: right - bounds.right, width: bounds.width }, { left: 8, right: 8, width: 36 });
 			}
 			content.remove();
-		}
-	});
-
-	for (const platform of ['mac', 'windows']) {
-		test(`Compact Mode centers Command Center on the entire ${platform} window`, () => {
-			const workbench = append(mainWindow.document.body, $(`.monaco-workbench.${platform}.shortestpath-dual-mode.shortestpath-compact-mode`));
-			store.add(toDisposable(() => workbench.remove()));
-			workbench.style.cssText = 'position:relative;width:1200px;height:400px';
-			workbench.style.setProperty('--vscode-titleBar-activeBackground', '#303030');
-			workbench.style.setProperty('--vscode-titleBar-inactiveBackground', '#404040');
-			const titlebar = append(workbench, $('.part.titlebar'));
-			titlebar.style.cssText = 'width:1200px;height:35px';
-			const container = append(titlebar, $('.titlebar-container.has-center'));
-			const left = append(container, $('.titlebar-left'));
-			const controls = platform === 'mac' ? append(left, $('.window-controls-container')) : undefined;
-			const host = append(left, $('.titlebar-navigation-container'));
-			const navigation = append(host, $('.workbench-navigation.compact-navigation'));
-			const group = append(navigation, $('.shortestpath-mode-switch'));
-			const buttons = Array.from({ length: 6 }, () => {
-				const button = append(group, $('button'));
-				append(button, $('svg.shortestpath-mode-icon'));
-				return button;
-			});
-			buttons[0].setAttribute('aria-pressed', 'true');
-			buttons[0].focus();
-			const center = append(container, $('.titlebar-center'));
-			const windowTitle = append(center, $('.window-title'));
-			const commandCenter = append(windowTitle, $('.command-center'));
-			const centerTitle = append(commandCenter, $('.action-item.command-center-center', undefined, 'Workspace'));
-			const right = append(container, $('.titlebar-right'));
-			if (platform === 'windows') { append(right, $('.window-controls-container')); }
-			assert.strictEqual(mainWindow.getComputedStyle(right).flexGrow, '1');
-			assert.strictEqual(mainWindow.getComputedStyle(left).flexGrow, '1');
-			assert.strictEqual(mainWindow.getComputedStyle(center).flexGrow, '0');
-			assert.ok(buttons[0].getBoundingClientRect().left >= (controls ?? left).getBoundingClientRect().left);
-			if (controls) { assert.ok(buttons[0].getBoundingClientRect().left >= controls.getBoundingClientRect().right); }
-			assert.ok(buttons[5].getBoundingClientRect().right <= center.getBoundingClientRect().left);
-			assert.strictEqual(navigation.scrollWidth, navigation.clientWidth);
-			assert.strictEqual(navigation.getBoundingClientRect().height, centerTitle.getBoundingClientRect().height);
-			assert.ok(buttons.every(button => button.getBoundingClientRect().height === 22));
-			assert.ok(Math.abs(navigation.getBoundingClientRect().top - centerTitle.getBoundingClientRect().top) < 1);
-			for (const width of [600, 800, 1200]) {
-				workbench.style.width = titlebar.style.width = `${width}px`;
-				centerTitle.style.width = `${Math.min(width * .38, 600)}px`;
-				const bounds = center.getBoundingClientRect();
-				const windowBounds = titlebar.getBoundingClientRect();
-				assert.ok(Math.abs(bounds.left + bounds.width / 2 - windowBounds.left - windowBounds.width / 2) < 1);
-			}
-			workbench.style.width = titlebar.style.width = '600px';
-			centerTitle.style.width = '228px';
-			for (const button of buttons) { button.style.width = '70px'; }
-			const navigationBounds = navigation.getBoundingClientRect();
-			const centerBounds = centerTitle.getBoundingClientRect();
-			assert.ok(navigationBounds.right > centerBounds.left);
-			assert.strictEqual(navigation.scrollWidth, navigation.clientWidth);
-			assert.ok(buttons.every(button => button.getBoundingClientRect().width === 70));
-			assert.notStrictEqual(mainWindow.getComputedStyle(navigation).boxShadow, 'none');
-			assert.strictEqual(mainWindow.getComputedStyle(navigation).backgroundColor, 'rgb(48, 48, 48)');
-			titlebar.classList.add('inactive');
-			assert.strictEqual(mainWindow.getComputedStyle(navigation).backgroundColor, 'rgb(64, 64, 64)');
-			const covered = mainWindow.document.elementFromPoint(centerBounds.left + 8, centerBounds.top + centerBounds.height / 2);
-			assert.ok(covered && navigation.contains(covered));
-			assert.deepStrictEqual(buttons.map(button => button.getBoundingClientRect().top), Array(6).fill(buttons[0].getBoundingClientRect().top));
-		});
-	}
-
-	test('Compact Mode shows only the active page and expands for keyboard focus', () => {
-		const workbench = append(mainWindow.document.body, $('.monaco-workbench.shortestpath-dual-mode'));
-		store.add(toDisposable(() => workbench.remove()));
-		const navigation = append(workbench, $('.workbench-navigation.compact-navigation'));
-		const modes = append(navigation, $('.shortestpath-mode-switch'));
-		const browse = append(modes, $('button', { 'aria-pressed': 'true' }));
-		const solve = append(modes, $('button', { 'aria-pressed': 'false' }));
-		const actions = append(navigation, $('.shortestpath-navigation-actions'));
-		const settings = append(actions, $('button', { 'aria-pressed': 'false' }));
-		const visible = (element: HTMLElement) => element.getBoundingClientRect().width > 0;
-		assert.deepStrictEqual([browse, solve, settings].map(visible), [true, false, false]);
-		browse.focus();
-		assert.deepStrictEqual([browse, solve, settings].map(visible), [true, true, true]);
-		browse.blur();
-		browse.setAttribute('aria-pressed', 'false');
-		settings.setAttribute('aria-pressed', 'true');
-		assert.deepStrictEqual([browse, solve, settings].map(visible), [false, false, true]);
-	});
-
-	test('Compact Mode animates group width and labels the active page', async () => {
-		const waitForLayout = async () => {
-			for (let frame = 0; frame < 3; frame++) {
-				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-			}
-		};
-		const workbench = append(mainWindow.document.body, $('.monaco-workbench.shortestpath-dual-mode'));
-		store.add(toDisposable(() => workbench.remove()));
-		const navigation = append(workbench, $('.workbench-navigation.compact-navigation'));
-		append(navigation, $('button.shortestpath-navigation-hint'));
-		const modes = append(navigation, $('.shortestpath-mode-switch'));
-		const browse = append(modes, $<HTMLButtonElement>('button', { 'aria-pressed': 'true', 'aria-label': 'Browse' }));
-		append(browse, $('svg.shortestpath-mode-icon'));
-		const solve = append(modes, $<HTMLButtonElement>('button', { 'aria-pressed': 'false', 'aria-label': 'Solve' }));
-		append(solve, $('svg.shortestpath-mode-icon'));
-		append(navigation, $('button.shortestpath-navigation-hint.shortestpath-navigation-hint-right'));
-		store.add(registerNavigationSwipe(navigation, () => { }, [browse, solve]));
-		store.add(registerNavigationExpansion(navigation));
-		const collapsedWidth = parseFloat(navigation.style.width);
-		assert.strictEqual(mainWindow.getComputedStyle(browse, '::after').content, '"Browse"');
-		assert.ok(mainWindow.getComputedStyle(navigation).transitionDuration.includes('0.16s'));
-		browse.focus();
-		await waitForLayout();
-		assert.ok(parseFloat(navigation.style.width) > collapsedWidth);
-		const expandedWidth = parseFloat(navigation.style.width);
-		// Intrinsic child sizes can change without a focus or attribute event (for example,
-		// while loading a font). The group must track the final size by itself.
-		solve.style.width = '70px';
-		await waitForLayout();
-		assert.ok(Math.abs(parseFloat(navigation.style.width) - expandedWidth - 44) < 1);
-		browse.blur();
-		await waitForLayout();
-		assert.strictEqual(parseFloat(navigation.style.width), collapsedWidth);
-		for (const zoom of [.8, 1.25]) {
-			workbench.style.zoom = String(zoom);
-			navigation.classList.toggle('zoom-test');
-			await waitForLayout();
-			assert.ok(Math.abs(parseFloat(navigation.style.width) - collapsedWidth) < 1);
 		}
 	});
 

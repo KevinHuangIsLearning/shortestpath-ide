@@ -3,11 +3,11 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, copyAttributes, EventType, registerChildWindow, registerWindowViewportOffset } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, copyAttributes, EventType, getDomNodeZoomLevel, isHTMLElement, registerChildWindow, registerWindowViewportOffset } from '../../../../base/browser/dom.js';
 import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { cloneGlobalStylesheets, isGlobalStylesheet } from '../../../../base/browser/domStylesheets.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../../base/browser/window.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ISandboxGlobals } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -32,9 +32,9 @@ interface INotificationPortal {
 	readonly placeholder: Comment;
 }
 
-/** A live DOM portal: notification handlers and state stay in the workbench renderer. */
+/** Hosts notifications and navigation labels above native pages while the workbench owns their state. */
 export class ShortestPathBrowserOverlay extends Disposable {
-	private static readonly instances = new WeakMap<CodeWindow, { overlay: ShortestPathBrowserOverlay; references: number }>();
+	private static readonly instances = new WeakMap<CodeWindow, Map<string, { overlay: ShortestPathBrowserOverlay; references: number }>>();
 	private readonly browsers = new Set<HTMLElement>();
 	private readonly portals = new Map<HTMLElement, INotificationPortal>();
 	private readonly windowStore = this._register(new DisposableStore());
@@ -48,17 +48,23 @@ export class ShortestPathBrowserOverlay extends Disposable {
 	private rootStyle = '';
 	private offset = { x: 0, y: 0 };
 	private layoutQueue: Promise<void> = Promise.resolve();
+	private navigationContent = '';
 
-	static acquire(source: CodeWindow, logService: ILogService): { setVisible(container: HTMLElement, visible: boolean): void; dispose(): void } {
-		let entry = this.instances.get(source);
+	static acquire(source: CodeWindow, logService: ILogService, kind: 'notification' | 'navigation' = 'notification'): { setVisible(container: HTMLElement, visible: boolean): void; dispose(): void } {
+		let instances = this.instances.get(source);
+		if (!instances) {
+			instances = new Map();
+			this.instances.set(source, instances);
+		}
+		let entry = instances.get(kind);
 		if (!entry) {
 			const nativeWindow = source as CodeWindow & { vscode?: ISandboxGlobals };
 			const host: IShortestPathBrowserOverlayHost = {
-				open: () => nativeWindow.vscode ? source.open('about:blank', generateUuid(), 'vscode-native-browser-overlay=yes') : null,
-				layout: async layout => { await nativeWindow.vscode?.ipcRenderer.invoke('vscode:layoutBrowserOverlay', layout); }
+				open: () => nativeWindow.vscode ? source.open('about:blank', generateUuid(), `vscode-native-browser-overlay=${kind === 'navigation' ? 'navigation' : 'yes'}`) : null,
+				layout: async layout => { await nativeWindow.vscode?.ipcRenderer.invoke('vscode:layoutBrowserOverlay', layout, kind); }
 			};
-			entry = { overlay: new ShortestPathBrowserOverlay(source, host, logService), references: 0 };
-			this.instances.set(source, entry);
+			entry = { overlay: new ShortestPathBrowserOverlay(source, host, logService, kind), references: 0 };
+			instances.set(kind, entry);
 		}
 		entry.references++;
 		const containers = new Set<HTMLElement>();
@@ -81,7 +87,10 @@ export class ShortestPathBrowserOverlay extends Disposable {
 				}
 				if (--entry.references === 0) {
 					entry.overlay.dispose();
-					this.instances.delete(source);
+					instances.delete(kind);
+					if (!instances.size) {
+						this.instances.delete(source);
+					}
 				}
 			}
 		};
@@ -91,6 +100,7 @@ export class ShortestPathBrowserOverlay extends Disposable {
 		private readonly source: CodeWindow,
 		private readonly host: IShortestPathBrowserOverlayHost,
 		private readonly logService: ILogService,
+		private readonly kind: 'notification' | 'navigation' = 'notification',
 	) {
 		super();
 		const observer = new source.MutationObserver(() => this.scheduleUpdate());
@@ -102,7 +112,9 @@ export class ShortestPathBrowserOverlay extends Disposable {
 	setVisible(container: HTMLElement, visible: boolean): void {
 		if (visible) {
 			this.browsers.add(container);
-			void this.open();
+			if (this.kind === 'notification') {
+				void this.open();
+			}
 		} else {
 			this.browsers.delete(container);
 		}
@@ -131,6 +143,7 @@ export class ShortestPathBrowserOverlay extends Disposable {
 			}
 			this.target = target;
 			this.rootStyle = '';
+			this.navigationContent = '';
 			ensureCodeWindow(target, this.source.vscodeWindowId);
 			this.windowStore.add(registerWindowViewportOffset(target, () => ({ ...this.offset, width: this.source.innerWidth, height: this.source.innerHeight })));
 			// The workbench owns these existing nodes; they are not built by this portal.
@@ -141,34 +154,73 @@ export class ShortestPathBrowserOverlay extends Disposable {
 				clone.content = clone.content.replace(/script-src[^;]*/, 'script-src \'none\'');
 				target.document.head.appendChild(clone);
 			}
+			copyAttributes(this.source.document.documentElement, target.document.documentElement);
+			const documentObserver = new this.source.MutationObserver(() => {
+				copyAttributes(this.source.document.documentElement, target.document.documentElement);
+				this.scheduleUpdate();
+			});
+			documentObserver.observe(this.source.document.documentElement, { attributes: true, attributeFilter: ['lang', 'dir', 'class', 'style'] });
+			this.windowStore.add(toDisposable(() => documentObserver.disconnect()));
 			copyAttributes(this.source.document.body, target.document.body);
 			target.document.body.style.cssText = 'margin: 0; background: transparent; overflow: hidden;';
 			this.root = target.document.body.appendChild($('div'));
 			this.root.className = 'monaco-workbench';
 			this.windowStore.add(registerChildWindow(target as CodeWindow));
 			const loaded: Promise<void>[] = [];
-			// eslint-disable-next-line no-restricted-syntax
-			for (const style of this.source.document.head.querySelectorAll('style, link[rel="stylesheet"]')) {
-				if (isGlobalStylesheet(style)) {
-					continue;
+			const styles = this.windowStore.add(new DisposableMap<HTMLElement>());
+			const cloneStyle = (style: HTMLElement, initial = false): void => {
+				if (isGlobalStylesheet(style) || styles.has(style)) {
+					return;
 				}
+				const styleStore = new DisposableStore();
+				styles.set(style, styleStore);
 				const clone = style.cloneNode(true) as HTMLElement;
+				styleStore.add(toDisposable(() => clone.remove()));
 				if (clone.tagName === 'LINK') {
-					loaded.push(new Promise<void>(resolve => {
-						this.windowStore.add(addDisposableListener(clone, 'load', () => resolve(), { once: true }));
-						this.windowStore.add(addDisposableListener(clone, 'error', () => resolve(), { once: true }));
-					}));
+					// The child is about:blank; preserve the source URL's base for CSS resources.
+					(clone as HTMLLinkElement).href = (style as HTMLLinkElement).href;
+					const settled = new Promise<void>(resolve => {
+						const finish = () => { this.scheduleUpdate(); resolve(); };
+						styleStore.add(addDisposableListener(clone, 'load', finish, { once: true }));
+						styleStore.add(addDisposableListener(clone, 'error', finish, { once: true }));
+						styleStore.add(toDisposable(() => resolve()));
+					});
+					if (initial) {
+						loaded.push(settled);
+					}
 				}
 				target.document.head.appendChild(clone);
 				const observer = new this.source.MutationObserver(() => {
 					if (clone.textContent !== style.textContent) {
 						clone.textContent = style.textContent;
 					}
+					this.scheduleUpdate();
 				});
 				observer.observe(style, { childList: true, subtree: true, characterData: true });
-				this.windowStore.add(toDisposable(() => observer.disconnect()));
+				styleStore.add(toDisposable(() => observer.disconnect()));
+			};
+			// eslint-disable-next-line no-restricted-syntax
+			for (const style of this.source.document.head.querySelectorAll<HTMLElement>('style, link[rel="stylesheet"]')) {
+				cloneStyle(style, true);
 			}
 			this.windowStore.add(cloneGlobalStylesheets(target));
+			const headObserver = new this.source.MutationObserver(records => {
+				for (const record of records) {
+					for (const node of record.removedNodes) {
+						if (isHTMLElement(node)) {
+							styles.deleteAndDispose(node);
+						}
+					}
+					for (const node of record.addedNodes) {
+						if (isHTMLElement(node) && (node.tagName === 'STYLE' || (node.tagName === 'LINK' && (node as HTMLLinkElement).rel === 'stylesheet'))) {
+							cloneStyle(node);
+						}
+					}
+				}
+				this.scheduleUpdate();
+			});
+			headObserver.observe(this.source.document.head, { childList: true });
+			this.windowStore.add(toDisposable(() => headObserver.disconnect()));
 			const observer = new this.source.MutationObserver(() => this.scheduleUpdate());
 			observer.observe(this.root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
 			this.windowStore.add(toDisposable(() => observer.disconnect()));
@@ -187,14 +239,23 @@ export class ShortestPathBrowserOverlay extends Disposable {
 				this.scheduleUpdate();
 			}
 		} catch (error) {
-			this.logService.error('Failed to open native browser notification overlay', error);
+			this.logService.error('Failed to open native browser overlay', error);
 		} finally {
 			this.opening = false;
 		}
 	}
 
 	private update(): void {
+		// Keep the extra native renderer lazy until a navigation label is shown.
+		// eslint-disable-next-line no-restricted-syntax
+		if (this.kind === 'navigation' && this.browsers.size && !this.target && this.source.document.querySelector('.shortestpath-navigation-hover')) {
+			void this.open();
+		}
 		if (!this.ready || !this.root || !this.target) {
+			return;
+		}
+		if (this.kind === 'navigation') {
+			this.updateNavigation();
 			return;
 		}
 		// Preserve workbench layering only where a higher overlay overlaps a notification.
@@ -207,6 +268,11 @@ export class ShortestPathBrowserOverlay extends Disposable {
 		});
 		// eslint-disable-next-line no-restricted-syntax
 		const blocking = [...this.source.document.querySelectorAll<HTMLElement>('.quick-input-widget, .monaco-dialog-modal-block, .monaco-modal-editor-block, .monaco-menu-container, .monaco-hover, .context-view')].some(element => {
+			// Navigation labels have their own native layer above notifications.
+			// eslint-disable-next-line no-restricted-syntax
+			if (element.classList.contains('shortestpath-navigation-hover') || element.querySelector('.shortestpath-navigation-hover')) {
+				return false;
+			}
 			const rect = element.getBoundingClientRect();
 			const style = this.source.getComputedStyle(element);
 			return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none' && notifications.some(notification => rect.left < notification.right && rect.right > notification.left && rect.top < notification.bottom && rect.bottom > notification.top);
@@ -243,22 +309,74 @@ export class ShortestPathBrowserOverlay extends Disposable {
 		// eslint-disable-next-line no-restricted-syntax
 		visible.push(...[...this.root.querySelectorAll<HTMLElement>('.monaco-hover')].map(element => element.getBoundingClientRect()));
 		const rectangles = visible.filter(rect => rect.width > 0 && rect.height > 0);
-		if (!rectangles.length) {
+		this.layoutRectangles(rectangles);
+	}
+
+	/** Mirrors plain navigation labels in a separate native view, retaining hover lifecycle in the source document. */
+	private updateNavigation(): void {
+		const root = this.root;
+		if (!root) {
+			return;
+		}
+		// eslint-disable-next-line no-restricted-syntax
+		const hover = this.browsers.size ? this.source.document.querySelector<HTMLElement>('.shortestpath-navigation-hover') : null;
+		const workbench = hover?.closest<HTMLElement>('.monaco-workbench');
+		const rect = hover?.getBoundingClientRect();
+		if (!hover || !workbench || !rect?.width || !rect.height || this.source.getComputedStyle(hover).visibility === 'hidden') {
+			if (this.navigationContent) {
+				root.replaceChildren();
+				this.navigationContent = '';
+			}
 			this.setLayout(undefined);
 			return;
 		}
-		// Include the existing notification shadows without intercepting the rest of the page.
+		// A separate view keeps notification and tooltip bounds independent, so the
+		// transparent space between them never intercepts clicks on the page.
+		const context = hover.closest<HTMLElement>('.context-view');
+		if (!context) {
+			this.setLayout(undefined);
+			return;
+		}
+		const content = context.outerHTML;
+		if (this.navigationContent !== content) {
+			const clone = context.cloneNode(true) as HTMLElement;
+			clone.setAttribute('aria-hidden', 'true');
+			root.replaceChildren(clone);
+			this.navigationContent = content;
+		}
+		if (root.className !== workbench.className) {
+			root.className = workbench.className;
+		}
+		const zoom = getDomNodeZoomLevel(workbench);
+		const css = `${workbench.style.cssText}; position: absolute; left: ${-this.offset.x / zoom}px; top: ${-this.offset.y / zoom}px; width: ${this.source.innerWidth}px; height: ${this.source.innerHeight}px; background: transparent;`;
+		if (this.rootStyle !== css) {
+			this.rootStyle = css;
+			root.style.cssText = css;
+		}
+		// eslint-disable-next-line no-restricted-syntax
+		const mirrored = root.querySelector<HTMLElement>('.shortestpath-navigation-hover')!;
+		this.layoutRectangles([mirrored.getBoundingClientRect()]);
+	}
+
+	private layoutRectangles(rectangles: readonly DOMRect[]): void {
+		const root = this.root;
+		if (!root || !rectangles.length) {
+			this.setLayout(undefined);
+			return;
+		}
+		// Include floating surface shadows without intercepting the rest of the page.
 		const z = getZoomFactor(this.source);
 		const x = Math.floor(Math.max(0, Math.min(...rectangles.map(rect => rect.left + this.offset.x)) - 8) * z) / z;
 		const y = Math.floor(Math.max(0, Math.min(...rectangles.map(rect => rect.top + this.offset.y)) - 8) * z) / z;
 		const right = Math.min(this.source.innerWidth, Math.max(...rectangles.map(rect => rect.right + this.offset.x)) + 8);
 		const bottom = Math.min(this.source.innerHeight, Math.max(...rectangles.map(rect => rect.bottom + this.offset.y)) + 8);
 		this.offset = { x, y };
-		if (this.root.style.left !== `${-x}px`) {
-			this.root.style.left = `${-x}px`;
+		const zoom = this.kind === 'navigation' ? getDomNodeZoomLevel(root) : 1;
+		if (root.style.left !== `${-x / zoom}px`) {
+			root.style.left = `${-x / zoom}px`;
 		}
-		if (this.root.style.top !== `${-y}px`) {
-			this.root.style.top = `${-y}px`;
+		if (root.style.top !== `${-y / zoom}px`) {
+			root.style.top = `${-y / zoom}px`;
 		}
 		this.setLayout({ x, y, width: right - x, height: bottom - y, viewportWidth: this.source.innerWidth, viewportHeight: this.source.innerHeight, zoomFactor: z });
 	}
@@ -271,7 +389,7 @@ export class ShortestPathBrowserOverlay extends Disposable {
 		this.lastLayout = key;
 		this.layoutQueue = this.layoutQueue.then(() => this.host.layout(layout)).catch(error => {
 			this.lastLayout = undefined;
-			this.logService.error('Failed to lay out native browser notification overlay', error);
+			this.logService.error('Failed to lay out native browser overlay', error);
 		});
 	}
 

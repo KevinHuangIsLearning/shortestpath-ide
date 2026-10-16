@@ -8,6 +8,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { spawn } from 'child_process';
+import { buildTrackpadGestureMonitor } from './trackpadGestureMonitor.ts';
 
 // Run with node build/next/testBrowserHistorySwipe.ts on macOS.
 const root = path.resolve(import.meta.dirname, '../..');
@@ -15,6 +16,8 @@ const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'shortestpath-history-
 try {
 	const product = JSON.parse(await fs.readFile(path.join(root, 'product.json'), 'utf8'));
 	const executable = path.join(root, '.build/electron', `${product.nameLong}.app`, 'Contents/MacOS', product.nameShort);
+	await buildTrackpadGestureMonitor(root, temporary);
+	const native = path.join(temporary, 'vs/platform/browserView/electron-main/trackpadGestureMonitor.node');
 	const preload = path.join(temporary, 'preload.cjs');
 	await esbuild.build({
 		entryPoints: [path.join(root, 'src/vs/platform/browserView/electron-browser/preload-browserView.ts')],
@@ -27,16 +30,8 @@ const testWheelListeners = [];
 const testShadows = new WeakMap();
 const originalAddListener = window.addEventListener;
 window.addEventListener = (...args) => {
-	if (args[0] === 'wheel') testWheelListeners.push({callback: args[1], capture: args[2]?.capture === true});
+	if (args[0] === 'wheel') testWheelListeners.push(args[1]);
 	return Reflect.apply(originalAddListener, window, args);
-};
-const originalRemoveListener = window.removeEventListener;
-window.removeEventListener = (...args) => {
-	if (args[0] === 'wheel') {
-		const index = testWheelListeners.findIndex(listener => listener.callback === args[1] && listener.capture === (args[2]?.capture === true));
-		if (index >= 0) testWheelListeners.splice(index, 1);
-	}
-	return Reflect.apply(originalRemoveListener, window, args);
 };
 const originalAttachShadow = Element.prototype.attachShadow;
 Element.prototype.attachShadow = function(options) {
@@ -45,15 +40,13 @@ Element.prototype.attachShadow = function(options) {
 	return shadow;
 };
 require('electron').contextBridge.exposeInMainWorld('__historySwipeTest', {
-	wheel: (deltaX, deltaY, targetId, prevented = false, trusted = true, control = false, stopped = false, windowStopped = false) => {
+	wheel: (deltaX, deltaY, targetId, prevented = false, trusted = true, control = false) => {
 		const target = targetId ? document.getElementById(targetId) : document.body;
 		const path = [];
 		for (let el = target; el; el = el.parentElement) path.push(el);
 		const event = {deltaX, deltaY, isTrusted: trusted, timeStamp: performance.now(), deltaMode: 0, defaultPrevented: prevented,
-			ctrlKey: control, metaKey: false, altKey: false, shiftKey: false, composedPath: () => path};
-		for (const listener of testWheelListeners) { if (listener.capture) listener.callback(event); }
-		event.cancelBubble = windowStopped;
-		if (!stopped) { for (const listener of testWheelListeners) { if (!listener.capture) listener.callback(event); } }
+			ctrlKey: control, metaKey: false, altKey: false, shiftKey: false, composedPath: () => path, preventDefault() { this.defaultPrevented = true; }};
+		for (const listener of testWheelListeners) listener(event);
 	},
 	hint: () => {
 		const host = document.querySelector('[data-vscode-history-swipe]');
@@ -71,7 +64,7 @@ require('electron').contextBridge.exposeInMainWorld('__historySwipeTest', {
 	await esbuild.build({
 		entryPoints: [path.join(root, 'test/integration/browserView/browserViewHistorySwipe.ts')],
 		outfile: suite, bundle: true, platform: 'node', format: 'cjs', external: ['electron'],
-		define: { HISTORY_SWIPE_TEST_PRELOAD: JSON.stringify(preload), HISTORY_SWIPE_TEST_REPORT: JSON.stringify(report) },
+		define: { HISTORY_SWIPE_TEST_PRELOAD: JSON.stringify(preload), HISTORY_SWIPE_TEST_REPORT: JSON.stringify(report), HISTORY_SWIPE_TEST_NATIVE: JSON.stringify(native) },
 	});
 	process.exitCode = await new Promise<number>((resolve, reject) => {
 		const child = spawn(executable, [suite, `--user-data-dir=${path.join(temporary, 'profile')}`], { stdio: 'inherit' });

@@ -1,6 +1,6 @@
 {
 	"judger.general.vjudgeOpenInBrowser": true,
-	"judger.general.defaultProblemSource": "vjudge",
+	"judger.general.defaultProblemSource": "original",
 	"judger.general.vjudgeBrowserSplitRatio": 65,
 	"judger.general.vjudgeUrlSuffix": "#author=translator:1281309:zh",
 	"judger.general.fileNameTemplate": "{ojName}/{contestId}/{problemId}.{ext}",

@@ -99,6 +99,7 @@ export const nativeChinese: Record<string, string> = {
 	'judger.import.pairYes': '导入两个文件',
 	'judger.import.pairNo': '仅导入此文件',
 	'judger.import.pair': '找到配对的测试数据文件',
+	'judger.prompt.openSettings': '不想每次询问，去设置',
 	'judger.import.noInput': '无输入',
 	'judger.import.noAnswer': '无答案',
 	'judger.script.installed': '已安装提交用户脚本。',

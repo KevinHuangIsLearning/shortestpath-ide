@@ -10,6 +10,7 @@ import { TokenizationRegistry } from '../../../../editor/common/languages.js';
 import { LineTokens } from '../../../../editor/common/tokens/lineTokens.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
+import './shortestPathTemplateEditor.js';
 
 CommandsRegistry.registerCommand('_shortestpath.snippetsHome', accessor => accessor.get(IUserDataProfileService).currentProfile.snippetsHome.toString());
 

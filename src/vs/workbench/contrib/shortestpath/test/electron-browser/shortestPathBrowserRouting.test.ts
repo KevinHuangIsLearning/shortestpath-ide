@@ -40,7 +40,8 @@ import { OpenIntegratedBrowserAction, QuickOpenBrowserAction } from '../../../br
 import { AllEditorsByMostRecentlyUsedQuickAccess } from '../../../../browser/parts/editor/editorQuickAccess.js';
 import { QuickAccessPreviousRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessPreviousRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorInGroupAction } from '../../../../browser/parts/editor/editorActions.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { canImportBrowserProblem, BrowserProblemImportFeature } from '../../../browserView/electron-browser/features/browserProblemImportFeature.js';
@@ -138,7 +139,7 @@ suite('ShortestPath browser routing', () => {
 			mode: 'draw', surface, pageSurface, drawingSurface: drawing,
 			_register: (disposable: IDisposable) => store.add(disposable),
 			layoutService: {
-				mainContainer: root, mainWindowNavigationLayoutContainer: navigation, mainContainerOffset: { top: 35, quickPickTop: 6 },
+				mainContainer: root, mainWindowNavigationContainer: navigation, mainContainerOffset: { top: 35, quickPickTop: 6 },
 				onDidLayoutMainContainer: Event.None, onDidChangePartVisibility: Event.None,
 				getContainer: (_window: Window, part: Parts) => part === Parts.EDITOR_PART ? editor : undefined,
 			},
@@ -404,6 +405,7 @@ suite('ShortestPath browser routing', () => {
 		const browserInputs: EditorInput[] = [];
 		const browserGroup = new class extends TestEditorGroupView {
 			override editors = browserInputs;
+			override getEditors() { return browserInputs; }
 			override count = 0;
 			override contains(input: EditorInput) { return browserInputs.includes(input); }
 			override focus() { }
@@ -511,9 +513,9 @@ suite('ShortestPath browser routing', () => {
 		});
 	}
 
-	test('Ctrl+Tab and Ctrl+Shift+Tab use the global MRU picker', () => {
-		const forward = new QuickAccessPreviousRecentlyUsedEditorAction();
-		const reverse = new QuickAccessLeastRecentlyUsedEditorAction();
+	test('Ctrl+Tab and Ctrl+Shift+Tab keep the default picker scoped to its group', () => {
+		const forward = new QuickAccessPreviousRecentlyUsedEditorInGroupAction();
+		const reverse = new QuickAccessLeastRecentlyUsedEditorInGroupAction();
 		const forwardBinding = forward.desc.keybinding;
 		const reverseBinding = reverse.desc.keybinding;
 		assert.ok(forwardBinding && !Array.isArray(forwardBinding));
@@ -523,9 +525,72 @@ suite('ShortestPath browser routing', () => {
 			forwardBinding.mac?.primary,
 			reverseBinding.primary,
 			reverseBinding.mac?.primary,
-			new QuickAccessPreviousRecentlyUsedEditorInGroupAction().desc.keybinding,
-			new QuickAccessLeastRecentlyUsedEditorInGroupAction().desc.keybinding,
+			new QuickAccessPreviousRecentlyUsedEditorAction().desc.keybinding,
+			new QuickAccessLeastRecentlyUsedEditorAction().desc.keybinding,
 		], [KeyMod.CtrlCmd | KeyCode.Tab, KeyMod.WinCtrl | KeyCode.Tab, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab, undefined, undefined]);
+	});
+
+	test('surface tab shortcuts yield to modal editors, auxiliary windows and quick input', () => {
+		const shortcuts = KeybindingsRegistry.getDefaultKeybindings().filter(binding => binding.command === 'shortestpath.action.nextTab' || binding.command === 'shortestpath.action.previousTab');
+		assert.strictEqual(shortcuts.length, 2);
+		const context: Record<string, boolean> = { 'shortestpath.navigation': true };
+		const applies = () => shortcuts.map(binding => binding.when!.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => context[key] as T | undefined }));
+		assert.deepStrictEqual(applies(), [true, true]);
+		for (const key of ['editorPartModalVisible', 'isAuxiliaryWindowFocusedContext', 'inQuickInput']) {
+			context[key] = true;
+			assert.deepStrictEqual(applies(), [false, false]);
+			context[key] = false;
+		}
+		context['shortestpath.navigation'] = false;
+		assert.deepStrictEqual(applies(), [false, false]);
+	});
+
+	test('browser tab cycling follows tab order and wraps without opening code files', async () => {
+		const { service, browserGroup, opened } = setup();
+		await service.switchTab(1);
+		service.mode = 'browse';
+		const tabs = [];
+		for (const name of ['first', 'second', 'third']) { tabs.push(await service.openBrowser(`https://example.com/${name}`, true)); }
+		const active = [];
+		for (const direction of [1, 1, -1, -1] as const) {
+			await service.switchTab(direction);
+			active.push(tabs.indexOf(browserGroup.activeEditor as BrowserEditorInput));
+		}
+		assert.deepStrictEqual({ active, mode: service.mode, codeOpens: opened.length }, { active: [0, 1, 0, 2], mode: 'browse', codeOpens: 0 });
+	});
+
+	test('solving tab cycling stays in the solving group even if another surface had focus', async () => {
+		const tabs = ['first', 'second', 'third'].map(name => store.add(new TestFileEditorInput(URI.parse(`test://${name}.cpp`), 'testInput')));
+		const group = new class extends TestEditorGroupView {
+			override getEditors() { return tabs; }
+		}(7);
+		group.activeEditor = tabs[0];
+		const active: number[] = [];
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			mode: 'solve', ready: Promise.resolve(),
+			editorGroups: { mainPart: { activeGroup: group }, activeGroup: new TestEditorGroupView(99) },
+			editors: {
+				openEditor: async (input: EditorInput, _options: IEditorOptions | undefined, target: PreferredGroup) => {
+					assert.strictEqual(target, group);
+					group.activeEditor = input;
+					active.push(tabs.indexOf(input as TestFileEditorInput));
+					return undefined;
+				}
+			},
+		}) as ShortestPathModeService;
+		for (const direction of [-1, 1, 1, 1] as const) { await service.switchTab(direction); }
+		assert.deepStrictEqual({ active, mode: service.mode }, { active: [2, 0, 1, 2], mode: 'solve' });
+		for (const mode of ['settings', 'dashboard', 'snippets'] as const) {
+			service.mode = mode;
+			await service.switchTab(1);
+		}
+		tabs.splice(1);
+		group.activeEditor = tabs[0];
+		service.mode = 'solve';
+		await service.switchTab(1);
+		tabs.length = 0;
+		await service.switchTab(-1);
+		assert.strictEqual(active.length, 4);
 	});
 
 	test('global MRU picks retain both surfaces and open in their original group', async () => {
