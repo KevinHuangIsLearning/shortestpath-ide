@@ -187,6 +187,7 @@ export default defineConfig(
 			'extensions/shortestpath.judger/src/browserImportCleanup.ts',
 			'extensions/shortestpath.judger/src/importTestcases.ts',
 			'extensions/shortestpath.judger/src/tests/importTestcases.test.ts',
+			'extensions/shortestpath.judger/src/tests/extensionStartup.test.ts',
 			'extensions/shortestpath.judger/src/webview/JudgeView.ts',
 			'extensions/shortestpath.judger/src/tests/browserImportCleanup.test.ts',
 			'extensions/shortestpath.judger/src/tests/nativeRunnerBuild.test.ts',

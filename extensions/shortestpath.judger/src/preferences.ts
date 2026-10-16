@@ -8,10 +8,10 @@ import localize from './i18n';
 import type { ProblemSource } from './problemDisplay';
 
 const getPreference = (section: prefSection): any => {
-    const ret = workspace.getConfiguration('judger', vscode.window.activeTextEditor?.document.uri).get(section);
-
-    globalThis.logger.log('Read preference for ', section, ret);
-    return ret;
+    // Pass null rather than undefined when no editor is open: resource-scoped
+    // settings otherwise make VS Code emit a warning on every single read.
+    const resource = vscode.window.activeTextEditor?.document.uri ?? null;
+    return workspace.getConfiguration('judger', resource).get(section);
 };
 
 export const updatePreference = (

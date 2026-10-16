@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { writeDarkReaderPreload } from './next/darkReader.ts';
+import { buildTrackpadGestureMonitor } from './next/trackpadGestureMonitor.ts';
 import { EventEmitter } from 'events';
 EventEmitter.defaultMaxListeners = 100;
 
 import glob from 'glob';
+import path from 'path';
 import { createRequire } from 'node:module';
 import { monacoTypecheckTask /* , monacoTypecheckWatchTask */ } from './gulpfile.editor.ts';
 import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask } from './gulpfile.extensions.ts';
@@ -33,12 +35,17 @@ task.task(task.define('transpile-client-esbuild', task.series(
 
 const darkReaderPreloadTask = task.define('compile-browser-dark-reader', () => writeDarkReaderPreload('src', 'out'));
 
+// The macOS trackpad phase monitor is a native addon: `clean-out` removes the
+// previously built .node file and no other step recreates it, so each client
+// compile has to rebuild it or the browser view fails to load at startup.
+const trackpadGestureMonitorTask = task.define('compile-trackpad-gesture-monitor', () => buildTrackpadGestureMonitor(path.resolve(import.meta.dirname, '..'), 'out'));
+
 // Transpile only
-const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out'), darkReaderPreloadTask));
+const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out'), darkReaderPreloadTask, trackpadGestureMonitorTask));
 task.task(transpileClientTask);
 
 // Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out'), darkReaderPreloadTask));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out'), darkReaderPreloadTask, trackpadGestureMonitorTask));
 task.task(compileClientTask);
 
 const watchClientTask = task.define('watch-client', task.parallel(compilation.watchTypeCheckTask('src'), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask));
