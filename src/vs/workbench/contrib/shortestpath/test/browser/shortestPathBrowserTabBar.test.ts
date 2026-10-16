@@ -23,7 +23,7 @@ suite('ShortestPath browser tab bar', () => {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		return store.add(new ShortestPathBrowserTabBar(container, {
 			select: async () => { }, editUrl: () => { }, close: () => { }, move: () => { }, create: () => { }, setVertical: () => { }, getMenu: () => [], ...actions,
-		}, instantiation.invokeFunction(accessor => accessor.get(IHoverService)), new class extends mock<IContextMenuService>() { override showContextMenu(options: Parameters<IContextMenuService['showContextMenu']>[0]) { options.getActions(); } }));
+		}, instantiation.invokeFunction(accessor => accessor.get(IHoverService)), new class extends mock<IContextMenuService>() { override showContextMenu(options: Parameters<IContextMenuService['showContextMenu']>[0]) { options.getActions?.(); } }));
 	}
 
 	test('switches inactive tabs and delegates selected-tab URL editing to the existing address bar', async () => {
