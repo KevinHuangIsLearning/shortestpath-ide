@@ -114,6 +114,15 @@ suite('BrowserView history swipe', () => {
 		assert.deepStrictEqual(view.navigations, []);
 	});
 
+	test('a pending close is dropped when a newer gesture supersedes it', async () => {
+		const view = setup();
+		view.setHistory(false, false);
+		view.gesture('begin'); view.allow(); view.gesture('end', 0.5);
+		view.gesture('begin');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.deepStrictEqual(view.navigations, [], 'a superseded close must not run');
+	});
+
 	test('blur, main frame navigation and page cancellation invalidate the gesture', () => {
 		for (const event of ['blur', 'did-start-navigation', 'page']) {
 			const view = setup();

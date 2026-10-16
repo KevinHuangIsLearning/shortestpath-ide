@@ -40,7 +40,8 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		const container = append(parent, $('.shortestpath-new-tab'));
 		const content = append(container, $('.shortestpath-new-tab-content'));
 		append(content, $('h1', undefined, localizeNewTab('ShortestPath IDE', 'ShortestPath IDE')));
-		append(content, $('.subtitle', undefined, localizeNewTab('Your Competitive Programming Workflow', 'Your Competitive Programming Workflow')));
+		// allow-any-unicode-next-line
+		append(content, $('.subtitle', undefined, localizeNewTab('Your Competitive Programming Workflow', '你的竞赛编程工作流')));
 
 		// Group file actions separately from documentation and support links.
 		const columns = append(content, $('.shortestpath-new-tab-columns'));

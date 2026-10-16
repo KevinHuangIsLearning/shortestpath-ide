@@ -18,6 +18,7 @@ export function registerBrowserViewHistorySwipe(
 	let approved = false;
 	let allowedBack = false;
 	let allowedForward = false;
+	let closeTimer: ReturnType<typeof setTimeout> | undefined;
 	const hide = () => contents.send('vscode:browserView:historySwipeProgress', { token, amount: 0 });
 	const cancel = () => {
 		active = false;
@@ -64,8 +65,15 @@ export function registerBrowserViewHistorySwipe(
 				} else {
 					// Closing tears down this very subscription. Calling it from
 					// inside the native gesture callback would dispose the object
-					// that is still dispatching, so defer to the next task.
-					setTimeout(() => navigate('close'), 0);
+					// that is still dispatching, so defer to the next task — and
+					// re-check the token so a newer gesture, a navigation or a
+					// cancel wins instead of closing an unrelated tab.
+					const closing = token;
+					clearTimeout(closeTimer);
+					closeTimer = setTimeout(() => {
+						closeTimer = undefined;
+						if (closing === token) { navigate('close'); }
+					}, 0);
 				}
 			} else if (allowedForward && contents.navigationHistory.canGoForward()) {
 				navigate('forward');
@@ -94,6 +102,7 @@ export function registerBrowserViewHistorySwipe(
 	contents.ipc.on('vscode:browserView:historySwipeAllow', onAllow);
 	contents.ipc.on('vscode:browserView:historySwipeCancel', onCancel);
 	return toDisposable(() => {
+		clearTimeout(closeTimer);
 		gestureSubscription.dispose();
 		contents.removeListener('blur', cancel);
 		contents.removeListener('did-start-navigation', onNavigation);

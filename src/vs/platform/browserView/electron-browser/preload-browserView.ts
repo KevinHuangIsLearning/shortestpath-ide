@@ -57,7 +57,10 @@ function init() {
 				hideHint();
 				return;
 			}
-			if (!hint) {
+			if (!circle || !arrow) {
+				// Rebuild from scratch: a previous attempt may have thrown midway,
+				// leaving `hint` set while the circle/arrow were never created.
+				hideHint();
 				hint = document.createElement('div');
 				hint.setAttribute('data-vscode-history-swipe', '');
 				hint.setAttribute('aria-hidden', 'true');
