@@ -2,13 +2,13 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.4.14 更新 / What's New
+## v0.4.15 更新 / What's New
 
-- 优化 SPOJ 验证逻辑。
+- 修复 macOS 内置浏览器在没有后退页面时左划关闭标签页导致的崩溃，并缩短关闭响应时间。
 
 ### English
 
-- Improve SPOJ verification logic.
+- Fix a crash and delayed tab closure when swiping left in the macOS built-in browser with no back history.
 
 The English version follows the Chinese version.
 
