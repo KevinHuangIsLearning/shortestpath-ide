@@ -15,6 +15,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: shortestpath-ide-release
+  cancel-in-progress: true
+
 env:
   RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 

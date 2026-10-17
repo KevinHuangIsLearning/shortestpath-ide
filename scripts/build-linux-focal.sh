@@ -51,6 +51,7 @@ apt-get install -y --no-install-recommends \
 	ca-certificates \
 	curl \
 	fakeroot \
+	g++-10 \
 	git \
 	gnupg \
 	libkrb5-dev \
@@ -63,6 +64,11 @@ curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor --yes --ou
 echo 'deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/focal/ llvm-toolchain-focal-15 main' > /etc/apt/sources.list.d/llvm.list
 apt-get update
 apt-get install -y --no-install-recommends clang-15
+
+# Electron headers need C++20 headers absent from Focal's default GCC 9.
+# Also update the host compiler used by build/npm/postinstall.ts.
+update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100
+update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 100
 
 if ! getent group "$HOST_GID" > /dev/null; then
 	groupadd --gid "$HOST_GID" shortestpath
