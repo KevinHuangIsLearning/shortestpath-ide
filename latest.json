@@ -1,6 +1,6 @@
 {
-	"version": "0.4.11",
-	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.11",
+	"version": "0.4.12",
+	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.12",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "适配网址新的协议\n\nSupport the website’s new protocol."
+	"releaseNote": "修复 latex 渲染问题\n\nFix LaTeX rendering issues."
 }

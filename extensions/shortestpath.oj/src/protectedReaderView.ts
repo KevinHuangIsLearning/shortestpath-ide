@@ -10,6 +10,8 @@ import type { ThemeRegistration } from 'shiki';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 import { createMarkdownRendererWithHighlighter } from './markdownRenderer';
 
+declare const READER_KATEX_CSS: string;
+
 const decoder = new TextDecoder('utf-8', { fatal: true });
 const boxes = /spide1:([A-Za-z0-9_-]+)/g;
 const bytes = (value: string) => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
@@ -40,9 +42,10 @@ const renderMarkdown = (async () => {
 	return createMarkdownRendererWithHighlighter(highlighter, () => editorTheme ?? (document.body.classList.contains('vscode-light') || document.body.classList.contains('vscode-high-contrast-light') ? 'github-light' : 'github-dark'));
 })();
 
-/** Preserve Chromium's code layout instead of reconstructing glyphs and whitespace. */
-async function rasterizeCode(stage: HTMLElement, width: number, height: number): Promise<HTMLCanvasElement> {
+/** Preserve Chromium's layout instead of reconstructing glyphs and whitespace. */
+async function rasterizeNative(stage: HTMLElement, width: number, height: number, nativeMath = false): Promise<HTMLCanvasElement> {
 	const clone = stage.cloneNode(true) as HTMLElement;
+	const imageLayers: { image: HTMLImageElement; bounds: DOMRect }[] = [];
 	// Shiki tokens already contain their colors and font styles. Only four
 	// structural styles need resolving; copying every browser property onto
 	// every token creates megabytes of redundant SVG and blocks the webview.
@@ -63,8 +66,39 @@ async function rasterizeCode(stage: HTMLElement, width: number, height: number):
 		const computed = getComputedStyle(source);
 		return `${selector}{${properties.map(property => `${property}:${computed.getPropertyValue(property)};`).join('')}}`;
 	}).join('');
+	if (nativeMath) {
+		// Preserve the surrounding Markdown's resolved layout, but leave KaTeX's
+		// entire subtree to its original CSS (including pseudo elements and em
+		// units). Chromium lays out and paints formulas without glyph simulation.
+		stylesheet.textContent = READER_KATEX_CSS;
+		const sources = [stage, ...stage.querySelectorAll<HTMLElement>('*')];
+		const copies = [clone, ...clone.querySelectorAll<HTMLElement>('*')];
+		sources.forEach((source, index) => {
+			if (source.closest('.katex')) { return; }
+			const computed = getComputedStyle(source);
+			copies[index].style.cssText = Array.from(computed, property => `${property}:${computed.getPropertyValue(property)};`).join('');
+		});
+		// SVG images cannot load external assets. Preserve decoded illustrations
+		// as bitmaps; cross-origin images can still be drawn to the final canvas
+		// without reading their pixels or weakening the webview's CSP.
+		for (const [index, source] of [...stage.querySelectorAll('img')].entries()) {
+			const copy = clone.querySelectorAll('img')[index];
+			copy.removeAttribute('srcset');
+			copy.removeAttribute('src');
+			if (!source.naturalWidth || !source.naturalHeight) { continue; }
+			const bitmap = document.createElement('canvas');
+			bitmap.width = source.naturalWidth; bitmap.height = source.naturalHeight;
+			bitmap.getContext('2d')!.drawImage(source, 0, 0);
+			try { copy.src = bitmap.toDataURL(); }
+			catch {
+				copy.style.visibility = 'hidden';
+				imageLayers.push({ image: source, bounds: source.getBoundingClientRect() });
+			}
+		}
+	}
 	// The staging container is offscreen; only its children carry the document layout.
-	clone.style.cssText = `display:flow-root;width:${width}px;height:${height}px;`;
+	if (!nativeMath) { clone.style.cssText = ''; }
+	Object.assign(clone.style, { display: 'flow-root', position: 'static', left: 'auto', top: 'auto', width: `${width}px`, height: `${height}px` });
 	clone.removeAttribute('inert');
 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 	svg.setAttribute('width', String(width)); svg.setAttribute('height', String(height));
@@ -82,6 +116,12 @@ async function rasterizeCode(stage: HTMLElement, width: number, height: number):
 		const context = canvas.getContext('2d');
 		if (!context) { throw new Error('Canvas unavailable'); }
 		context.drawImage(image, 0, 0, canvas.width, canvas.height);
+		const origin = stage.getBoundingClientRect();
+		for (const layer of imageLayers) {
+			context.drawImage(layer.image, (layer.bounds.left - origin.left) * canvas.width / width,
+				(layer.bounds.top - origin.top) * canvas.height / height,
+				layer.bounds.width * canvas.width / width, layer.bounds.height * canvas.height / height);
+		}
 		return canvas;
 	} finally {
 		image.removeAttribute('src'); clone.replaceChildren(); svg.replaceChildren();
@@ -169,7 +209,8 @@ async function paint(element: HTMLElement): Promise<void> {
 		// Rasterize the original Markdown layout as one surface. The existing
 		// containers own sizing and scrolling; do not reconstruct code boxes.
 		const codeOnly = stage.childElementCount === 1 && stage.firstElementChild?.tagName === 'PRE';
-		const canvas = codeOnly ? await rasterizeCode(stage, width, height) : await rasterize(stage, width, height);
+		const nativeMath = !!stage.querySelector('.katex');
+		const canvas = codeOnly || nativeMath ? await rasterizeNative(stage, width, height, nativeMath) : await rasterize(stage, width, height);
 		if (!element.isConnected) { return; }
 		if (`${Math.floor(element.clientWidth)}:${themeRevision}` !== revision) { return; }
 		canvas.style.cssText = `display:block;width:${width}px;height:${height}px;`;

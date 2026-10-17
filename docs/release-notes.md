@@ -2,13 +2,13 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.4.11 更新 / What's New
+## v0.4.12 更新 / What's New
 
-适配网址新的协议
+修复 latex 渲染问题
 
 ### English
 
-Support the website’s new protocol.
+Fix LaTeX rendering issues.
 
 The English version follows the Chinese version.
 
