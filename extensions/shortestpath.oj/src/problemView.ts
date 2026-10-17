@@ -472,8 +472,9 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		if (!selection || selection.isCollapsed) {
 			return false;
 		}
-		const protectedElements = document.querySelectorAll('[data-copy-protected], .editorial-container pre, .editorial-container code');
+		const protectedElements = document.querySelectorAll('[data-copy-protected]');
 		for (const element of protectedElements) {
+			if (!element.textContent?.trim()) { continue; }
 			for (let index = 0; index < selection.rangeCount; index++) {
 				if (selection.getRangeAt(index).intersectsNode(element)) {
 					return true;
@@ -986,6 +987,25 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 			section.innerHTML = html;
 		});
 	};
+	// Keep the encrypted reader's live surface (and any in-flight paint) when
+	// only surrounding controls change. Match exact ciphertext and base URL,
+	// never plaintext, and consume each old node at most once.
+	const replaceSectionContent = (section: HTMLElement, html: string): void => {
+		const next = document.createElement('template');
+		next.innerHTML = html;
+		const readers = new Map<string, HTMLElement[]>();
+		for (const element of section.querySelectorAll<HTMLElement>('[data-reader-id]')) {
+			const id = element.dataset.readerId!;
+			const matches = readers.get(id) ?? [];
+			matches.push(element);
+			readers.set(id, matches);
+		}
+		for (const placeholder of next.content.querySelectorAll<HTMLElement>('[data-reader-id]')) {
+			const previous = readers.get(placeholder.dataset.readerId!)?.shift();
+			if (previous) { placeholder.replaceWith(previous); }
+		}
+		section.replaceChildren(next.content);
+	};
 	const snapshotSubmissionHeights = (section: HTMLElement): Map<string, number> => {
 		const heights = new Map<string, number>();
 		section.querySelectorAll<HTMLElement>('.submission[data-persist-key]').forEach(submission => {
@@ -1096,7 +1116,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 			const snapshot = snapshotSection(section);
 			const submissionHeights = id === 'oj-submissions' ? snapshotSubmissionHeights(section) : undefined;
 			const updateSection = () => {
-				section.innerHTML = html;
+				replaceSectionContent(section, html);
 				restoreSection(section, snapshot);
 				if (id === 'oj-rating') {
 					if (ratingFocus) {

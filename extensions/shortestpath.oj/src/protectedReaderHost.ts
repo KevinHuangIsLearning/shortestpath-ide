@@ -3,7 +3,7 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateKeyPairSync } from 'crypto';
+import { createHash, generateKeyPairSync } from 'crypto';
 import { isIdeProtectedReadingField } from './generated/ide-bridge-contract';
 export { assertIdeProtectedContent as assertProtectedContent } from './generated/ide-bridge-contract';
 
@@ -34,10 +34,11 @@ export function getReaderKeys(origin: string, accountId: string, problemRef: str
 }
 
 /** Turn a ciphertext-containing Markdown template into an inert reader slot. */
-export function protectedMarkdownSlot(content: string, baseUrl: string): string | undefined {
+export function protectedMarkdownSlot(content: string, baseUrl: string, mode: 'canvas' | 'dom' = 'canvas'): string | undefined {
 	if (!content.includes(readerPrefix)) { return undefined; }
-	const template = Buffer.from(JSON.stringify({ content, baseUrl }), 'utf8').toString('base64url');
-	return `<div class="protected-reader" data-reader-template="${template}" data-i18n-ignore aria-label="内容阅读区"></div>`;
+	const template = Buffer.from(JSON.stringify({ content, baseUrl, mode }), 'utf8').toString('base64url');
+	const id = createHash('sha256').update(template).digest('hex');
+	return `<div class="${mode === 'canvas' ? 'protected-reader' : 'reader-content'}" data-reader-mode="${mode}" data-reader-id="${id}" data-reader-template="${template}" data-i18n-ignore aria-label="内容阅读区"></div>`;
 }
 
 /** Remove historical plaintext on migration, while preserving code and tests. */

@@ -51,7 +51,7 @@ export async function createProblemMarkdownRenderer(getTheme: () => string | The
 	return createMarkdownRendererWithHighlighter(highlighter, getTheme);
 }
 
-export function createMarkdownRendererWithHighlighter(highlighter: HighlighterCore, getTheme: () => string | ThemeRegistration): ProblemMarkdownRenderer {
+export function createMarkdownRendererWithHighlighter(highlighter: Pick<HighlighterCore, 'codeToHtml'> | undefined, getTheme: () => string | ThemeRegistration): ProblemMarkdownRenderer {
 	const markdown = new MarkdownIt({
 		html: false,
 		breaks: true,
@@ -62,6 +62,7 @@ export function createMarkdownRendererWithHighlighter(highlighter: HighlighterCo
 		const token = tokens[idx];
 		const lang = token.info.trim().split(/\s+/g)[0] || 'text';
 		const code = token.content;
+		if (!highlighter) { return `<pre data-reader-language="${escapeAttribute(lang)}"><code>${escapeHtml(code)}</code></pre>`; }
 		try {
 			return highlighter.codeToHtml(code, { lang, theme: getTheme() });
 		} catch {

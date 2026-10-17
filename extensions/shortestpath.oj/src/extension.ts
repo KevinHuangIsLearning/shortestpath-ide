@@ -126,6 +126,7 @@ function hasIncompatibleProblemState(problem: ImportedProblem): boolean {
 let renderPlainMarkdown: ProblemMarkdownRenderer = (content) => {
 	return content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
 };
+const renderReportMarkdown: ProblemMarkdownRenderer = (content, baseUrl) => protectedMarkdownSlot(content, baseUrl, 'dom') ?? renderPlainMarkdown(content, baseUrl);
 const renderProblemMarkdown: ProblemMarkdownRenderer = (content, baseUrl) => protectedMarkdownSlot(content, baseUrl) ?? renderPlainMarkdown(content, baseUrl);
 let getReaderCodeTheme: () => string | ThemeRegistration = getShikiTheme;
 let markdownContentCache = new WeakMap<MarkdownContent, Map<string, string>>();
@@ -143,16 +144,17 @@ function getShikiTheme(): string {
 	return 'github-dark';
 }
 
-function renderMarkdownContent(content: MarkdownContent, baseUrl: string): string {
+function renderMarkdownContent(content: MarkdownContent, baseUrl: string, mode: 'canvas' | 'dom' = 'canvas'): string {
 	let byBaseUrl = markdownContentCache.get(content);
 	if (!byBaseUrl) {
 		byBaseUrl = new Map();
 		markdownContentCache.set(content, byBaseUrl);
 	}
-	let html = byBaseUrl.get(baseUrl);
+	const cacheKey = `${mode}:${baseUrl}`;
+	let html = byBaseUrl.get(cacheKey);
 	if (html === undefined) {
-		html = renderProblemMarkdown(content.content, baseUrl);
-		byBaseUrl.set(baseUrl, html);
+		html = (mode === 'dom' ? renderReportMarkdown : renderProblemMarkdown)(content.content, baseUrl);
+		byBaseUrl.set(cacheKey, html);
 	}
 	return html;
 }
@@ -560,7 +562,8 @@ class ShortestPathOjProblemPanel {
 		if (!this.editorialPanel || !this.state?.editorial) {
 			return;
 		}
-		this.editorialPanel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(this.state.editorial, this.state.problem, this.editorialPanel.webview, this.extensionUri, this.state.connected));
+		void this.editorialPanel.webview.postMessage({ type: 'protectedReaderTheme', theme: getReaderCodeTheme() });
+		this.updateEditorialPanelHtml(this.state.editorial, this.state.problem, this.state.connected);
 	}
 
 	reloadStyles(version: number): void {
@@ -685,6 +688,13 @@ class ShortestPathOjProblemPanel {
 		return problemColumn === vscode.ViewColumn.One ? vscode.ViewColumn.Two : vscode.ViewColumn.One;
 	}
 
+	private updateEditorialPanelHtml(editorial: EditorialResult, problem: ImportedProblem, canLike: boolean): void {
+		if (!this.editorialPanel) { return; }
+		const webview = this.editorialPanel.webview;
+		const html = localizeWebviewHtml(getEditorialPanelHtml(editorial, problem, webview, this.extensionUri, canLike));
+		if (webview.html !== html) { webview.html = html; }
+	}
+
 	private async showEditorialPanel(editorial: EditorialResult, problem: ImportedProblem, canLike = this.state?.connected ?? false): Promise<void> {
 		if (editorial.state !== 'available') {
 			return;
@@ -692,7 +702,7 @@ class ShortestPathOjProblemPanel {
 		const title = `${localize('解题报告')}: ${problem.title}`;
 		if (this.editorialPanel) {
 			this.editorialPanel.title = title;
-			this.editorialPanel.webview.html = localizeWebviewHtml(getEditorialPanelHtml(editorial, problem, this.editorialPanel.webview, this.extensionUri, canLike));
+			this.updateEditorialPanelHtml(editorial, problem, canLike);
 			this.editorialPanel.reveal(this.editorialPanel.viewColumn, false);
 			return;
 		}
@@ -1018,7 +1028,8 @@ class ShortestPathOjProblemPanel {
 						if (!previous) { return; }
 						state.cachedEditorial ??= state.editorial;
 						this.updateLocalLike(state, value.hintId, value.target, value.liked, Math.max(0, previous.count + (previous.liked === value.liked ? 0 : value.liked ? 1 : -1)));
-						this.beginOperation(state, operationKey);
+						// Like buttons manage their pending state locally; no content section needs rebuilding.
+						state.operationsInFlight.add(operationKey);
 						try {
 							const result = await this.actions.like(state.problem, value.hintId, value.target, value.liked);
 							if (this.state !== state) { return; }
@@ -1032,10 +1043,10 @@ class ShortestPathOjProblemPanel {
 							if (this.state === state) { this.updateLocalLike(state, value.hintId, value.target, (previousHint ?? previous).liked, (previousHint ?? previous).count, false, previousEditorial ?? previous); }
 							throw error;
 						} finally {
-							this.endOperation(state, operationKey);
+							state.operationsInFlight.delete(operationKey);
 						}
 					}
-					break;
+					return;
 				case 'editorialModal':
 					if (state.editorial?.state === 'available') {
 						await this.showEditorialPanel(state.editorial, state.problem, connected);
@@ -2894,7 +2905,7 @@ function renderLikeButton(hintId: string, target: 'question' | 'answer', likes: 
 
 function renderHintContent(state: ProblemPanelState, hint: ProblemHint): string {
 	const questionContent = hint.question
-		? `<div data-render-math data-i18n-ignore>${renderMarkdownContent(hint.question, state.problem.url)}</div>`
+		? `<div data-render-math data-i18n-ignore>${renderMarkdownContent(hint.question, state.problem.url, 'dom')}</div>`
 		: '<p>提示问题尚未解锁。</p>';
 	const questionLike = renderLikeButton(hint.id, 'question', hint.likes.question, state.connected && Boolean(hint.question), state.operationsInFlight.has(`like:${hint.id}:question`));
 	const answer = state.answers.get(hint.id);
@@ -2903,7 +2914,7 @@ function renderHintContent(state: ProblemPanelState, hint: ProblemHint): string 
 	const canRequestAnswer = state.connected;
 	const canShowAnswer = unlocked && canRequestAnswer;
 	const answerContent = answer
-		? `<div data-render-math data-i18n-ignore>${renderMarkdownContent(answer, state.problem.url)}</div>`
+		? `<div data-render-math data-i18n-ignore>${renderMarkdownContent(answer, state.problem.url, 'dom')}</div>`
 		: `<button type="button" data-command="answer" data-hint-id="${escapeAttribute(hint.id)}" data-can-request="${canRequestAnswer}"${canShowAnswer && !state.operationsInFlight.has(`answer:${hint.id}`) ? '' : ' disabled'}${!unlocked && hint.remainingMs > 0 ? ` data-remaining-ms="${hint.remainingMs}"` : ''}>${state.operationsInFlight.has(`answer:${hint.id}`) ? localize('加载中…') : unlocked ? '显示答案' : `<span class="hint-countdown">剩余 ${formatDuration(hint.remainingMs)}</span>`}</button>`;
 	const feedback = state.hintMessages.get(hint.id);
 	return `<div class="hint-body">${feedback ? `<p class="hint-feedback" role="status">${escapeHtml(feedback)}</p>` : ''}<div class="hint-rows"><div class="hint-row"><h4 class="hint-label hint-label-question">问题</h4><div class="hint-content">${questionContent}</div><div class="like-row">${questionLike}</div></div><div class="hint-row"><h4 class="hint-label hint-label-answer">答案</h4><div class="hint-content">${answerContent}</div><div class="like-row">${answerLike}</div></div></div></div>`;
@@ -2937,8 +2948,8 @@ function renderEditorialContents(editorial: Extract<EditorialResult, { state: 'a
 		return `<article class="editorial-hint">
 <div class="editorial-hint-header"><span class="editorial-hint-title">提示 ${hint.seq}</span></div>
 <div class="editorial-hint-body">
-<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label hint-label-question">问题</span><div class="like-row">${qLike}</div></div><div class="editorial-hint-content" data-render-math data-i18n-ignore>${renderMarkdownContent(hint.question, baseUrl)}</div></div>
-<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label hint-label-answer">答案</span><div class="like-row">${aLike}</div></div><div class="editorial-hint-content" data-render-math data-i18n-ignore>${renderMarkdownContent(hint.answer, baseUrl)}</div></div>
+<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label hint-label-question">问题</span><div class="like-row">${qLike}</div></div><div class="editorial-hint-content" data-render-math data-i18n-ignore>${renderMarkdownContent(hint.question, baseUrl, 'dom')}</div></div>
+<div class="editorial-hint-row"><div class="editorial-hint-row-heading"><span class="editorial-hint-label hint-label-answer">答案</span><div class="like-row">${aLike}</div></div><div class="editorial-hint-content" data-render-math data-i18n-ignore>${renderMarkdownContent(hint.answer, baseUrl, 'dom')}</div></div>
 </div>
 </article>`;
 	}).join('');
@@ -2947,12 +2958,12 @@ function renderEditorialContents(editorial: Extract<EditorialResult, { state: 'a
 	return `<div class="editorial-container">
 <div class="editorial-text">
 <details class="editorial-section editorial-collapsible" data-persist-key="editorial-hints" open><summary><h2>提示回顾</h2>${popupButton}</summary>${hintsHtml}</details>
-<details class="editorial-section editorial-collapsible" data-persist-key="editorial-simple" open><summary><h2>简化题解</h2></summary><div data-render-math data-i18n-ignore>${renderMarkdownContent(editorial.simpleContent, baseUrl)}</div></details>
-<details class="editorial-section editorial-collapsible" data-persist-key="editorial-detailed" open><summary><h2>详细题解</h2></summary><div data-render-math data-i18n-ignore>${renderMarkdownContent(editorial.content, baseUrl)}</div></details>
-${(editorial.subtaskSolutions ?? []).map((solution, index) => `<details class="editorial-section editorial-collapsible" data-persist-key="editorial-subtask:${index}" data-i18n-ignore open><summary><h2>${escapeHtml(solution.title || solution.kind)}</h2></summary><p>${escapeHtml(solution.appliesToSubtasks.join(', '))}</p>${renderProblemMarkdown(solution.solution, baseUrl)}${solution.acCode ? renderProblemMarkdown('```cpp\n' + solution.acCode + '\n```', baseUrl) : ''}</details>`).join('')}
+<details class="editorial-section editorial-collapsible" data-persist-key="editorial-simple" open><summary><h2>简化题解</h2></summary><div data-render-math data-i18n-ignore>${renderMarkdownContent(editorial.simpleContent, baseUrl, 'dom')}</div></details>
+<details class="editorial-section editorial-collapsible" data-persist-key="editorial-detailed" open><summary><h2>详细题解</h2></summary><div data-render-math data-i18n-ignore>${renderMarkdownContent(editorial.content, baseUrl, 'dom')}</div></details>
+${(editorial.subtaskSolutions ?? []).map((solution, index) => `<details class="editorial-section editorial-collapsible" data-persist-key="editorial-subtask:${index}" data-i18n-ignore open><summary><h2>${escapeHtml(solution.title || solution.kind)}</h2></summary><p>${escapeHtml(solution.appliesToSubtasks.join(', '))}</p>${renderReportMarkdown(solution.solution, baseUrl)}${solution.acCode ? `<div data-copy-protected>${renderProblemMarkdown('```cpp\n' + solution.acCode + '\n```', baseUrl)}</div>` : ''}</details>`).join('')}
 </div>
 <div class="editorial-resizer" role="separator" aria-label="调整题解和参考代码宽度" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="80" tabindex="0"></div>
-<div class="editorial-code"><details class="editorial-collapsible" data-persist-key="editorial-code" open><summary><h2>参考代码</h2></summary>${codeHtml}</details></div>
+<div class="editorial-code"><details class="editorial-collapsible" data-persist-key="editorial-code" open><summary><h2>参考代码</h2></summary><div data-copy-protected>${codeHtml}</div></details></div>
 </div>`;
 }
 
@@ -2982,8 +2993,9 @@ const editorialResizer = document.querySelector('.editorial-resizer');
 const selectionIncludesEditorialCode = () => {
 	const selection = window.getSelection();
 	if (!selection || selection.isCollapsed) { return false; }
-	const codeElements = document.querySelectorAll('.editorial-container pre, .editorial-container code');
+	const codeElements = document.querySelectorAll('[data-copy-protected]');
 	for (const codeElement of codeElements) {
+		if (!codeElement.textContent?.trim()) { continue; }
 		for (let index = 0; index < selection.rangeCount; index++) {
 			if (selection.getRangeAt(index).intersectsNode(codeElement)) { return true; }
 		}

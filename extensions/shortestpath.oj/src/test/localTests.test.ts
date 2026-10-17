@@ -400,6 +400,7 @@ test('test drafts, expansion and cursor survive both local updates and replaceme
 	const document = { activeElement: local.fields[0], getElementById: (id: string) => id === 'oj-local-tests' ? local : parent };
 	const context = vm.createContext({ document, HTMLInputElement: Field, HTMLTextAreaElement: Field,
 		message: { sections: { 'oj-statement-content': 'new statement', 'oj-local-tests': 'new tests' } },
+		replaceSectionContent: (target: Section | typeof parent, html: string) => { target.innerHTML = html; },
 		animateHeightChange: (_section: unknown, update: () => void) => update(),
 	});
 	const start = compiled.indexOf('const snapshotSection =');

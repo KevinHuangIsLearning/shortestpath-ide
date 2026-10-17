@@ -13,6 +13,8 @@ export class ProtectedReaderCrypto {
 	private recipient = '';
 	private generation = 0;
 	private readonly aesKeys = new Map<string, Promise<CryptoKey>>();
+	private readonly plaintext = new Map<string, Promise<string>>();
+	private plaintextSize = 0;
 	async initialize(privateJwk: JsonWebKey, publicKey: string): Promise<boolean> {
 		this.clear();
 		const generation = this.generation;
@@ -23,8 +25,30 @@ export class ProtectedReaderCrypto {
 		return true;
 	}
 	get ready(): boolean { return this.privateKey !== undefined; }
-	clear(): void { this.generation++; this.privateKey = undefined; this.recipient = ''; this.aesKeys.clear(); }
-	async decrypt(encoded: string): Promise<string> {
+	clear(): void { this.generation++; this.privateKey = undefined; this.recipient = ''; this.aesKeys.clear(); this.plaintext.clear(); this.plaintextSize = 0; }
+	decrypt(encoded: string): Promise<string> {
+		if (!this.ready) { return Promise.reject(new Error('Reader key unavailable')); }
+		const cached = this.plaintext.get(encoded);
+		if (cached) { this.plaintext.delete(encoded); this.plaintext.set(encoded, cached); return cached; }
+		const generation = this.generation;
+		const pending = this.decryptUncached(encoded).then(text => {
+			if (generation !== this.generation) { throw new Error('Reader key changed'); }
+			return text;
+		}).catch(error => {
+			if (this.plaintext.get(encoded) === pending) { this.plaintext.delete(encoded); this.plaintextSize -= encoded.length * 2; }
+			throw error;
+		});
+		this.plaintext.set(encoded, pending);
+		// The encoded envelope is larger than its plaintext. Budget both strings
+		// conservatively, and share in-flight decryptions without persisting them.
+		this.plaintextSize += encoded.length * 2;
+		while (this.plaintext.size > 128 || this.plaintextSize > 4 * 1024 * 1024) {
+			const oldest = this.plaintext.keys().next().value!;
+			this.plaintext.delete(oldest); this.plaintextSize -= oldest.length * 2;
+		}
+		return pending;
+	}
+	private async decryptUncached(encoded: string): Promise<string> {
 		const box: unknown = JSON.parse(decoder.decode(bytes(encoded)));
 		if (!this.privateKey || !Array.isArray(box) || box.length !== 8 || !box.every(value => typeof value === 'string')) { throw new Error('Invalid reader box'); }
 		const [to, from, salt, iv, uri, field, ciphertext, fingerprint] = box as string[];

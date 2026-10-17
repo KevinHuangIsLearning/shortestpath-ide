@@ -2,15 +2,15 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.4.12 更新 / What's New
+## v0.4.13 更新 / What's New
 
-- 修复 latex 渲染问题。
-- 恢复 SPJ 题目的本地样例运行，输出比较结果仅供参考，请以网站评测为准。
+- 优化题目描述、AC 代码和解题报告的加载速度，点赞时不再重新渲染正文。
+- 加快解题报告弹窗显示，题解正文和讲解代码片段可直接复制；题目描述和 AC 代码保持复制限制。
 
 ### English
 
-- Fix LaTeX rendering issues.
-- Restore local sample runs for SPJ problems. Output comparisons are for reference only; the website judge is authoritative.
+- Improve loading performance for problem statements, AC code, and editorials. Liking a hint no longer re-renders the content.
+- Show editorials faster in popups and allow copying editorial prose and explanatory code snippets. Problem statements and AC code retain their copy restrictions.
 
 The English version follows the Chinese version.
 

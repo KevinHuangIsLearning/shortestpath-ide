@@ -108,6 +108,7 @@ test('header rating refresh keeps keyboard focus inside the popover without stea
 		document: { get activeElement() { return active; }, getElementById: () => section },
 		HTMLButtonElement: Button,
 		updateRatingSection: () => false,
+		replaceSectionContent: (target: typeof section, html: string) => { target.innerHTML = html; },
 		snapshotSection: () => ({}), restoreSection() { },
 		updateTagPopoverDirection: (target: object) => { assert.equal(target, anchor); positioned++; },
 		animateHeightChange: () => { throw new Error('Header updates must not animate their height'); },

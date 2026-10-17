@@ -11,6 +11,8 @@ import * as vm from 'node:vm';
 import * as access from '../editorialAccess';
 import * as protocol from '../shortestpathOjProtocol';
 import { bindPayload } from './fixtures';
+import { protectedMarkdownSlot } from '../protectedReaderHost';
+import { sealFixture } from './protectedFixtures';
 
 const editorial: Extract<protocol.EditorialResult, { state: 'available' }> = {
 	state: 'available',
@@ -26,6 +28,7 @@ function createHarness() {
 	const created: { options: { modal?: boolean; modalCloseOnly?: boolean; modalHideHeader?: boolean }; disposed: boolean; receive: (message: object) => Promise<void> }[] = [];
 	const context = vm.createContext({
 		console, setTimeout, clearTimeout,
+		getReaderCodeTheme: () => 'github-dark',
 		editorialAccess_1: access,
 		shortestpathOjProtocol_1: protocol,
 		localization_1: { localize: (text: string) => text, localizeWebviewHtml: (html: string) => html },
@@ -97,6 +100,44 @@ test('modal report starts with content and provides a close button without a dup
 	assert.doesNotMatch(html, /<h1|editorial-title/);
 });
 
+test('report prose and snippets are DOM content; only reference and subtask AC code are protected', () => {
+	const source = fs.readFileSync(path.resolve(__dirname, '../extension.js'), 'utf8');
+	const context = vm.createContext({
+		localization_1: { localize: (text: string) => text },
+		escapeHtml: (text: string) => text, escapeAttribute: (text: string) => text,
+		renderMarkdownContent: (content: { content: string }, base: string, mode: 'canvas' | 'dom' = 'canvas') => protectedMarkdownSlot(sealFixture(content.content), base, mode),
+		renderProblemMarkdown: (text: string, base: string) => protectedMarkdownSlot(sealFixture(text), base),
+		renderReportMarkdown: (text: string, base: string) => protectedMarkdownSlot(sealFixture(text), base, 'dom'),
+		renderLikeButton: () => '<button>like</button>',
+	});
+	const start = source.indexOf('function renderEditorialContents(');
+	const end = source.indexOf('function getEditorialPanelHtml(', start);
+	vm.runInContext(`${source.slice(start, end)}; globalThis.render = renderEditorialContents;`, context);
+	const html: string = context.render({ ...editorial, subtaskSolutions: [{ title: 'partial', appliesToSubtasks: ['1'], solution: 'explanation', acCode: 'int main() {}' }] }, bindPayload.problem, true);
+	assert.equal([...html.matchAll(/data-reader-mode="dom"/g)].length, 5);
+	assert.equal([...html.matchAll(/data-copy-protected><div class="protected-reader" data-reader-mode="canvas"/g)].length, 2);
+});
+
+test('revealing an unchanged report and changing its theme do not reload its webview', async () => {
+	const { panel } = createHarness();
+	let html = '<html>split report</html>';
+	let reloads = 0; let reveals = 0;
+	const messages: object[] = [];
+	panel.state.editorial = editorial;
+	panel.editorialPanel = {
+		viewColumn: 1, reveal() { reveals++; },
+		webview: {
+			get html() { return html; }, set html(value: string) { html = value; reloads++; },
+			postMessage(message: object) { messages.push(message); },
+		},
+	};
+	await panel.showEditorialPanel(editorial, panel.state.problem, true);
+	assert.deepEqual({ reveals, reloads }, { reveals: 1, reloads: 0 });
+	panel.refreshEditorial();
+	assert.equal(reloads, 0);
+	assert.equal((messages[0] as { type: string }).type, 'protectedReaderTheme');
+});
+
 test('cancelled, locked and disconnected reports do not open a modal or populate a cache', async () => {
 	const { panel, created } = createHarness();
 	let requests = 0;
@@ -145,8 +186,10 @@ test('duplicate requests share one flight and stale responses cannot fill a diff
 	assert.equal(saves, 0);
 });
 
-test('report likes update the report cache without opening a hint modal', async () => {
-	const { panel } = createHarness();
+test('report likes only update button messages and cache without rendering content', async () => {
+	const { panel, posted } = createHarness();
+	let renders = 0;
+	panel.render = () => { renders++; };
 	panel.state.editorial = editorial;
 	panel.actions.like = async () => ({ hintId: '123', target: 'question', liked: true, questionLiked: true, answerLiked: false, questionLikeCount: 4, answerLikeCount: 1 });
 	panel.actions.saveEditorial = async () => { };
@@ -154,6 +197,8 @@ test('report likes update the report cache without opening a hint modal', async 
 	assert.equal(panel.state.editorial.hints[0].questionLiked, true);
 	assert.equal(panel.state.cachedEditorial.hints[0].questionLikeCount, 4);
 	assert.equal(panel.state.operationsInFlight.size, 0);
+	assert.equal(renders, 0);
+	assert.equal(posted.some(message => (message as { type?: string }).type === 'hintLike'), true);
 });
 
 test('editorial tab renders loading and lock states without an extra view button', () => {
@@ -187,6 +232,7 @@ test('streamed and modal reports render the same external contents in tips, solu
 		escapeHtml: (text: string) => text, escapeAttribute: (text: string) => text,
 		renderMarkdownContent: (content: { content: string }) => `<pre>${content.content}</pre>`,
 		renderProblemMarkdown: (text: string) => text,
+		renderReportMarkdown: (text: string) => text,
 		renderLikeButton: (_id: string, _target: string, _likes: object, enabled: boolean, loading: boolean) => `<button${!enabled || loading ? ' disabled' : ''}></button>`,
 	});
 	const start = source.indexOf('function renderEditorialTab(');
@@ -226,6 +272,7 @@ test('modal refresh restores collapsed sections and resizing preserves their sta
 
 test('problem statements and both report views block protected selections while preserving samples, prose and editable fields', () => {
 	class Element {
+		textContent = 'content';
 		constructor(readonly tagName: string, readonly isContentEditable = false) { }
 		closest() { return ['INPUT', 'TEXTAREA'].includes(this.tagName) ? this : null; }
 	}
@@ -253,7 +300,7 @@ test('problem statements and both report views block protected selections while 
 			}) },
 			document: {
 				querySelectorAll: (selector: string) => {
-					assert.equal(selector, view === 'problemView.js' ? '[data-copy-protected], .editorial-container pre, .editorial-container code' : '.editorial-container pre, .editorial-container code');
+					assert.equal(selector, '[data-copy-protected]');
 					return protectedElements;
 				},
 				addEventListener: (type: string, listener: (event: ClipboardEvent) => void) => listeners.set(type, listener),

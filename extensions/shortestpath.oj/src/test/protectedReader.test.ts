@@ -8,6 +8,8 @@ import test from 'node:test';
 import { ProtectedReaderCrypto } from '../protectedReaderCrypto';
 import { assertProtectedContent, discardLegacyReadingText, getReaderKeys, protectedMarkdownSlot, readingFingerprint } from '../protectedReaderHost';
 import { readerKeys, sealFixture } from './protectedFixtures';
+import { createProtectedMarkdownRenderer } from '../protectedReaderMarkdown';
+import { createMarkdownRendererWithHighlighter } from '../markdownRenderer';
 
 const encoded = (sealed: string) => sealed.slice('spide1:'.length);
 
@@ -40,6 +42,73 @@ test('reading keys isolate accounts, origins and problems without writing keys t
 	assert.ok(slot.includes('data-reader-template'));
 	assert.ok(!slot.includes('sentinel'));
 	assert.ok(!slot.includes(readerKeys.privateJwk.d!));
+});
+
+test('reader surface identity includes the exact ciphertext and link base', () => {
+	const sealed = sealFixture('same text');
+	const id = (content: string, base = 'https://shortestpath.cn/problem/A') => /data-reader-id="([^"]+)"/.exec(protectedMarkdownSlot(content, base)!)![1];
+	assert.equal(id(sealed), id(sealed));
+	assert.notEqual(id(sealed), id(sealed, 'https://shortestpath.cn/problem/B'));
+	assert.notEqual(id(sealed), id(sealFixture('different text')));
+	assert.notEqual(id(sealed), id(sealFixture('same text')));
+	assert.notEqual(protectedMarkdownSlot(sealed, 'https://shortestpath.cn', 'canvas'), protectedMarkdownSlot(sealed, 'https://shortestpath.cn', 'dom'));
+	assert.match(protectedMarkdownSlot(sealed, 'https://shortestpath.cn', 'dom')!, /class="reader-content" data-reader-mode="dom"/);
+});
+
+test('reader shares pending and completed plaintext only within its active key context', async () => {
+	const reader = new ProtectedReaderCrypto();
+	await reader.initialize(readerKeys.privateJwk as JsonWebKey, readerKeys.publicKey);
+	const sealed = encoded(sealFixture('cached content'));
+	const first = reader.decrypt(sealed);
+	assert.equal(reader.decrypt(sealed), first);
+	assert.equal(await first, 'cached content');
+	assert.equal(reader.decrypt(sealed), first);
+	reader.clear();
+	await assert.rejects(reader.decrypt(sealed));
+	await reader.initialize(readerKeys.privateJwk as JsonWebKey, readerKeys.publicKey);
+	const reinitialized = reader.decrypt(sealed);
+	assert.notEqual(reinitialized, first); await reinitialized;
+	const pending = reader.decrypt(encoded(sealFixture('old account')));
+	reader.clear();
+	await assert.rejects(pending, /Reader key changed/);
+});
+
+test('reader evicts old plaintext and does not retain failed decryptions', async () => {
+	const reader = new ProtectedReaderCrypto();
+	await reader.initialize(readerKeys.privateJwk as JsonWebKey, readerKeys.publicKey);
+	const sealed = encoded(sealFixture('oldest'));
+	const first = reader.decrypt(sealed); await first;
+	for (let index = 0; index < 128; index++) { await reader.decrypt(encoded(sealFixture(String(index)))); }
+	const reloaded = reader.decrypt(sealed);
+	assert.notEqual(reloaded, first); await reloaded;
+	const bad = reader.decrypt('invalid'); await assert.rejects(bad);
+	const retry = reader.decrypt('invalid'); assert.notEqual(retry, bad); await assert.rejects(retry);
+});
+
+test('on-demand grammars preserve aliases, nested fences and unknown-language fallback', async () => {
+	const prepare = createProtectedMarkdownRenderer(() => 'github-dark');
+	const prose = '# Explanation\n\n$x^2$';
+	assert.match((await prepare(prose))(prose, 'https://shortestpath.cn'), /class="katex"/);
+	for (const [language, code] of [['c++', 'int main() { return 0; }'], ['py', 'print(42)'], ['js', 'const n = 42;'], ['ts', 'const n: number = 42;'], ['sh', 'echo hello'], ['java', 'class Main {}'], ['json', '{"n":42}'], ['sql', 'SELECT 1']]) {
+		const markdown = `> ~~~${language}\n> ${code}\n> ~~~`;
+		assert.match((await prepare(markdown))(markdown, 'https://shortestpath.cn'), /class="shiki/);
+	}
+	const unknown = '```constructor\n<script>unsafe</script>\n```';
+	assert.match((await prepare(unknown))(unknown, 'https://shortestpath.cn'), /&lt;script&gt;/);
+	prepare.dispose();
+});
+
+test('report text and escaped code are available before deferred syntax highlighting', async () => {
+	const render = createMarkdownRendererWithHighlighter(undefined, () => 'github-dark');
+	const markdown = '# Explanation\n\n```cpp\nif (x < 2) return 0;\n```';
+	const plain = render(markdown, 'https://shortestpath.cn');
+	assert.match(plain, /<h1>Explanation<\/h1>/);
+	assert.match(plain, /<pre data-reader-language="cpp"><code>if \(x &lt; 2\)/);
+	const prepare = createProtectedMarkdownRenderer(() => 'github-dark');
+	try {
+		assert.match((await prepare.highlight('if (x < 2) return 0;', 'cpp'))!, /class="shiki/);
+		assert.equal(await prepare.highlight('<script>plain</script>', 'unsupported'), undefined);
+	} finally { prepare.dispose(); }
 });
 
 test('legacy migration removes reading text while preserving user source, samples, public headers and ciphertext', () => {

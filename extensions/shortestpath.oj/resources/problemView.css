@@ -1685,10 +1685,7 @@ body {
 }
 
 [data-copy-protected],
-[data-copy-protected] *,
-.editorial-container pre,
-.editorial-container pre *,
-.editorial-container code {
+[data-copy-protected] * {
 	-webkit-user-select: none;
 	user-select: none;
 }
