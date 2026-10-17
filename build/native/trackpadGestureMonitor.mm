@@ -29,6 +29,7 @@ struct Monitor {
 	bool permitted = false;
 	bool tracking = false;
 	bool finished = false;
+	bool released = false;
 	bool canGoBack = false;
 	bool canGoForward = false;
 	double horizontal = 0;
@@ -67,6 +68,7 @@ static void CancelTracking(const std::shared_ptr<Monitor>& monitor) {
 	monitor->permitted = false;
 	monitor->tracking = false;
 	monitor->finished = true;
+	monitor->released = false;
 	monitor->event = nil;
 }
 
@@ -100,14 +102,17 @@ static void TryStart(const std::shared_ptr<Monitor>& monitor) {
 				if ((phase & NSEventPhaseCancelled) || (phase & NSEventPhaseMayBegin)) {
 					monitor->finished = true;
 					Send(monitor, "cancel");
-				} else if (phase & NSEventPhaseEnded) {
-					monitor->finished = true;
-					Send(monitor, "end", amount);
-				} else if (complete) {
-					monitor->finished = true;
-					Send(monitor, "cancel");
 				} else {
-					Send(monitor, "update", amount);
+					// AppKit keeps calling the handler after physical release while
+					// the swipe animation settles. Report end only when it is complete,
+					// so closing a view cannot remove this monitor mid-animation.
+					monitor->released |= (phase & NSEventPhaseEnded) != 0;
+					if (complete) {
+						monitor->finished = true;
+						Send(monitor, monitor->released ? "end" : "cancel", amount);
+					} else {
+						Send(monitor, "update", amount);
+					}
 				}
 			}
 			if (complete) {
