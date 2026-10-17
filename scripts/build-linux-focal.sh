@@ -23,7 +23,7 @@ NPM_CACHE="$(npm config get cache)"
 
 mkdir -p "$NPM_CACHE"
 
-docker run --rm \
+docker run --rm --interactive \
 	--env CC=clang-15 \
 	--env CI=true \
 	--env CXX=clang++-15 \
