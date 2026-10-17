@@ -15,6 +15,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { language } from '../../../../base/common/platform.js';
 import { listenStream } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -451,6 +452,13 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
 			parentOrigin: targetWindow.origin,
+			loadingText: language.startsWith('zh')
+				? localize(
+					'webview.loading.zh',
+					// allow-any-unicode-next-line
+					"加载中"
+				)
+				: localize('webview.loading', "Loading..."),
 		};
 
 		if (this._options.disableServiceWorker) {
