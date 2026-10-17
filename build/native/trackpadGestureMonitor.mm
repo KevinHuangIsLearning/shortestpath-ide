@@ -30,6 +30,7 @@ struct Monitor {
 	bool tracking = false;
 	bool finished = false;
 	bool released = false;
+	bool closeBackWithoutHistory = false;
 	bool canGoBack = false;
 	bool canGoForward = false;
 	double horizontal = 0;
@@ -69,6 +70,7 @@ static void CancelTracking(const std::shared_ptr<Monitor>& monitor) {
 	monitor->tracking = false;
 	monitor->finished = true;
 	monitor->released = false;
+	monitor->closeBackWithoutHistory = false;
 	monitor->event = nil;
 }
 
@@ -103,11 +105,17 @@ static void TryStart(const std::shared_ptr<Monitor>& monitor) {
 					monitor->finished = true;
 					Send(monitor, "cancel");
 				} else {
-					// AppKit keeps calling the handler after physical release while
-					// the swipe animation settles. Report end only when it is complete,
-					// so closing a view cannot remove this monitor mid-animation.
+					// AppKit normally keeps calling the handler after physical release
+					// until its animation settles. A strong no-history back swipe closes
+					// the view, so stop tracking and close as soon as the finger lifts.
 					monitor->released |= (phase & NSEventPhaseEnded) != 0;
-					if (complete) {
+					const bool closeImmediately = !complete && (phase & NSEventPhaseEnded)
+						&& monitor->closeBackWithoutHistory && amount >= 0.3;
+					if (closeImmediately) {
+						monitor->finished = true;
+						Send(monitor, "end", amount);
+						*stop = YES;
+					} else if (complete) {
 						monitor->finished = true;
 						Send(monitor, monitor->released ? "end" : "cancel", amount);
 					} else {
@@ -115,7 +123,7 @@ static void TryStart(const std::shared_ptr<Monitor>& monitor) {
 					}
 				}
 			}
-			if (complete) {
+			if (complete || *stop) {
 				monitor->active = false;
 				monitor->tracking = false;
 				monitor->event = nil;
@@ -192,15 +200,16 @@ static napi_value Subscribe(napi_env env, napi_callback_info info) {
 }
 
 static napi_value Start(napi_env env, napi_callback_info info) {
-	napi_value args[4];
-	size_t count = 4;
+	napi_value args[5];
+	size_t count = 5;
 	napi_get_cb_info(env, info, &count, args, nullptr, nullptr);
 	uint32_t id, gesture;
-	bool back, forward;
-	if (count != 4 || ![NSThread isMainThread] || napi_get_value_uint32(env, args[0], &id) != napi_ok
+	bool back, forward, closeBackWithoutHistory;
+	if (count != 5 || ![NSThread isMainThread] || napi_get_value_uint32(env, args[0], &id) != napi_ok
 		|| napi_get_value_uint32(env, args[1], &gesture) != napi_ok || napi_get_value_bool(env, args[2], &back) != napi_ok
-		|| napi_get_value_bool(env, args[3], &forward) != napi_ok) {
-		napi_throw_type_error(env, nullptr, "Swipe tracking requires a subscription, gesture and history availability");
+		|| napi_get_value_bool(env, args[3], &forward) != napi_ok
+		|| napi_get_value_bool(env, args[4], &closeBackWithoutHistory) != napi_ok) {
+		napi_throw_type_error(env, nullptr, "Swipe tracking requires a subscription, gesture and direction availability");
 		return nullptr;
 	}
 	const auto found = monitors.find(id);
@@ -209,6 +218,7 @@ static napi_value Start(napi_env env, napi_callback_info info) {
 		if (monitor->active && monitor->gesture == gesture && !monitor->permitted) {
 			monitor->canGoBack = back;
 			monitor->canGoForward = forward;
+			monitor->closeBackWithoutHistory = back && closeBackWithoutHistory;
 			monitor->permitted = back || forward;
 			TryStart(monitor);
 		}

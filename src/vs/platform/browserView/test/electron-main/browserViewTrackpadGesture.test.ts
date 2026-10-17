@@ -43,7 +43,7 @@ suite('BrowserView AppKit gesture routing', () => {
 		view.input('update', 1, 1);
 		view.subscription.start(true, true);
 		assert.deepStrictEqual([view.calls, view.events], [
-			[['start', 7, 1, true, false]],
+			[['start', 7, 1, true, false, false]],
 			[{ phase: 'begin', amount: 0, x: 5, y: 5 }, { phase: 'update', amount: 0.15, x: 0, y: 0 }, { phase: 'end', amount: 0.4, x: 0, y: 0 }],
 		]);
 	});

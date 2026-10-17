@@ -83,7 +83,7 @@ export function registerBrowserViewHistorySwipe(
 		allowedForward = forward && contents.navigationHistory.canGoForward();
 		if (!allowedBack && !allowedForward) { cancel(); return; }
 		approved = true;
-		gestureSubscription.start(allowedBack, allowedForward);
+		gestureSubscription.start(allowedBack, allowedForward, allowedBack && !contents.navigationHistory.canGoBack());
 	};
 	const onCancel = (event: Electron.IpcMainEvent, requestToken: number) => {
 		if (event.senderFrame === contents.mainFrame && requestToken === token && active) { cancel(); }

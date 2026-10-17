@@ -15,13 +15,13 @@ export interface ITrackpadGesture {
 }
 
 export interface ITrackpadGestureSubscription extends IDisposable {
-	start(canGoBack: boolean, canGoForward: boolean): void;
+	start(canGoBack: boolean, canGoForward: boolean, closeBackWithoutHistory?: boolean): void;
 	cancel(): void;
 }
 
 export interface ITrackpadGestureMonitor {
 	subscribe(callback: (phase: ITrackpadGesture['phase'], window: number, x: number, y: number, gesture: number, amount: number) => void): number;
-	start(id: number, gesture: number, canGoBack: boolean, canGoForward: boolean): void;
+	start(id: number, gesture: number, canGoBack: boolean, canGoForward: boolean, closeBackWithoutHistory: boolean): void;
 	cancel(id: number): void;
 	unsubscribe(id: number): void;
 	pointForWindow(handle: Buffer, window: number, x: number, y: number): { x: number; y: number } | undefined;
@@ -71,8 +71,8 @@ export function registerBrowserViewTrackpadGesture(
 		native.unsubscribe(id);
 	});
 	return Object.assign(disposable, {
-		start: (canGoBack: boolean, canGoForward: boolean) => {
-			if (!disposed && tracking !== undefined) { native.start(id, tracking, canGoBack, canGoForward); }
+		start: (canGoBack: boolean, canGoForward: boolean, closeBackWithoutHistory = false) => {
+			if (!disposed && tracking !== undefined) { native.start(id, tracking, canGoBack, canGoForward, closeBackWithoutHistory); }
 		},
 		cancel: () => { tracking = undefined; if (!disposed) { native.cancel(id); } },
 	});
