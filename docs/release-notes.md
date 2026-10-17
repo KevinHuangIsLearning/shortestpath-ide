@@ -2,15 +2,13 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.4.13 更新 / What's New
+## v0.4.14 更新 / What's New
 
-- 优化题目描述、AC 代码和解题报告的加载速度，点赞时不再重新渲染正文。
-- 加快解题报告弹窗显示，题解正文和讲解代码片段可直接复制；题目描述和 AC 代码保持复制限制。
+- 优化 SPOJ 验证逻辑。
 
 ### English
 
-- Improve loading performance for problem statements, AC code, and editorials. Liking a hint no longer re-renders the content.
-- Show editorials faster in popups and allow copying editorial prose and explanatory code snippets. Problem statements and AC code retain their copy restrictions.
+- Improve SPOJ verification logic.
 
 The English version follows the Chinese version.
 
