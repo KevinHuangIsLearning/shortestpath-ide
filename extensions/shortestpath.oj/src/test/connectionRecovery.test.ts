@@ -316,7 +316,11 @@ for (const recovered of [false, true]) {
 			if (recovered) { manager.websiteStatus(problem.ref, 'connecting'); }
 			assert.deepEqual(actions, ['browse']);
 			manager.setSubmissionActive(problem.ref, false);
-			assert.deepEqual(actions, ['browse', 'solve']);
+			assert.deepEqual(actions, recovered ? ['browse', 'solve'] : ['browse']);
+			if (!recovered) {
+				manager.websiteStatus(problem.ref, 'connecting');
+				assert.deepEqual(actions, ['browse', 'solve']);
+			}
 		} finally { manager.dispose(); }
 	});
 }
@@ -343,7 +347,7 @@ test('normal submission completion and another problem do not redirect', async (
 	} finally { manager.dispose(); }
 });
 
-test('submission completion cancels verification navigation still waiting for a page', async () => {
+test('submission completion keeps verification navigation pending until the challenge is resolved', async () => {
 	let resolveOpen!: (page: { id: string; close(): Promise<void>; show(): Promise<void> }) => void;
 	const actions: string[] = [];
 	const manager = new ConnectionRecovery({
@@ -358,6 +362,6 @@ test('submission completion cancels verification navigation still waiting for a 
 		manager.setSubmissionActive(problem.ref, false);
 		resolveOpen({ id: 'late', close: async () => {}, show: async () => { actions.push('browse'); } });
 		await new Promise(resolve => setTimeout(resolve, 0));
-		assert.deepEqual(actions, []);
+		assert.deepEqual(actions, ['browse']);
 	} finally { manager.dispose(); }
 });

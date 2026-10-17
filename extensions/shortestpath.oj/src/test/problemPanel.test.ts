@@ -224,6 +224,20 @@ test('inline hints fetch accepted answers once and remain available offline with
 	assert.deepEqual({ requests, posted }, { requests: 1, posted: [] });
 });
 
+test('verification switches to browsing before showing the existing recovery page', async () => {
+	const compiled = source();
+	const start = compiled.indexOf('present: async ');
+	const end = compiled.indexOf('returnToSolve: async ', start);
+	assert.ok(start >= 0 && end > start);
+	const calls: string[] = [];
+	const page = { id: 'verification', show: async () => { calls.push('show'); } };
+	const recoveryReturns = new WeakMap<object, number>();
+	const context = vm.createContext({ recoveryReturns, vscode: { commands: { executeCommand: async (command: string) => { calls.push(command); return 7; } } } });
+	vm.runInContext(`globalThis.present = ({ ${compiled.slice(start, end)} }).present;`, context);
+	await context.present(page);
+	assert.deepEqual({ calls, revision: recoveryReturns.get(page) }, { calls: ['shortestpath.mode.browse', 'show', '_shortestpath.captureBrowserReturn'], revision: 7 });
+});
+
 test('an expired hint reads its question only when clicked, without revealing an answer or retrying', async () => {
 	const { panel, posted } = createPanel();
 	panel.state.problem.state.hints[0].unlocked = false;
@@ -301,6 +315,46 @@ test('a hint countdown enables its click action locally without asking the websi
 	now += 120_000;
 	tick();
 	assert.deepEqual(messages, []);
+});
+
+test('hint updates and modal clones preserve countdown deadlines and hidden-page elapsed time', () => {
+	const compiled = fs.readFileSync(path.resolve(__dirname, '../problemView.js'), 'utf8');
+	const start = compiled.indexOf('/* ---- Hint countdown ---- */');
+	const end = compiled.indexOf('/* ---- Modal infrastructure ---- */', start);
+	const refresh = /if \(hasCountdownUpdate\) \{[^}]+\}/.exec(compiled)?.[0];
+	assert.ok(refresh);
+	let now = 1000;
+	let tick!: () => void;
+	class Button {
+		disabled = true;
+		dataset: { remainingMs: string; countdownDeadline?: string } = { remainingMs: '10000' };
+		classList = { toggle() {} };
+		querySelector() { return null; }
+		closest() { return null; }
+		removeAttribute() { this.dataset.remainingMs = ''; }
+		setAttribute() {}
+	}
+	let editorial = new Button();
+	let hint = new Button();
+	const context = vm.createContext({
+		Date: { now: () => now }, body: { dataset: { connected: 'true' } }, HTMLButtonElement: Button,
+		document: { querySelectorAll: () => [hint, editorial].filter(button => button.dataset.remainingMs), addEventListener() {} },
+		setInterval: (callback: () => void) => { tick = callback; return 1; }, clearInterval() {}, hasCountdownUpdate: true,
+	});
+	vm.runInContext(compiled.slice(start, end), context);
+	now += 5000;
+	const clone = new Button();
+	clone.dataset = { ...editorial.dataset };
+	editorial = clone;
+	hint = new Button();
+	hint.dataset.remainingMs = '20000';
+	vm.runInContext(refresh, context);
+	now += 5000;
+	tick();
+	assert.deepEqual({ editorialDisabled: editorial.disabled, hintDisabled: hint.disabled }, { editorialDisabled: false, hintDisabled: true });
+	now += 60_000;
+	tick();
+	assert.equal(hint.disabled, false);
 });
 
 test('connection restores submission history and watches without requiring a refresh action', async () => {

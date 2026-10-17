@@ -155,7 +155,7 @@ export class ConnectionRecovery {
 			return;
 		}
 		this.pendingSubmissions.delete(problemRef);
-		if (!this.disposed && this.problem?.ref === problemRef) {
+		if (!this.disposed && this.problem?.ref === problemRef && !this.blocked && this.deps.isBound(problemRef)) {
 			this.showWhenReady = false;
 			if (this.shown) {
 				this.shown = false;

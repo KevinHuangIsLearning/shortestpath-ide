@@ -1747,6 +1747,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 		isBound: ref => bridge.isBound(ref),
 		status: (ref, status) => panel.setRecoveryState(ref, status),
 		present: async page => {
+			await vscode.commands.executeCommand('shortestpath.mode.browse');
 			await page.show();
 			const revision = await vscode.commands.executeCommand<number | undefined>('_shortestpath.captureBrowserReturn', page.id);
 			if (revision !== undefined) { recoveryReturns.set(page, revision); }

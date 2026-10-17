@@ -250,12 +250,16 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		const s = totalSeconds % 60;
 		return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
 	};
-	let countdownRenderedAt = Date.now();
+	// Sections arrive independently. Retained controls keep their own deadline
+	// when another section is replaced or its countdown finishes.
 	const updateHintCountdowns = (): void => {
-		const elapsed = Date.now() - countdownRenderedAt;
+		const now = Date.now();
 		document.querySelectorAll<HTMLElement>('[data-remaining-ms]').forEach(el => {
-			const base = Number(el.dataset.remainingMs || '0');
-			const remaining = Math.max(0, base - elapsed);
+			if (el.dataset.countdownDeadline === undefined) {
+				// Keep the deadline when content is cloned into a modal as well.
+				el.dataset.countdownDeadline = String(now + Number(el.dataset.remainingMs || '0'));
+			}
+			const remaining = Math.max(0, Number(el.dataset.countdownDeadline) - now);
 			const text = `剩余 ${formatCountdown(remaining)}`;
 			const countdown = el.querySelector<HTMLElement>('.hint-countdown');
 			if (countdown) {
@@ -514,11 +518,11 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 	window.addEventListener('message', (event: MessageEvent<{ type: string; html: string }>) => {
 		const message = event.data;
 		if (message && message.type === 'showHintModal') {
-			countdownRenderedAt = Date.now();
 			const modal = document.createElement('div');
 			modal.className = 'modal hint-modal';
 			modal.innerHTML = message.html;
 			showModal(modal);
+			updateHintCountdowns();
 			modal.querySelectorAll<HTMLButtonElement>('[data-command="like"]').forEach(button => {
 				const pending = pendingHintLikes.get(`${button.dataset.hintId}:${button.dataset.target}`);
 				if (!pending) { return; }
@@ -1149,7 +1153,7 @@ type WebViewMessage = LocalTestSavedMessage | SourceChangedMessage | UpdateMessa
 		if (localDraft && updatedLocalTests) { restoreSection(updatedLocalTests, localDraft); }
 		syncRatingDialog();
 		if (hasCountdownUpdate) {
-			countdownRenderedAt = Date.now();
+			updateHintCountdowns();
 		}
 		if (message.timer) {
 			timerState.elapsedMs = message.timer.elapsedMs;
