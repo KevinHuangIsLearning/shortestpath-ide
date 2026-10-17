@@ -125,23 +125,26 @@ async function run() {
 		assert.deepStrictEqual([navigations, await hint()], [['back'], { visible: false }], 'stale progress cannot affect the new document');
 
 		await begin();
-		assert.deepStrictEqual(started, [true, true], 'a backward swipe without history stays available to close the tab');
+		assert.deepStrictEqual(started, [false, true], 'a backward swipe without history is unavailable while forward remains available');
 		await gesture('update', -0.4);
 		assert.deepStrictEqual(await hint(), { visible: true, opacity: '1', left: 'auto', right: '12px', transform: 'scaleX(-1)', sheets: 1 });
 		await gesture('end', -0.4);
 		assert.ok(contents.getURL().endsWith('/second'), 'AppKit successful release goes forward');
 		assert.deepStrictEqual(navigations, ['back', 'forward']);
 
-		// A backward swipe on the first page has no history to consume, so it closes the tab.
+		// A backward swipe on the first page has no history to consume, so it is ignored.
 		contents.navigationHistory.goBack();
 		await delay(100);
 		await begin();
+		assert.deepStrictEqual(started, [false, true], 'no previous page disables backward tracking');
 		await gesture('update', 0.4);
+		assert.deepStrictEqual(await hint(), { visible: false }, 'an unavailable backward swipe has no progress hint');
 		await gesture('end', 0.4);
-		assert.deepStrictEqual(navigations, ['back', 'forward', 'close'], 'a backward swipe without history closes the tab');
+		assert.deepStrictEqual(navigations, ['back', 'forward'], 'a backward swipe without history does nothing');
 
 		// Make both history directions available while checking directional edges.
 		await contents.loadURL(`http://127.0.0.1:${port}/third`);
+		await contents.loadURL(`http://127.0.0.1:${port}/fourth`);
 		contents.navigationHistory.goBack();
 		await delay(100);
 		await contents.executeJavaScript('document.getElementById("scroll").scrollLeft = 1800');
@@ -173,7 +176,7 @@ async function run() {
 		assert.strictEqual((await hint()).opacity, '1', 'hint works under strict CSP');
 		contents.emit('blur');
 		await gesture('end', 0.4);
-		assert.deepStrictEqual([navigations, await hint()], [['back', 'forward', 'close'], { visible: false }]);
+		assert.deepStrictEqual([navigations, await hint()], [['back', 'forward'], { visible: false }]);
 
 		console.log('Browser history swipe integration passed');
 		writeFileSync(HISTORY_SWIPE_TEST_REPORT, 'passed');

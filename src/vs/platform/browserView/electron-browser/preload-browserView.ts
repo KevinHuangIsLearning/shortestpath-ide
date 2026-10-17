@@ -41,7 +41,6 @@ function init() {
 		let active = false;
 		let tracking = false;
 		let amount = 0;
-		let canGoBack = false;
 		let hint: HTMLDivElement | undefined;
 		let circle: HTMLDivElement | undefined;
 		let arrow: SVGSVGElement | undefined;
@@ -96,8 +95,6 @@ function init() {
 			circle!.style.left = back ? `${-76 + progress * 88}px` : 'auto';
 			circle!.style.right = back ? 'auto' : `${-76 + progress * 88}px`;
 			circle!.style.opacity = progress >= 1 ? '1' : '0.55';
-			// Without a previous page the same swipe closes the tab, so show a cross.
-			arrow!.firstElementChild!.setAttribute('d', back && !canGoBack ? 'M20 20L44 44M44 20L20 44' : 'M46 32H18M30 20L18 32L30 44');
 			arrow!.style.transform = back ? '' : 'scaleX(-1)';
 		};
 		const cancel = () => {
@@ -112,9 +109,7 @@ function init() {
 			tracking = false;
 			amount = 0;
 			hideHint();
-			canGoBack = state.canGoBack;
-			// A backward swipe stays available without history: it closes the tab.
-			let back = true;
+			let back = state.canGoBack;
 			let forward = state.canGoForward;
 			let element = document.elementFromPoint(state.x, state.y);
 			// Descend open shadow roots, then inspect the actual hit's ancestors.

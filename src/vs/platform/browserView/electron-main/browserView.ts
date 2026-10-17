@@ -523,7 +523,7 @@ export class BrowserView extends Disposable {
 		if (isMacintosh) {
 			this._register(registerBrowserViewHistorySwipe(webContents,
 				() => this._view.getVisible() && !webContents.isCrashed() && !this.debugger.isPaused,
-				action => action === 'close' ? this.dispose() : action === 'back' ? this.goBack() : this.goForward(),
+				action => action === 'back' ? this.goBack() : this.goForward(),
 				listener => registerBrowserViewTrackpadGesture(() => this._hostWindow, () => this._view.getBounds(),
 					() => this._view.getVisible(), listener)));
 		}
