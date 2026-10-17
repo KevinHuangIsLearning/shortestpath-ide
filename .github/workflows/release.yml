@@ -305,15 +305,6 @@ jobs:
     name: Build Linux x64
     runs-on: ubuntu-22.04
     timeout-minutes: 90
-    env:
-      # Electron 43 headers combine deprecated and visibility attributes that GCC rejects.
-      CC: clang-15
-      CXX: clang++-15
-      VSCODE_ARCH: x64
-      npm_config_arch: x64
-      npm_config_foreground_scripts: "true"
-      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     steps:
       - uses: actions/checkout@v7
         with:
@@ -323,89 +314,10 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - name: Install native build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-15 pkg-config libkrb5-dev libxkbfile-dev
-          "$CC" --version
-          "$CXX" --version
-      - name: Install dependencies
-        run: |
-          npmrc=$(cat .npmrc)
-          trap 'printf "%s" "$npmrc" > .npmrc' EXIT
-          sed -i '/^build_from_source=/d' .npmrc
-          npm ci
-          printf "%s" "$npmrc" > .npmrc
-          trap - EXIT
-          # Dropping `build_from_source` also turns off node-pty's source build: its
-          # install script keeps the prebuilds it ships for every platform unless that
-          # flag is set. Nothing in build/.moduleignore removes them, so the packaged
-          # tree would carry win32/darwin/arm64 `*.node` files, and
-          # `vscode-linux-x64-prepare-deb` feeds every unpacked `*.node` to
-          # dpkg-shlibdeps, which cannot resolve the aarch64 libraries of
-          # prebuilds/linux-arm64/pty.node against the amd64 sysroot. Rebuilding from
-          # source deletes the prebuilds directory and produces
-          # node-pty/build/Release/pty.node, which is what .moduleignore and the
-          # reference dependency list expect.
-          npm rebuild node-pty @vscode/policy-watcher @vscode/spdlog @vscode/sqlite3 native-keymap --build-from-source --foreground-scripts
+      - name: Build Linux packages for the Ubuntu 20.04 ABI baseline
+        run: ./scripts/build-linux-focal.sh
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Build bundled OI extensions
-        run: npm run compile-oi-extensions
-      - name: Build Linux package
-        run: npm run gulp vscode-linux-x64-min
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-      - name: Archive Linux application
-        run: |
-          app="../VSCode-linux-x64"
-          test -f "$app/shortestpath" || {
-            echo "Packaged executable was not found: $app/shortestpath" >&2
-            exit 1
-          }
-          for entry in \
-            "shortestpath.judger/dist/extension.js" \
-            "usernamehw.errorlens/dist/extension.js" \
-            "shortestpath.setup/out/extension.js" \
-            "shortestpath.oj/dist/extension.js" \
-            "shortestpath.oj/out/protectedReader.bundle.js" \
-            "shortestpath.draw/dist/extension.js" \
-            "shortestpath.draw/dist/webview.js" \
-            "shortestpath.draw/dist/webview.css" \
-            "shortestpath.ojbetter/out/extension.js" \
-            "shortestpath.ojbetter/resources/manifest.json" \
-            "shortestpath.ojbetter/resources/vendor/atcoder-better.user.js.txt" \
-            "shortestpath.ojbetter/resources/vendor/codeforces-better.user.js.txt" \
-            "danielpinto8zz6.c-cpp-compile-run/dist/extension.js" \
-            "llvm-vs-code-extensions.vscode-clangd/out/bundle.js"; do
-            test -f "$app/resources/app/extensions/$entry" || {
-              echo "Required extension entry file was not packaged: $entry" >&2
-              exit 1
-            }
-          done
-          node -e "const p=require('node:path'); const r=process.argv[1]; new (require(p.join(r,'out/assets.js')).Assets)(p.join(r,'resources'));" "$app/resources/app/extensions/shortestpath.ojbetter"
-          mkdir -p artifacts
-          tar -czf artifacts/ShortestPath-IDE-linux-x64.tar.gz \
-            -C .. --transform 's,^VSCode-linux-x64,ShortestPath-IDE-linux-x64,' VSCode-linux-x64
-      - name: Install Debian packaging tools
-        run: sudo apt-get update && sudo apt-get install -y fakeroot
-      - name: Build Linux deb package
-        run: |
-          npm run gulp -- vscode-linux-x64-prepare-deb
-          npm run gulp -- vscode-linux-x64-build-deb
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-      - name: Stage Linux deb package
-        run: |
-          set -e
-          deb=$(ls .build/linux/deb/amd64/deb/*.deb)
-          version=$(dpkg-deb -f "$deb" Version)
-          expected=$(node -p "require('./product.json').shortestPathVersion")
-          case "$version" in
-            "$expected"-*) ;;
-            *) echo "Unexpected deb version $version (expected $expected-*)." >&2; exit 1 ;;
-          esac
-          cp "$deb" artifacts/ShortestPath-IDE-linux-x64.deb
       - uses: actions/upload-artifact@v7
         with:
           name: linux-x64

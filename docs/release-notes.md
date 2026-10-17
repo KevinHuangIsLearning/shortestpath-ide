@@ -42,7 +42,7 @@ xattr -c "/Applications/ShortestPath IDE.app"
 
 ### Linux（x64）
 
-- 只提供 x64，构建于 Ubuntu 22.04，需要 glibc 2.35 及以上（Ubuntu 22.04+ / Debian 12+ / Fedora 36+ 等）。
+- 只提供 x64，以 Ubuntu 20.04 ABI 为基线构建，支持 Ubuntu 20.04+（含 NOI Linux 2.0）、Debian 12+、Fedora 36+ 等。
 - 两种形态：`.tar.gz` 解压后在解压出的目录中运行 `shortestpath` 启动；`.deb` 面向 Debian / Ubuntu，双击安装或执行 `sudo apt install ./ShortestPath-IDE-linux-x64.deb`，装好后同样用 `shortestpath` 启动。
 - 编译器不在包里：首次运行向导会调用你发行版的包管理器安装 g++（需要输入 sudo 密码），并从网络下载 clangd。
 
@@ -78,6 +78,6 @@ xattr -c "/Applications/ShortestPath IDE.app"
 
 ### Linux (x64)
 
-- x64 only, built on Ubuntu 22.04, requiring glibc 2.35 or newer (Ubuntu 22.04+, Debian 12+, Fedora 36+, …).
+- x64 only, built against the Ubuntu 20.04 ABI baseline. It supports Ubuntu 20.04+ (including NOI Linux 2.0), Debian 12+, Fedora 36+, and similar distributions.
 - Two formats: extract the `.tar.gz` and run `shortestpath` from the extracted directory; the `.deb` targets Debian / Ubuntu — double-click it, or run `sudo apt install ./ShortestPath-IDE-linux-x64.deb`, then start it with `shortestpath`.
 - The compiler is not bundled: the first-run wizard installs g++ through your distribution's package manager (it will ask for your sudo password) and downloads clangd from the network.
