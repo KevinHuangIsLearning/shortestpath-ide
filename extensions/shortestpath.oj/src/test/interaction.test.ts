@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import type { StressTask } from '../shortestpathOjProtocol';
+import * as localTests from '../localTests';
 
 const view = (): string => fs.readFileSync(path.resolve(__dirname, '../problemView.js'), 'utf8');
 
@@ -102,6 +103,7 @@ function renderTasks(tasks: StressTask[]): string {
 	const start = source.indexOf('function renderSubmissionStress(');
 	const end = source.indexOf('function compareSubmissionIdDescending(', start);
 	const context = vm.createContext({
+		localTests_1: localTests,
 		localization_1: { localize: (text: string) => text },
 		escapeHtml: (text: string) => text.replace(/</g, '&lt;'),
 		escapeAttribute: (text: string) => text,

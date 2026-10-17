@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ImportedProblem } from './shortestpathOjProtocol';
-import { LocalTestResult, LocalTestsSnapshot, localTestErrorMessage, isOfficialLocalTest } from './localTests';
+import { LocalTestResult, LocalTestsSnapshot, localTestErrorMessage, isOfficialLocalTest, canRunLocalTests } from './localTests';
 
 type ViewHelpers = { escape(value: string): string; text(value: string): string; markdown(content: string, baseUrl: string): string };
 
@@ -93,7 +93,7 @@ function comparedOutput(value: string, other: string, failed: boolean, e: ViewHe
 /** Ordinary samples and custom tests share execution, but supplied samples are immutable. */
 export function renderLocalTests(snapshot: LocalTestsSnapshot | undefined, problem: ImportedProblem, error: string | undefined, pending: boolean, helpers: ViewHelpers): string {
 	const { escape: e, text: t } = helpers;
-	const displayOnly = problem.localTest?.enabled === false;
+	const displayOnly = !canRunLocalTests(problem);
 	if (displayOnly) {
 		// The statement already shows the local judging notice. Samples remain readable without a Judger snapshot.
 		snapshot = {

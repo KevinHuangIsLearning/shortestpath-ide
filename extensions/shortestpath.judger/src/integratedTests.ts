@@ -100,15 +100,26 @@ export class IntegratedTestService {
 			if (request.samples && (!Array.isArray(request.samples) || !request.samples.every(sample => sample && typeof sample.input === 'string' && typeof sample.output === 'string'))) { throw new Error('invalid-test'); }
 			// Legacy files did not record provenance. Classify them once, then
 			// persist the identity so later edits or duplicate content cannot change it.
-			if (request.samples && problem.tests.some(test => !test.origin)) {
+			if (request.samples) {
+				let changed = false;
 				const used = new Set(problem.tests.filter(test => test.origin === 'sample').map(test => test.sampleIndex));
 				for (const test of problem.tests) {
 					if (test.origin) { continue; }
 					const index = request.samples.findIndex((sample, index) => !used.has(index) && sample.input === test.input && sample.output === test.output);
 					test.origin = index < 0 ? 'custom' : 'sample';
 					if (index >= 0) { test.sampleIndex = index; used.add(index); }
+					changed = true;
 				}
-				this.dependencies.write(problem);
+				// Older SPJ imports omitted their samples entirely. Restore missing
+				// official samples without replacing custom tests or existing IDs.
+				let id = 1;
+				for (const [sampleIndex, sample] of request.samples.entries()) {
+					if (used.has(sampleIndex)) { continue; }
+					while (problem.tests.some(test => test.id === id)) { id++; }
+					problem.tests.push({ id: id++, input: sample.input, output: sample.output, origin: 'sample', sampleIndex });
+					changed = true;
+				}
+				if (changed) { this.dependencies.write(problem); }
 			}
 			return this.snapshot(sourcePath);
 		}

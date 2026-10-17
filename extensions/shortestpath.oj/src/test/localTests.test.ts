@@ -8,7 +8,10 @@ import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import http from 'node:http';
+import { once } from 'node:events';
 import * as localTests from '../localTests';
+import * as sourcePath from '../sourcePath';
 import { renderLocalTests, renderLocalTestsToolbar } from '../localTestsView';
 import { parseProblemBindData } from '../shortestpathOjProtocol';
 import { bindPayload } from './fixtures';
@@ -16,6 +19,72 @@ import { bindPayload } from './fixtures';
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const helpers = { escape, text: escape, markdown: escape };
 const snapshot = (): localTests.LocalTestsSnapshot => ({ sourcePath: '/A.cpp', status: 'idle', diagnostics: '', tests: [{ id: 1, input: '1\n', output: '1\n' }] });
+
+test('SPJ samples keep their run controls when automatic local judging is unavailable', async () => {
+	const { panel, requests } = panelFixture();
+	const problem = panel.state.problem as ReturnType<typeof parseProblemBindData>;
+	problem.judge.checkerType = 'testlib';
+	problem.localTest = { enabled: false, reason: 'No local checker' };
+	const html = renderLocalTests(snapshot(), problem, undefined, false, helpers);
+	assert.match(html, /data-command="localTestRun"/);
+	await panel.handleMessage({ command: 'localTestLoad' });
+	await panel.handleMessage({ command: 'localTestRun', id: 1 });
+	assert.deepEqual(requests.map(request => request.action), ['load', 'run']);
+	assert.deepEqual(requests[0].samples, problem.samples.map(({ input, output }) => ({ input, output })));
+});
+
+test('SPJ import sends the official samples to Judger and explains the limits of output comparison', async () => {
+	const problem = parseProblemBindData(bindPayload);
+	problem.judge.checkerType = 'testlib';
+	problem.localTest = { enabled: false, reason: 'Local judging is unavailable' };
+	problem.publicContent = { title: problem.title } as NonNullable<typeof problem.publicContent>;
+	const compiled = fs.readFileSync(path.resolve(__dirname, '../extension.js'), 'utf8');
+	let payload: { tests: Array<{ input: string; output: string }> } | undefined;
+	const server = http.createServer(async (request, response) => {
+		const chunks: Buffer[] = [];
+		for await (const chunk of request) { chunks.push(Buffer.from(chunk)); }
+		payload = JSON.parse(Buffer.concat(chunks).toString());
+		response.end(JSON.stringify({ sourcePath: '/A.cpp' }));
+	});
+	server.listen(0, '127.0.0.1');
+	await once(server, 'listening');
+	const address = server.address();
+	assert.ok(address && typeof address !== 'string');
+	const context = vm.createContext({ Buffer, URL, setTimeout, clearTimeout,
+		localTests_1: localTests, localization_1: { localize: (text: string) => text }, escapeHtml: escape,
+		http: { request: (options: http.RequestOptions, callback: (response: http.IncomingMessage) => void) => http.request({ ...options, port: address.port }, callback) },
+		sourcePath_1: sourcePath,
+	});
+	const start = compiled.indexOf('function forwardSamplesToCph(');
+	vm.runInContext(`${compiled.slice(start, compiled.indexOf('function readLocalTestEdits(', start))}; globalThis.forward = forwardSamplesToCph;`, context);
+	vm.runInContext(`${compiled.slice(compiled.indexOf('function renderPublicContent('))}\nglobalThis.renderNotice = renderPublicContent;`, context);
+	try {
+		assert.equal((await context.forward(problem, undefined, new AbortController().signal)).succeeded, true);
+		assert.deepEqual(payload?.tests, problem.samples.map(({ input, output }) => ({ input, output })));
+		assert.match(context.renderNotice(problem), /SPJ 本地测试按期望输出比较，结果仅供参考，请以网站评测为准。/);
+		assert.doesNotMatch(context.renderNotice(problem), /Local judging is unavailable/);
+	} finally {
+		await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+	}
+});
+
+test('SPJ fallback excludes interaction and programs that require a local grader', () => {
+	const problem = parseProblemBindData(bindPayload);
+	problem.judge.checkerType = 'testlib';
+	problem.localTest = { enabled: false, reason: '' };
+	assert.equal(localTests.canRunLocalTests(problem), true);
+	for (const content of [
+		{ interaction: {} },
+		{ local_judging: { kind: 'grader' } },
+		{ judge_runtime: { execution_mode: 'interactive', build_mode: 'standalone' } },
+		{ judge_runtime: { execution_mode: 'batch', build_mode: 'grader' } },
+	]) {
+		problem.publicContent = content as NonNullable<typeof problem.publicContent>;
+		assert.equal(localTests.canRunLocalTests(problem), false);
+	}
+	problem.publicContent = { local_judging: { kind: 'checker' }, judge_runtime: { execution_mode: 'batch', build_mode: 'standalone' } } as NonNullable<typeof problem.publicContent>;
+	assert.equal(localTests.canRunLocalTests(problem), true);
+});
 
 test('local samples retain explanations, expose ordinary controls, and keep input outside the output comparison', () => {
 	const state = snapshot();

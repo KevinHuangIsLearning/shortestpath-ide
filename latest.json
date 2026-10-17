@@ -2,5 +2,5 @@
 	"version": "0.4.12",
 	"downloadUrl": "https://github.com/KevinHuangIsLearning/shortestpath-ide/releases/tag/Release-v0.4.12",
 	"minimumSupportedVersion": "0.3.16",
-	"releaseNote": "修复 latex 渲染问题\n\nFix LaTeX rendering issues."
+	"releaseNote": "修复 latex 渲染问题；恢复 SPJ 题目的本地样例运行，输出比较结果仅供参考，请以网站评测为准。\n\nFix LaTeX rendering issues and restore local sample runs for SPJ problems. Output comparisons are for reference only; the website judge is authoritative."
 }

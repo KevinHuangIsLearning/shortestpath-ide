@@ -3,6 +3,18 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ImportedProblem } from './shortestpathOjProtocol';
+
+/** Missing local judging support must not prevent standalone SPJ programs from running. */
+export function canRunLocalTests(problem: ImportedProblem): boolean {
+	if (problem.localTest?.enabled !== false) { return true; }
+	const content = problem.publicContent;
+	const runtime = content?.judge_runtime;
+	return !['default', 'tokens', 'token', ''].includes(problem.judge.checkerType)
+		&& !content?.interaction && (!content?.local_judging || content.local_judging.kind === 'checker')
+		&& (!runtime || runtime.execution_mode === 'batch' && runtime.build_mode === 'standalone');
+}
+
 export function isOfficialLocalTest(test: { origin?: string } | undefined): boolean {
 	return test?.origin === 'sample';
 }

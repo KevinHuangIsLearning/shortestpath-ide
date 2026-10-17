@@ -27,7 +27,7 @@ test('allows and covers the OJ Webview localization bootstrap', () => {
 	for (const pattern of ['提示尚未解锁，剩余', '点赞提示问题', '取消点赞提示答案', '上一次提交结果未知']) {
 		assert.match(localization, new RegExp(pattern));
 	}
-	for (const text of ['预览缩放', '缩小', '放大', '重置缩放', '题目视图', '题面', '评测', '已连接题目网页。', '查看解题报告', '网站操作结果未知，请先查看网页状态。', '解题报告响应无效。']) {
+	for (const text of ['预览缩放', '缩小', '放大', '重置缩放', '题目视图', '题面', '评测', '已连接题目网页。', '查看解题报告', '网站操作结果未知，请先查看网页状态。', '解题报告响应无效。', 'SPJ 本地测试按期望输出比较，结果仅供参考，请以网站评测为准。']) {
 		assert.match(localization, new RegExp(`['"]${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]\\s*:`));
 	}
 	const extension = fs.readFileSync(path.join(extensionRoot, 'src', 'extension.ts'), 'utf8');

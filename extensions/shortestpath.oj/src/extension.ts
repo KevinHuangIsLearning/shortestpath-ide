@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getReaderKeys, protectedMarkdownSlot, discardLegacyReadingText } from './protectedReaderHost';
-import { LocalTestRequest, LocalTestsSnapshot, readLocalTestsSnapshot, localTestErrorMessage, isOfficialLocalTest } from './localTests';
+import { LocalTestRequest, LocalTestsSnapshot, readLocalTestsSnapshot, localTestErrorMessage, isOfficialLocalTest, canRunLocalTests } from './localTests';
 import { renderLocalTests, renderLocalTestsToolbar } from './localTestsView';
 import { ProblemRatingSession, isRating, Rating } from './problemRating';
 import { renderLocalJudgingMarkdown } from './localJudgingMarkdown';
@@ -525,7 +525,7 @@ class ShortestPathOjProblemPanel {
 
 	private async localTestRequest(request: Omit<LocalTestRequest, 'sourcePath'>): Promise<void> {
 		const state = this.state;
-		if (!state?.sourcePath || state.problem.localTest?.enabled === false) { return; }
+		if (!state?.sourcePath || !canRunLocalTests(state.problem)) { return; }
 		const official = (id: number | undefined) => isOfficialLocalTest(state.localTests?.tests.find(test => test.id === id));
 		if ((request.action === 'update' || request.action === 'delete') && official(request.id)) { return; }
 		if (request.edits) { request = { ...request, edits: request.edits.filter(edit => !official(edit.id)) }; }
@@ -2478,7 +2478,7 @@ function forwardSamplesToCph(problem: ImportedProblem, sourcePath: string | unde
 		memoryLimit: problem.limits.memoryMB,
 		timeLimit: problem.limits.timeMs,
 		group: parts.slice(0, -1).join('/'),
-		tests: problem.localTest?.enabled === false ? [] : problem.samples.map(sample => ({ input: sample.input, output: sample.output })),
+		tests: canRunLocalTests(problem) ? problem.samples.map(sample => ({ input: sample.input, output: sample.output })) : [],
 	});
 	return new Promise(resolve => {
 		let settled = false;
@@ -2546,7 +2546,7 @@ function readLocalTestEdits(value: unknown): LocalTestRequest['edits'] {
 async function addStressCounterExampleToLocalTests(problem: ImportedProblem, task: StressTask, ownerSourcePath?: string): Promise<void> {
 	const sourcePath = ownerSourcePath ?? (await readWorkspaceProblemCache()).sourcePaths[problem.ref];
 	if (!sourcePath) { throw new Error(localize('未找到该题目的本地代码文件。')); }
-	if (!task.counterExample || task.counterExampleTruncated || task.interactionTrace || problem.localTest?.enabled === false) {
+	if (!task.counterExample || task.counterExampleTruncated || task.interactionTrace || !canRunLocalTests(problem)) {
 		throw new Error(localize('当前对拍任务还没有可添加的反例。'));
 	}
 	await vscode.commands.executeCommand('judger.integratedTests', { sourcePath, action: 'add', input: task.counterExample.input, output: task.counterExample.expected, deduplicate: true } satisfies LocalTestRequest);
@@ -2647,7 +2647,7 @@ function renderProblemViewSections(
 		ratingPrompt: state.rating?.promptOpen ? renderRatingPrompt(state) : '',
 		information: renderInformation(statementProblem),
 		statement: renderStatement(problem, state.previousStatements, state.statementVersionIndex, !!state.sourcePath),
-		localTestsToolbar: state.sourcePath && state.statementVersionIndex === 0 && problem.localTest?.enabled !== false ? renderLocalTestsToolbar(state.localTests, state.localTestsPending === true, localize) : '',
+		localTestsToolbar: state.sourcePath && state.statementVersionIndex === 0 && canRunLocalTests(problem) ? renderLocalTestsToolbar(state.localTests, state.localTestsPending === true, localize) : '',
 		localTests: state.sourcePath && state.statementVersionIndex === 0 ? renderLocalTests(state.localTests, problem, state.localTestsError, state.localTestsPending === true, { escape: escapeHtml, text: localize, markdown: renderProblemMarkdown }) : '',
 		hints: renderHints(state),
 		editorial: renderEditorialTab(state, editorialRequestInFlight),
@@ -3169,7 +3169,7 @@ function renderSubmissionStress(state: ProblemPanelState, submission: Submission
 			const progress = active && task.roundsExecuted === 0
 				? '<progress></progress><span>对拍中…</span>'
 				: `<progress max="${task.roundsPlanned}" value="${Math.min(task.roundsExecuted, task.roundsPlanned)}"></progress><span>${task.roundsExecuted} / ${task.roundsPlanned}</span>`;
-			const canAddCounterExample = Boolean(task.counterExample) && state.problem.localTest?.enabled !== false && !task.counterExampleTruncated && !task.interactionTrace && isStressFinished(task.status);
+			const canAddCounterExample = Boolean(task.counterExample) && canRunLocalTests(state.problem) && !task.counterExampleTruncated && !task.interactionTrace && isStressFinished(task.status);
 			const counterExampleAction = canAddCounterExample ? `<button class="stress-counterexample-action" type="button" data-command="addStressCounterExample" data-task-id="${escapeAttribute(task.taskId)}"${state.addingStressCounterExamples.has(task.taskId) || state.addedStressCounterExamples.has(task.taskId) ? ' disabled' : ''}>${state.addedStressCounterExamples.has(task.taskId) ? '已添加到样例' : state.addingStressCounterExamples.has(task.taskId) ? '正在添加到样例…' : '添加到样例'}</button>` : '';
 			const counterExample = task.counterExample ? `${counterExampleAction}<details data-persist-key="stress-counterexample:${escapeAttribute(task.taskId)}"${isStressFinished(task.status) ? ` open data-auto-expand-key="${escapeAttribute(task.taskId)}"` : ''}><summary>反例</summary><div class="stress-io-grid"><div class="stress-io-block"><h4>输入</h4><pre data-i18n-ignore><code>${escapeHtml(task.counterExample.input)}</code></pre></div><div class="stress-io-block"><h4>期望输出</h4><pre data-i18n-ignore><code>${escapeHtml(task.counterExample.expected)}</code></pre></div><div class="stress-io-block"><h4>实际输出</h4><pre data-i18n-ignore><code>${escapeHtml(task.counterExample.actual)}</code></pre></div></div></details>` : '';
 			const disconnected = state.disconnectedStressTasks.has(task.taskId) ? `<p class="warning">${localize('连接恢复后将继续更新对拍结果。')}</p>` : '';
@@ -3308,6 +3308,11 @@ function renderPublicContent(problem: ImportedProblem): string {
 		for (const [index, header] of runtime.public_headers.entries()) { parts.push(section(`public-header:${index}`, header.name, `\`\`\`cpp\n${header.content}\n\`\`\``)); }
 	}
 	if (content.local_judging) { parts.push(section('local-judging', localize('本地评测'), renderLocalJudgingMarkdown(content.local_judging))); }
-	if (problem.localTest?.enabled === false) { parts.push(`<p class="warning">${escapeHtml(problem.localTest.reason)}</p>`); }
+	if (problem.localTest?.enabled === false) {
+		const notice = canRunLocalTests(problem)
+			? localize('SPJ 本地测试按期望输出比较，结果仅供参考，请以网站评测为准。')
+			: problem.localTest.reason;
+		parts.push(`<p class="warning">${escapeHtml(notice)}</p>`);
+	}
 	return parts.join('');
 }

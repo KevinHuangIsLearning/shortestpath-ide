@@ -46,6 +46,7 @@ const english: Readonly<Record<string, string>> = {
 	'本地测试执行失败': 'Local Test Failed',
 	'测试输入或期望输出无效。': 'Invalid test input or expected output.',
 	'交互题不支持本地样例运行。': 'Interactive problems do not support local sample runs.',
+	'SPJ 本地测试按期望输出比较，结果仅供参考，请以网站评测为准。': 'Local SPJ tests compare against the expected output. Results are for reference only; the website judge is authoritative.',
 	'本地测试暂时不可用，请重试。': 'Local testing is unavailable. Try again.',
 	'删除这个测试用例？': 'Delete this test case?',
 	'未找到该题目的本地代码文件。': 'The local source file for this problem was not found.',

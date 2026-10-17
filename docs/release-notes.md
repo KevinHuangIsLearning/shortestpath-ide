@@ -4,11 +4,13 @@
 
 ## v0.4.12 更新 / What's New
 
-修复 latex 渲染问题
+- 修复 latex 渲染问题。
+- 恢复 SPJ 题目的本地样例运行，输出比较结果仅供参考，请以网站评测为准。
 
 ### English
 
-Fix LaTeX rendering issues.
+- Fix LaTeX rendering issues.
+- Restore local sample runs for SPJ problems. Output comparisons are for reference only; the website judge is authoritative.
 
 The English version follows the Chinese version.
 

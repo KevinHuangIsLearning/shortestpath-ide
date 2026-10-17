@@ -94,6 +94,28 @@ test('loads existing tests, saves edits and additions, deduplicates counterexamp
 	expect(service.snapshot('/B.cpp').tests).toHaveLength(2);
 });
 
+test('loads missing official samples from legacy SPJ imports without losing custom cases or duplicating samples', async () => {
+	const { service, deps, problems } = setup();
+	problems.get('/A.cpp')!.tests = [{ id: 1, input: 'custom', output: 'custom', origin: 'custom' }];
+	problems.get('/B.cpp')!.tests = [];
+	const samples = [{ input: '1', output: '1' }, { input: '2', output: '2' }];
+	const first = await service.request({ sourcePath: '/A.cpp', action: 'load', samples });
+	const repeated = await service.request({ sourcePath: '/A.cpp', action: 'load', samples });
+	const empty = await service.request({ sourcePath: '/B.cpp', action: 'load', samples });
+	expect({ first: first.tests, repeated: repeated.tests, empty: empty.tests }).toEqual({
+		first: [
+			{ id: 1, input: 'custom', output: 'custom', origin: 'custom' },
+			{ id: 2, ...samples[0], origin: 'sample', sampleIndex: 0 },
+			{ id: 3, ...samples[1], origin: 'sample', sampleIndex: 1 },
+		],
+		repeated: first.tests,
+		empty: samples.map((sample, index) => ({ id: index + 1, ...sample, origin: 'sample', sampleIndex: index })),
+	});
+	expect(deps.write).toHaveBeenCalledTimes(2);
+	await service.request({ sourcePath: '/B.cpp', action: 'runAll' });
+	expect((deps.execute as jest.Mock).mock.calls.map(([, test]) => test.id)).toEqual([1, 2]);
+});
+
 test('run all saves draft edits before compiling once and executes each test with its source owner', async () => {
 	const { service, deps, problems } = setup();
 	let savedInput: string | undefined;
