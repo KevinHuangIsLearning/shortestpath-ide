@@ -180,6 +180,99 @@ class TemplateEditor extends Disposable {
 }
 
 const editors = new Map<IOverlayWebview, TemplateEditor>();
+const snippetEditors = new Map<IOverlayWebview, SnippetEditor>();
+
+/** Render the selected C++ snippet in a native editor and return its last draft on switch. */
+class SnippetEditor extends Disposable {
+	private readonly viewport: HTMLElement;
+	private readonly container: HTMLElement;
+	private readonly model: ITextModel;
+	private readonly editor: CodeEditorWidget;
+	private readonly draftScheduler: RunOnceScheduler;
+	private syncing = false;
+	private closed = false;
+	private contentRevision = 0;
+
+	constructor(
+		private readonly webview: IOverlayWebview,
+		source: string,
+		private selectionRevision: number,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService,
+		@ILanguageService languageService: ILanguageService,
+		@ITextResourceConfigurationService textConfigurationService: ITextResourceConfigurationService,
+	) {
+		super();
+		this.viewport = append(webview.container, $('.shortestpath-snippet-editor'));
+		Object.assign(this.viewport.style, { position: 'absolute', overflow: 'hidden', zIndex: '1', display: 'none' });
+		this._register(toDisposable(() => this.viewport.remove()));
+		this.container = append(this.viewport, $('div'));
+		Object.assign(this.container.style, { position: 'absolute', width: '100%' });
+		const resource = URI.from({ scheme: 'shortestpath-snippet', authority: generateUuid(), path: '/snippet.cpp' });
+		this.model = this._register(modelService.createModel(source, languageService.createById('cpp'), resource));
+		const options = (): IEditorOptions => ({
+			...textConfigurationService.getValue<IEditorOptions>(resource, 'editor'),
+			// allow-any-unicode-next-line
+			ariaLabel: language.startsWith('zh') ? '代码片段内容' : localize('snippetBody', "Snippet Body"),
+			automaticLayout: false,
+		});
+		const progressService: IEditorProgressService = {
+			_serviceBrand: undefined,
+			show: () => emptyProgressRunner,
+			showWhile: async promise => { await promise; }
+		};
+		const editorInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IEditorProgressService, progressService])));
+		this.editor = this._register(editorInstantiationService.createInstance(CodeEditorWidget, this.container, options(), {}));
+		this.editor.setModel(this.model);
+		this.draftScheduler = this._register(new RunOnceScheduler(() => this.sendDraft(), 80));
+		this._register(this.model.onDidChangeContent(() => {
+			if (!this.syncing && !this.closed) {
+				this.contentRevision++;
+				this.draftScheduler.schedule();
+			}
+		}));
+		this._register(textConfigurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(resource, 'editor')) {
+				this.editor.updateOptions(options());
+			}
+		}));
+	}
+
+	private sendDraft(): void {
+		if (!this.closed) {
+			void this.webview.postMessage({ type: 'snippetBodyChanged', selectionRevision: this.selectionRevision, contentRevision: this.contentRevision, source: this.model.getValue() });
+		}
+	}
+
+	layout(bounds: TemplateEditorBounds, selectionRevision: number, source?: string): { selectionRevision: number; contentRevision: number; source: string } | undefined {
+		let previous: { selectionRevision: number; contentRevision: number; source: string } | undefined;
+		if (selectionRevision !== this.selectionRevision) {
+			this.draftScheduler.cancel();
+			previous = { selectionRevision: this.selectionRevision, contentRevision: this.contentRevision, source: this.model.getValue() };
+			this.selectionRevision = selectionRevision;
+			if (typeof source === 'string' && source !== this.model.getValue()) {
+				this.syncing = true;
+				try {
+					this.model.setValue(source);
+				} finally {
+					this.syncing = false;
+				}
+			}
+		}
+		const top = Math.max(bounds.top, bounds.clipTop, 0);
+		const bottom = Math.min(bounds.top + bounds.height, bounds.clipBottom);
+		this.viewport.style.display = bounds.width > 0 && bounds.height > 0 && bottom > top ? 'block' : 'none';
+		Object.assign(this.viewport.style, { left: `${bounds.left}px`, top: `${top}px`, width: `${Math.max(0, bounds.width)}px`, height: `${Math.max(0, bottom - top)}px` });
+		this.container.style.top = `${bounds.top - top}px`;
+		this.editor.layout(new Dimension(Math.max(0, bounds.width), Math.max(0, bottom - top)));
+		return previous;
+	}
+
+	override dispose(): void {
+		this.closed = true;
+		super.dispose();
+	}
+}
 
 CommandsRegistry.registerCommand('_shortestpath.layoutTemplateEditor', (accessor, bounds: TemplateEditorBounds, defaultSource: string, viewType: string = 'shortestpath.settings') => {
 	if (!isTemplateEditorBounds(bounds) || typeof defaultSource !== 'string' || defaultSource.length > 100_000 || !isTemplateEditorViewType(viewType)) {
@@ -204,6 +297,31 @@ CommandsRegistry.registerCommand('_shortestpath.layoutTemplateEditor', (accessor
 		editor?.layout(bounds);
 		break;
 	}
+});
+
+CommandsRegistry.registerCommand('_shortestpath.layoutSnippetEditor', (accessor, bounds: TemplateEditorBounds, selectionRevision: number, source?: string) => {
+	if (!isTemplateEditorBounds(bounds) || !Number.isInteger(selectionRevision) || selectionRevision < 0 || (source !== undefined && typeof source !== 'string')) {
+		return;
+	}
+	for (const candidate of accessor.get(IWebviewService).webviews) {
+		if (candidate.providedViewType !== 'shortestpath.cppSnippets' || candidate.extension?.id.value !== 'shortestpath.shortestpath-setup' || !isOverlayWebview(candidate)) {
+			continue;
+		}
+		const webview = candidate;
+		let editor = snippetEditors.get(webview);
+		if (!editor && bounds.width > 0 && bounds.height > 0) {
+			editor = accessor.get(IInstantiationService).createInstance(SnippetEditor, webview, source ?? '', selectionRevision);
+			snippetEditors.set(webview, editor);
+			const lifetime = new DisposableStore();
+			lifetime.add(editor);
+			lifetime.add(webview.onDidDispose(() => {
+				snippetEditors.delete(webview);
+				lifetime.dispose();
+			}));
+		}
+		return editor?.layout(bounds, selectionRevision, source);
+	}
+	return;
 });
 
 function isTemplateEditorViewType(viewType: string): boolean {

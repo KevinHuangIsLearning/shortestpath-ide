@@ -243,11 +243,7 @@ async function openCppSnippets(context: vscode.ExtensionContext): Promise<void> 
 		return;
 	}
 	const language = 'cpp';
-	const getTabSize = () => {
-		const tabSize = vscode.workspace.getConfiguration('editor', { languageId: language }).get<unknown>('tabSize');
-		return typeof tabSize === 'number' && tabSize > 0 ? tabSize : 2;
-	};
-	const state: SnippetsState = { language, tabSize: getTabSize(), entries: await readSnippets(context, language) };
+	const state: SnippetsState = { language, entries: await readSnippets(context, language) };
 	const panel = vscode.window.createWebviewPanel('shortestpath.cppSnippets', localize('代码片段'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
 	context.subscriptions.push(panel);
 	snippetsPanel = panel;
@@ -257,6 +253,8 @@ async function openCppSnippets(context: vscode.ExtensionContext): Promise<void> 
 		for (const disposable of disposables) { disposable.dispose(); }
 	}, undefined, context.subscriptions);
 	let saves = Promise.resolve();
+	let snippetEditorLayouts = Promise.resolve();
+	const snippetEditorSources = new Map<number, string>();
 	disposables.push(panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'save' && message.language === language && Array.isArray(message.entries)) {
 			saves = saves.then(async () => {
@@ -265,14 +263,20 @@ async function openCppSnippets(context: vscode.ExtensionContext): Promise<void> 
 			}).catch(async error => {
 				await panel.webview.postMessage({ type: 'saved', revision: message.revision, error: localizeFormat('无法保存模板：{0}', String(error)) });
 			});
-		} else if (message?.type === 'highlight' && typeof message.source === 'string' && typeof message.requestId === 'number') {
-			try {
-				const lines = await vscode.commands.executeCommand<PreviewToken[][]>('_shortestpath.cppPreviewTokens', message.source);
-				if (!lines) { throw new Error(localize('无法加载代码预览。')); }
-				await panel.webview.postMessage({ type: 'highlight', requestId: message.requestId, source: message.source, lines });
-			} catch (error) {
-				await panel.webview.postMessage({ type: 'highlight', requestId: message.requestId, source: message.source, error: localizeFormat('无法加载代码预览：{0}', String(error)) });
+		} else if (message?.type === 'snippetEditorLayout' && typeof message.selectionRevision === 'number') {
+			if (typeof message.source === 'string') {
+				snippetEditorSources.set(message.selectionRevision, message.source);
 			}
+			snippetEditorLayouts = snippetEditorLayouts.then(async () => {
+				const source = snippetEditorSources.get(message.selectionRevision) ?? message.source;
+				const snapshot = await vscode.commands.executeCommand<{ selectionRevision: number; contentRevision: number; source: string } | undefined>(
+					'_shortestpath.layoutSnippetEditor', message.bounds, message.selectionRevision, source
+				);
+				if (snapshot) {
+					snippetEditorSources.delete(snapshot.selectionRevision);
+					await panel.webview.postMessage({ type: 'snippetBodySnapshot', ...snapshot });
+				}
+			}).catch(error => console.error('Failed to update the C++ snippet editor', error));
 		} else if (message?.type === 'confirmDelete' && message.language === language && typeof message.name === 'string' && typeof message.requestId === 'number') {
 			const deleteLabel = localize('删除模板');
 			const action = await vscode.window.showWarningMessage(
@@ -282,11 +286,6 @@ async function openCppSnippets(context: vscode.ExtensionContext): Promise<void> 
 			);
 			await panel.webview.postMessage({ type: action === deleteLabel ? 'deleteConfirmed' : 'deleteCancelled', language, requestId: message.requestId });
 		}
-	}));
-	const refreshHighlight = () => panel.webview.postMessage({ type: 'refreshHighlight', tabSize: getTabSize() });
-	disposables.push(vscode.window.onDidChangeActiveColorTheme(refreshHighlight));
-	disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
-		if (event.affectsConfiguration('editor')) { void refreshHighlight(); }
 	}));
 	panel.webview.html = withBundledCodeFont(localizeWebviewHtml(getCppSnippetsHtml(state, {
 		title: localize('代码模板'), list: localize('模板列表'), add: localize('新建模板'), delete: localize('删除模板'),
