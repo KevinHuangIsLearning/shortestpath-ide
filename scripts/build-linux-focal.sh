@@ -87,6 +87,7 @@ export CXX=clang++-15
 export HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
 export PATH=/opt/node/bin:$PATH
 export npm_config_cache=/npm-cache
+export npm_config_devdir="$PWD/.build/node-gyp"
 
 clang-15 --version
 clang++-15 --version
@@ -95,6 +96,11 @@ node --version
 npmrc="$(cat .npmrc)"
 trap 'printf "%s" "$npmrc" > .npmrc' EXIT
 sed -i '/^build_from_source=/d' .npmrc
+# Prepare and patch Electron headers before npm runs native dependency scripts.
+npm ci --ignore-scripts
+npm_command=ci node build/npm/preinstall.ts
+electron_version="$(node -p 'require("fs").readFileSync(".npmrc", "utf8").match(/^target="([^"]+)"/m)[1]')"
+printf '#include <node.h>\n' | "$CXX" -std=gnu++20 -fsyntax-only -x c++ -I"$npm_config_devdir/$electron_version/include/node" -
 npm ci
 printf "%s" "$npmrc" > .npmrc
 trap - EXIT

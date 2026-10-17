@@ -136,7 +136,7 @@ function installHeaders() {
 	delete nodeGypEnv.npm_config_target;
 	delete nodeGypEnv.npm_config_disturl;
 	delete nodeGypEnv.npm_config_runtime;
-	const nodeGypDevDir = path.join(import.meta.dirname, '..', '..', '.build', 'node-gyp');
+	const nodeGypDevDir = path.resolve(process.env.npm_config_devdir ?? path.join(import.meta.dirname, '..', '..', '.build', 'node-gyp'));
 
 	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
 	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
@@ -158,8 +158,8 @@ function installHeaders() {
 	//   - v8config.h: use compatible deprecation attribute syntax with GCC < 13
 	//     Refs https://gcc.gnu.org/bugzilla/show_bug.cgi?id=69585
 	if (local !== undefined) {
-		const localHeaderPath = getLocalHeaderPath(local.target);
-		if (localHeaderPath && fs.existsSync(localHeaderPath)) {
+		const localHeaderPath = path.join(nodeGypDevDir, local.target, 'include', 'node');
+		if (fs.existsSync(localHeaderPath)) {
 			copyCustomHeaders(path.join(import.meta.dirname, 'gyp', 'custom-headers'), localHeaderPath);
 		}
 	}
@@ -177,22 +177,6 @@ function copyCustomHeaders(sourceDir: string, targetDir: string): void {
 			fs.copyFileSync(sourcePath, targetPath);
 		}
 	}
-}
-
-function getLocalHeaderPath(target: string): string | undefined {
-	if (process.platform === 'win32') {
-		const localAppData = process.env.LOCALAPPDATA;
-		if (!localAppData) {
-			return undefined;
-		}
-		return path.join(localAppData, 'node-gyp', 'Cache', target, 'include', 'node');
-	}
-	if (process.platform === 'darwin') {
-		return path.join(os.homedir(), 'Library', 'Caches', 'node-gyp', target, 'include', 'node');
-	}
-	const homedir = os.homedir();
-	const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
-	return path.join(cachePath, 'node-gyp', target, 'include', 'node');
 }
 
 function getHeaderInfo(rcFile: string): { disturl: string; target: string } | undefined {

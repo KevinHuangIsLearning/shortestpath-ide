@@ -201,6 +201,7 @@ export default defineConfig(
 			'src/vs/platform/browserView/**/browserViewHistorySwipe*.ts',
 			'src/vs/platform/browserView/**/browserViewTrackpadGesture*.ts',
 			'build/next/trackpadGestureMonitor.ts',
+			'build/lib/test/preinstallHeaders.test.ts',
 			'src/vs/platform/browserView/electron-browser/{preload-darkReader,darkReaderScript}.ts',
 			'src/vs/workbench/contrib/browserView/**/browserDarkReader*.ts',
 			'build/next/{darkReader,testDarkReader,vendorDarkReaderDetector}.ts',
