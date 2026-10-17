@@ -35,7 +35,7 @@ suite('Live browser notification portal', () => {
 		ensureCodeWindow(source, 1001);
 		store.add(registerWindow(source));
 		const style = source.document.head.appendChild($('style'));
-		style.textContent = '.monaco-workbench { position: relative; width: 800px; height: 600px; } .notifications-toasts { position: absolute; right: 10px; bottom: 10px; width: 200px; height: 80px; display: none; } .notifications-toasts.visible { display: block; }';
+		style.textContent = '.monaco-workbench { position: relative; width: 800px; height: 600px; background: rgb(1, 2, 3); } .monaco-workbench.border:not(.fullscreen) { border: 1px solid rgb(4, 5, 6); } .monaco-workbench.border.mac.macos-tahoe { border-radius: 16px; } .notifications-toasts { position: absolute; right: 10px; bottom: 10px; width: 200px; height: 80px; display: none; } .notifications-toasts.visible { display: block; }';
 		workbench = source.document.body.appendChild($('.monaco-workbench'));
 		toasts = workbench.appendChild($('.notifications-toasts.visible'));
 		button = toasts.appendChild($('button')) as HTMLButtonElement;
@@ -64,6 +64,37 @@ suite('Live browser notification portal', () => {
 		assert.deepStrictEqual({ ...state, restored: toasts.parentElement === workbench }, {
 			target: true, clicks: 1, stable: true, restored: true,
 			layout: { x: 582, y: 502, width: 216, height: 96, viewportWidth: 800, viewportHeight: 600, zoomFactor: 1 }
+		});
+	});
+
+	test('keeps the native notification host transparent without cloned workbench chrome', async () => {
+		workbench.classList.add('border', 'mac', 'macos-tahoe');
+		workbench.style.setProperty('background-color', 'rgb(7, 8, 9)', 'important');
+		source.document.documentElement.style.setProperty('background-color', 'rgb(10, 11, 12)', 'important');
+		overlay.setVisible(workbench, true);
+		await settle();
+		source.document.documentElement.style.setProperty('background', 'rgb(13, 14, 15)', 'important');
+		await settle();
+		const root = target.document.querySelector<HTMLElement>('.monaco-workbench')!;
+		const rootStyle = target.getComputedStyle(root);
+		assert.deepStrictEqual({
+			rootClasses: root.className,
+			rootBackground: rootStyle.backgroundColor,
+			rootBorder: rootStyle.borderBottomWidth,
+			rootRadius: rootStyle.borderRadius,
+			htmlBackground: target.document.documentElement.style.getPropertyValue('background'),
+			htmlBackgroundPriority: target.document.documentElement.style.getPropertyPriority('background'),
+			bodyBackground: target.document.body.style.getPropertyValue('background'),
+			bodyBackgroundPriority: target.document.body.style.getPropertyPriority('background'),
+		}, {
+			rootClasses: 'monaco-workbench mac macos-tahoe',
+			rootBackground: 'rgba(0, 0, 0, 0)',
+			rootBorder: '0px',
+			rootRadius: '0px',
+			htmlBackground: 'transparent',
+			htmlBackgroundPriority: 'important',
+			bodyBackground: 'transparent',
+			bodyBackgroundPriority: 'important',
 		});
 	});
 

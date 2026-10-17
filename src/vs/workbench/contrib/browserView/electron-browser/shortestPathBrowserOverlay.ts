@@ -155,14 +155,17 @@ export class ShortestPathBrowserOverlay extends Disposable {
 				target.document.head.appendChild(clone);
 			}
 			copyAttributes(this.source.document.documentElement, target.document.documentElement);
+			this.makeTransparent(target.document.documentElement);
 			const documentObserver = new this.source.MutationObserver(() => {
 				copyAttributes(this.source.document.documentElement, target.document.documentElement);
+				this.makeTransparent(target.document.documentElement);
 				this.scheduleUpdate();
 			});
 			documentObserver.observe(this.source.document.documentElement, { attributes: true, attributeFilter: ['lang', 'dir', 'class', 'style'] });
 			this.windowStore.add(toDisposable(() => documentObserver.disconnect()));
 			copyAttributes(this.source.document.body, target.document.body);
-			target.document.body.style.cssText = 'margin: 0; background: transparent; overflow: hidden;';
+			target.document.body.style.cssText = 'margin: 0; overflow: hidden;';
+			this.makeTransparent(target.document.body);
 			this.root = target.document.body.appendChild($('div'));
 			this.root.className = 'monaco-workbench';
 			this.windowStore.add(registerChildWindow(target as CodeWindow));
@@ -285,9 +288,7 @@ export class ShortestPathBrowserOverlay extends Disposable {
 		// eslint-disable-next-line no-restricted-syntax
 		for (const element of this.source.document.querySelectorAll<HTMLElement>('.monaco-workbench > .notifications-toasts, .monaco-workbench > .notifications-center')) {
 			const parent = element.parentElement!;
-			if (this.root.className !== parent.className) {
-				this.root.className = parent.className;
-			}
+			this.setRootClassName(parent);
 			const placeholder = mainWindow.document.createComment('native browser notification overlay');
 			element.before(placeholder);
 			this.portals.set(element, { element, placeholder });
@@ -295,14 +296,8 @@ export class ShortestPathBrowserOverlay extends Disposable {
 		}
 		const parent = this.portals.values().next().value?.placeholder.parentElement;
 		if (parent) {
-			const css = `${parent.style.cssText}; position: absolute; left: ${-this.offset.x}px; top: ${-this.offset.y}px; width: ${this.source.innerWidth}px; height: ${this.source.innerHeight}px; background: transparent;`;
-			if (this.rootStyle !== css) {
-				this.rootStyle = css;
-				this.root.style.cssText = css;
-			}
-			if (this.root.className !== parent.className) {
-				this.root.className = parent.className;
-			}
+			this.setRootStyle(`${parent.style.cssText}; position: absolute; left: ${-this.offset.x}px; top: ${-this.offset.y}px; width: ${this.source.innerWidth}px; height: ${this.source.innerHeight}px;`);
+			this.setRootClassName(parent);
 		}
 		const visible = [...this.portals.values()].filter(portal => portal.element.classList.contains('visible')).map(portal => portal.element.getBoundingClientRect());
 		// Notification tooltips share the portal and must also fit inside its native bounds.
@@ -344,18 +339,40 @@ export class ShortestPathBrowserOverlay extends Disposable {
 			root.replaceChildren(clone);
 			this.navigationContent = content;
 		}
-		if (root.className !== workbench.className) {
-			root.className = workbench.className;
-		}
+		this.setRootClassName(workbench);
 		const zoom = getDomNodeZoomLevel(workbench);
-		const css = `${workbench.style.cssText}; position: absolute; left: ${-this.offset.x / zoom}px; top: ${-this.offset.y / zoom}px; width: ${this.source.innerWidth}px; height: ${this.source.innerHeight}px; background: transparent;`;
-		if (this.rootStyle !== css) {
-			this.rootStyle = css;
-			root.style.cssText = css;
-		}
+		this.setRootStyle(`${workbench.style.cssText}; position: absolute; left: ${-this.offset.x / zoom}px; top: ${-this.offset.y / zoom}px; width: ${this.source.innerWidth}px; height: ${this.source.innerHeight}px;`);
 		// eslint-disable-next-line no-restricted-syntax
 		const mirrored = root.querySelector<HTMLElement>('.shortestpath-navigation-hover')!;
 		this.layoutRectangles([mirrored.getBoundingClientRect()]);
+	}
+
+	private makeTransparent(element: HTMLElement): void {
+		element.style.setProperty('background', 'transparent', 'important');
+		element.style.setProperty('background-color', 'transparent', 'important');
+	}
+
+	private setRootClassName(source: HTMLElement): void {
+		const root = this.root;
+		if (!root) {
+			return;
+		}
+		const className = [...source.classList].filter(className => className !== 'border').join(' ');
+		if (root.className !== className) {
+			root.className = className;
+		}
+	}
+
+	private setRootStyle(style: string): void {
+		const root = this.root;
+		if (!root) {
+			return;
+		}
+		const rootStyle = `${style}; background: transparent !important; background-color: transparent !important; border: 0 !important; border-radius: 0 !important;`;
+		if (this.rootStyle !== rootStyle) {
+			this.rootStyle = rootStyle;
+			root.style.cssText = rootStyle;
+		}
 	}
 
 	private layoutRectangles(rectangles: readonly DOMRect[]): void {
