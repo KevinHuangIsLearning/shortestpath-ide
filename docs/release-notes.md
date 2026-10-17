@@ -2,13 +2,13 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.4.10 更新 / What's New
+## v0.4.11 更新 / What's New
 
-进行了交互调整。
+适配网址新的协议
 
 ### English
 
-Adjusted interactions.
+Support the website’s new protocol.
 
 The English version follows the Chinese version.
 

@@ -1046,6 +1046,7 @@ export interface IWebviewPanelOptions {
 	readonly modalHideHeader?: boolean;
 	readonly sourceEditor?: UriComponents;
 	readonly sourceEditorRatio?: number;
+	readonly sourceEditorAttachmentOnly?: boolean;
 	readonly enableFindWidget?: boolean;
 	readonly retainContextWhenHidden?: boolean;
 }

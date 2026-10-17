@@ -168,6 +168,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			group: targetGroup,
 			sourceEditor: initData.panelOptions.sourceEditor && URI.revive(initData.panelOptions.sourceEditor),
 			sourceEditorRatio: initData.panelOptions.sourceEditorRatio,
+			sourceEditorAttachmentOnly: initData.panelOptions.sourceEditorAttachmentOnly,
 		} : {};
 
 		const extension = reviveWebviewExtension(extensionData);

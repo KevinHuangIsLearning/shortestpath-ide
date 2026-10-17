@@ -18,7 +18,8 @@ export interface RecoveryDependencies {
 	cancel(): void;
 	isBound(problemRef: string): boolean;
 	status(problemRef: string, state: RecoveryState): void;
-	returnToSolve?(): PromiseLike<void>;
+	returnToSolve?(page: RecoveryPage): PromiseLike<void>;
+	present?(page: RecoveryPage): PromiseLike<void>;
 }
 
 export function recoveryIdentity(problem: WorkspaceProblemRecoveryContext): string {
@@ -81,7 +82,7 @@ export class ConnectionRecovery {
 			if (this.showWhenReady) {
 				this.showWhenReady = false;
 				this.shown = true;
-				await page.show();
+				await (this.deps.present?.(page) ?? page.show());
 			}
 			this.watchdog();
 		} catch {
@@ -143,7 +144,7 @@ export class ConnectionRecovery {
 		// can challenge the user again immediately after successful verification.
 		if (resumed && this.shown && !this.pendingSubmissions.has(problem.ref)) {
 			this.shown = false;
-			void this.deps.returnToSolve?.();
+			if (this.page) { void this.deps.returnToSolve?.(this.page); }
 		}
 	}
 
@@ -158,7 +159,7 @@ export class ConnectionRecovery {
 			this.showWhenReady = false;
 			if (this.shown) {
 				this.shown = false;
-				void this.deps.returnToSolve?.();
+				if (this.page) { void this.deps.returnToSolve?.(this.page); }
 			}
 		}
 	}
@@ -168,7 +169,7 @@ export class ConnectionRecovery {
 		if (!this.page) {
 			this.showWhenReady = true;
 			await this.open();
-		} else { this.shown = true; await this.page.show(); }
+		} else { this.shown = true; await (this.deps.present?.(this.page) ?? this.page.show()); }
 	}
 
 	retry(): void {

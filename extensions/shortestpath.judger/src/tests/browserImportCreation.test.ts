@@ -94,6 +94,13 @@ describe('ShortestPath OJ source paths with an optional directory prefix', () =>
 		(getShortestPathImportCategoryEnabled as jest.Mock).mockReturnValueOnce(false);
 		expect(await handleNewProblem(importedProblem())).toEqual({ created: true, sourcePath: path.resolve('/workspace/dsu/A_字母互换.cpp') });
 	});
+	test('integrated imports never attach a competing browser preview', async () => {
+		(getVjudgeOpenInBrowser as jest.Mock).mockReturnValueOnce(true);
+		(getDefaultProblemSource as jest.Mock).mockReturnValueOnce('original');
+		(vscode.commands.executeCommand as jest.Mock).mockClear();
+		await handleNewProblem({ ...importedProblem(), url: 'http://127.0.0.1:13000/problem/dsu/found/A' });
+		expect((vscode.commands.executeCommand as jest.Mock).mock.calls.some(([command]) => command === 'workbench.action.browser.open')).toBe(false);
+	});
 
 	test('enabled prefix is added before the source directory', async () => {
 		(getShortestPathImportPrefix as jest.Mock).mockReturnValue('ShortestPath/solutions');

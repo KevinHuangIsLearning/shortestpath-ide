@@ -217,8 +217,8 @@ export const indentationFilter = Object.freeze<string[]>([
 export const copyrightFilter = Object.freeze<string[]>([
 	'**',
 	// These inherited CPH files have no upstream copyright header.
-	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
 	'!extensions/shortestpath.judger/src/companion.ts',
+	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
 	'!extensions/shortestpath.judger/src/preferences.ts',
 	'!extensions/shortestpath.judger/src/types.ts',
 	// Preserve the inherited compiler's absent notice and the original Judger runner notice.
@@ -289,7 +289,8 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'extensions/**/*.ts',
-	// Preserve the formatting of this inherited CPH file.
+	// Preserve the formatting of these inherited CPH files.
+	'!extensions/shortestpath.judger/src/companion.ts',
 	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
 	'!extensions/shortestpath.judger/src/compiler.ts',
 	'!extensions/shortestpath.judger/src/companion.ts',

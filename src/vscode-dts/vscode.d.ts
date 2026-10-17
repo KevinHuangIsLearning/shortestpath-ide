@@ -10067,6 +10067,8 @@ declare module 'vscode' {
 		readonly sourceEditor?: Uri;
 		/** Initial percentage of space reserved for the source editor. */
 		readonly sourceEditorRatio?: number;
+		/** Attach only to an already open source tab without selecting it. Disposes the panel if the source has closed. */
+		readonly sourceEditorAttachmentOnly?: boolean;
 
 		/**
 		 * Controls if the find widget is enabled in the panel.

@@ -176,6 +176,7 @@ jobs:
             'resources\app\extensions\usernamehw.errorlens\dist\extension.js',
             'resources\app\extensions\shortestpath.setup\out\extension.js',
             'resources\app\extensions\shortestpath.oj\dist\extension.js',
+            'resources\app\extensions\shortestpath.oj\out\protectedReader.bundle.js',
             'resources\app\extensions\shortestpath.draw\dist\extension.js',
             'resources\app\extensions\shortestpath.draw\dist\webview.js',
             'resources\app\extensions\shortestpath.draw\dist\webview.css',
@@ -270,6 +271,7 @@ jobs:
             "usernamehw.errorlens/dist/extension.js" \
             "shortestpath.setup/out/extension.js" \
             "shortestpath.oj/dist/extension.js" \
+            "shortestpath.oj/out/protectedReader.bundle.js" \
             "shortestpath.draw/dist/extension.js" \
             "shortestpath.draw/dist/webview.js" \
             "shortestpath.draw/dist/webview.css" \
@@ -366,6 +368,7 @@ jobs:
             "usernamehw.errorlens/dist/extension.js" \
             "shortestpath.setup/out/extension.js" \
             "shortestpath.oj/dist/extension.js" \
+            "shortestpath.oj/out/protectedReader.bundle.js" \
             "shortestpath.draw/dist/extension.js" \
             "shortestpath.draw/dist/webview.js" \
             "shortestpath.draw/dist/webview.css" \

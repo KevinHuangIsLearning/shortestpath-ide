@@ -40,8 +40,8 @@ suite('OI extension package contents', () => {
 		assert.deepStrictEqual([...runtime, ...development].filter(file => files.includes(file)).sort(), runtime.sort());
 	});
 
-	test('OJ retains both Webview scripts and bundle notices without unbundled dependencies or tests', async () => {
-		const runtime = ['dist/extension.js', 'dist/THIRD_PARTY_NOTICES.txt', 'out/problemView.js', 'out/styleHotReload.js', 'resources/problemView.html', 'resources/katex/katex.min.js'];
+	test('OJ retains all Webview scripts and bundle notices without unbundled dependencies or tests', async () => {
+		const runtime = ['dist/extension.js', 'dist/THIRD_PARTY_NOTICES.txt', 'out/problemView.js', 'out/styleHotReload.js', 'out/protectedReader.bundle.js', 'out/protectedReader.bundle.js.LEGAL.txt', 'resources/problemView.html', 'resources/katex/katex.min.js'];
 		const development = ['out/extension.js', 'out/test/example.test.js', 'node_modules/shiki/dist/index.mjs', 'dist/metafile.json'];
 		assert.deepStrictEqual(await collectFixture('shortestpath.oj', [...runtime, ...development]), runtime.sort());
 	});

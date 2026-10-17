@@ -3,6 +3,7 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getReaderKeys, assertProtectedContent } from './protectedReaderHost';
 import { SessionLinkRelay } from './sessionLinkRelay';
 import { ideBridgeFeatures, ideSchemaRevision, IdeRecoveryStatus } from './generated/ide-bridge-contract';
 import type { WorkspaceProblemRecoveryContext } from './workspaceProblemCache';
@@ -11,8 +12,7 @@ import { AddressInfo } from 'net';
 import { RawData, WebSocket, WebSocketServer } from 'ws';
 import {
 	bridgePath,
-	bridgeProtocol,
-	bridgeProtocolV2,
+	bridgeProtocolV3,
 	EditorialResult,
 	HintAnswerResult,
 	ImportedProblem,
@@ -81,7 +81,7 @@ type PendingRequest = {
 };
 
 type BridgeConnection = {
-	version: 1 | 2;
+	version: 3;
 	origin: string;
 	id: number;
 	socket: WebSocket;
@@ -129,7 +129,7 @@ export class ShortestPathOjLocalBridge {
 			port,
 			path: bridgePath,
 			maxPayload: maximumMessageBytes,
-			handleProtocols: protocols => protocols.has(bridgeProtocolV2) ? bridgeProtocolV2 : protocols.has(bridgeProtocol) ? bridgeProtocol : false,
+			handleProtocols: protocols => protocols.has(bridgeProtocolV3) ? bridgeProtocolV3 : false,
 			verifyClient: (info: { origin: string }) => this.allowedOrigins.has(info.origin),
 		});
 		this.server.on('connection', (socket, request) => this.accept(socket, request.headers.origin ?? ''));
@@ -174,7 +174,7 @@ export class ShortestPathOjLocalBridge {
 	private recoveryFor(connection: BridgeConnection, request: ProtocolRequest) {
 		const data = request.data as { token?: string } | undefined;
 		const ticket = this.recoveryTicket;
-		return ticket && connection.version === 2 && data?.token === ticket.token && new URL(ticket.problem.url).origin === connection.origin ? ticket : undefined;
+		return ticket && connection.version === 3 && data?.token === ticket.token && new URL(ticket.problem.url).origin === connection.origin ? ticket : undefined;
 	}
 
 	async listeningPort(): Promise<number> {
@@ -294,7 +294,8 @@ export class ShortestPathOjLocalBridge {
 	}
 
 	private accept(socket: WebSocket, origin: string): void {
-		const connection: BridgeConnection = { origin, version: socket.protocol === bridgeProtocolV2 ? 2 : 1, id: this.nextConnectionId++, socket, pending: new Map(), queue: Promise.resolve() };
+		if (socket.protocol !== bridgeProtocolV3) { socket.close(1002, 'protocol_required'); return; }
+		const connection: BridgeConnection = { origin, version: 3, id: this.nextConnectionId++, socket, pending: new Map(), queue: Promise.resolve() };
 		this.connections.add(connection);
 		this.trace(`Connection #${connection.id} opened.`);
 		socket.on('message', (data, isBinary) => {
@@ -341,14 +342,21 @@ export class ShortestPathOjLocalBridge {
 		}
 		if (isProtocolResponse(message)) {
 			this.trace(`Connection #${connection.id} received response ${message.type}.`);
+			if (message.ok && ['hint.answer.result', 'hint.state.result', 'editorial.result'].includes(message.type)) {
+				try { assertProtectedContent(message.data); }
+				catch { message = { ...message, ok: false, data: undefined, error: { source: 'protocol', code: 'content_protocol_required', message: '当前 IDE 版本不支持新版题目阅读，请升级后继续。' } }; }
+			}
 			this.resolveResponse(connection, message);
 			return;
 		}
 		this.trace(`Connection #${connection.id} received ${message.type}.`);
-		if (connection.version === 2 && this.sessionLink.handle(connection.id, connection.origin, message.type, message.data,
+		if (connection.version === 3 && this.sessionLink.handle(connection.id, connection.origin, message.type, message.data,
 			(type, data) => this.send(connection, { id: randomUUID(), type, data }))) { return; }
-		if (message.type === 'bridge.hello' && connection.version === 2) {
-			this.send(connection, { id: randomUUID(), replyTo: message.id, type: 'bridge.hello.result', ok: true, data: { protocolMajor: 2, schemaRevision: ideSchemaRevision, features: ideBridgeFeatures } });
+		if (message.type === 'bridge.hello' && connection.version === 3) {
+			const context = message.data as { accountId?: string; problemRef?: string } | undefined;
+			const readerKey = context && typeof context.accountId === 'string' && /^\d+$/.test(context.accountId) && typeof context.problemRef === 'string' && context.problemRef.length <= 512
+				? getReaderKeys(connection.origin, context.accountId, context.problemRef).publicKey : undefined;
+			this.send(connection, { id: randomUUID(), replyTo: message.id, type: 'bridge.hello.result', ok: true, data: { protocolMajor: 3, readerKey, schemaRevision: ideSchemaRevision, features: ideBridgeFeatures } });
 			return;
 		}
 		if (message.type === 'bridge.recovery.context' || message.type === 'bridge.recovery.status') {
@@ -374,6 +382,7 @@ export class ShortestPathOjLocalBridge {
 			return;
 		}
 		if (message.type === 'problem.state.sync') {
+			try { assertProtectedContent(message.data); } catch { this.sendFailure(connection, message.id, 'problem.state.sync.result', message.sessionId, 'content_protocol_required', '当前 IDE 版本不支持新版题目阅读，请升级后继续。'); return; }
 			await this.syncProblemState(connection, message);
 			return;
 		}
@@ -404,13 +413,14 @@ export class ShortestPathOjLocalBridge {
 		const resumed = request.type === 'problem.resume';
 		const resultType = `${request.type}.result`;
 		const ticket = resumed ? this.recoveryFor(connection, request) : undefined;
-		if (resumed && (!ticket || connection.version !== 2)) { this.sendFailure(connection, request.id, resultType, undefined, 'recovery_expired', '恢复请求已失效。'); return; }
+		if (resumed && (!ticket || connection.version !== 3)) { this.sendFailure(connection, request.id, resultType, undefined, 'recovery_expired', '恢复请求已失效。'); return; }
 		if (request.sessionId !== undefined) {
 			this.sendFailure(connection, request.id, resultType, undefined, 'invalid_request', 'problem.bind 不能携带 sessionId。');
 			return;
 		}
 		let problem: ImportedProblem;
 		try {
+			assertProtectedContent(request.data);
 			problem = parseProblemBindData(request.data, connection.version);
 		} catch (error) {
 			this.trace(`Connection #${connection.id} rejected problem.bind: ${errorMessage(error)}`);
@@ -443,7 +453,7 @@ export class ShortestPathOjLocalBridge {
 			this.sendFailure(connection, request.id, resultType, undefined, 'request_failed', errorMessage(error));
 			return;
 		}
-		const sessionId = reactivated && connection.version === 1 ? current.sessionId : randomUUID();
+		const sessionId = randomUUID();
 		const replaced = current !== undefined && !reactivated;
 		const next: InternalActiveSession = { sessionId, problemRef: problem.ref, connection };
 		try {
@@ -486,7 +496,7 @@ export class ShortestPathOjLocalBridge {
 		try {
 			const state = parseProblemStateSyncData(request.data);
 			const data = request.data as { capabilities?: unknown };
-			const capabilities = connection.version === 2 && data.capabilities ? parseCapabilities(data.capabilities) : undefined;
+			const capabilities = connection.version === 3 && data.capabilities ? parseCapabilities(data.capabilities) : undefined;
 			await this.handlers.updateProblemState(active.problemRef, state, capabilities);
 			this.sendSuccess(connection, request.id, 'problem.state.sync.result', active.sessionId, {});
 		} catch (error) {
@@ -522,7 +532,7 @@ export class ShortestPathOjLocalBridge {
 		if (type === 'submission.request' && [...active.connection.pending.values()].some(pending => ['submission.result', 'submission.create.result'].includes(pending.expectedType))) {
 			return Promise.reject(new Error('当前会话已有一个提交请求正在处理。'));
 		}
-		if (active.connection.version === 2) {
+		if (active.connection.version === 3) {
 			const aliases: Record<string, string> = { 'submission.request': 'submission.create.request', 'stress.context.request': 'diagnostic.context.request', 'stress.start.request': 'diagnostic.start.request' };
 			timeoutMs = Math.min(timeoutMs, 60_000);
 			type = aliases[type] ?? type;
@@ -728,7 +738,7 @@ export class ShortestPathOjLocalBridge {
 		if (connection.socket.readyState === WebSocket.OPEN) {
 			const envelope = message as Record<string, unknown>;
 			const kind = envelope.replyTo ? 'response' : looksLikeEvent(String(envelope.type)) || String(envelope.type).startsWith('session.') ? 'event' : 'request';
-			connection.socket.send(JSON.stringify({ ...envelope, version: connection.version, ...(connection.version === 2 ? { kind } : {}) }), callback);
+			connection.socket.send(JSON.stringify({ ...envelope, version: connection.version, ...(connection.version === 3 ? { kind } : {}) }), callback);
 		} else {
 			callback?.(new Error('WebSocket is not open.'));
 		}

@@ -7,6 +7,7 @@ import esbuild from 'esbuild';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+const { readerBuild } = await import('./.reader-build.mts');
 const root = import.meta.dirname;
 await fs.rm(path.join(root, 'dist'), { recursive: true, force: true });
 const result = await esbuild.build({
@@ -26,7 +27,7 @@ const result = await esbuild.build({
 // Preserve the notices of every package included in the bundle, including
 // transitively bundled grammar, WASM, Markdown and mathematical dependencies.
 const packages = new Set<string>();
-for (const input of Object.keys(result.metafile.inputs)) {
+for (const input of Object.keys({ ...result.metafile.inputs, ...readerBuild.metafile.inputs })) {
 	if (!input.includes('node_modules/')) { continue; }
 	let directory = path.dirname(path.resolve(root, input));
 	while (true) {

@@ -109,6 +109,9 @@ describe('integrated tests editor visibility', () => {
 		expect(provider.extensionToJudgeViewMessage.mock.calls.map(([message]) => message)).toEqual(
 			[first, second, first].map(problem => ({ command: 'new-problem', problem })),
 		);
+		expect((vscode.commands.executeCommand as jest.Mock).mock.calls.filter(([command]) => command === 'shortestpath.oj.showProblemForCph')).toEqual(
+			[],
+		);
 	});
 	test('tab, group and close events share the complete settled refresh', () => {
 		const source = fs.readFileSync(path.resolve(__dirname, '../../src/extension.ts'), 'utf8');

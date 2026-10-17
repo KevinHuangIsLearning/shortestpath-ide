@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ShortestPathNavigation } from '../../common/shortestPathNavigation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -31,6 +32,20 @@ suite('ShortestPath editor mode', () => {
 		store.clear();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a recovery return lease expires after switching modes, tabs or groups, including switching back', () => {
+		const navigation = new ShortestPathNavigation();
+		const login = {};
+		const lease = navigation.observe('browse', login, 1);
+		assert.strictEqual(navigation.observe('browse', login, 1), lease);
+		navigation.observe('draw', {}, 2);
+		assert.notStrictEqual(navigation.observe('browse', login, 1), lease);
+		const next = navigation.observe('browse', login, 1);
+		navigation.observe('browse', {}, 1);
+		assert.notStrictEqual(navigation.observe('browse', login, 1), next);
+		const groupLease = navigation.observe('browse', login, 1);
+		assert.notStrictEqual(navigation.observe('browse', login, 2), groupLease);
+	});
 
 	test('background panel creation, repeated reveals and settings updates preserve the work mode', async () => {
 		store.add(registerTestEditor('shortestpath.mode.testEditor', [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], inputId));

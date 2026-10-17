@@ -3,6 +3,7 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readingFingerprint } from './protectedReaderHost';
 import { ImportedProblem, parseProblemBindData } from './shortestpathOjProtocol';
 
 /** The complete imported payload is retained so an old statement is never detached from its own limits, metadata, or website state. */
@@ -14,7 +15,7 @@ export function getProblemStatementSnapshot(problem: ImportedProblem): ProblemSt
 
 /** A statement includes its samples, which are rendered in the statement tab. */
 export function hasProblemStatementChanged(previous: ImportedProblem, next: ImportedProblem): boolean {
-	return JSON.stringify(getProblemStatementFingerprint(previous)) !== JSON.stringify(getProblemStatementFingerprint(next));
+	return JSON.stringify(readingFingerprint(getProblemStatementFingerprint(previous))) !== JSON.stringify(readingFingerprint(getProblemStatementFingerprint(next)));
 }
 
 /** Re-entering an unchanged problem must retain code and user-edited CPH cases. */
@@ -26,7 +27,7 @@ export function canReuseProblemSource(previous: ImportedProblem | undefined, nex
 
 export function appendPreviousStatementVersion(versions: ProblemStatementSnapshot[], problem: ImportedProblem): ProblemStatementSnapshot[] {
 	const snapshot = getProblemStatementSnapshot(problem);
-	return versions.some(version => JSON.stringify(version) === JSON.stringify(snapshot)) ? versions : [...versions, snapshot];
+	return versions.some(version => !hasProblemStatementChanged(version, snapshot)) ? versions : [...versions, snapshot];
 }
 
 export function sanitizeProblemStatementVersions(value: unknown): { versions: ProblemStatementSnapshot[]; changed: boolean } {

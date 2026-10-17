@@ -2388,3 +2388,45 @@ header .problem-actions .preview-zoom button:hover:not(:disabled) {
 	min-width: 5ch;
 	font-variant-numeric: tabular-nums;
 }
+
+/* Protected reading surfaces retain controls but never a selectable text layer. */
+.protected-reader { position: relative; min-height: 1.5em; user-select: none; -webkit-user-select: none; overflow: hidden; }
+.protected-reader-stage { display: flow-root; user-select: none; -webkit-user-select: none; box-sizing: border-box; }
+.protected-reader-stage img { max-width: 100%; }
+.protected-reader-stage pre {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: normal;
+}
+.protected-reader-stage pre code {
+	display: block;
+	width: auto;
+	min-width: 0;
+	padding: 0;
+	border-radius: 0;
+	background: none;
+	font-size: inherit;
+	white-space: pre-wrap;
+}
+.protected-reader-stage pre code > .line {
+	display: block;
+	position: relative;
+	min-height: 1lh;
+	padding-left: calc((var(--reader-line-digits, 3) + 1.5) * 1ch);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.protected-reader-line-number {
+	display: inline-block;
+	position: absolute;
+	left: 0;
+	top: 0;
+	box-sizing: content-box;
+	width: calc(var(--reader-line-digits, 3) * 1ch);
+	padding-right: 1.5ch;
+	text-align: right;
+	color: var(--vscode-editorLineNumber-foreground, var(--vscode-descriptionForeground));
+	font-style: normal;
+	font-weight: normal;
+}
+.protected-reader-stage .katex-mathml { display: none; }

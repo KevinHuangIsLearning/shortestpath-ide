@@ -82,10 +82,8 @@ const refreshJudgeForSource = (document: JudgeDocument, problem: Problem | undef
         command: 'new-problem',
         problem,
     });
-    void vscode.commands.executeCommand(
-        'shortestpath.oj.showProblemForCph',
-        problem.url,
-    );
+    // The OJ coordinator observes native tabs directly. Judge updates must not
+    // feed editor activation back into problem navigation.
 };
 
 export const editorClosed = (e: vscode.TextDocument) => {

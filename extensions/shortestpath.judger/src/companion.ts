@@ -13,6 +13,7 @@ import { readFileSync, existsSync } from 'fs';
 import { isCodeforcesUrl, isLuoguUrl, isAtCoderUrl, randomId } from './utils';
 import {
     getDefaultLangPref,
+    getPythonCommand,
     getLanguageId,
     useShortCodeForcesName,
     useShortLuoguName,
@@ -398,7 +399,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         );
         return { created: false };
     }
-    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name, getShortestPathImportPrefix(), getShortestPathImportCategoryEnabled());
+    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name, process.env.SHORTESTPATH_OJ_DEV_ORIGIN);
     const defaultLanguage = fixedProblemPath ? 'cpp' : getDefaultLangPref();
     let extn: string;
 
@@ -547,7 +548,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     }
 
     const displayTarget = getProblemDisplayTarget(
-        getVjudgeOpenInBrowser(),
+        getVjudgeOpenInBrowser() && !usesIntegratedTests(problem),
         getProblemSourceForUrl(
             problem.url,
             getOjMapping(),

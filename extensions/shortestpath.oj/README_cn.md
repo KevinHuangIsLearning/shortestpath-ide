@@ -1,28 +1,19 @@
 # ShortestPath OJ 集成
 
-此内置扩展按 ShortestPath OJ 官方开发者接入文档实现网站与 ShortestPath IDE 的本地互通，
-并保持独立于 ShortestPath Judger。
+本扩展在 `ws://127.0.0.1:21474/shortestpath-oj` 连接 SPOJ 网站与 IDE，独立于 ShortestPath Judger。
 
-扩展启动后监听：
+连接只接受 `shortestpath-oj-v3`。网页先发送带账号、题目身份的 `bridge.hello`，检查 `protected-reader-v1` 能力并取得临时阅读公钥。旧协议和明文阅读数据均被拒绝，网站统一提示：
 
-```text
-ws://127.0.0.1:21474/shortestpath-oj
-```
+> 当前 IDE 版本不支持新版题目阅读，请升级后继续。
 
-WebSocket 子协议固定为 `shortestpath-oj-v1`。网页通过 `problem.bind` 发送题目并通过
-`problem.state.sync` 覆盖网站状态；IDE 沿同一活动连接请求提示答案、点赞、解题报告、
-代码提交和题目级对拍，并接收评测与对拍进度。全局只保留一道活动题目，题目以
-`problem.ref` 为更新键；新题绑定成功后，旧网页会收到 `session.replaced` 并断开。
+服务端将题面、提示、题解和参考代码加密给阅读器，网站和扩展宿主只转发密文。阅读 Webview 解密、排版并绘制 Canvas，完成或失败后均清理临时文本和克隆页面。阅读区域阻止普通复制、剪切、拖拽和右键操作。代码使用编辑器实际 token 配色与字体设置，主题变化时重新绘制。
 
-如果 IDE 尚未启动，网页中的用户点击可以打开：
+样例输入输出、公开头文件、用户源码与自定义测试保留正常编辑和复制能力。提交、点赞、评分、诊断与重连继续通过当前网站连接处理。
 
-```text
-shortestpath://shortestpath.shortestpath-oj/wake
-```
+按工作区隔离的内部缓存只保存加密阅读字段、样例及源码关联。迁移已知旧缓存时清除明文阅读字段；题解和历史题面不持久化。阅读密钥按网站 origin、账号、题目隔离，仅存在内存中，重启 IDE 后需重连获取新内容。已有源码与自定义测试保留；恢复连接不重放业务操作。
 
-导入后的题面显示在 IDE 右侧，样例交给 ShortestPath Judger。题目缓存与 ShortestPath Judger 创建的源文件映射
-按题目分别保存在当前工作区的 `.shortestpath/<题目路径>.json`（例如
-`.shortestpath/ACOMB.found.A.json`）。旧版汇总缓存会在首次读取时自动迁移。断线后扩展不会自动重放网站操作；
-请回到题目网页重新点击“在 ShortestPath IDE 中打开”。
+网站可通过 `shortestpath://shortestpath.shortestpath-oj/wake` 启动 IDE。发布时需配套升级 SPOJ 网站、HTTP Content Session v2 和支持 v3 的 IDE。安装包必须包含 `out/protectedReader.bundle.js` 及许可证。
+
+Canvas 与加密交付用于提高普通复制的成本，无法阻止截图、OCR 或控制客户端运行环境后的提取。
 
 [English](README.md)

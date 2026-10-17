@@ -50,6 +50,47 @@ suite('WebviewSourceEditorInput', () => {
 		return { source, companion, input };
 	}
 
+	for (const state of ['closed', 'background', 'active']) {
+		test(`passive companion attachment respects a ${state} source tab`, async () => {
+			const { source, companion, input } = pair();
+			source.change();
+			const replacements: IEditorReplacement[] = [];
+			let opens = 0;
+			let composites = 0;
+			const group = {
+				activeEditor: state === 'active' ? source : undefined,
+				replaceEditors: async (items: IEditorReplacement[]) => { replacements.push(...items); }
+			};
+			const controller = Object.assign(Object.create(WebviewEditorService.prototype), {
+				openHandlers: new Set(),
+				_webviewService: { createWebviewOverlay: () => ({}) },
+				_instantiationService: {
+					createInstance: (ctor: unknown) => {
+						if (ctor === WebviewInput) { return companion; }
+						composites++; return input;
+					}
+				},
+				textEditorService: { createTextEditor: () => source },
+				_editorService: { findEditors: () => state === 'closed' ? [] : [{ editor: source, groupId: 1 }], openEditor: () => { opens++; } },
+				editorGroupsService: { getGroup: () => group },
+			}) as WebviewEditorService;
+			controller.openWebview({ providedViewType: 'test', origin: 'test', title: 'test', options: {}, contentOptions: {}, extension: undefined }, 'test', 'test', undefined,
+				{ sourceEditor: source.resource, sourceEditorAttachmentOnly: true });
+			await Promise.resolve();
+			assert.strictEqual(opens, 0);
+			assert.strictEqual(source.isDirty(), true);
+			assert.strictEqual(source.isDisposed(), false);
+			if (state === 'closed') {
+				assert.strictEqual(companion.isDisposed(), true);
+				assert.strictEqual(composites, 0);
+			} else {
+				assert.strictEqual(replacements[0].replacement, input);
+				assert.strictEqual(replacements[0].options?.inactive, state !== 'active');
+				assert.strictEqual(replacements[0].options?.preserveFocus, true);
+			}
+		});
+	}
+
 	test('source owns the resource, dirty state and saves without separating the pair', async () => {
 		const { source, input } = pair();
 		let changes = 0;
