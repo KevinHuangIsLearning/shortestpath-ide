@@ -9,10 +9,10 @@ import { getShortestPathProblemPath } from '../shortestpathProblemPath';
 describe('fixed ShortestPath source paths', () => {
 	test('recognizes only the explicitly configured loopback origin during local E2E', () => {
 		const url = 'http://127.0.0.1:13000/problem/basic-algorithm/found/A';
-		expect(getShortestPathProblemPath(url, 'A + B', 'http://127.0.0.1:13000')).toBe(path.join('basic-algorithm', 'A_A + B.cpp'));
+		expect(getShortestPathProblemPath(url, 'A + B', '', true, 'http://127.0.0.1:13000')).toBe(path.join('basic-algorithm', 'found', 'A_A + B.cpp'));
 		expect(getShortestPathProblemPath(url, 'A + B')).toBeUndefined();
-		expect(getShortestPathProblemPath(url, 'A + B', 'http://127.0.0.1:3000')).toBeUndefined();
-		expect(getShortestPathProblemPath('https://example.com/problem/dsu/found/A', 'A', 'https://example.com')).toBeUndefined();
+		expect(getShortestPathProblemPath(url, 'A + B', '', true, 'http://127.0.0.1:3000')).toBeUndefined();
+		expect(getShortestPathProblemPath('https://example.com/problem/dsu/found/A', 'A', '', true, 'https://example.com')).toBeUndefined();
 	});
 	test.each([
 		['/problem/dsu/found/A', '字母互换', ['dsu', 'found', 'A_字母互换.cpp']],

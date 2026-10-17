@@ -28,7 +28,6 @@ import {
     getFileNameTemplateOverrides,
     getShortestPathImportPrefix,
     getShortestPathImportCategoryEnabled,
-    getPythonCommand,
     getOjMapping,
     getDefaultProblemSource,
     getVjudgeOjNames,
@@ -399,7 +398,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         );
         return { created: false };
     }
-    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name, process.env.SHORTESTPATH_OJ_DEV_ORIGIN);
+    const fixedProblemPath = getShortestPathProblemPath(problem.url, problem.name, getShortestPathImportPrefix(), getShortestPathImportCategoryEnabled(), process.env.SHORTESTPATH_OJ_DEV_ORIGIN);
     const defaultLanguage = fixedProblemPath ? 'cpp' : getDefaultLangPref();
     let extn: string;
 

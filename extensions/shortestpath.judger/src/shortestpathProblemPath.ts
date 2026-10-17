@@ -6,7 +6,7 @@
 import path from 'path';
 
 /** Fixed workspace-relative C++ paths for supported ShortestPath pages. */
-export function getShortestPathProblemPath(problemUrl: string, title: string, developmentOrigin?: string): string | undefined {
+export function getShortestPathProblemPath(problemUrl: string, title: string, prefix = '', includeCategory = true, developmentOrigin?: string): string | undefined {
 	let url: URL;
 	try { url = new URL(problemUrl); } catch { return undefined; }
 	const isDevelopmentOrigin = url.origin === developmentOrigin && ['http:', 'https:'].includes(url.protocol)
@@ -17,7 +17,7 @@ export function getShortestPathProblemPath(problemUrl: string, title: string, de
 	let directories: string[];
 	let label: string;
 	if (parts.length === 4 && parts[0] === 'problem' && ['found', 'adv', 'chal', 'past'].includes(parts[2])) {
-		directories = [parts[1]];
+		directories = includeCategory ? [parts[1], parts[2]] : [parts[1]];
 		label = parts[3];
 	} else if (parts.length === 4 && parts[0] === 'upsolving' && ['at', 'cf'].includes(parts[1])) {
 		directories = ['contest', parts[2]];
@@ -28,7 +28,8 @@ export function getShortestPathProblemPath(problemUrl: string, title: string, de
 	} else {
 		return undefined;
 	}
-	return path.join(...directories.map(fileComponent), `${fileComponent(label)}_${fileComponent(title)}.cpp`);
+	const prefixDirectories = prefix.trim().split(/[/\\]/).filter(Boolean).map(fileComponent);
+	return path.join(...prefixDirectories, ...directories.map(fileComponent), `${fileComponent(label)}_${fileComponent(title)}.cpp`);
 }
 
 // Keep Chinese and spaces, replacing only characters unusable on Windows/macOS.
