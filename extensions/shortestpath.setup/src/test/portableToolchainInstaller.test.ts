@@ -6,12 +6,14 @@
 import * as assert from 'node:assert/strict';
 import { createWriteStream, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { createServer, type ServerResponse } from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { finished } from 'node:stream/promises';
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import * as yazl from 'yazl';
 import { installPortableAssets } from '../portableToolchainInstaller';
+import { EnvironmentSetupRunner } from '../environmentSetup';
 
 const windowsInstaller = require('../../resources/windows.js') as {
 	getPortableAssets(input: { source?: { id: string } }): readonly { readonly id: string; readonly directoryToRemove?: string }[];
@@ -45,6 +47,98 @@ test('reports a missing download source without creating a fake toolchain', asyn
 		await rm(toolchainRoot, { recursive: true, force: true });
 	}
 });
+
+test('redirected downloads stay active past the original connection timeout and advance setup', { timeout: 10_000 }, context => checkRedirectedDownload(context, false));
+
+test('a stalled mirror falls back to a redirected download and advances setup after success', { timeout: 10_000 }, context => checkRedirectedDownload(context, true));
+
+async function checkRedirectedDownload(context: TestContext, retryAfterTimeout: boolean): Promise<void> {
+	context.mock.timers.enable({ apis: ['setTimeout'] });
+	const toolchainRoot = await mkdtemp(path.join(os.tmpdir(), 'shortestpath-toolchain-test-'));
+	const zip = new yazl.ZipFile();
+	zip.addBuffer(Buffer.from('compiler'), 'bin/compiler');
+	zip.end();
+	const chunks: Buffer[] = [];
+	for await (const chunk of zip.outputStream) {
+		chunks.push(Buffer.from(chunk));
+	}
+	const archive = Buffer.concat(chunks);
+	let downloadResponse: ServerResponse | undefined;
+	let mirrorClosed = false;
+	const requests: string[] = [];
+	const server = createServer((request, response) => {
+		requests.push(request.url!);
+		if (request.url === '/mirror') {
+			response.on('close', () => { mirrorClosed = true; });
+			response.writeHead(200, { 'content-length': archive.length });
+			response.write(archive.subarray(0, 16));
+			return;
+		}
+		if (request.url !== '/archive') {
+			response.writeHead(302, { location: request.url === '/download' ? '/redirect' : '/archive' });
+			response.end();
+			return;
+		}
+		downloadResponse = response;
+		response.writeHead(200, { 'content-length': archive.length });
+		response.write(archive.subarray(0, 16));
+	});
+	await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+	const address = server.address() as import('node:net').AddressInfo;
+	let markDownloadStarted!: () => void;
+	const downloadStarted = new Promise<void>(resolve => { markDownloadStarted = resolve; });
+	let markMirrorStarted!: () => void;
+	const mirrorStarted = new Promise<void>(resolve => { markMirrorStarted = resolve; });
+	const baseUrl = `http://127.0.0.1:${address.port}`;
+	let selfTestRan = false;
+	const runner = new EnvironmentSetupRunner([
+		{
+			id: 'install', title: 'install', description: '', async run(report) {
+				const result = await installPortableAssets({
+					appRoot: toolchainRoot, toolchainRoot,
+					assets: [{ id: 'test compiler', urls: retryAfterTimeout ? [`${baseUrl}/mirror`, `${baseUrl}/download`] : [`${baseUrl}/download`], archiveName: 'compiler.zip', targetDirectory: 'compiler', requiredFile: 'bin/compiler' }],
+					reportProgress: message => {
+						report(message);
+						if (message.includes(' MB / ')) {
+							if (downloadResponse) { markDownloadStarted(); } else { markMirrorStarted(); }
+						}
+					}
+				});
+				if (!result.success) { throw new Error(result.message); }
+			}
+		},
+		{
+			id: 'selfTest', title: 'selfTest', description: '', async run() {
+				assert.equal(readFileSync(path.join(toolchainRoot, 'compiler', 'bin', 'compiler'), 'utf8'), 'compiler');
+				selfTestRan = true;
+			}
+		}
+	], () => {});
+	const running = runner.run();
+	try {
+		if (retryAfterTimeout) {
+			await mirrorStarted;
+			context.mock.timers.tick(60_000);
+		}
+		await downloadStarted;
+		context.mock.timers.tick(45_000);
+		await new Promise<void>(resolve => setImmediate(resolve));
+		assert.equal(runner.snapshot.running, true);
+		assert.equal(runner.snapshot.steps[0].status, 'running');
+		downloadResponse!.end(archive.subarray(16));
+		await running;
+		assert.equal(runner.snapshot.ready, true);
+		assert.equal(selfTestRan, true);
+		assert.deepStrictEqual(requests, [...(retryAfterTimeout ? ['/mirror'] : []), '/download', '/redirect', '/archive']);
+		if (retryAfterTimeout) { assert.equal(mirrorClosed, true); }
+		assert.throws(() => readFileSync(path.join(toolchainRoot, 'compiler.zip')), { code: 'ENOENT' });
+	} finally {
+		server.closeAllConnections();
+		await new Promise<void>(resolve => server.close(() => resolve()));
+		await running;
+		await rm(toolchainRoot, { recursive: true, force: true });
+	}
+}
 
 test('removes compiler locale data when an existing portable toolchain is prepared', async () => {
 	const toolchainRoot = await mkdtemp(path.join(os.tmpdir(), 'shortestpath-toolchain-test-'));

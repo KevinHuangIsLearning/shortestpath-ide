@@ -165,6 +165,9 @@ async function downloadFromUrl(url: string, targetPath: string, label: string, r
 			responseStream = response;
 			const location = response.headers.location;
 			if (location && response.statusCode && response.statusCode >= 300 && response.statusCode < 400) {
+				// The redirected request owns its connection and data timeouts.
+				// Leaving this timer active can reject setup while that download continues.
+				clearTimeout(timeout);
 				response.resume();
 				void downloadFromUrl(new URL(location, parsed).toString(), targetPath, label, reportProgress, redirectCount + 1).then(() => finish(), finish);
 				return;
