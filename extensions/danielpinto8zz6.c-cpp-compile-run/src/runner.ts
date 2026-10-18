@@ -13,6 +13,8 @@ import isWsl from "is-wsl";
 import { ensureWorkspaceIsTrusted } from "./utils/workspace-utils";
 import { monitorExecutableAndScheduleCleanup, scheduleExecutableCleanup } from "./utils/executable-cleanup";
 import path = require("path");
+import { FileType } from "./enums/file-type";
+import { getCompilerEnvironment } from "./utils/compiler-environment";
 
 export class Runner {
     private file: File;
@@ -42,6 +44,8 @@ export class Runner {
         const parsedExecutable = await getPath(this.file.executable, shell);
         const runCommand = this.getRunCommand(parsedExecutable, args, customPrefix, shell);
         const executablePath = path.join(outputLocation, this.file.executable);
+        const compiler = this.file.type === FileType.c ? Configuration.cCompiler() : Configuration.cppCompiler();
+        const env = await getCompilerEnvironment(compiler);
 
         if (shouldRunInExternalTerminal && isWsl) {
             Notification.showWarningMessage("WSL detected. Running in VS Code integrated terminal instead of an external terminal.");
@@ -49,10 +53,10 @@ export class Runner {
         }
 
         if (shouldRunInExternalTerminal) {
-            await externalTerminal.runInExternalTerminal(runCommand, outputLocation, shell);
+            await externalTerminal.runInExternalTerminal(runCommand, outputLocation, shell, env);
             void monitorExecutableAndScheduleCleanup(executablePath);
         } else {
-            const result = await terminal.runInTerminal(runCommand, { name: "C/C++ Compile Run", cwd: outputLocation });
+            const result = await terminal.runInTerminal(runCommand, { name: "C/C++ Compile Run", cwd: outputLocation, env });
             void result.completion.then(tracked => tracked
                 ? scheduleExecutableCleanup(executablePath)
                 : monitorExecutableAndScheduleCleanup(executablePath),

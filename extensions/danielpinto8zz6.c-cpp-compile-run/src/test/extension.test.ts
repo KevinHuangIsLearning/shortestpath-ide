@@ -23,9 +23,25 @@ suite("Extension Test Suite", () => {
 		assert.strictEqual(file.type, FileType.cplusplus);
 		
 		if (process.platform === "win32") {
-			assert.strictEqual(file.executable, "main.exe");
+			assert.match(file.executable, /^shortestpath-[a-f0-9]{24}\.exe$/);
 		} else {
 			assert.strictEqual(file.executable, "main");
 		}
+	});
+
+	test("Windows output names are ASCII, stable and distinct for Chinese sources sharing an output folder", function () {
+		if (process.platform !== "win32") { this.skip(); }
+		const parse = (fileName: string) => parseFile({ fileName, languageId: "cpp" } as vscode.TextDocument);
+		const source = "C:\\中文目录\\中文题目.cpp";
+		const output = parse(source).executable;
+		assert.match(output, /^shortestpath-[a-f0-9]{24}\.exe$/);
+		assert.strictEqual(parse(source).executable, output);
+		assert.strictEqual(parse(source.toUpperCase()).executable, output);
+		assert.strictEqual(new Set([
+			output,
+			parse("C:\\其他目录\\中文题目.cpp").executable,
+			parse("C:\\中文目录\\中文题目.c").executable,
+			parse("C:\\中文目录\\另一道题.cpp").executable
+		]).size, 4);
 	});
 });

@@ -6,6 +6,23 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+// These existing Compile Run files retain upstream indentation and notices
+// (including the terminal's MIT notice). Newly authored files are not exempt.
+const inheritedCompileRunFiles = [
+	'compiler.ts',
+	'debugger.ts',
+	'extension.ts',
+	'external-terminal.ts',
+	'runner.ts',
+	'terminal.ts',
+	'test/common-utils.test.ts',
+	'test/extension.test.ts',
+	'test/shell-utils.test.ts',
+	'utils/common-utils.ts',
+	'utils/file-utils.ts',
+	'utils/shell-utils.ts',
+].map(file => `!extensions/danielpinto8zz6.c-cpp-compile-run/src/${file}`);
+
 /**
  * Hygiene works by creating cascading subsets of all our files and
  * passing them through a sequence of checks. Here are the current subsets,
@@ -101,6 +118,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 
 export const indentationFilter = Object.freeze<string[]>([
 	'**',
+	...inheritedCompileRunFiles,
 
 	// These files were inherited from CPH. Preserve their original style and notices;
 	// newly authored Judger files remain subject to the normal checks.
@@ -216,6 +234,7 @@ export const indentationFilter = Object.freeze<string[]>([
 
 export const copyrightFilter = Object.freeze<string[]>([
 	'**',
+	...inheritedCompileRunFiles,
 	// These inherited CPH files have no upstream copyright header.
 	'!extensions/shortestpath.judger/src/companion.ts',
 	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
@@ -289,6 +308,7 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'extensions/**/*.ts',
+	...inheritedCompileRunFiles,
 	// Preserve the formatting of these inherited CPH files.
 	'!extensions/shortestpath.judger/src/companion.ts',
 	'!extensions/shortestpath.judger/src/webview/editorChange.ts',

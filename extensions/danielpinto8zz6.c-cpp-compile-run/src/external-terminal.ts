@@ -7,7 +7,7 @@ import { getPath } from "./utils/shell-utils";
 import { escapeStringAppleScript, isStringNullOrWhiteSpace } from "./utils/string-utils";
 
 class ExternalTerminal {
-    public async runInExternalTerminal(command: string, cwd: string, shell: ShellType) {
+    public async runInExternalTerminal(command: string, cwd: string, shell: ShellType, env: Record<string, string> = {}) {
         const parsedOutputLocation = await getPath(cwd, shell);
 
         const externalCommand = await this.getExternalCommand(command, parsedOutputLocation, shell);
@@ -15,7 +15,7 @@ class ExternalTerminal {
             return;
         }
 
-        const child = exec(externalCommand, { cwd: cwd });
+        const child = exec(externalCommand, { cwd, env: { ...process.env, ...env } });
         child.on("error", (err) => {
             Notification.showErrorMessage(`Failed to launch external terminal: ${err.message}`);
         });
@@ -27,7 +27,7 @@ class ExternalTerminal {
                 switch (shell) {
                     case ShellType.powerShell:
                         const winTerminal: string = Configuration.winTerminal();
-                        return `start ${winTerminal} -Command "cd ${outputLocation};${runCommand};Write-Host;Write-Host -NoNewLine 'Press any key to continue...';$Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');"`;
+                        return `start ${winTerminal} -Command "Set-Location -LiteralPath ${outputLocation};${runCommand};Write-Host;Write-Host -NoNewLine 'Press any key to continue...';$Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');"`;
                     default:
                         return `start cmd /c "cd ${outputLocation} & ${runCommand} & echo. & pause"`;
                 }

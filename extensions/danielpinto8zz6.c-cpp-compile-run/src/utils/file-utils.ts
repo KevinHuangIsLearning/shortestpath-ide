@@ -4,6 +4,7 @@ import { basename, extname, dirname, isAbsolute, join, relative } from "path";
 import { getFileType } from "./file-type-utils";
 import * as fse from "fs-extra";
 import { Configuration } from "../configuration";
+import { createHash } from "crypto";
 
 /**
  * Parses a VS Code TextDocument into a File object used by the extension.
@@ -19,7 +20,11 @@ export function parseFile(doc: TextDocument): File {
         title: fileTitle,
         directory: dirname(fileName),
         type: fileType,
-        executable: process.platform === "win32" ? `${fileTitle}.exe` : fileTitle
+        // MinGW tools may interpret non-ASCII output names using different code
+        // pages. A path hash also distinguishes equal titles in a shared output dir.
+        executable: process.platform === "win32"
+            ? `shortestpath-${createHash("sha256").update(fileName.toLowerCase()).digest("hex").slice(0, 24)}.exe`
+            : fileTitle
     };
 }
 

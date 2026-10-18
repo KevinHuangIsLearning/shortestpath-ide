@@ -3,6 +3,7 @@ import { env } from "vscode";
 import { ShellType } from "../enums/shell-type";
 import { outputChannel } from "../output-channel";
 import { executeCommand } from "./cp-utils";
+import { quoteCmdArgument, quotePowerShellArgument } from "./shell-quoting";
 
 export function parseShell(executable: string): ShellType {
     switch (executable.toLowerCase()) {
@@ -37,6 +38,9 @@ export function getCommand(cmd: string, shell: ShellType): string {
 }
 
 export async function getCDCommand(cwd: string, shellType: ShellType): Promise<string> {
+    if (shellType === ShellType.powerShell) {
+        return `Set-Location -LiteralPath ${quotePowerShellArgument(cwd)}`;
+    }
     const parsedPath = await getPath(cwd, shellType);
     return shellType === ShellType.cmd ? `cd /d ${parsedPath}` : `cd ${parsedPath}`;
 }
@@ -47,12 +51,9 @@ export async function getPath(cwd: string, shellType: ShellType): Promise<string
             case ShellType.gitBash:
                 return `"${cwd.replace(/\\+$/, "")}"`; // Git Bash: remove trailing '\'
             case ShellType.powerShell:
-                // Escape '[' and ']' in PowerShell
-                // See: https://github.com/microsoft/vscode-maven/issues/324
-                const escaped: string = cwd.replace(/([\[\]])/g, "``$1");
-                return `'${escaped}'`; // PowerShell
+                return quotePowerShellArgument(cwd);
             case ShellType.cmd:
-                return `"${cwd}"`; // CMD
+                return quoteCmdArgument(cwd);
             case ShellType.wsl:
                 return `"${await toWslPath(cwd)}"`; // WSL
             default:

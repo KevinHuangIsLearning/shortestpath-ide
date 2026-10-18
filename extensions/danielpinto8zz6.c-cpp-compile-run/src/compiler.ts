@@ -1,9 +1,9 @@
-import { ProcessExecution, ShellExecution, Task, tasks, TaskScope, window, workspace } from "vscode";
+import { ProcessExecution, Task, tasks, TaskScope, window, workspace } from "vscode";
 import { Configuration } from "./configuration";
 import { FileType } from "./enums/file-type";
 import { File } from "./models/file";
 import { promptCompiler, promptFlags } from "./utils/prompt-utils";
-import { commandExists, isProcessRunning, isWindows } from "./utils/common-utils";
+import { commandExists, isProcessRunning } from "./utils/common-utils";
 import { Result } from "./enums/result";
 import { isStringNullOrWhiteSpace, splitArgs } from "./utils/string-utils";
 import { Notification } from "./notification";
@@ -12,56 +12,10 @@ import { getOutputLocation } from "./utils/file-utils";
 import { existsSync, readdirSync, statSync } from "fs";
 import { ensureWorkspaceIsTrusted } from "./utils/workspace-utils";
 import * as cp from "child_process";
-import { currentShell } from "./utils/shell-utils";
-import { ShellType } from "./enums/shell-type";
+import { getCompilerEnvironment } from "./utils/compiler-environment";
 
 const HEADER_EXTENSIONS = new Set([".h", ".hpp", ".hxx", ".hh"]);
 const MAX_SCAN_DEPTH = 10;
-
-/**
- * Builds a task execution for compiling. On Windows with PowerShell or CMD shells,
- * wraps the compiler command with `chcp 65001` to force UTF-8 console encoding.
- * This prevents garbled non-ASCII characters (e.g. Chinese) in GCC diagnostic output
- * when the system's active code page is not UTF-8 (e.g. GBK on Chinese Windows).
- *
- * For PowerShell, ProcessExecution is used (spawning a dedicated powershell.exe
- * process) instead of ShellExecution because VS Code's onDidEndTaskProcess event
- * is not guaranteed to fire for ShellExecution tasks running in an integrated
- * terminal (per VS Code API documentation). Using ProcessExecution ensures the
- * event fires reliably when the spawned process exits.
- */
-function buildCompileTaskExecution(
-    compiler: string,
-    args: string[],
-    opts: { cwd: string; env?: { [key: string]: string } }
-): ProcessExecution | ShellExecution {
-    if (isWindows()) {
-        const shell = currentShell();
-        if (shell === ShellType.powerShell) {
-            // Quote every argument so PowerShell cannot interpret commas or other
-            // metacharacters in compiler flags (for example
-            // -fsanitize=address,undefined) as PowerShell syntax.
-            const psQuote = (arg: string): string => `'${arg.replace(/'/g, "''")}'`;
-            const quotedCmd = [compiler, ...args].map(psQuote).join(" ");
-            // Append `; exit $LASTEXITCODE` so the spawned powershell.exe process
-            // exits with the compiler's exit code, which onDidEndTaskProcess receives.
-            const cmdLine = `chcp 65001 | Out-Null; & ${quotedCmd}; exit $LASTEXITCODE`;
-            return new ProcessExecution(
-                "powershell.exe",
-                ["-NoProfile", "-NonInteractive", "-Command", cmdLine],
-                opts
-            );
-
-        } else if (shell === ShellType.cmd) {
-            // Double-quote each argument; escape embedded double quotes by doubling them
-            const quote = (s: string) => `"${s.replace(/"/g, '""')}"`;
-            const cmdLine = `chcp 65001 > nul 2>&1 && ${[compiler, ...args].map(quote).join(" ")}`;
-            return new ShellExecution(cmdLine, opts);
-        }
-    }
-    // Non-Windows or other Windows shells (Git Bash, WSL): use ProcessExecution directly
-    return new ProcessExecution(compiler, args, opts);
-}
 
 function hasNewerFile(dirs: string[], exeMtimeMs: number, depth: number = 0): boolean {
     if (depth > MAX_SCAN_DEPTH) { return false; }
@@ -104,7 +58,10 @@ export class Compiler {
             await window.activeTextEditor?.document.save();
         }
 
-        if (await isProcessRunning(this.file.executable)) {
+        const outputLocation = getOutputLocation(true, this.file.directory);
+        const outputPath = path.join(outputLocation, this.file.executable);
+
+        if (existsSync(outputPath) && await isProcessRunning(outputPath)) {
             Notification.showErrorMessage(
                 `The program "${this.file.executable}" is already running. Please close it before compiling again.`
             );
@@ -122,9 +79,6 @@ export class Compiler {
                 this.inputFlags = flags;
             }
         }
-
-        const outputLocation = getOutputLocation(true, this.file.directory);
-        const outputPath = path.join(outputLocation, this.file.executable);
 
         // --- Up-to-date check ---
         if (Configuration.skipIfCompiled() && existsSync(outputPath)) {
@@ -152,7 +106,7 @@ export class Compiler {
         ].filter(p => p.trim().length > 0);
         const includeFlags = includePaths.flatMap(dir => ["-I", dir]);
 
-        let compilerArgs = [
+        const compilerArgs = [
             ...splitArgs(this.inputFlags),
             ...includeFlags,
             this.file.path,
@@ -161,16 +115,16 @@ export class Compiler {
             ...splitArgs(this.linkerFlags)
         ].filter(Boolean);
 
-        const execEnv: { [key: string]: string } | undefined = isWindows()
-            ? { LANG: "C.UTF-8", LC_ALL: "C.UTF-8" }
-            : undefined;
+        const execEnv = await getCompilerEnvironment(this.compiler!);
 
         const hasWorkspace = workspace.workspaceFolders && workspace.workspaceFolders.length > 0;
 
         if (hasWorkspace) {
             // Use VS Code Task API when a workspace folder is open —
             // provides $gcc problem matcher for clickable error links.
-            const taskExecution = buildCompileTaskExecution(
+            // Pass Unicode paths as native process arguments. Shell code pages and
+            // locale overrides do not fix MinGW's handling of filesystem paths.
+            const taskExecution = new ProcessExecution(
                 this.compiler!,
                 compilerArgs,
                 { cwd: this.file.directory, env: execEnv }
@@ -200,7 +154,12 @@ export class Compiler {
                 }
             });
 
-            await executionPromise;
+            try {
+                await executionPromise;
+            } catch (error) {
+                endListener.dispose();
+                throw error;
+            }
         } else {
             // In single-file mode (no workspace folder), the VS Code Task API
             // fails because it tries to resolve ${workspaceFolder} internally.

@@ -1,4 +1,4 @@
-import { commands, ExtensionContext, Terminal, window } from "vscode";
+import { commands, ExtensionContext, window } from "vscode";
 import { CompileRunManager } from "./compile-run-manager";
 import { Configuration } from "./configuration";
 import { FileType } from "./enums/file-type";
@@ -22,12 +22,7 @@ function initializeExtension(context: ExtensionContext) {
     register("extension.CustomCompileRun", () => compileRunManager.compileRun(true, true, Configuration.runInExternalTerminal()));
     register("extension.CompileRunInExternalTerminal", () => compileRunManager.compileRun(false, false, true));
 
-    // Dispose terminal resources when closed
-    context.subscriptions.push(
-        window.onDidCloseTerminal((closedTerminal: Terminal) => {
-            terminal.dispose(closedTerminal.name);
-        })
-    );
+    context.subscriptions.push(terminal);
 
     // Status bar management
     const statusBar = new StatusBar(context);

@@ -6,6 +6,8 @@ import { debug, DebugConfiguration, Uri, workspace, extensions, window, commands
 import { getOutputLocation } from "./utils/file-utils";
 import { Configuration } from "./configuration";
 import { ensureWorkspaceIsTrusted } from "./utils/workspace-utils";
+import { FileType } from "./enums/file-type";
+import { getCompilerEnvironment } from "./utils/compiler-environment";
 
 const CPPTOLS_EXTENSION_ID = "ms-vscode.cpptools";
 const CPPDEBUG_EXTENSION_ID = "kylinideteam.cppdebug";
@@ -51,6 +53,8 @@ export class Debugger {
             return;
         }
 
+        const compiler = this.file.type === FileType.c ? Configuration.cCompiler() : Configuration.cppCompiler();
+        const env = await getCompilerEnvironment(compiler);
         const debugConfiguration: DebugConfiguration = {
             name: "C/C++ Compile Run: Debug",
             type: "cppdbg",
@@ -59,7 +63,8 @@ export class Debugger {
             cwd: this.file.directory,
             externalConsole: Configuration.runInExternalTerminal(),
             MIMode: Configuration.debuggerMIMode(),
-            program: executablePath
+            program: executablePath,
+            environment: Object.entries(env).map(([name, value]) => ({ name, value }))
         };
 
         const debuggerPath = Configuration.debuggerPath();
