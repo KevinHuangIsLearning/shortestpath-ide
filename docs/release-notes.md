@@ -2,13 +2,15 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.4.15 更新 / What's New
+## v0.4.16 更新 / What's New
 
-- 修复 macOS 内置浏览器在没有后退页面时左划关闭标签页导致的崩溃，并缩短关闭响应时间。
+- 修复 Windows 下中文文件通过右上角编译运行时，因编译与运行环境差异或程序占用导致失败的问题。
+- 修复首次配置时工具链下载重试后流程可能无法继续的问题。
 
 ### English
 
-- Fix a crash and delayed tab closure when swiping left in the macOS built-in browser with no back history.
+- Fix compilation and execution failures for Chinese-named files on Windows caused by environment differences or a running executable when using the top-right Compile and Run button.
+- Fix first-run setup sometimes getting stuck after retrying a toolchain download.
 
 The English version follows the Chinese version.
 
