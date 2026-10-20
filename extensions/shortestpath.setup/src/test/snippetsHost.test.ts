@@ -52,6 +52,7 @@ async function createHost(write: (source: string) => Promise<void> = async () =>
 			if (id === './fontSelection') { return require('../fontSelection'); }
 			if (id === './firstRunPreview') { return require('../firstRunPreview'); }
 			if (id === './compilerRuntime') { return require('../compilerRuntime'); }
+			if (id === './platformSettings') { return require('../platformSettings'); }
 			if (id === './templateEditor') { return require('../templateEditor'); }
 			return require(id);
 		}

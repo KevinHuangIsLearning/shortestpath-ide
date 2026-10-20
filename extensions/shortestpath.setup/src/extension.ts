@@ -11,6 +11,7 @@ import { compilerFallbackFlags, runToolchainCommand, runToolchainSelfTest } from
 import { withCompilerRuntime } from './compilerRuntime';
 import { defaultClangFormatConfig, registerCppFormatting } from './cppFormatting';
 import { findCppStandard, initializeCppSnippets, registerSimpleSettings } from './simpleSettings';
+import { withPlatformSettings } from './platformSettings';
 import { registerCphSettings } from './cphSettings';
 import { registerBrowserScriptTester } from './browserScriptTester';
 import { registerGettingStarted } from './gettingStarted';
@@ -676,7 +677,9 @@ function loadCphDefaultSettings(context: vscode.ExtensionContext): CphDefaultSet
 
 function loadRecommendedSettings(context: vscode.ExtensionContext): Record<string, unknown> {
 	const defaultsPath = path.join(context.extensionPath, 'resources', 'recommended-settings.json');
-	return JSON.parse(fs.readFileSync(defaultsPath, 'utf8')) as Record<string, unknown>;
+	// `window.systemColorTheme` is not a registered configuration on Linux,
+	// where native UI colors always follow the system color scheme.
+	return withPlatformSettings(JSON.parse(fs.readFileSync(defaultsPath, 'utf8')) as Record<string, unknown>);
 }
 
 function getPlatformName(): 'windows' | 'mac' | 'linux' {

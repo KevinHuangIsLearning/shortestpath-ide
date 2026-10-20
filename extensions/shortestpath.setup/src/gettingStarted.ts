@@ -15,6 +15,7 @@ import { firstRunView, type FirstRunEditorState } from './firstRunView';
 import { defaultCppTemplate } from './firstRunPreview';
 import { EditorPreview } from './editorPreview';
 import { findCppStandard, getThemeOptions } from './simpleSettings';
+import { isSettingSupportedOnPlatform } from './platformSettings';
 import { withBundledCodeFont } from './bundledFont';
 import { getSystemFonts } from './systemFonts';
 import { codeFolderLocation, codeFolderCandidates, existingCodeFolder, type CodeFolderLocation } from './rememberedCodeFolder';
@@ -359,13 +360,19 @@ async function saveState(page: SaveMessage['page'], value: Record<string, unknow
 				settings.update('editor.fontSize', typeof value.fontSize === 'number' && value.fontSize > 0 ? Math.min(40, value.fontSize) : 14, vscode.ConfigurationTarget.Global)
 			]);
 			break;
-		case 'theme':
-			await Promise.all([
+		case 'theme': {
+			const updates = [
 				settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' && value.colorTheme ? value.colorTheme : 'One Monokai', vscode.ConfigurationTarget.Global),
-				settings.update('window.autoDetectColorScheme', value.autoDetectColorScheme === true, vscode.ConfigurationTarget.Global),
-				settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global)
-			]);
+				settings.update('window.autoDetectColorScheme', value.autoDetectColorScheme === true, vscode.ConfigurationTarget.Global)
+			];
+			// `window.systemColorTheme` is not a registered configuration on Linux,
+			// where native UI colors always follow the system color scheme.
+			if (isSettingSupportedOnPlatform('window.systemColorTheme')) {
+				updates.push(settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global));
+			}
+			await Promise.all(updates);
 			break;
+		}
 		case 'indent': {
 			const tabSize = [2, 4, 8].includes(Number(value.tabSize)) ? Number(value.tabSize) : 2;
 			await Promise.all([
