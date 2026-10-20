@@ -124,6 +124,25 @@ export const setupCompanionServer = () => {
     try {
         const server = http.createServer(async (req, res) => {
             const { headers } = req;
+            // Browsers and page-based companion clients send a CORS preflight
+            // before the JSON POST. Answer it without trying to parse a body.
+            const requestedHeaders = headers['access-control-request-headers'];
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', typeof requestedHeaders === 'string' && requestedHeaders
+                ? requestedHeaders
+                : 'Content-Type, X-ShortestPath-OJ, X-ShortestPath-OJ-Add-Test, X-ShortestPath-Source-Path, X-ShortestPath-Source-Path-Encoded, X-ShortestPath-Context, CPH-Submit');
+            if (req.method === 'OPTIONS') {
+                res.statusCode = 204;
+                res.end();
+                return;
+            }
+            if (req.method !== 'POST') {
+                res.statusCode = 405;
+                res.setHeader('Allow', 'POST, OPTIONS');
+                res.end();
+                return;
+            }
             const waitForProblemCreation = headers['x-shortestpath-oj'] === 'true';
             const addShortestPathTest = headers['x-shortestpath-oj-add-test'] === 'true';
             const preferredSourcePath = decodeShortestPathSourcePath(headers['x-shortestpath-source-path-encoded'], headers['x-shortestpath-source-path']);
@@ -175,12 +194,14 @@ export const setupCompanionServer = () => {
                         );
                     }
                 } catch (e) {
+                    const raw = e instanceof CompanionRequestError ? e.rawBody ?? '' : '';
+                    const contentType = typeof headers['content-type'] === 'string' ? headers['content-type'] : 'unknown';
                     vscode.window.showErrorMessage(
                         localize(
                             'judger.companion.parseError',
                             'Error parsing problem from companion {0}. Raw problem: {1}',
-                            String(e),
-                            '',
+                            `${String(e)} (${req.method ?? 'unknown'}, ${contentType}, ${raw.length} bytes)`,
+                            raw ? raw.slice(0, 1000) : '<empty body>',
                         ),
                     );
                     res.statusCode = e instanceof CompanionRequestError ? e.status : 500;
