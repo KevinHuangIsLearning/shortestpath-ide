@@ -39,10 +39,27 @@ export async function compilerFallbackFlags(compiler: string, run: ToolchainComm
 		// allow-any-unicode-next-line
 		throw new Error('无法读取编译器的目标平台。');
 	}
-	return [`-std=${cppStandard}`, `--target=${target}`, '-Wall', '-Wextra', '-DDEBUG', '-Drsize_t=size_t', '-D__STDC_WANT_LIB_EXT1__=1', '-D__float128=long double', '-U__SIZEOF_FLOAT128__',
+	return [`-std=${cppStandard}`, `--target=${target}`, '-Wall', '-Wextra', '-DDEBUG', '-Drsize_t=size_t', '-D__STDC_WANT_LIB_EXT1__=1', ...float128WorkaroundFlags(target),
 	...paths.flatMap(directory => directory.endsWith(' (framework directory)')
 		? ['-iframework', directory.replace(/ \(framework directory\)$/, '')]
 		: ['-isystem', directory])];
+}
+
+const legacyFloat128Flags = ['-D__float128=long double', '-U__SIZEOF_FLOAT128__'] as const;
+
+/**
+ * MinGW's clang target does not support __float128, so alias it to long double
+ * and hide the feature macros. On Linux and macOS clang supports __float128
+ * natively; aliasing it makes GCC 15's libstdc++ specializations collide
+ * (`numeric_limits<long double>` redefined).
+ */
+function float128WorkaroundFlags(target: string): readonly string[] {
+	return /mingw|windows/i.test(target) ? legacyFloat128Flags : [];
+}
+
+/** Drop the legacy MinGW workaround from flag lists written by older versions. */
+export function stripLegacyFloat128Flags(flags: readonly string[], platform: NodeJS.Platform = process.platform): string[] {
+	return platform === 'win32' ? [...flags] : flags.filter(flag => flag !== legacyFloat128Flags[0] && flag !== legacyFloat128Flags[1]);
 }
 
 export const selfTestSamples = [
@@ -89,7 +106,8 @@ export async function runToolchainSelfTest(compiler: string, clangd: string, fal
 		report('检查 Judger 编译、运行与样例判题…');
 		await testCph(file, selfTestSamples, report);
 		// Match clangd's fallback command for files with no project configuration.
-		await fs.writeFile(path.join(directory, 'compile_commands.json'), JSON.stringify([{ directory, file, arguments: ['clang', ...fallbackFlags, file] }]));
+		const effectiveFallbackFlags = stripLegacyFloat128Flags(fallbackFlags);
+		await fs.writeFile(path.join(directory, 'compile_commands.json'), JSON.stringify([{ directory, file, arguments: ['clang', ...effectiveFallbackFlags, file] }]));
 		// allow-any-unicode-next-line
 		report('检查 clangd 的 C++20 语法与系统头文件…');
 		await run(clangd, [`--check=${file}`, `--compile-commands-dir=${directory}`, '--enable-config=false', '--log=error'], report);
