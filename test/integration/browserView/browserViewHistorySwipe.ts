@@ -36,14 +36,14 @@ async function run() {
 	// This does not simulate or claim to validate physical AppKit recognition.
 	const native = createRequire(__filename)(HISTORY_SWIPE_TEST_NATIVE) as {
 		subscribe(callback: () => void): number;
-		start(id: number, gesture: number, back: boolean, forward: boolean): void;
+		start(id: number, gesture: number, backAction: number, canGoForward: boolean): void;
 		cancel(id: number): void;
 		unsubscribe(id: number): void;
 		pointForWindow(handle: Buffer, window: number, x: number, y: number): { x: number; y: number } | undefined;
 	};
 	const subscription = native.subscribe(() => { });
 	try {
-		native.start(subscription, 0, true, true);
+		native.start(subscription, 0, 1, true);
 		native.cancel(subscription);
 		assert.strictEqual(native.pointForWindow(win.getNativeWindowHandle(), -1, 0, 0), undefined);
 	} finally {
@@ -56,7 +56,7 @@ async function run() {
 	const contents = view.webContents;
 	const navigations: string[] = [];
 	let onGesture: (event: { phase: 'begin' | 'update' | 'end' | 'cancel'; amount: number; x: number; y: number }) => void;
-	let started: boolean[] | undefined;
+	let started: [string, boolean] | undefined;
 	const listener = registerBrowserViewHistorySwipe(contents, () => view.getVisible(), direction => {
 		navigations.push(direction);
 		const history = contents.navigationHistory;
@@ -65,7 +65,7 @@ async function run() {
 	}, callback => {
 		onGesture = callback;
 		return {
-			start: (back, forward) => { started = [back, forward]; },
+			start: (backAction, forward) => { started = [backAction, forward]; },
 			cancel: () => { started = undefined; }, dispose() { },
 		};
 	});
@@ -84,7 +84,7 @@ async function run() {
 		};
 		const hint = () => contents.executeJavaScript('__historySwipeTest.hint()');
 		await begin();
-		assert.deepStrictEqual(started, [true, false]);
+		assert.deepStrictEqual(started, ['navigate', false]);
 		await gesture('update', 0.15);
 		assert.deepStrictEqual(await hint(), { visible: true, opacity: '0.55', left: '-32px', right: 'auto', transform: '', sheets: 1 });
 		await gesture('update', 0.4);
@@ -103,7 +103,7 @@ async function run() {
 
 		await contents.executeJavaScript('document.getElementById("scroll").scrollLeft = 0');
 		await begin(100, 50);
-		assert.deepStrictEqual(started, [true, false], 'outward swipe at the left edge can go back');
+		assert.deepStrictEqual(started, ['navigate', false], 'outward swipe at the left edge can go back');
 		await gesture('cancel');
 		await contents.executeJavaScript('document.body.style.overscrollBehaviorX = "contain"');
 		await begin();
@@ -125,7 +125,7 @@ async function run() {
 		assert.deepStrictEqual([navigations, await hint()], [['back'], { visible: false }], 'stale progress cannot affect the new document');
 
 		await begin();
-		assert.deepStrictEqual(started, [true, true], 'a backward swipe without history shows the unavailable-page hint');
+		assert.deepStrictEqual(started, ['close', true], 'a backward swipe without history shows the unavailable-page hint');
 		await gesture('update', -0.4);
 		assert.deepStrictEqual(await hint(), { visible: true, opacity: '1', left: 'auto', right: '12px', transform: 'scaleX(-1)', sheets: 1 });
 		await gesture('end', -0.4);
@@ -136,7 +136,7 @@ async function run() {
 		contents.navigationHistory.goBack();
 		await delay(100);
 		await begin();
-		assert.deepStrictEqual(started, [true, true], 'backward tracking remains active to show the unavailable-page hint');
+		assert.deepStrictEqual(started, ['close', true], 'backward tracking remains active to show the unavailable-page hint');
 		await gesture('update', 0.4);
 		assert.deepStrictEqual(await hint(), { visible: true, opacity: '1', left: '12px', right: 'auto', transform: '', sheets: 1 }, 'an unavailable backward swipe shows a cross hint');
 		await gesture('end', 0.4);
@@ -149,15 +149,15 @@ async function run() {
 		await delay(100);
 		await contents.executeJavaScript('document.getElementById("scroll").scrollLeft = 1800');
 		await begin(100, 50);
-		assert.deepStrictEqual(started, [false, true], 'right edge permits only forward navigation');
+		assert.deepStrictEqual(started, ['none', true], 'right edge permits only forward navigation');
 		await gesture('cancel');
 		await contents.executeJavaScript('const scroll = document.getElementById("scroll"); scroll.style.direction = "rtl"; scroll.scrollLeft = 0');
 		await begin(100, 50);
-		assert.deepStrictEqual(started, [false, true], 'RTL right edge uses the same physical direction');
+		assert.deepStrictEqual(started, ['none', true], 'RTL right edge uses the same physical direction');
 		await gesture('cancel');
 		await contents.executeJavaScript('document.getElementById("scroll").scrollLeft = -1800');
 		await begin(100, 50);
-		assert.deepStrictEqual(started, [true, false], 'RTL left edge allows back');
+		assert.deepStrictEqual(started, ['navigate', false], 'RTL left edge allows back');
 		await gesture('cancel');
 
 		await contents.executeJavaScript(`{

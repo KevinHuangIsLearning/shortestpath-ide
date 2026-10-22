@@ -36,14 +36,13 @@ suite('BrowserView AppKit gesture routing', () => {
 	test('routes local coordinates and starts only the matching native gesture', () => {
 		const view = setup();
 		view.input('begin');
-		view.subscription.start(true, false);
+		view.subscription.start('close', false);
 		view.input('update', 0, 0.9);
 		view.input('update', 1, 0.15);
 		view.input('end', 1, 0.4);
-		view.input('update', 1, 1);
-		view.subscription.start(true, true);
+		view.subscription.start('navigate', true);
 		assert.deepStrictEqual([view.calls, view.events], [
-			[['start', 7, 1, true, false, false]],
+			[['start', 7, 1, 2, false]],
 			[{ phase: 'begin', amount: 0, x: 5, y: 5 }, { phase: 'update', amount: 0.15, x: 0, y: 0 }, { phase: 'end', amount: 0.4, x: 0, y: 0 }],
 		]);
 	});
@@ -52,7 +51,7 @@ suite('BrowserView AppKit gesture routing', () => {
 		const view = setup();
 		view.input('begin', 1, 0, 99);
 		view.input('begin', 2, 0, 42, 110, 25);
-		view.subscription.start(true, true);
+		view.subscription.start('navigate', true);
 		assert.deepStrictEqual([view.calls, view.events], [[], []]);
 	});
 
@@ -77,7 +76,7 @@ suite('BrowserView AppKit gesture routing', () => {
 		const view = setup();
 		view.input('begin'); view.subscription.cancel(); view.input('end', 1, 1);
 		view.subscription.dispose(); view.subscription.dispose();
-		view.input('begin', 2); view.subscription.start(true, true);
+		view.input('begin', 2); view.subscription.start('navigate', true);
 		assert.deepStrictEqual([view.calls, view.events.length], [[['cancel', 7], ['unsubscribe', 7]], 1]);
 	});
 });

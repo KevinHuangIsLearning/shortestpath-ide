@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import type { ITrackpadGesture, ITrackpadGestureSubscription } from './browserViewTrackpadGesture.js';
+import type { ITrackpadGesture, ITrackpadGestureSubscription, TrackpadBackAction } from './browserViewTrackpadGesture.js';
 
-/** Lets AppKit decide completion after the page permits history swiping. */
+/** Lets AppKit settle history navigation while closing no-history tabs on release. */
 export function registerBrowserViewHistorySwipe(
 	contents: Electron.WebContents,
 	isAvailable: () => boolean,
@@ -18,11 +18,12 @@ export function registerBrowserViewHistorySwipe(
 	let approved = false;
 	let allowedBack = false;
 	let allowedForward = false;
-	let closeTimer: ReturnType<typeof setTimeout> | undefined;
+	let backAction: TrackpadBackAction = 'none';
 	const hide = () => contents.send('vscode:browserView:historySwipeProgress', { token, amount: 0 });
 	const cancel = () => {
 		active = false;
 		approved = false;
+		backAction = 'none';
 		gestureSubscription.cancel();
 		hide();
 		token++;
@@ -31,6 +32,7 @@ export function registerBrowserViewHistorySwipe(
 		if (phase === 'begin') {
 			active = false;
 			approved = false;
+			backAction = 'none';
 			hide();
 			token++;
 			if (!isAvailable()) { gestureSubscription.cancel(); return; }
@@ -57,18 +59,12 @@ export function registerBrowserViewHistorySwipe(
 			hide();
 			if (amount === 0) { return; }
 			if (back) {
-				if (!allowedBack) { return; }
-				if (contents.navigationHistory.canGoBack()) {
+				if (backAction === 'navigate') {
 					navigate('back');
-				} else {
-					// Closing tears down this subscription. Wait until the final native
-					// callback has returned, then re-check that this gesture is current.
-					const closing = token;
-					clearTimeout(closeTimer);
-					closeTimer = setTimeout(() => {
-						closeTimer = undefined;
-						if (closing === token) { navigate('close'); }
-					}, 0);
+				} else if (backAction === 'close') {
+					// The native close path stops AppKit tracking and clears its state
+					// before dispatching this asynchronous callback, so disposal is safe.
+					navigate('close');
 				}
 			} else if (allowedForward && contents.navigationHistory.canGoForward()) {
 				navigate('forward');
@@ -83,7 +79,9 @@ export function registerBrowserViewHistorySwipe(
 		allowedForward = forward && contents.navigationHistory.canGoForward();
 		if (!allowedBack && !allowedForward) { cancel(); return; }
 		approved = true;
-		gestureSubscription.start(allowedBack, allowedForward, allowedBack && !contents.navigationHistory.canGoBack());
+		backAction = !allowedBack ? 'none'
+			: contents.navigationHistory.canGoBack() ? 'navigate' : 'close';
+		gestureSubscription.start(backAction, allowedForward);
 	};
 	const onCancel = (event: Electron.IpcMainEvent, requestToken: number) => {
 		if (event.senderFrame === contents.mainFrame && requestToken === token && active) { cancel(); }
@@ -96,7 +94,6 @@ export function registerBrowserViewHistorySwipe(
 	contents.ipc.on('vscode:browserView:historySwipeAllow', onAllow);
 	contents.ipc.on('vscode:browserView:historySwipeCancel', onCancel);
 	return toDisposable(() => {
-		clearTimeout(closeTimer);
 		gestureSubscription.dispose();
 		contents.removeListener('blur', cancel);
 		contents.removeListener('did-start-navigation', onNavigation);

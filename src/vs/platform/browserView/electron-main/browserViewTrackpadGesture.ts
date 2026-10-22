@@ -14,14 +14,16 @@ export interface ITrackpadGesture {
 	readonly y: number;
 }
 
+export type TrackpadBackAction = 'none' | 'navigate' | 'close';
+
 export interface ITrackpadGestureSubscription extends IDisposable {
-	start(canGoBack: boolean, canGoForward: boolean, closeBackWithoutHistory?: boolean): void;
+	start(backAction: TrackpadBackAction, canGoForward: boolean): void;
 	cancel(): void;
 }
 
 export interface ITrackpadGestureMonitor {
 	subscribe(callback: (phase: ITrackpadGesture['phase'], window: number, x: number, y: number, gesture: number, amount: number) => void): number;
-	start(id: number, gesture: number, canGoBack: boolean, canGoForward: boolean, closeBackWithoutHistory: boolean): void;
+	start(id: number, gesture: number, backAction: number, canGoForward: boolean): void;
 	cancel(id: number): void;
 	unsubscribe(id: number): void;
 	pointForWindow(handle: Buffer, window: number, x: number, y: number): { x: number; y: number } | undefined;
@@ -71,8 +73,11 @@ export function registerBrowserViewTrackpadGesture(
 		native.unsubscribe(id);
 	});
 	return Object.assign(disposable, {
-		start: (canGoBack: boolean, canGoForward: boolean, closeBackWithoutHistory = false) => {
-			if (!disposed && tracking !== undefined) { native.start(id, tracking, canGoBack, canGoForward, closeBackWithoutHistory); }
+		start: (backAction: TrackpadBackAction, canGoForward: boolean) => {
+			if (!disposed && tracking !== undefined) {
+				const nativeBackAction = backAction === 'close' ? 2 : backAction === 'navigate' ? 1 : 0;
+				native.start(id, tracking, nativeBackAction, canGoForward);
+			}
 		},
 		cancel: () => { tracking = undefined; if (!disposed) { native.cancel(id); } },
 	});

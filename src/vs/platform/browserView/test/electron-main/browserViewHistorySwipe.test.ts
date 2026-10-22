@@ -23,13 +23,13 @@ suite('BrowserView history swipe', () => {
 		});
 		let available = true;
 		const navigations: string[] = [];
-		const starts: boolean[][] = [];
+		const starts: [string, boolean][] = [];
 		const gestures = new EventEmitter();
 		store.add(registerBrowserViewHistorySwipe(contents as unknown as Electron.WebContents,
 			() => available, direction => navigations.push(direction), listener => {
 				gestures.on('gesture', listener);
 				return {
-					start: (back, forward) => { starts.push([back, forward]); }, cancel: () => { },
+					start: (backAction, forward) => { starts.push([backAction, forward]); }, cancel: () => { },
 					dispose: () => { gestures.removeListener('gesture', listener); },
 				};
 			}));
@@ -84,7 +84,7 @@ suite('BrowserView history swipe', () => {
 		assert.deepStrictEqual(view.starts, []);
 		view.allow(); view.allow();
 		view.gesture('end', -0.4);
-		assert.deepStrictEqual([view.starts, view.navigations], [[[true, true]], ['forward']]);
+		assert.deepStrictEqual([view.starts, view.navigations], [[['navigate', true]], ['forward']]);
 	});
 
 	test('page can restrict each direction and cannot grant missing history', () => {
@@ -93,33 +93,23 @@ suite('BrowserView history swipe', () => {
 		view.setHistory(true, false);
 		view.gesture('begin'); view.allow(); view.gesture('end', -0.5);
 		view.gesture('begin'); view.allow(true, false); view.gesture('end', 0.5);
-		assert.deepStrictEqual([view.starts, view.navigations], [[[true, false], [true, false]], ['back']]);
+		assert.deepStrictEqual([view.starts, view.navigations], [[['navigate', false], ['navigate', false]], ['back']]);
 	});
 
-	test('rechecks visibility at release and closes the tab when history disappears', async () => {
+	test('rechecks visibility at release and closes a no-history tab immediately', () => {
 		const view = setup();
 		view.gesture('begin'); view.allow(); view.setAvailable(false); view.gesture('end', 0.5);
 		assert.deepStrictEqual(view.navigations, [], 'an unavailable view never navigates');
 		view.setAvailable(true);
-		view.gesture('begin'); view.allow(); view.setHistory(false, false); view.gesture('end', 0.5);
-		assert.deepStrictEqual(view.navigations, [], 'closing is deferred until the native callback returns');
-		await new Promise(resolve => setTimeout(resolve, 0));
-		assert.deepStrictEqual(view.navigations, ['close'], 'a backward swipe without history closes the tab');
+		view.setHistory(false, false);
+		view.gesture('begin'); view.allow(); view.gesture('end', 0.5);
+		assert.deepStrictEqual([view.starts.at(-1), view.navigations], [['close', false], ['close']], 'a backward swipe without history closes the tab on release');
 	});
 
 	test('a page that rejects the backward swipe never navigates', () => {
 		const view = setup();
 		view.gesture('begin'); view.allow(false, false); view.gesture('end', 0.5);
 		assert.deepStrictEqual(view.navigations, []);
-	});
-
-	test('a pending close is dropped when a newer gesture supersedes it', async () => {
-		const view = setup();
-		view.setHistory(false, false);
-		view.gesture('begin'); view.allow(); view.gesture('end', 0.5);
-		view.gesture('begin');
-		await new Promise(resolve => setTimeout(resolve, 0));
-		assert.deepStrictEqual(view.navigations, [], 'a superseded close must not run');
 	});
 
 	test('blur, main frame navigation and page cancellation invalidate the gesture', () => {
