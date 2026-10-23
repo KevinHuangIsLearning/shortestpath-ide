@@ -12,6 +12,7 @@ import { defaultCppTemplate, type PreviewToken } from './firstRunPreview';
 import { installBundledCppSnippets } from './bundledSnippets';
 import { withBundledCodeFont } from './bundledFont';
 import { withCompilerPathFlags } from './compilerRuntime';
+import { isSettingSupportedOnPlatform } from './platformSettings';
 import { templateEditorLayoutScript } from './templateEditor';
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
@@ -733,7 +734,9 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('shortestpath.executableCleanupDelaySeconds', executableCleanupDelaySeconds, vscode.ConfigurationTarget.Global),
 		settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' ? value.colorTheme : 'One Monokai', vscode.ConfigurationTarget.Global),
 		settings.update('window.autoDetectColorScheme', value.autoDetectColorScheme === true, vscode.ConfigurationTarget.Global),
-		settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global),
+		// `window.systemColorTheme` is not a registered configuration on Linux,
+		// where native UI colors always follow the system color scheme.
+		...(isSettingSupportedOnPlatform('window.systemColorTheme') ? [settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global)] : []),
 		settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.useExtensionMarketplace', value.useExtensionMarketplace === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.ojbetter.atcoder', value.atcoderBetterEnabled === true, vscode.ConfigurationTarget.Global),

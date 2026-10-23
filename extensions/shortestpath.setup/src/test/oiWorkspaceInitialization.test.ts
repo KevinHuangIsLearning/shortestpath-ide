@@ -34,7 +34,7 @@ function createHost(folders: readonly { name: string; uri: { scheme: string; fsP
 				};
 			}
 			if (id === './cppFormatting') { return { defaultClangFormatConfig: (width: number) => `IndentWidth: ${width}\n` }; }
-			if (id === './portableToolchain') { return { managedClangdConfigMarker: '# ShortestPath' }; }
+			if (id === './portableToolchain') { return { managedClangdConfigMarker: require('../portableToolchain').managedClangdConfigMarker }; }
 			if (id === './simpleSettings') { return settingsExports; }
 			if (id.startsWith('./')) { return {}; }
 			return require(id);
@@ -62,6 +62,7 @@ test('automatically creates both missing configs without notifications and is id
 	const clangd = fs.readFileSync(path.join(folder.uri.fsPath, '.clangd'), 'utf8');
 	assert.match(clangd, /Compiler: "\/tools\/g\+\+"/);
 	assert.match(clangd, /-std=c\+\+17/);
+	assert.doesNotMatch(clangd, /__float128/);
 	fs.writeFileSync(path.join(folder.uri.fsPath, '.clangd'), 'custom clangd');
 	await host.run();
 	assert.deepEqual({
@@ -84,6 +85,37 @@ test('first-run selection refreshes the generated compiler and standard but pres
 	fs.writeFileSync(configPath, custom);
 	host.configure(folder.uri.fsPath);
 	assert.equal(fs.readFileSync(configPath, 'utf8'), custom);
+});
+
+test('removes the legacy MinGW __float128 workaround from generated project configs', async t => {
+	const folder = temporaryFolder(t);
+	const configPath = path.join(folder.uri.fsPath, '.clangd');
+	fs.writeFileSync(configPath, `# Managed by ShortestPath IDE setup.
+CompileFlags:
+  Add:
+    - -std=c++23
+    - -Wall
+    - -Wextra
+    - -DDEBUG
+    - "-Drsize_t=size_t"
+    - "-D__STDC_WANT_LIB_EXT1__=1"
+    - "-D__float128=long double"
+    - -U__SIZEOF_FLOAT128__
+  BuiltinHeaders: QueryDriver
+  Compiler: "/selected/g++"
+
+Completion:
+  HeaderInsertion: Never
+
+Index:
+  Background: Build
+`);
+	const host = createHost([folder]);
+	host.configure(folder.uri.fsPath);
+	const migrated = fs.readFileSync(configPath, 'utf8');
+	assert.doesNotMatch(migrated, /__float128/);
+	assert.match(migrated, /-std=c\+\+23/);
+	assert.match(migrated, /Compiler: "\/selected\/g\+\+"/);
 });
 
 for (const existing of ['.clangd', '.clang-format']) {

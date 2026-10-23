@@ -15,7 +15,7 @@ function renderSettings(showSupport = true): string {
 	const source = fs.readFileSync(path.resolve(__dirname, '../simpleSettings.js'), 'utf8');
 	vm.runInNewContext(source + '\nexports.render = getHtml;', {
 		exports,
-		require: (id: string) => id === './templateEditor' ? require('../templateEditor') : ({ localize: (text: string) => text, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) })
+		require: (id: string) => id === './templateEditor' ? require('../templateEditor') : id === './platformSettings' ? require('../platformSettings') : ({ localize: (text: string) => text, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) })
 	});
 	return exports.render!({}, showSupport);
 }
@@ -210,6 +210,7 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 			if (id === './bundledFont') { return { withBundledCodeFont: (html: string) => html }; }
 			if (id === './systemFonts') { return { getSystemFonts: async () => ({ fonts: [] }) }; }
 			if (id === './compilerRuntime') { return require('../compilerRuntime'); }
+			if (id === './platformSettings') { return require('../platformSettings'); }
 			return { localize: (text: string) => text, localizeWebviewHtml: (html: string) => html, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) };
 		}
 	});
@@ -244,6 +245,19 @@ test('other settings and invalid tab widths leave indentation preferences untouc
 		await host.receive({ type: 'save', value: { fontSize: 16, tabSize } });
 	}
 	assert.deepEqual(host.updates.filter(key => ['editor.tabSize', 'editor.insertSpaces', 'editor.detectIndentation'].includes(key)), []);
+	host.onDispose();
+});
+
+test('settings page skips the system color theme setting on Linux', async () => {
+	const host = createSettingsHost();
+	await host.receive({ type: 'save', value: { colorTheme: 'One Monokai', autoDetectColorScheme: true } });
+	assert.equal(host.savedValues['workbench.colorTheme'], 'One Monokai');
+	assert.equal(host.savedValues['window.autoDetectColorScheme'], true);
+	if (process.platform === 'linux') {
+		assert.equal(host.updates.includes('window.systemColorTheme'), false);
+	} else {
+		assert.equal(host.savedValues['window.systemColorTheme'], 'auto');
+	}
 	host.onDispose();
 });
 

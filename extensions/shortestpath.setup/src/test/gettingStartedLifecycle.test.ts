@@ -10,6 +10,7 @@ import * as os from 'node:os';
 import * as vm from 'node:vm';
 import * as ts from 'typescript';
 import { test } from 'node:test';
+import { withPlatformSettings } from '../platformSettings';
 
 function createHost(format?: (source: string, tabSize: number) => Promise<string>, storedState = new Map<string, unknown>(), portableDataPath?: string) {
 	const commands = new Map<string, () => void>();
@@ -71,7 +72,7 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 				const selection = folder;
 				setupSelections.push(JSON.parse(JSON.stringify(selection)));
 				if (selection.mode === 'recommended') {
-					for (const [key, value] of Object.entries(JSON.parse(fs.readFileSync(path.join(root, 'resources/recommended-settings.json'), 'utf8')))) { settings.set(key, value); }
+					for (const [key, value] of Object.entries(withPlatformSettings(JSON.parse(fs.readFileSync(path.join(root, 'resources/recommended-settings.json'), 'utf8'))))) { settings.set(key, value); }
 				}
 				return true;
 			}
@@ -103,6 +104,7 @@ function createHost(format?: (source: string, tabSize: number) => Promise<string
 			if (id === './editorPreview') { return { EditorPreview: class { async render(_tabSize: number, _hints: boolean, _format: boolean, source: string) { return { source: format ? await format(source, _tabSize) : source }; } dispose() {} } }; }
 			if (id === './firstRunView') { return { firstRunView: (...args: unknown[]) => JSON.stringify(args) }; }
 			if (id === './rememberedCodeFolder') { return require('../rememberedCodeFolder'); }
+			if (id === './platformSettings') { return require('../platformSettings'); }
 			if (id === './systemFonts') { return { async getSystemFonts() { fontReads++; return fonts; } }; }
 			if (id === './localization') { return { localize: (text: string) => text, localizeToolchainProgress: (text: string) => text, localizeWebviewHtml: (html: string) => html, localizeFormat: (text: string, ...args: string[]) => text.replace(/\{(\d+)\}/g, (_match, index) => args[Number(index)]) }; }
 			if (id === './simpleSettings') { return { getThemeOptions: () => [], findCppStandard: (flags: string) => flags.includes('c++23') ? 'c++23' : 'c++20', isCppStandard: () => true }; }
@@ -440,6 +442,22 @@ test('the guide defaults to Fira Code, loads system fonts on demand, and persist
 	await panel.receive({ type: 'save', page: 'font', value: { ...editor, fontFamily: '"Fira Code"', fontLigatures: true }, requestId: 1 });
 	await panel.receive({ type: 'nextTemplate' });
 	assert.deepEqual([host.settings.get('editor.fontFamily'), host.settings.get('editor.fontLigatures'), host.settings.get('editor.fontSize')], ['"Fira Code"', true, 18]);
+});
+
+test('theme choices skip settings that are not registered on Linux', async () => {
+	const host = createHost(); host.open();
+	const panel = host.panels[0];
+	await panel.receive({ type: 'startEnvironment' });
+	await panel.receive({ type: 'nextEditor' });
+	await panel.receive({ type: 'save', page: 'theme', value: { ...editor, colorTheme: 'One Monokai', autoDetectColorScheme: true }, requestId: 1 });
+	await panel.receive({ type: 'nextTemplate' }); // Flush the queued save.
+	assert.equal(host.settings.get('workbench.colorTheme'), 'One Monokai');
+	assert.equal(host.settings.get('window.autoDetectColorScheme'), true);
+	if (process.platform === 'linux') {
+		assert.equal(host.settings.has('window.systemColorTheme'), false);
+	} else {
+		assert.equal(host.settings.get('window.systemColorTheme'), 'auto');
+	}
 });
 
 test('a chosen directory survives restarting before completion and reopening setup after completion', async () => {
