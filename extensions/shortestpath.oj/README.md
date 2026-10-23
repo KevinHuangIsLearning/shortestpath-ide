@@ -28,6 +28,12 @@ Reading keys are memory-only, scoped to origin/account/problem; after an IDE
 restart, reconnect to obtain fresh content. Existing source files and custom
 Judger tests are preserved. Recovery does not replay business mutations.
 
+Restoration checks that cached ciphertext still matches the current reading key.
+Expired snapshots retain problem and source associations while restored panels
+show the reconnecting state. Content is displayed after the website fetches a
+fresh statement for the current public key. The same recovery path handles the
+window reload after choosing a code folder for the first import.
+
 The website can wake the IDE using
 `shortestpath://shortestpath.shortestpath-oj/wake`. Deploy the matching SPOJ HTTP
 Content Session v2 and website with a v3-capable IDE. The production extension

@@ -9,11 +9,11 @@ import { getReaderKeys, readerPrefix } from '../protectedReaderHost';
 export const readerKeys = getReaderKeys('https://shortestpath.cn', '1', 'DSU/found/A');
 
 /** Independent OpenSSL sender matching the Go reader envelope. */
-export function sealFixture(text: string, field = '/data/content'): string {
+export function sealFixture(text: string, field = '/data/content', recipient = readerKeys.publicKey): string {
 	const server = createECDH('prime256v1'); server.generateKeys();
 	const salt = randomBytes(16); const nonce = randomBytes(12);
-	const key = hkdfSync('sha256', server.computeSecret(Buffer.from(readerKeys.publicKey, 'base64url')), salt, 'spide.reader.v1', 32);
-	const box = [readerKeys.publicKey, server.getPublicKey().toString('base64url'), salt.toString('base64url'), nonce.toString('base64url'), 'GET /api/problem-ref/DSU/found/A', field, '', createHash('sha256').update(text).digest('base64url')];
+	const key = hkdfSync('sha256', server.computeSecret(Buffer.from(recipient, 'base64url')), salt, 'spide.reader.v1', 32);
+	const box = [recipient, server.getPublicKey().toString('base64url'), salt.toString('base64url'), nonce.toString('base64url'), 'GET /api/problem-ref/DSU/found/A', field, '', createHash('sha256').update(text).digest('base64url')];
 	const cipher = createCipheriv('aes-256-gcm', Buffer.from(key), nonce);
 	cipher.setAAD(Buffer.from(['spide.reader.v1', ...box.slice(0, 6), box[7]].join('\n')));
 	box[6] = Buffer.concat([cipher.update(text), cipher.final(), cipher.getAuthTag()]).toString('base64url');

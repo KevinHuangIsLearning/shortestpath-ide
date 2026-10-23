@@ -3,7 +3,7 @@
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getReaderKeys, protectedMarkdownSlot, discardLegacyReadingText } from './protectedReaderHost';
+import { getReaderKeys, hasCurrentReaderContent, protectedMarkdownSlot, discardLegacyReadingText } from './protectedReaderHost';
 import { LocalTestRequest, LocalTestsSnapshot, readLocalTestsSnapshot, localTestErrorMessage, isOfficialLocalTest, canRunLocalTests } from './localTests';
 import { renderLocalTests, renderLocalTestsToolbar } from './localTestsView';
 import { ProblemRatingSession, isRating, Rating } from './problemRating';
@@ -1544,8 +1544,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 	}, unknownStressStarts);
 	const contentFromCache = (cache: WorkspaceProblemCache, ref: string | undefined): SolveContent | undefined => {
 		if (!ref || !cache.sourcePaths[ref]) { return undefined; }
-		const problem = cache.problems[ref];
-		const identity = problem ?? cache.recoveryContexts[ref];
+		const cachedProblem = cache.problems[ref];
+		const problem = cachedProblem && hasCurrentReaderContent(cachedProblem) ? cachedProblem : undefined;
+		const identity = cachedProblem ?? cache.recoveryContexts[ref];
 		return identity ? { context: identity, problem, sourcePath: cache.sourcePaths[ref] } : undefined;
 	};
 	const coordinator = new SolveCoordinator({
@@ -1583,11 +1584,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 		async deserializeWebviewPanel(webviewPanel, state: unknown) {
 			const identity = state as { problemRef?: unknown; sourcePath?: unknown } | undefined;
 			const cache = await readWorkspaceProblemCache(typeof identity?.problemRef === 'string' ? identity.problemRef : undefined);
-			const problem = typeof identity?.problemRef === 'string' ? cache.problems[identity.problemRef] : undefined;
+			const cachedProblem = typeof identity?.problemRef === 'string' ? cache.problems[identity.problemRef] : undefined;
+			const problem = cachedProblem && hasCurrentReaderContent(cachedProblem) ? cachedProblem : undefined;
 			const ref = typeof identity?.problemRef === 'string' ? identity.problemRef : undefined;
 			if (!ref || cache.sourcePaths[ref] !== identity?.sourcePath) { webviewPanel.dispose(); return; }
 			if (!problem) {
-				const recoveryContext = cache.recoveryContexts[ref];
+				const recoveryContext = cachedProblem ?? cache.recoveryContexts[ref];
 				if (!recoveryContext) { webviewPanel.dispose(); return; }
 				webviewPanel.webview.html = localizeWebviewHtml('<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\';"></head><body><p role="status">正在重新连接…</p></body></html>');
 				restoringPanels.set(ref, webviewPanel);
@@ -1796,8 +1798,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 			await context.globalState.update('shortestpath.oj.pendingImport', undefined);
 			if (Date.now() - pendingImport.createdAt > 5 * 60_000) { return; }
 			await bridgeHandlers.importProblem(pendingImport.problem, new AbortController().signal);
-			const sourcePath = (await readWorkspaceProblemCache()).sourcePaths[pendingImport.problem.ref];
-			panel.openProblem(pendingImport.problem, false, sourcePath, true);
+			await coordinator.openUrl(pendingImport.problem.url);
 		})().catch(error => { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)); });
 	}
 	let panelSyncTimer: ReturnType<typeof setTimeout> | undefined;

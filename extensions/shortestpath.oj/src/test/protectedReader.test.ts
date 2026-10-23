@@ -5,13 +5,44 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
 import { ProtectedReaderCrypto } from '../protectedReaderCrypto';
-import { assertProtectedContent, discardLegacyReadingText, getReaderKeys, protectedMarkdownSlot, readingFingerprint } from '../protectedReaderHost';
+import { assertProtectedContent, discardLegacyReadingText, getReaderKeys, hasCurrentReaderContent, protectedMarkdownSlot, readingFingerprint } from '../protectedReaderHost';
 import { readerKeys, sealFixture } from './protectedFixtures';
 import { createProtectedMarkdownRenderer } from '../protectedReaderMarkdown';
 import { createMarkdownRendererWithHighlighter } from '../markdownRenderer';
 
 const encoded = (sealed: string) => sealed.slice('spide1:'.length);
+
+test('restarting the host requires fresh ciphertext even after creating a key for the same problem', () => {
+	const problem = { url: 'https://shortestpath.cn/problem/DSU/found/A', accountId: '1', ref: 'DSU/found/A', statement: { content: sealFixture('plain statement without images') } };
+	assert.equal(hasCurrentReaderContent(problem), true);
+	const result = execFileSync(process.execPath, ['-e', `
+		const fs = require('node:fs');
+		const host = require(process.argv[1]);
+		const problem = JSON.parse(fs.readFileSync(0, 'utf8'));
+		const beforeHello = host.hasCurrentReaderContent(problem);
+		host.getReaderKeys(new URL(problem.url).origin, problem.accountId, problem.ref);
+		const afterHello = host.hasCurrentReaderContent(problem);
+		const fixture = require(process.argv[2]);
+		problem.statement.content = fixture.sealFixture('plain statement without images');
+		console.log(JSON.stringify({ beforeHello, afterHello, afterSync: host.hasCurrentReaderContent(problem) }));
+	`, require.resolve('../protectedReaderHost'), require.resolve('./protectedFixtures')], { input: JSON.stringify(problem), encoding: 'utf8' });
+	assert.deepEqual(JSON.parse(result), { beforeHello: false, afterHello: false, afterSync: true });
+});
+
+test('cached reading checks cover serialized samples and reject mixed, malformed or foreign-context envelopes', () => {
+	const problem = { url: 'https://shortestpath.cn/problem/DSU/found/A', accountId: '1', ref: 'DSU/found/A' };
+	const content = sealFixture('current content');
+	assert.equal(hasCurrentReaderContent({ ...problem, samples: JSON.stringify([{ explanation: content }]) }), true);
+	for (const value of [
+		{ ...problem, accountId: '2', content },
+		{ ...problem, ref: 'DSU/found/B', content },
+		{ ...problem, url: 'http://localhost:3000/problem/DSU/found/A', content },
+		{ ...problem, content: 'spide1:invalid' },
+		{ ...problem, content, samples: JSON.stringify([{ explanation: sealFixture('stale sample', '/data/samples/0/explanation', getReaderKeys('https://shortestpath.cn', '2', problem.ref).publicKey) }]) },
+	]) { assert.equal(hasCurrentReaderContent(value), false); }
+});
 
 test('reader decrypts authenticated content, rejects tampering and clears its key', async () => {
 	const reader = new ProtectedReaderCrypto();

@@ -20,6 +20,7 @@ import * as versions from '../problemStatementVersion';
 import * as history from '../submissionHistory';
 import * as sourcePath from '../sourcePath';
 import { bindPayload } from './fixtures';
+import { sealFixture } from './protectedFixtures';
 
 type Cache = {
 	problems: Record<string, protocol.ImportedProblem>;
@@ -73,14 +74,19 @@ async function fixture() {
 	const load = (workspaceRoot = root) => {
 		const recoveries: recency.WorkspaceProblemRecoveryContext[] = [];
 		const shown: string[] = [];
+		const restoringPanels = new Map<string, object>();
+		let scheduledRestores = 0;
+		type RestoredPanel = { webview: { html: string }; onDidDispose(listener: () => void): object; onDidChangeViewState(listener: () => void): object; dispose(): void };
+		let serializer!: { deserializeWebviewPanel(panel: RestoredPanel, state: { problemRef: string; sourcePath: string }): Promise<void> };
 		let showForCph!: (url: string) => Promise<void>;
 		const context = vm.createContext({
 			console: { ...console, warn: (message: string) => warnings.push(message) }, TextDecoder, TextEncoder,
 			context: { subscriptions: [] },
 			getActiveSolveDocument: () => undefined, isActiveEditor: () => true,
 			solveCoordinator_1: { SolveCoordinator },
-			panel: { openProblem: (value: protocol.ImportedProblem) => shown.push(value.ref) },
+			panel: { openProblem: (value: protocol.ImportedProblem) => shown.push(value.ref), updateProblem: (value: protocol.ImportedProblem) => shown.push(value.ref) },
 			bridge: { isBound: () => false }, recovery: { select: (identity: recency.WorkspaceProblemRecoveryContext) => recoveries.push(identity) },
+			restoringPanels, scheduleProblemPanelSync: () => { scheduledRestores++; },
 			workspaceCacheDirectoryName: '.shortestpath', legacyWorkspaceCacheFileName: 'oj-problems.json', workspaceProblemRecordVersion: 2,
 			workspaceCacheMutationTail: Promise.resolve(), workspaceCacheMigration: undefined,
 			workspaceCacheStorageRoot: uri(storageRoot), workspaceCacheLocationsMigrated: new Set(), workspaceCacheLegacyContents: new WeakMap(),
@@ -89,9 +95,12 @@ async function fixture() {
 			path: path, path_1: { default: path }, workspaceProblemRecordStorage_1: recordStorage, protectedReaderHost_1: protectedReaderHost, workspaceProblemCache_1: recency, workspaceProblemCacheMigration_1: migration,
 			crypto_1: { createHash },
 			shortestpathOjProtocol_1: protocol, problemStatementVersion_1: versions, submissionHistory_1: history, sourcePath_1: sourcePath,
-			localization_1: { localizeFormat: (text: string) => text },
+			localization_1: { localizeFormat: (text: string) => text, localizeWebviewHtml: (html: string) => html },
 			vscode: {
-				window: { showTextDocument: async () => undefined },
+				window: {
+					showTextDocument: async () => undefined,
+					registerWebviewPanelSerializer: (_view: string, value: typeof serializer) => { serializer = value; return {}; },
+				},
 				commands: { registerCommand: (_name: string, handler: (url: string) => Promise<void>) => { showForCph = handler; return {}; } },
 				FileSystemError, FileType: { File: 1, Directory: 2, SymbolicLink: 64 },
 				Uri: { file: uri, joinPath: (parent: { path: string }, ...segments: string[]) => uri(path.join(parent.path, ...segments)) },
@@ -120,7 +129,16 @@ async function fixture() {
 		const coordinatorStart = compiled.indexOf('const contentFromCache =');
 		const coordinatorEnd = compiled.indexOf('context.subscriptions.push(coordinator)', coordinatorStart);
 		vm.runInContext(compiled.slice(coordinatorStart, coordinatorEnd) + compiled.slice(commandStart, commandEnd), context);
-		return { read: context.api.read as (access?: string) => Promise<Cache>, mutate: context.api.mutate as (action: (cache: Cache) => void, write: boolean) => Promise<void>, hints: context.hintAnswerCache as Map<string, object>, showForCph, recoveries, shown };
+		const serializerStart = compiled.indexOf('context.subscriptions.push(panel, vscode.window.registerWebviewPanelSerializer(');
+		const serializerEnd = compiled.indexOf('if (context.extensionMode', serializerStart);
+		vm.runInContext(compiled.slice(serializerStart, serializerEnd), context);
+		const restore = async (ref: string) => {
+			let disposed = false;
+			const panel: RestoredPanel = { webview: { html: '' }, onDidDispose: () => ({}), onDidChangeViewState: () => ({}), dispose: () => { disposed = true; } };
+			await serializer.deserializeWebviewPanel(panel, { problemRef: ref, sourcePath: (await context.api.read()).sourcePaths[ref] });
+			return { html: panel.webview.html, disposed, waiting: restoringPanels.has(ref), scheduledRestores };
+		};
+		return { read: context.api.read as (access?: string) => Promise<Cache>, mutate: context.api.mutate as (action: (cache: Cache) => void, write: boolean) => Promise<void>, hints: context.hintAnswerCache as Map<string, object>, showForCph, restore, recoveries, shown };
 	};
 	const insert = (cache: Cache, index: number) => {
 		const value = problem(index);
@@ -143,6 +161,31 @@ async function fixture() {
 		cleanup: () => fs.rm(root, { recursive: true, force: true }),
 	};
 }
+
+test('stale encrypted snapshots recover through the website and become readable on the first fresh bind', async () => {
+	const f = await fixture();
+	try {
+		const value = problem(0);
+		const readerKey = protectedReaderHost.getReaderKeys(new URL(value.url).origin, value.accountId!, value.ref).publicKey;
+		const staleKey = protectedReaderHost.getReaderKeys(new URL(value.url).origin, value.accountId!, 'previous-process').publicKey;
+		value.statement.description = { format: 'markdown', content: sealFixture('statement', '/data/content', staleKey) };
+		const cache = f.load();
+		await cache.mutate(data => { f.insert(data, 0); data.problems[value.ref] = value; }, true);
+		const restored = f.load();
+		const panel = await restored.restore(value.ref);
+		assert.deepEqual({ disposed: panel.disposed, waiting: panel.waiting, scheduledRestores: panel.scheduledRestores }, { disposed: false, waiting: true, scheduledRestores: 1 });
+		assert.match(panel.html, /正在重新连接/);
+		assert.doesNotMatch(panel.html, /spide1:|data-reader-template/);
+		await restored.showForCph(value.url);
+		assert.deepEqual({ shown: restored.shown, recoveries: restored.recoveries.map(item => item.ref) }, { shown: [], recoveries: [value.ref] });
+		// Restoring an unreadable snapshot must preserve it and its source association.
+		assert.equal((await restored.read()).problems[value.ref].statement.description?.content, value.statement.description.content);
+		value.statement.description.content = sealFixture('statement', '/data/content', readerKey);
+		await restored.mutate(data => { data.problems[value.ref] = value; }, true);
+		await restored.showForCph(value.url);
+		assert.deepEqual(restored.shown, [value.ref]);
+	} finally { await f.cleanup(); }
+});
 
 test('disk LRU survives restart, ignores background updates, and retains source bindings and user files', async () => {
 	const f = await fixture();

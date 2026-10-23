@@ -438,18 +438,19 @@ test('saved submission summaries render without the removed notice or manual ref
 });
 
 
-test('likes update panel state before the first render and website request, then reconcile or roll back independently', async () => {
-	const { panel } = createPanel();
+test('likes update state before website requests without rebuilding content, then reconcile or roll back independently', async () => {
+	const { panel, posted } = createPanel();
 	const markdown = { format: 'markdown', content: '' };
 	panel.state.editorial = { state: 'available', hints: [{ hintId: '123', seq: 1, question: markdown, answer: markdown, questionLiked: false, answerLiked: false, questionLikeCount: 3, answerLikeCount: 1 }], simpleContent: markdown, content: markdown, solutionCode: '' };
 	panel.state.cachedEditorial = panel.state.editorial;
 	const snapshot = () => structuredClone(panel.state.problem.state.hints[0].likes);
 	const renders: ReturnType<typeof snapshot>[] = [];
+	const requests: ReturnType<typeof snapshot>[] = [];
 	panel.render = () => { renders.push(snapshot()); };
 	const pending = new Map<string, { resolve: (result: protocol.LikeResult) => void; reject: (error: Error) => void }>();
 	panel.actions.like = (problem: protocol.ImportedProblem, _hintId: string, target: 'question' | 'answer', liked: boolean) => {
 		assert.equal(problem.state.hints[0].likes[target].liked, liked);
-		assert.deepEqual(renders.at(-1), snapshot());
+		requests.push(snapshot());
 		return new Promise<protocol.LikeResult>((resolve, reject) => { pending.set(target, { resolve, reject }); });
 	};
 	const saved: protocol.EditorialResult[] = [];
@@ -457,19 +458,26 @@ test('likes update panel state before the first render and website request, then
 	const question = panel.handleMessage({ command: 'like', hintId: '123', target: 'question', liked: true });
 	const answer = panel.handleMessage({ command: 'editorialLike', hintId: '123', target: 'answer', liked: true });
 	await panel.handleMessage({ command: 'like', hintId: '123', target: 'question', liked: true });
-	assert.equal(pending.size, 2);
+	assert.deepEqual({ pending: [...pending.keys()], renders, requests }, {
+		pending: ['question', 'answer'], renders: [], requests: [
+			{ question: { liked: true, count: 4 }, answer: { liked: false, count: 1 } },
+			{ question: { liked: true, count: 4 }, answer: { liked: true, count: 2 } },
+		],
+	});
 	panel.updateProblemState(panel.state.problem.ref, protocol.parseProblemBindData(structuredClone(bindPayload)).state);
 	panel.render();
-	assert.deepEqual(renders[0], { question: { liked: true, count: 4 }, answer: { liked: false, count: 1 } });
+	assert.deepEqual(renders[0], { question: { liked: true, count: 4 }, answer: { liked: true, count: 2 } });
 	assert.deepEqual(snapshot(), { question: { liked: true, count: 4 }, answer: { liked: true, count: 2 } });
 	pending.get('question')!.resolve({ hintId: '123', target: 'question', liked: true, questionLiked: true, questionLikeCount: 12, answerLiked: false, answerLikeCount: 1 });
 	await question;
+	assert.deepEqual(posted.at(-1), { type: 'hintLike', hintId: '123', target: 'question', liked: true, count: 12 });
 	assert.deepEqual(snapshot(), { question: { liked: true, count: 12 }, answer: { liked: true, count: 2 } });
 	assert.equal(panel.state.editorial.hints[0].answerLiked, true);
 	assert.equal(saved[0].state, 'available');
 	if (saved[0].state === 'available') { assert.equal(saved[0].hints[0].answerLiked, false); }
 	pending.get('answer')!.reject(new Error('sync failed'));
 	await answer;
+	assert.deepEqual(posted.at(-1), { type: 'hintLikeError', hintId: '123', target: 'answer', hintLikes: { liked: false, count: 1 }, editorialLikes: { liked: false, count: 1 } });
 	assert.deepEqual(snapshot(), { question: { liked: true, count: 12 }, answer: { liked: false, count: 1 } });
 	assert.deepEqual(panel.state.editorial, panel.state.cachedEditorial);
 	const unlike = panel.handleMessage({ command: 'like', hintId: '123', target: 'question', liked: false });

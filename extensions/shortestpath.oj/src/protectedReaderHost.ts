@@ -33,6 +33,27 @@ export function getReaderKeys(origin: string, accountId: string, problemRef: str
 	return keys;
 }
 
+/** Persisted ciphertext is usable only while its original delivery key is still in memory. */
+export function hasCurrentReaderContent<T extends { url: string; accountId?: string; ref: string }>(problem: T): boolean {
+	let publicKey: string | undefined;
+	try {
+		publicKey = contexts.get(JSON.stringify([new URL(problem.url).origin, problem.accountId ?? '', problem.ref]))?.publicKey;
+	} catch { return false; }
+	const visit = (value: unknown): boolean => {
+		if (typeof value === 'string') {
+			for (const match of value.matchAll(/spide1:([A-Za-z0-9_-]+)/g)) {
+				if (!publicKey) { return false; }
+				try {
+					const box: unknown = JSON.parse(Buffer.from(match[1], 'base64url').toString('utf8'));
+					if (!Array.isArray(box) || box.length !== 8 || !box.every(field => typeof field === 'string') || box[0] !== publicKey) { return false; }
+				} catch { return false; }
+			}
+		}
+		return !value || typeof value !== 'object' || Object.values(value).every(visit);
+	};
+	return visit(problem);
+}
+
 /** Turn a ciphertext-containing Markdown template into an inert reader slot. */
 export function protectedMarkdownSlot(content: string, baseUrl: string, mode: 'canvas' | 'dom' = 'canvas'): string | undefined {
 	if (!content.includes(readerPrefix)) { return undefined; }
