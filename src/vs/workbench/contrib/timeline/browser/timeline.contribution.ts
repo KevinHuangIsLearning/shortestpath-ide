@@ -24,6 +24,7 @@ import { URI } from '../../../../base/common/uri.js';
 
 const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
 const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));
+const timelineEnabledContext = ContextKeyExpr.equals('config.shortestpath.timeline.enabled', true);
 
 export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly id = TimelinePaneId;
@@ -36,7 +37,7 @@ export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly canMoveView = true;
-	readonly when = TimelineHasProviderContext;
+	readonly when = ContextKeyExpr.and(TimelineHasProviderContext, timelineEnabledContext);
 
 	focusCommand = { id: 'timeline.focus' };
 }
@@ -90,7 +91,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 		title: OpenTimelineAction.LABEL,
 		icon: timelineOpenIcon
 	},
-	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
+	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext, timelineEnabledContext)
 }));
 
 const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));

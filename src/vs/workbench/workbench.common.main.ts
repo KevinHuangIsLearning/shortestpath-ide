@@ -442,8 +442,9 @@ import './contrib/editSessions/browser/editSessions.contribution.js';
 // Code Actions
 import './contrib/codeActions/browser/codeActions.contribution.js';
 
-// Timeline service (the Explorer view is omitted in ShortestPath).
+// Timeline
 import './contrib/timeline/browser/timeline.service.contribution.js';
+import './contrib/timeline/browser/timeline.contribution.js';
 
 // Local History
 import './contrib/localHistory/browser/localHistory.contribution.js';

@@ -33,7 +33,7 @@ test('settings groups preserve each control and expose only the three left navig
 	assert.deepStrictEqual(controls, {
 		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'tabSize', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
 		compiler: ['cppStandard', 'compilerFlags', 'executableCleanupEnabled', 'executableCleanupDelaySeconds', 'toolchainDiagnostics'],
-		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'shortestPathImportCategoryEnabled', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
+		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'shortestPathImportCategoryEnabled', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'timelineEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
 	});
 	const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 	assert.equal(new Set(ids).size, ids.length);
@@ -421,6 +421,22 @@ test('ShortestPath category import defaults off, saves globally and refreshes ex
 	assert.equal(state().shortestPathImportCategoryEnabled, false);
 	host.onDispose();
 });
+
+test('Timeline view setting defaults off, saves globally and refreshes external changes', async () => {
+	const host = createSettingsHost();
+	const state = () => {
+		host.onConfiguration({ affectsConfiguration: key => key === 'shortestpath.timeline.enabled' });
+		return host.messages.at(-1)!.value as Record<string, unknown>;
+	};
+	assert.equal(state().timelineEnabled, false);
+	for (const timelineEnabled of [true, false]) {
+		await host.receive({ type: 'save', value: { ...state(), timelineEnabled } });
+		assert.equal(host.savedValues['shortestpath.timeline.enabled'], timelineEnabled);
+		assert.equal(state().timelineEnabled, timelineEnabled);
+	}
+	host.onDispose();
+});
+
 
 test('category import checkbox restores and serializes both values', () => {
 	const html = renderSettings();

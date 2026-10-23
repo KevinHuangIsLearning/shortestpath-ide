@@ -71,6 +71,12 @@
 					"default": false,
 					"scope": "window",
 					"description": "%configuration.useExtensionMarketplace%"
+				},
+				"shortestpath.timeline.enabled": {
+					"type": "boolean",
+					"default": false,
+					"scope": "window",
+					"description": "%configuration.timelineEnabled%"
 				}
 			}
 		},
