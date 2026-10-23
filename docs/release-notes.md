@@ -2,15 +2,19 @@
 
 **下载、使用本软件即代表同意 GPL-3.0 license 协议**。
 
-## v0.4.16 更新 / What's New
+## v0.4.17 更新 / What's New
 
-- 修复 Windows 下中文文件通过右上角编译运行时，因编译与运行环境差异或程序占用导致失败的问题。
-- 修复首次配置时工具链下载重试后流程可能无法继续的问题。
+- 修复重启 IDE 后首次连接题目时，题面可能无法显示、需要再次同步的问题。
+- 修复 Linux 首次配置及从浏览器导入题目时可能遇到的问题。
+- 新增时间线开关，可在简易设置中开启，方便查看文件修改记录。
+- 改善 macOS 内置浏览器的触控板返回手势体验。
 
 ### English
 
-- Fix compilation and execution failures for Chinese-named files on Windows caused by environment differences or a running executable when using the top-right Compile and Run button.
-- Fix first-run setup sometimes getting stuck after retrying a toolchain download.
+- Fix problem statements sometimes failing to display on the first connection after restarting the IDE, requiring another sync.
+- Fix issues with first-run setup and importing problems from the browser on Linux.
+- Add a Timeline toggle in Simple Settings to make file history easier to access.
+- Improve trackpad back navigation in the built-in browser on macOS.
 
 The English version follows the Chinese version.
 
