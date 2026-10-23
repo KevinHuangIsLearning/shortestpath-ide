@@ -9,7 +9,7 @@ import { CompanionRequestError, readCompanionRequest, renderProblemTemplate, val
 test('real HTTP accepts split UTF-8, rejects malformed schema and bounds a chunked body', async () => {
 	const server = http.createServer(async (req, res) => {
 		try { const value = validateCompanionProblem(await readCompanionRequest(req, 1024)); res.end(JSON.stringify(value)); }
-		catch (error) { res.statusCode = error instanceof CompanionRequestError ? error.status : 500; res.end(); }
+		catch (error) { res.statusCode = error instanceof CompanionRequestError ? error.status : 500; res.end(error instanceof CompanionRequestError ? error.rawBody ?? '' : ''); }
 	});
 	await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
 	const send = (parts: Buffer[]) => new Promise<{ status: number; body: string }>((resolve, reject) => {
@@ -28,7 +28,9 @@ test('real HTTP accepts split UTF-8, rejects malformed schema and bounds a chunk
 		expect(JSON.parse(result.body).name).toBe('中文');
 		expect((await send([Buffer.from('{"name":"A","url":""}')])).status).toBe(422);
 		expect((await send([Buffer.alloc(2048, 120)])).status).toBe(413);
-		expect((await send([Buffer.from('{')])).status).toBe(400);
+		const malformed = await send([Buffer.from('{')]);
+		expect(malformed.status).toBe(400);
+		expect(malformed.body).toBe('{');
 	} finally { await new Promise<void>(resolve => server.close(() => resolve())); }
 });
 

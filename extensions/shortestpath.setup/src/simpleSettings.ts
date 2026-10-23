@@ -12,6 +12,7 @@ import { defaultCppTemplate, type PreviewToken } from './firstRunPreview';
 import { installBundledCppSnippets } from './bundledSnippets';
 import { withBundledCodeFont } from './bundledFont';
 import { withCompilerPathFlags } from './compilerRuntime';
+import { isSettingSupportedOnPlatform } from './platformSettings';
 import { templateEditorLayoutScript } from './templateEditor';
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
@@ -60,6 +61,7 @@ type SimpleSettingsState = {
 	browserDarkReaderMode: 'off' | 'on' | 'auto';
 	browserDarkReaderDetectDarkTheme: boolean;
 	browserDarkReaderExcludedHosts: string[];
+	timelineEnabled: boolean;
 	shortestPathImportCategoryEnabled: boolean;
 	shortestPathCppSubmissionLanguage: string;
 	defaultSubmitMethod: string;
@@ -613,6 +615,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('window.autoDetectColorScheme')
 			|| event.affectsConfiguration('files.autoSave')
 			|| event.affectsConfiguration('shortestpath.useExtensionMarketplace')
+			|| event.affectsConfiguration('shortestpath.timeline.enabled')
 			|| event.affectsConfiguration('shortestpath.ojbetter')
 			|| event.affectsConfiguration('workbench.browser.darkReader'))) {
 			void panel.webview.postMessage({ type: 'state', value: getState() });
@@ -667,6 +670,7 @@ function getState(): SimpleSettingsState {
 		browserDarkReaderMode: workbench.get<SimpleSettingsState['browserDarkReaderMode']>('browser.darkReader.mode') ?? 'off',
 		browserDarkReaderDetectDarkTheme: workbench.get<boolean>('browser.darkReader.detectDarkTheme') ?? true,
 		browserDarkReaderExcludedHosts: workbench.get<string[]>('browser.darkReader.excludedHosts') ?? [],
+		timelineEnabled: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('timeline.enabled') ?? false,
 		shortestPathImportCategoryEnabled: vscode.workspace.getConfiguration('judger.general', null).get<boolean>('shortestPathImportCategoryEnabled') ?? false,
 		shortestPathCppSubmissionLanguage: vscode.workspace.getConfiguration('shortestpath.oj', null).get<string>('cppSubmissionLanguage') ?? 'cpp20',
 		defaultSubmitMethod: vscode.workspace.getConfiguration('judger.general', null).get<string>('defaultSubmitMethod') ?? 'ask',
@@ -733,9 +737,12 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('shortestpath.executableCleanupDelaySeconds', executableCleanupDelaySeconds, vscode.ConfigurationTarget.Global),
 		settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' ? value.colorTheme : 'One Monokai', vscode.ConfigurationTarget.Global),
 		settings.update('window.autoDetectColorScheme', value.autoDetectColorScheme === true, vscode.ConfigurationTarget.Global),
-		settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global),
+		// `window.systemColorTheme` is not a registered configuration on Linux,
+		// where native UI colors always follow the system color scheme.
+		...(isSettingSupportedOnPlatform('window.systemColorTheme') ? [settings.update('window.systemColorTheme', 'auto', vscode.ConfigurationTarget.Global)] : []),
 		settings.update('files.autoSave', typeof value.autoSave === 'string' ? value.autoSave : 'off', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.useExtensionMarketplace', value.useExtensionMarketplace === true, vscode.ConfigurationTarget.Global),
+		...(typeof value.timelineEnabled === 'boolean' ? [settings.update('shortestpath.timeline.enabled', value.timelineEnabled, vscode.ConfigurationTarget.Global)] : []),
 		settings.update('shortestpath.ojbetter.atcoder', value.atcoderBetterEnabled === true, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.ojbetter.codeforces', value.codeforcesBetterEnabled === true, vscode.ConfigurationTarget.Global),
 		...(value.browserDarkReaderMode === 'off' || value.browserDarkReaderMode === 'on' || value.browserDarkReaderMode === 'auto' ? [settings.update('workbench.browser.darkReader.mode', value.browserDarkReaderMode, vscode.ConfigurationTarget.Global)] : []),
@@ -842,6 +849,9 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 <div class="row"><div><label for="browserDarkReaderExcludedHosts">Dark Reader 排除站点</label><div class="hint">每行一个主机名，例如 www.example.com；不含协议或路径，子域名单独匹配。</div></div><textarea class="excluded-hosts" id="browserDarkReaderExcludedHosts" rows="3" spellcheck="false" data-i18n-ignore></textarea></div>
 <div class="row"><div><label for="atcoderBetterEnabled">AtCoder Better</label><div class="hint">在 AtCoder 页面启用 Better 浏览增强。更改后刷新已有页面；详细选项在页面的 Better 设置中调整。</div></div><label class="toggle"><input id="atcoderBetterEnabled" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="codeforcesBetterEnabled">Codeforces Better</label><div class="hint">在 Codeforces 页面启用 Better 浏览增强。更改后刷新已有页面；详细选项在页面的 Better 设置中调整。</div></div><label class="toggle"><input id="codeforcesBetterEnabled" type="checkbox"><span>启用</span></label></div>
+</section>
+<section class="card" data-category="tools" hidden><h3>工作台</h3>
+<div class="row"><div><label for="timelineEnabled">Timeline 视图</label><div class="hint">在 Explorer 中显示文件时间线，可查看 Git 提交和本地历史记录。</div></div><label class="toggle"><input id="timelineEnabled" type="checkbox"><span>启用</span></label></div>
 </section>
 <section class="card" data-category="tools" hidden><h3>应用管理</h3>
 <div class="row"><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox"><span>启用</span></label></div><div class="row"><div><label>初始配置</label><div class="hint">检查编译环境并配置编辑器、模版和代码存放目录。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div>
@@ -1053,9 +1063,10 @@ function apply(state) {
 	byId('browserDarkReaderMode').value = state.browserDarkReaderMode ?? 'off';
 	byId('browserDarkReaderDetectDarkTheme').checked = state.browserDarkReaderDetectDarkTheme !== false;
 	byId('browserDarkReaderExcludedHosts').value = (state.browserDarkReaderExcludedHosts ?? []).join('\\n');
+	byId('timelineEnabled').checked = !!state.timelineEnabled;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), tabSize: Number(byId('tabSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathImportCategoryEnabled: byId('shortestPathImportCategoryEnabled').checked, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked, browserDarkReaderMode: byId('browserDarkReaderMode').value, browserDarkReaderDetectDarkTheme: byId('browserDarkReaderDetectDarkTheme').checked, browserDarkReaderExcludedHosts: byId('browserDarkReaderExcludedHosts').value.split(/\\r?\\n/) }; }
+function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), tabSize: Number(byId('tabSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathImportCategoryEnabled: byId('shortestPathImportCategoryEnabled').checked, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, timelineEnabled: byId('timelineEnabled').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked, browserDarkReaderMode: byId('browserDarkReaderMode').value, browserDarkReaderDetectDarkTheme: byId('browserDarkReaderDetectDarkTheme').checked, browserDarkReaderExcludedHosts: byId('browserDarkReaderExcludedHosts').value.split(/\\r?\\n/) }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily), textarea').forEach(control => {

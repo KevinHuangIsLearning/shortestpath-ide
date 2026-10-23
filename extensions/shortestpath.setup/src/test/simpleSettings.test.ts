@@ -15,7 +15,7 @@ function renderSettings(showSupport = true): string {
 	const source = fs.readFileSync(path.resolve(__dirname, '../simpleSettings.js'), 'utf8');
 	vm.runInNewContext(source + '\nexports.render = getHtml;', {
 		exports,
-		require: (id: string) => id === './templateEditor' ? require('../templateEditor') : ({ localize: (text: string) => text, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) })
+		require: (id: string) => id === './templateEditor' ? require('../templateEditor') : id === './platformSettings' ? require('../platformSettings') : ({ localize: (text: string) => text, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) })
 	});
 	return exports.render!({}, showSupport);
 }
@@ -33,7 +33,7 @@ test('settings groups preserve each control and expose only the three left navig
 	assert.deepStrictEqual(controls, {
 		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'tabSize', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
 		compiler: ['cppStandard', 'compilerFlags', 'executableCleanupEnabled', 'executableCleanupDelaySeconds', 'toolchainDiagnostics'],
-		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'shortestPathImportCategoryEnabled', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
+		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'shortestPathImportCategoryEnabled', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'timelineEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
 	});
 	const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 	assert.equal(new Set(ids).size, ids.length);
@@ -210,6 +210,7 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 			if (id === './bundledFont') { return { withBundledCodeFont: (html: string) => html }; }
 			if (id === './systemFonts') { return { getSystemFonts: async () => ({ fonts: [] }) }; }
 			if (id === './compilerRuntime') { return require('../compilerRuntime'); }
+			if (id === './platformSettings') { return require('../platformSettings'); }
 			return { localize: (text: string) => text, localizeWebviewHtml: (html: string) => html, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) };
 		}
 	});
@@ -244,6 +245,19 @@ test('other settings and invalid tab widths leave indentation preferences untouc
 		await host.receive({ type: 'save', value: { fontSize: 16, tabSize } });
 	}
 	assert.deepEqual(host.updates.filter(key => ['editor.tabSize', 'editor.insertSpaces', 'editor.detectIndentation'].includes(key)), []);
+	host.onDispose();
+});
+
+test('settings page skips the system color theme setting on Linux', async () => {
+	const host = createSettingsHost();
+	await host.receive({ type: 'save', value: { colorTheme: 'One Monokai', autoDetectColorScheme: true } });
+	assert.equal(host.savedValues['workbench.colorTheme'], 'One Monokai');
+	assert.equal(host.savedValues['window.autoDetectColorScheme'], true);
+	if (process.platform === 'linux') {
+		assert.equal(host.updates.includes('window.systemColorTheme'), false);
+	} else {
+		assert.equal(host.savedValues['window.systemColorTheme'], 'auto');
+	}
 	host.onDispose();
 });
 
@@ -407,6 +421,22 @@ test('ShortestPath category import defaults off, saves globally and refreshes ex
 	assert.equal(state().shortestPathImportCategoryEnabled, false);
 	host.onDispose();
 });
+
+test('Timeline view setting defaults off, saves globally and refreshes external changes', async () => {
+	const host = createSettingsHost();
+	const state = () => {
+		host.onConfiguration({ affectsConfiguration: key => key === 'shortestpath.timeline.enabled' });
+		return host.messages.at(-1)!.value as Record<string, unknown>;
+	};
+	assert.equal(state().timelineEnabled, false);
+	for (const timelineEnabled of [true, false]) {
+		await host.receive({ type: 'save', value: { ...state(), timelineEnabled } });
+		assert.equal(host.savedValues['shortestpath.timeline.enabled'], timelineEnabled);
+		assert.equal(state().timelineEnabled, timelineEnabled);
+	}
+	host.onDispose();
+});
+
 
 test('category import checkbox restores and serializes both values', () => {
 	const html = renderSettings();

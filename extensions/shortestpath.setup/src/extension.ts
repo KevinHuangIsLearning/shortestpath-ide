@@ -7,10 +7,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFile, spawn } from 'child_process';
 import * as vscode from 'vscode';
-import { compilerFallbackFlags, runToolchainCommand, runToolchainSelfTest } from './toolchainSelfTest';
+import { compilerFallbackFlags, runToolchainCommand, runToolchainSelfTest, stripLegacyFloat128Flags } from './toolchainSelfTest';
 import { withCompilerRuntime } from './compilerRuntime';
 import { defaultClangFormatConfig, registerCppFormatting } from './cppFormatting';
 import { findCppStandard, initializeCppSnippets, registerSimpleSettings } from './simpleSettings';
+import { withPlatformSettings } from './platformSettings';
 import { registerCphSettings } from './cphSettings';
 import { registerBrowserScriptTester } from './browserScriptTester';
 import { registerGettingStarted } from './gettingStarted';
@@ -90,6 +91,7 @@ const shortestPathHiddenFiles: Record<string, boolean> = {
 const FILE_EXCLUDES_MIGRATION = 'shortestpath.fileExcludes.v3';
 const OJ_MAPPING_MIGRATION = 'shortestpath.ojMapping.v2';
 const FILE_NAME_TEMPLATE_OVERRIDES_MIGRATION = 'shortestpath.fileNameTemplateOverrides.v1';
+const CLANGD_FLOAT128_MIGRATION = 'shortestpath.clangdFloat128.v1';
 const shortestPathOjMapping = {
 	oj: 'ShortestPath',
 	ojName: 'ShortestPath',
@@ -114,6 +116,9 @@ function clangdArgumentsForCompiler(compiler: string): string[] {
 
 function defaultClangdProjectConfig(compiler: string, cppStandard: FirstRunSelection['cppStandard']): string {
 	const includePath = process.platform === 'darwin' ? '\n    - -I/opt/homebrew/include' : '';
+	// Only MinGW's clang target needs the __float128 alias; on Linux and macOS
+	// it makes GCC 15's libstdc++ define numeric_limits<long double> twice.
+	const float128Workaround = process.platform === 'win32' ? '\n    - "-D__float128=long double"\n    - -U__SIZEOF_FLOAT128__' : '';
 	const compilerPath = compiler.replaceAll('\\', '/');
 	return `${managedClangdConfigMarker}
 CompileFlags:
@@ -123,9 +128,7 @@ CompileFlags:
     - -Wextra
     - -DDEBUG
     - "-Drsize_t=size_t"
-    - "-D__STDC_WANT_LIB_EXT1__=1"
-    - "-D__float128=long double"
-    - -U__SIZEOF_FLOAT128__${includePath}
+    - "-D__STDC_WANT_LIB_EXT1__=1"${float128Workaround}${includePath}
   BuiltinHeaders: QueryDriver
   Compiler: ${JSON.stringify(compilerPath)}
 
@@ -158,8 +161,11 @@ function createDefaultClangdProjectConfig(workspaceFolder: string, compiler: str
 		const expected = defaultClangdProjectConfig(compiler, cppStandard);
 		const updated = content.replace(/^    - -std=c\+\+(?:11|14|17|20|23)$/m, `    - -std=${cppStandard}`)
 			.replace(/^  Compiler: .*$/m, () => `  Compiler: ${JSON.stringify(compiler.replaceAll('\\', '/'))}`);
-		// Only refresh an unchanged generated template; preserve custom project settings.
-		if (updated === expected && content !== expected) {
+		// Rewrite generated templates only. Also accept the previous Linux/macOS
+		// template which still had the MinGW-only __float128 workaround.
+		const withoutLegacyFloat128 = updated.replace(/\r\n/g, '\n')
+			.replace(/^    - "-D__float128=long double"\n    - -U__SIZEOF_FLOAT128__\n/m, '');
+		if (content !== expected && (updated === expected || (process.platform !== 'win32' && withoutLegacyFloat128 === expected))) {
 			fs.writeFileSync(configPath, expected, 'utf8');
 		}
 		return;
@@ -226,6 +232,31 @@ async function ensureOiWorkspaceInitialization(context: vscode.ExtensionContext)
 	}
 }
 
+async function migrateLegacyClangdFloat128Workaround(): Promise<void> {
+	if (process.platform === 'win32') {
+		return;
+	}
+	const clangdConfiguration = vscode.workspace.getConfiguration('clangd', null);
+	const fallbackFlags = clangdConfiguration.inspect<string[]>('fallbackFlags')?.globalValue;
+	if (Array.isArray(fallbackFlags)) {
+		const migrated = stripLegacyFloat128Flags(fallbackFlags);
+		if (migrated.length !== fallbackFlags.length) {
+			await clangdConfiguration.update('fallbackFlags', migrated, vscode.ConfigurationTarget.Global);
+		}
+	}
+	const configuration = vscode.workspace.getConfiguration('judger.language.cpp', null);
+	const compiler = configuration.get<string>('Command');
+	if (!compiler) {
+		return;
+	}
+	const cppStandard = findCppStandard(configuration.get<string>('Args') ?? '');
+	for (const workspaceFolder of vscode.workspace.workspaceFolders ?? []) {
+		if (workspaceFolder.uri.scheme === 'file') {
+			createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, cppStandard, true);
+		}
+	}
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	configureCompilerRuntime(context);
 	const updateExtensionMarketplaceVisibility = () => vscode.commands.executeCommand('setContext', 'shortestpath.extensionMarketplaceEnabled', vscode.workspace.getConfiguration('shortestpath').get<boolean>('useExtensionMarketplace') === true);
@@ -261,6 +292,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.hideSetupFiles', toggleHiddenFiles));
 	warnAboutPortablePathWithSpaces();
 	await rebasePortableToolchain(context);
+	if (!context.globalState.get<boolean>(CLANGD_FLOAT128_MIGRATION)) {
+		try {
+			await migrateLegacyClangdFloat128Workaround();
+		} catch (error) {
+			console.error('Failed to migrate legacy clangd configuration', error);
+		}
+		await context.globalState.update(CLANGD_FLOAT128_MIGRATION, true);
+	}
 	configureCompilerRuntime(context);
 	await removeLegacyWindowsCompilerLocale(context);
 	if (!context.globalState.get<boolean>(FILE_EXCLUDES_MIGRATION)) {
@@ -676,7 +715,9 @@ function loadCphDefaultSettings(context: vscode.ExtensionContext): CphDefaultSet
 
 function loadRecommendedSettings(context: vscode.ExtensionContext): Record<string, unknown> {
 	const defaultsPath = path.join(context.extensionPath, 'resources', 'recommended-settings.json');
-	return JSON.parse(fs.readFileSync(defaultsPath, 'utf8')) as Record<string, unknown>;
+	// `window.systemColorTheme` is not a registered configuration on Linux,
+	// where native UI colors always follow the system color scheme.
+	return withPlatformSettings(JSON.parse(fs.readFileSync(defaultsPath, 'utf8')) as Record<string, unknown>);
 }
 
 function getPlatformName(): 'windows' | 'mac' | 'linux' {

@@ -7,7 +7,7 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { compilerFallbackFlags, runToolchainCommand, runToolchainSelfTest, selfTestSamples, type ToolchainCommand } from '../toolchainSelfTest';
+import { compilerFallbackFlags, runToolchainCommand, runToolchainSelfTest, selfTestSamples, stripLegacyFloat128Flags, type ToolchainCommand } from '../toolchainSelfTest';
 
 test('GCC include discovery and the C++20 self-test retain a managed junction prefix', async () => {
 	const compiler = 'C:\\.shortestpath-toolchain-0123456789ab\\User\\globalStorage\\shortestpath.shortestpath-setup\\toolchains\\winlibs\\mingw64-ucrt-15\\bin\\g++.exe';
@@ -40,6 +40,23 @@ test('extracts C++ system headers including paths with spaces and frameworks', a
 	assert.ok(flags.includes('--target=x86_64-w64-mingw32'));
 	assert.deepEqual(flags.slice(-4), ['-isystem', '/toolchain folder/include/c++', '-iframework', '/SDK/Frameworks']);
 	await assert.rejects(compilerFallbackFlags('g++', async () => ''), /系统头文件/);
+});
+
+test('only MinGW fallback flags use the __float128 workaround', async () => {
+	const discover = (target: string) => compilerFallbackFlags('g++', async (_executable, args, report) => {
+		if (args[0] === '-dumpmachine') { return `${target}\n`; }
+		report('#include <...> search starts here:\n /usr/include/c++/15\nEnd of search list.\n');
+		return '';
+	});
+	const mingw = await discover('x86_64-w64-mingw32');
+	const linux = await discover('x86_64-linux-gnu');
+	assert.ok(mingw.includes('-D__float128=long double'));
+	assert.ok(mingw.includes('-U__SIZEOF_FLOAT128__'));
+	assert.ok(!linux.includes('-D__float128=long double'));
+	assert.ok(!linux.includes('-U__SIZEOF_FLOAT128__'));
+	const legacy = ['-std=c++20', '-D__float128=long double', '-U__SIZEOF_FLOAT128__', '-Wall'];
+	assert.deepEqual(stripLegacyFloat128Flags(legacy, 'linux'), ['-std=c++20', '-Wall']);
+	assert.deepEqual(stripLegacyFloat128Flags(legacy, 'win32'), legacy);
 });
 
 test('checks real program output and clangd configuration, then removes temporary files', async () => {

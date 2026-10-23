@@ -6,7 +6,7 @@ import { IncomingMessage } from 'http';
 import { Problem } from './types';
 
 export class CompanionRequestError extends Error {
-	constructor(public readonly status: number, message: string) { super(message); }
+	constructor(public readonly status: number, message: string, public readonly rawBody?: string) { super(message); }
 }
 
 /** Decode only after all bytes arrive, with a bound independent of Content-Length. */
@@ -27,8 +27,9 @@ export function readCompanionRequest(request: IncomingMessage, limit = 128 * 102
 		};
 		const end = () => {
 			cleanup();
-			try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
-			catch { reject(new CompanionRequestError(400, 'Invalid Companion JSON')); }
+			const raw = Buffer.concat(chunks).toString('utf8');
+			try { resolve(JSON.parse(raw)); }
+			catch { reject(new CompanionRequestError(400, 'Invalid Companion JSON', raw.slice(0, 4096))); }
 		};
 		const error = (cause: Error) => fail(cause);
 		const aborted = () => fail(new CompanionRequestError(400, 'Companion request aborted'));
