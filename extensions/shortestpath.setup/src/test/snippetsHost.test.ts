@@ -9,15 +9,17 @@ import * as path from 'node:path';
 import * as vm from 'node:vm';
 import { test } from 'node:test';
 import type { SnippetEntry } from '../snippetsView';
+import type { TemplateEditorBounds } from '../templateEditor';
 
-async function createHost(write: (source: string) => Promise<void> = async () => { }) {
+type NativeLayout = { bounds: TemplateEditorBounds; selectionRevision: number; source?: string };
+type NativeSnapshot = { selectionRevision: number; contentRevision: number; source: string };
+
+async function createHost(write: (source: string) => Promise<void> = async () => { }, layout: (request: NativeLayout) => Promise<NativeSnapshot | undefined> = async () => undefined) {
 	const snippetsHome = path.resolve('/profile/independent-snippets');
 	const commands = new Map<string, () => Promise<void>>();
 	const messages: Array<Record<string, any>> = [];
-	const tokenRequests: string[] = [];
+	const layoutRequests: NativeLayout[] = [];
 	let receive!: (message: Record<string, unknown>) => Promise<void>;
-	let onTheme!: () => void;
-	let onConfiguration!: (event: { affectsConfiguration: (key: string) => boolean }) => void;
 	let onDispose!: () => void;
 	let disposedListeners = 0;
 	const listener = () => ({ dispose() { disposedListeners++; } });
@@ -28,15 +30,17 @@ async function createHost(write: (source: string) => Promise<void> = async () =>
 	const vscode = {
 		ViewColumn: { Active: 1 },
 		Uri: { parse(value: string) { return { fsPath: value }; }, joinPath(uri: { fsPath: string }, ...parts: string[]) { return { fsPath: path.join(uri.fsPath, ...parts) }; } },
-		window: { createWebviewPanel() { return panel; }, onDidChangeActiveColorTheme(handler: () => void) { onTheme = handler; return listener(); }, async showWarningMessage(_message: string, _options: unknown, action: string) { return action; } },
+		window: { createWebviewPanel() { return panel; }, async showWarningMessage(_message: string, _options: unknown, action: string) { return action; } },
 		workspace: {
 			getConfiguration() { return { get: () => 4 }; },
-			onDidChangeConfiguration(handler: typeof onConfiguration) { onConfiguration = handler; return listener(); },
 			fs: { async stat(uri: { fsPath: string }) { assert.equal(uri.fsPath, path.join(snippetsHome, 'cpp.json')); return {}; }, async readFile() { return Buffer.from('{"A":{"prefix":"a","body":["int main() {}"],"include":["**/*.cpp"],"exclude":["**/test.cpp"]}}'); }, async writeFile(_uri: unknown, bytes: Buffer) { await write(bytes.toString()); } }
 		},
-		commands: { registerCommand(id: string, run: () => Promise<void>) { commands.set(id, run); return { dispose() { } }; }, async executeCommand(command: string, source: string) {
+		commands: { registerCommand(id: string, run: () => Promise<void>) { commands.set(id, run); return { dispose() { } }; }, async executeCommand(command: string, bounds: TemplateEditorBounds, selectionRevision: number, source?: string) {
 			if (command === '_shortestpath.snippetsHome') { return snippetsHome; }
-			assert.equal(command, '_shortestpath.cppPreviewTokens'); tokenRequests.push(source); return [[{ text: source, style: 'color:#abc' }]];
+			assert.equal(command, '_shortestpath.layoutSnippetEditor');
+			const request = { bounds, selectionRevision, source };
+			layoutRequests.push(request);
+			return layout(request);
 		} }
 	};
 	const exports: { registerSimpleSettings?: (context: unknown) => void } = {};
@@ -59,7 +63,7 @@ async function createHost(write: (source: string) => Promise<void> = async () =>
 	});
 	exports.registerSimpleSettings!({ subscriptions: [], globalStorageUri: { fsPath: '/profile/globalStorage/shortestpath' } });
 	await commands.get('shortestpath.configureCppSnippets')!();
-	return { panel, messages, tokenRequests, receive, onTheme, onConfiguration, onDispose, disposedListeners: () => disposedListeners };
+	return { panel, messages, layoutRequests, receive, onDispose, disposedListeners: () => disposedListeners };
 }
 
 const entry = (body: string): SnippetEntry => ({ name: 'A', prefix: 'a', body, description: '', include: '**/*.cpp', exclude: '**/test.cpp' });
@@ -91,16 +95,24 @@ test('reports save errors and continues processing later edits', async () => {
 	assert.equal(saves[1].revision, 2);
 });
 
-test('uses IDE tokenization, refreshes theme/font changes, and disposes page listeners', async () => {
-	const host = await createHost();
-	await host.receive({ type: 'highlight', source: 'int value;', requestId: 7 });
-	assert.deepEqual(host.tokenRequests, ['int value;']);
-	assert.deepEqual(host.messages.at(-1), { type: 'highlight', source: 'int value;', requestId: 7, lines: [[{ text: 'int value;', style: 'color:#abc' }]] });
-	host.onTheme(); host.onConfiguration({ affectsConfiguration: key => key === 'editor' });
-	assert.equal(host.messages.filter(message => message.type === 'refreshHighlight').length, 2);
-	assert.equal(host.messages.at(-1)!.tabSize, 4);
+test('serializes native editor layouts, forwards final body snapshots, and disposes page listeners', async () => {
+	let release!: () => void;
+	const held = new Promise<void>(resolve => { release = resolve; });
+	const snapshot = { selectionRevision: 0, contentRevision: 3, source: 'final native edit' };
+	const host = await createHost(undefined, async request => {
+		if (request.selectionRevision === 0) { await held; return undefined; }
+		return snapshot;
+	});
+	const bounds = { left: 10, top: 20, width: 640, height: 360, clipTop: 0, clipBottom: 800 };
+	await host.receive({ type: 'snippetEditorLayout', bounds, selectionRevision: 0, source: 'int value;' });
+	await host.receive({ type: 'snippetEditorLayout', bounds, selectionRevision: 1, source: 'int next;' });
+	await settle();
+	assert.deepEqual(host.layoutRequests, [{ bounds, selectionRevision: 0, source: 'int value;' }]);
+	release(); await settle();
+	assert.deepEqual(host.layoutRequests, [{ bounds, selectionRevision: 0, source: 'int value;' }, { bounds, selectionRevision: 1, source: 'int next;' }]);
+	assert.deepEqual(host.messages.at(-1), { type: 'snippetBodySnapshot', ...snapshot });
 	await host.receive({ type: 'confirmDelete', language: 'cpp', name: 'A', requestId: 11 });
 	assert.deepEqual(host.messages.at(-1), { type: 'deleteConfirmed', language: 'cpp', requestId: 11 });
 	host.onDispose();
-	assert.equal(host.disposedListeners(), 3);
+	assert.equal(host.disposedListeners(), 1);
 });

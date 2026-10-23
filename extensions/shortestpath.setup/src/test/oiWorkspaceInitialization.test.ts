@@ -11,7 +11,7 @@ import * as vm from 'node:vm';
 import * as ts from 'typescript';
 import { test } from 'node:test';
 
-function createHost(folders: readonly { name: string; uri: { scheme: string; fsPath: string } }[]) {
+function createHost(folders: readonly { name: string; uri: { scheme: string; fsPath: string } }[], platform = process.platform) {
 	const notifications: string[] = [];
 	const failures: string[] = [];
 	const source = fs.readFileSync(path.join(__dirname, '../../src/extension.ts'), 'utf8') + '\nexport const testApi = { ensureOiWorkspaceInitialization, createDefaultClangdProjectConfig };';
@@ -24,7 +24,7 @@ function createHost(folders: readonly { name: string; uri: { scheme: string; fsP
 		createDefaultClangdProjectConfig(folder: string, compiler: string, standard: string, updateGenerated: boolean): void;
 	}; } = {};
 	vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
-		exports, process, console: { error: (message: string) => failures.push(message) },
+		exports, process: { ...process, platform }, console: { error: (message: string) => failures.push(message) },
 		require(id: string) {
 			if (id === 'vscode') {
 				return {
@@ -87,10 +87,11 @@ test('first-run selection refreshes the generated compiler and standard but pres
 	assert.equal(fs.readFileSync(configPath, 'utf8'), custom);
 });
 
-test('removes the legacy MinGW __float128 workaround from generated project configs', async t => {
-	const folder = temporaryFolder(t);
-	const configPath = path.join(folder.uri.fsPath, '.clangd');
-	fs.writeFileSync(configPath, `# Managed by ShortestPath IDE setup.
+for (const platform of ['linux', 'darwin', 'win32'] as const) {
+	test(`migrates generated configs with the platform-appropriate float128 flags on ${platform}`, async t => {
+		const folder = temporaryFolder(t);
+		const configPath = path.join(folder.uri.fsPath, '.clangd');
+		fs.writeFileSync(configPath, `# Managed by ShortestPath IDE setup.
 CompileFlags:
   Add:
     - -std=c++23
@@ -100,7 +101,7 @@ CompileFlags:
     - "-Drsize_t=size_t"
     - "-D__STDC_WANT_LIB_EXT1__=1"
     - "-D__float128=long double"
-    - -U__SIZEOF_FLOAT128__
+    - -U__SIZEOF_FLOAT128__${platform === 'darwin' ? '\n    - -I/opt/homebrew/include' : ''}
   BuiltinHeaders: QueryDriver
   Compiler: "/selected/g++"
 
@@ -110,13 +111,15 @@ Completion:
 Index:
   Background: Build
 `);
-	const host = createHost([folder]);
-	host.configure(folder.uri.fsPath);
-	const migrated = fs.readFileSync(configPath, 'utf8');
-	assert.doesNotMatch(migrated, /__float128/);
-	assert.match(migrated, /-std=c\+\+23/);
-	assert.match(migrated, /Compiler: "\/selected\/g\+\+"/);
-});
+		const host = createHost([folder], platform);
+		host.configure(folder.uri.fsPath);
+		const migrated = fs.readFileSync(configPath, 'utf8');
+		if (platform === 'win32') { assert.match(migrated, /-D__float128=long double/); }
+		else { assert.doesNotMatch(migrated, /__float128/); }
+		assert.match(migrated, /-std=c\+\+23/);
+		assert.match(migrated, /Compiler: "\/selected\/g\+\+"/);
+	});
+}
 
 for (const existing of ['.clangd', '.clang-format']) {
 	test(`preserves existing ${existing} while filling the missing config`, async t => {
