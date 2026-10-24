@@ -33,6 +33,59 @@ interface RequestOptions {
 	onabort?: (error: object) => void;
 }
 
+/** Serialized into the isolated world; editing stays in the IDE. */
+export function addIDEProblemEntry(importProblem: () => Promise<{ count: number; error?: string; cancelled?: boolean }>, language: string): void {
+	if (document.getElementById('shortestpath-ojbetter-ide')) { return; }
+	const anchor = document.querySelector('#task-statement, .ttypography');
+	if (!anchor) { return; }
+	const translations: Record<string, readonly string[]> = {
+		en: ['Please write code in the IDE.', 'Import Problem', 'Importing…', 'Problem imported into the IDE.', 'Import failed. Please try again.', 'Paste code here'],
+		// allow-any-unicode-next-line
+		zh: ['请到 IDE 里写代码', '导入题目', '正在导入…', '题目已导入 IDE。', '导入失败，请重试。', '在此粘贴代码'],
+		// allow-any-unicode-next-line
+		'zh-tw': ['請到 IDE 裡寫程式', '匯入題目', '正在匯入…', '題目已匯入 IDE。', '匯入失敗，請重試。', '在此貼上程式碼'],
+		// allow-any-unicode-next-line
+		ja: ['コードは IDE で書いてください。', '問題をインポート', 'インポート中…', '問題を IDE にインポートしました。', 'インポートに失敗しました。もう一度お試しください。', 'ここにコードを貼り付け'],
+		// allow-any-unicode-next-line
+		ko: ['IDE에서 코드를 작성하세요.', '문제 가져오기', '가져오는 중…', '문제를 IDE로 가져왔습니다.', '가져오지 못했습니다. 다시 시도하세요.', '여기에 코드를 붙여넣으세요']
+	};
+	const normalized = language.toLowerCase();
+	const text = translations[normalized] ?? translations[normalized.split('-')[0]] ?? translations.en;
+	const entry = document.createElement('section');
+	entry.id = 'shortestpath-ojbetter-ide';
+	entry.dataset.pasteLabel = text[5];
+	entry.setAttribute('data-i18n-ignore', '');
+	entry.style.cssText = 'margin:16px 0;padding:16px;border:1px solid var(--border-color,#8886);border-radius:6px;';
+	const message = entry.appendChild(document.createElement('p'));
+	message.textContent = text[0];
+	const button = entry.appendChild(document.createElement('button'));
+	button.id = 'shortestpath-ojbetter-import';
+	button.type = 'button';
+	button.className = 'ojb_btn primary';
+	button.textContent = text[1];
+	const status = entry.appendChild(document.createElement('p'));
+	status.setAttribute('role', 'status');
+	status.hidden = true;
+	button.addEventListener('click', async () => {
+		if (button.disabled) { return; }
+		button.disabled = true;
+		button.textContent = text[2];
+		status.hidden = true;
+		try {
+			const result = await importProblem();
+			if (result.error) { throw new Error(result.error); }
+			if (result.count > 0) { status.textContent = text[3]; status.hidden = false; }
+		} catch (error) {
+			status.textContent = error instanceof Error ? error.message : text[4];
+			status.hidden = false;
+		} finally {
+			button.disabled = false;
+			button.textContent = text[1];
+		}
+	});
+	anchor.after(entry);
+}
+
 /** Serialized into a named isolated world. No bridge or GM API is exposed to page scripts. */
 export async function browserBootstrap(bindingName: string) {
 	const isolated = globalThis as typeof globalThis & {
@@ -97,6 +150,7 @@ export async function browserBootstrap(bindingName: string) {
 
 	return {
 		getSiteData: () => call('siteData'),
+		importProblem: () => call<{ count: number; error?: string; cancelled?: boolean }>('importProblem'),
 		flushValues: async () => {
 			while (writes.size) { await Promise.all([...writes]); }
 		},

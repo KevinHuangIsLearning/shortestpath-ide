@@ -1216,8 +1216,6 @@
 		"vendor/LICENSE-markdown-it.txt": "792c48c5a849a15fdf9e37e8bcf9e6d1dd13b32b46c642a748a0a46a9919d473",
 		"vendor/LICENSE-selectpage.txt": "9f22975ae39a97aabc0314addf938b4b03aa6340da5b548196f7817ad1dd27e7",
 		"vendor/LICENSE-turndown.txt": "a055e3a15db4b4cbb5af381230eba085603126d7d5d8c4dae45ee85b877a9729",
-		"vendor/Monaco-LICENSE": "33e4ff1a06ef62ba21788ea162564ee8165269a24a9ce6ef301837447eab0ac6",
-		"vendor/Monaco-ThirdPartyNotices.txt": "790537262fc78a764e121e6b92b959bcd3f5c310b47d9d9b9e92e17fe0af5336",
 		"vendor/OJBetter-LICENSE": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
 		"vendor/acwing_cpp_code_completer-0.0.11.json.txt": "552424e4401fba900953d2fd3fa71804e2c93cf04180a4d9aab12cf4b47e653f",
 		"vendor/atcoder-better.user.js.txt": "ac54e910d52ff40df1e9f25173a79cb2046eb4b9a1849bc1dcf5b6e07d79aa26",
@@ -1479,13 +1477,6 @@
 		"vendor/katex.min.js.txt": "e8d885505949f3a5f4abdd5dd0d53696bd1371ad26ffbf4f310dcd77c8cdae89",
 		"vendor/list.json.txt": "bfec919fd107d03ecdeaa3ca200694e61dad3a9f315187da888bbe460bbef0a1",
 		"vendor/markdown-it.js.txt": "cfd2d33cc8aaed57d6cdb01176d1cf45901d73a3ae28e83d3e1e7331b7910057",
-		"vendor/monaco-css.worker.js.txt": "eb844ae9ce3d4da296561ffc12c327ec521b99972c27946b17b78b21800f0efe",
-		"vendor/monaco-editor.worker.js.txt": "1130dbcdebaaae7acf347d3bce64b1bb9a41eec1d6de7fe5876353647b585fb5",
-		"vendor/monaco-html.worker.js.txt": "112c7f56ca4efb50a944f1874b282cd2e6a5251919c607235ad4b2cf0288eabf",
-		"vendor/monaco-json.worker.js.txt": "6c2af20502afd2db179be503a3122a810c9780fd3ea6026a2254719a6388652f",
-		"vendor/monaco-typescript.worker.js.txt": "4016eee2fb1ecac0d5e92fe36dafaa81d33e742a2cd741f8a6e984023a2f21c6",
-		"vendor/monaco.css.txt": "e405aa0383267b18313db6ac85384486304ddfb4bb3bd80d546025420b2b02e3",
-		"vendor/monaco.js.txt": "7ab3eab03756e3b158cdb877ada0164ca019fb0f55b89817010bca3260419f98",
 		"vendor/resources/locales/atcoder-better/alert.json": "298e71c5f497bfa7adc087a135b33db0a3857049cb51073cc3e15d0dda949eaf",
 		"vendor/resources/locales/atcoder-better/announce.json": "276b491397821002ccad4b46f204e27456201adb6b9cc287da26b6c0f66744b3",
 		"vendor/resources/locales/atcoder-better/button.json": "0dfde1c021326d343c815dac784fe4409835a963a3ad518170cf0b8d4b4d67e3",
@@ -1515,12 +1506,6 @@
 		"vendor/turndown.min.js.txt": "fd0e2aa0785c13c39fa1ddc0b3b19520e541b69801c1369ea4aabfe7913a0dea",
 		"vendor/xterm.js.txt": "1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495",
 		"vendor/xterm.min.css.txt": "97377c0c258e109358121823f5790146c714989366481f90e554c42277efb500"
-	},
-	"monaco": {
-		"version": "0.49.0",
-		"source": "https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.49.0.tgz",
-		"sha256": "30720db63e62d664fd737a586c56d2919592d75ecc63cccfbe90b2e7b74bbd36",
-		"bundler": "esbuild 0.28.1"
 	},
 	"katexVersion": "0.16.22"
 }

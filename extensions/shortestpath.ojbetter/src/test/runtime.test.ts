@@ -25,7 +25,7 @@ test('bundled payload coverage, adapter boundaries and complete script syntax ar
 	assert.doesNotThrow(() => new Script(source));
 	const files = readdirSync(join(__dirname, '../../resources'), { recursive: true, withFileTypes: true }).filter(entry => entry.isFile() && entry.name !== 'manifest.json').map(entry => join(entry.parentPath, entry.name).slice(join(__dirname, '../../resources').length + 1));
 	assert.deepEqual(Object.keys(assets.manifest.files).sort(), files.sort());
-	const math = source.match(/const MathJax = ([\s\S]*?);\n\s*const workerSources/)![1];
+	const math = source.match(/const MathJax = ([\s\S]*?);\n\s*const addIDEProblemEntry/)![1];
 	let delimiters: { left: string; right: string; display: boolean }[] = [];
 	const shim = runInNewContext('(' + math + ')', { renderMathInElement: (_element: unknown, options: { delimiters: typeof delimiters }) => { delimiters = options.delimiters; } });
 	shim.Hub.Queue(['Typeset', null, {}]);
@@ -33,6 +33,7 @@ test('bundled payload coverage, adapter boundaries and complete script syntax ar
 	assert.equal(assets.manifest.scripts.atcoder.version, '1.25.1');
 	assert.equal(assets.manifest.scripts.codeforces.version, '1.87.1');
 	assert.equal(assets.localResource('https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/common.json?cache=1')?.includes('settings'), true);
+	assert.equal(/shortestpathMonaco|MonacoEnvironment|new Worker\(/.test(source), false);
 });
 
 test('packaged JSON and locally edited payloads load without checksum validation', () => {

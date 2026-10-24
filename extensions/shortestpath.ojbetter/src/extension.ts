@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		log.appendLine('Integrated browser API unavailable');
 		return;
 	}
-	// Payloads include Monaco workers and translations; load them on the first supported page.
+	// Load website enhancements on the first supported page; editing stays in the IDE.
 	let assets: Assets | undefined;
 	const storage = new Preferences(context.globalState);
 	const tabs = new Map<string, Integration>();
@@ -42,6 +42,8 @@ export function activate(context: vscode.ExtensionContext): void {
 				storage,
 				fetch,
 				clipboard: text => vscode.env.clipboard.writeText(text),
+				language: vscode.env.language,
+				importProblem: url => Promise.resolve(vscode.commands.executeCommand<{ count: number; error?: string; cancelled?: boolean }>('judger.importBrowserProblem', tab.id, undefined, url)),
 				log: message => log.appendLine(message),
 				changed: platform => {
 					for (const integration of tabs.values()) {

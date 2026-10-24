@@ -5,7 +5,7 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { browserBootstrap } from './browserRuntime';
+import { addIDEProblemEntry, browserBootstrap } from './browserRuntime';
 import { platformForUrl, Platform } from './sites';
 
 interface Script {
@@ -34,11 +34,72 @@ export function adaptScript(source: string): string {
 		source = source.slice(0, start) + replacement + source.slice(end);
 	};
 	replace('OJB_LoadJS', `async function OJB_LoadJS(url) {
-		if (url.endsWith('/selectpage.min.js') || url.endsWith('/monaco-editor/0.49.0/min/vs/loader.min.js')) return;
+		if (url.endsWith('/selectpage.min.js')) return;
 		throw new Error('OJBetter: unsupported dynamic library ' + url);
 	}`);
 	replace('checkScriptVersion', `async function checkScriptVersion() { /* Bundled scripts update with the IDE. */ }`);
 	replace('initMonacoEditor', `async function initMonacoEditor() { OJBetter.monaco.loaderOnload = true; }`);
+	// Keep upstream language selection, sample execution and submission, using its
+	// actual source textarea directly instead of a second editor implementation.
+	replace('createMonacoEditor', `async function createMonacoEditor(language, form) {
+		form.editorDiv.remove();
+		form.sourceDiv.css({display: 'block', width: '100%', minHeight: '240px', resize: 'vertical', boxSizing: 'border-box', padding: '8px', fontFamily: 'monospace'});
+		const label = document.getElementById('shortestpath-ojbetter-ide')?.dataset.pasteLabel;
+		if (label) form.sourceDiv.attr({placeholder: label, 'aria-label': label});
+		form.sourceDiv.attr({spellcheck: 'false', 'data-i18n-ignore': ''});
+		form.submitDiv.append(form.runButton, form.submitButton);
+		OJBetter.monaco.editor = {getValue: () => form.sourceDiv.val(), setValue: value => form.sourceDiv.val(value), dispose: () => {}};
+		if (!form.sourceDiv.data('shortestpathPasteReady')) {
+			form.sourceDiv.data('shortestpathPasteReady', true);
+			let edited = false;
+			const url = location.href.replace(/#/, '');
+			form.sourceDiv.on('input', () => {
+				edited = true;
+				if (OJBetter.monaco.setting.autoMemoryCode) void saveCode(url, form.sourceDiv.val()).catch(console.error);
+			});
+			if (OJBetter.monaco.setting.autoMemoryCode) {
+				const saved = await getCode(url);
+				if (!edited && typeof saved === 'string') form.sourceDiv.val(saved);
+			}
+		}
+	}`);
+	const problemEntry = 'async function addProblemPageCodeEditor() {';
+	if (source.split(problemEntry).length !== 2) { throw new Error('OJBetter problem entry boundary changed'); }
+	source = source.replace(problemEntry, problemEntry + '\naddIDEProblemEntry(importProblem, ideLanguage);');
+	const formReady = 'let selectLang = form.selectLang;';
+	if (source.split(formReady).length !== 2) { throw new Error('OJBetter paste form boundary changed'); }
+	source = source.replace(formReady, 'await createMonacoEditor(null, form);\n' + formReady);
+	const initialLanguage = 'selectLang.val(initLang).trigger(\'change\');';
+	if (source.split(initialLanguage).length !== 2) { throw new Error('OJBetter initial language boundary changed'); }
+	source = source.replace(initialLanguage, `
+		if (selectLang.length) {
+			const options = selectLang.find('option').filter((_, option) => option.value && option.value !== 'ojb_show_all');
+			if (!options.toArray().some(option => option.value === String(initLang))) initLang = options.first().val();
+			selectLang.val(initLang).trigger('change');
+		} else {
+			submitButton.prop('disabled', true);
+			if (OJBetter.monaco.onlineCompilerChoice === 'official') runButton.prop('disabled', true);
+		}
+	`);
+	const editorEnabled = /OJBetter\.typeOfPage\.is_problem\s*&&\s*OJBetter\.monaco\.enableOnProblemPage/g;
+	if ([...source.matchAll(editorEnabled)].length !== 1) { throw new Error('OJBetter problem entry boundary changed'); }
+	source = source.replace(editorEnabled, 'OJBetter.typeOfPage.is_problem');
+	// Code blocks use the already bundled highlighter instead of creating more editor runtimes.
+	replace('beautifyPreBlocksWithMonaco', `async function beautifyPreBlocksWithMonaco() {
+		for (const pre of document.querySelectorAll('pre')) {
+			if (pre.classList.contains('source-code-for-copy')) continue;
+			const code = pre.querySelector('code') || pre;
+			if (!code.childElementCount && !code.dataset.highlighted) hljs.highlightElement(code);
+		}
+	}`);
+	// Keep hidden form controls mounted for upstream settings serialization.
+	for (const [marker, replacement] of [
+		['<h4 data-i18n="settings:codeEditor.lsp.title"></h4>', '<div hidden><h4 data-i18n="settings:codeEditor.lsp.title"></h4>'],
+		['<div id="Complet_config" class="config"></div>', '<div id="Complet_config" class="config"></div></div>']
+	]) {
+		if (source.split(marker).length !== 2) { throw new Error('OJBetter editor settings adapter boundaries changed'); }
+		source = source.replace(marker, replacement);
+	}
 	replace('initI18next', `async function initI18next() {
 		await i18next.init({ lng: OJBetter.localization.scriptLang, resources: ojbetterLocales,
 			defaultNS: 'settings', fallbackLng: ['zh', OJBetter.translation.targetLang], load: 'currentOnly' });
@@ -63,7 +124,6 @@ export class Assets {
 		if (JSON.stringify(requires) !== JSON.stringify(this.manifest.scripts.codeforces.requires)) {
 			throw new Error('OJBetter scripts require different dependency order');
 		}
-		const workers = Object.fromEntries(['editor', 'json', 'css', 'html', 'typescript'].map(name => [name, this.read(`vendor/monaco-${name}.worker.js.txt`)]));
 		this.common = `
 			${this.read('vendor/jquery.min.js.txt')}
 			${requires.map(file => this.read(file)).join('\n;\n')}
@@ -81,15 +141,9 @@ export class Assets {
 			{ left: '\\[', right: '\\]', display: true }
 		])}});
 			} } };
-			const workerSources = ${JSON.stringify(workers)};
-			globalThis.MonacoEnvironment = { getWorker: (_moduleId, label) => {
-				const name = ['json','css','html'].includes(label) ? label : ['javascript','typescript'].includes(label) ? 'typescript' : 'editor';
-				const url = URL.createObjectURL(new Blob([workerSources[name]], {type:'text/javascript'}));
-				const worker = new Worker(url); URL.revokeObjectURL(url); return worker;
-			} };
-			${this.read('vendor/monaco.js.txt')}
-			globalThis.monaco = shortestpathMonaco;
-			GM_addStyle(${JSON.stringify(this.read('vendor/monaco.css.txt'))});
+			const addIDEProblemEntry = ${addIDEProblemEntry.toString()};
+			// Compatibility for upstream theme hooks and language detection; no editor implementation here.
+			const monaco = {editor: {setTheme: () => {}}, languages: {getLanguages: () => []}};
 		`;
 		this.scripts = Object.fromEntries((['atcoder', 'codeforces'] as const).map(platform => {
 			const script = this.manifest.scripts[platform];
@@ -129,13 +183,14 @@ export class Assets {
 		return asset ? this.read(asset.file) : undefined;
 	}
 
-	source(bindingName: string, enabled: Record<Platform, boolean>): string {
+	source(bindingName: string, enabled: Record<Platform, boolean>, language = 'en'): string {
 		return `(async function () {
 			const platform = (${platformForUrl.toString()})(location.href);
 			if (!platform || !${JSON.stringify(enabled)}[platform] || window !== window.top || globalThis.__shortestpathOJBetterStarting) return;
 			globalThis.__shortestpathOJBetterStarting = true;
 			try {
-				const {GM_getValue, GM_setValue, GM_deleteValue, GM_listValues, GM_addStyle, GM_setClipboard, GM_xmlhttpRequest, getSiteData, flushValues} = await (${browserBootstrap.toString()})(${JSON.stringify(bindingName)});
+				const {GM_getValue, GM_setValue, GM_deleteValue, GM_listValues, GM_addStyle, GM_setClipboard, GM_xmlhttpRequest, getSiteData, flushValues, importProblem} = await (${browserBootstrap.toString()})(${JSON.stringify(bindingName)});
+				const ideLanguage = ${JSON.stringify(language)};
 				const __ojbetterReload = async () => { await flushValues(); window.location.reload(); };
 				if (document.readyState === 'loading') await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, {once:true}));
 				const siteData = await getSiteData();

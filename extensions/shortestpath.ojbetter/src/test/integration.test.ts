@@ -59,6 +59,28 @@ class Session implements BrowserCDPSession {
 
 const settle = async () => { for (let i = 0; i < 8; i++) { await new Promise(resolve => setImmediate(resolve)); } };
 
+test('problem import binds the current page URL and rejects subframes and stale contexts', async () => {
+	const session = new Session();
+	const imports: string[] = [];
+	const integration = new Integration(new CDP(session), assets, {
+		storage: { get: () => ({}), write: async () => {} }, fetch,
+		clipboard: async () => {}, log: () => {}, changed: () => {},
+		importProblem: async url => { imports.push(url); return { count: 1 }; }
+	});
+	await integration.start({ atcoder: true, codeforces: true });
+	session.context(2, 'child');
+	session.call(1, 2, 'importProblem');
+	session.call(2, 1, 'importProblem', { url: 'https://attacker.test/' });
+	await settle();
+	session.emit({ method: 'Runtime.executionContextsCleared', sessionId: 'page', params: {} });
+	session.call(3, 1, 'importProblem');
+	await settle();
+	assert.deepEqual(imports, [session.url]);
+	assert.deepEqual(session.replies.find(reply => reply.id === 2)?.value, { count: 1 });
+	integration.dispose();
+	await settle();
+});
+
 test('bridge rejects page, subframe, unrelated session and navigated contexts', async () => {
 	const session = new Session();
 	const clipboard: string[] = [];

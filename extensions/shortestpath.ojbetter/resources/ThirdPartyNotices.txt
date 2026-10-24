@@ -553,6 +553,5 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-Monaco Editor 0.49.0: see vendor/Monaco-LICENSE and vendor/Monaco-ThirdPartyNotices.txt.
 KaTeX: see vendor/KaTeX-LICENSE.
 OJBetter scripts, localization, completion data and iconfont: see vendor/OJBetter-LICENSE and manifest.json.

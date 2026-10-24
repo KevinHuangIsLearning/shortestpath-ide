@@ -38,6 +38,8 @@ interface Services {
 	clipboard(text: string): PromiseLike<void>;
 	log(message: string): void;
 	changed(platform: Platform): void;
+	language?: string;
+	importProblem?(url: string): Promise<{ count: number; error?: string; cancelled?: boolean }>;
 }
 
 /** Lifecycle and privilege boundary for one tab, independent of Judger's CDP clients. */
@@ -66,7 +68,7 @@ export class Integration implements Disposable {
 		await this.cdp.send('Page.enable', {}, sessionId);
 		await this.cdp.send('Runtime.enable', {}, sessionId);
 		await this.cdp.send('Runtime.addBinding', { name: bindingName, executionContextName: worldName }, sessionId);
-		const source = this.assets.source(bindingName, enabled);
+		const source = this.assets.source(bindingName, enabled, this.services.language);
 		const { identifier } = await this.cdp.send<{ identifier: string }>('Page.addScriptToEvaluateOnNewDocument', { source, worldName }, sessionId);
 		this.scriptId = identifier;
 		const { frameTree } = await this.cdp.send<FrameTree>('Page.getFrameTree', {}, sessionId);
@@ -159,7 +161,11 @@ export class Integration implements Disposable {
 		}
 		const { id, operation, args } = message;
 		try {
-			if (operation === 'hydrate') {
+			if (operation === 'importProblem') {
+				if (!this.services.importProblem) { throw new Error('Problem import unavailable'); }
+				const value = await this.services.importProblem(authorized.url);
+				await this.reply(context, { id, value });
+			} else if (operation === 'hydrate') {
 				await this.reply(context, { id, value: this.services.storage.get(authorized.platform) });
 			} else if (operation === 'siteData') {
 				// A fixed, read-only bridge for globals that upstream userscripts normally
