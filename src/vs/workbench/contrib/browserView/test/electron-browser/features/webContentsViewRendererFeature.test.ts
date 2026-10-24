@@ -20,21 +20,30 @@ import { BrowserEditor } from '../../../electron-browser/browserEditor.js';
 import { WebContentsViewRendererFeature } from '../../../electron-browser/features/webContentsViewRendererFeature.js';
 import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
 import { IBrowserViewModel } from '../../../common/browserView.js';
+import { IShortestPathModeService } from '../../../../shortestpath/common/shortestPathMode.js';
 
 suite('Browser editor mode visibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const modeService = new class extends mock<IShortestPathModeService>() {
+		override readonly onDidChangeActiveBrowser = Event.None;
+	};
 
-	test('inert editor ancestors hide native pages and restoring the mode reveals them without reloading', async () => {
-		const part = append(mainWindow.document.body, $('.part.editor'));
+	test('mode switches immediately hide native pages even when editor ancestors were attached later', () => {
+		const part = $('.part.editor');
 		store.add(toDisposable(() => part.remove()));
-		const container = append(part, $('.browser-container'));
+		const container = $('.browser-container');
+		const modes = store.add(new Emitter<void>());
 		const changes = store.add(new Emitter<{ model: IBrowserViewModel; isNew: boolean }>());
 		const editor = new class extends mock<BrowserEditor>() {
 			override readonly onDidChangeModel = changes.event;
 			override get window() { return mainWindow; }
 		};
-		const feature = store.add(new WebContentsViewRendererFeature(editor, new NullLogService(), new class extends mock<IKeybindingService>() { }));
+		const feature = store.add(new WebContentsViewRendererFeature(editor, new NullLogService(), new class extends mock<IKeybindingService>() { }, new class extends mock<IShortestPathModeService>() {
+			override readonly onDidChangeActiveBrowser = modes.event;
+		}));
 		feature.onContainerCreated(container);
+		part.append(container);
+		mainWindow.document.body.append(part);
 		const visibility: boolean[] = [];
 		const model = new class extends mock<IBrowserViewModel>() {
 			override visible = false;
@@ -49,11 +58,11 @@ suite('Browser editor mode visibility', () => {
 		changes.fire({ model, isNew: false });
 		feature.onPaneVisibilityChanged(true);
 		part.inert = true;
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+		modes.fire();
+		assert.strictEqual(model.visible, false);
 		part.inert = false;
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		modes.fire();
 		feature.onPaneVisibilityChanged(false);
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		assert.deepStrictEqual(visibility, [true, false, true, false]);
 		feature.onModelDetached();
 	});
@@ -63,7 +72,7 @@ suite('Browser editor mode visibility', () => {
 			override readonly onDidChangeModel = changes.event;
 			override get window() { return mainWindow; }
 		};
-		const feature = store.add(new WebContentsViewRendererFeature(editor, new NullLogService(), new class extends mock<IKeybindingService>() { }));
+		const feature = store.add(new WebContentsViewRendererFeature(editor, new NullLogService(), new class extends mock<IKeybindingService>() { }, modeService));
 		feature.onPaneVisibilityChanged(true);
 		const captures: DeferredPromise<VSBuffer>[] = [];
 		const loading = store.add(new Emitter<IBrowserViewLoadingEvent>());
@@ -179,7 +188,7 @@ suite('Browser editor mode visibility', () => {
 				override readonly onDidChangeModel = changes.event;
 				override get window() { return mainWindow; }
 			};
-			const feature = store.add(new WebContentsViewRendererFeature(editor, new NullLogService(), new class extends mock<IKeybindingService>() { }));
+			const feature = store.add(new WebContentsViewRendererFeature(editor, new NullLogService(), new class extends mock<IKeybindingService>() { }, modeService));
 			feature.onContainerCreated(container);
 			const visibility: boolean[] = [];
 			const model = new class extends mock<IBrowserViewModel>() {

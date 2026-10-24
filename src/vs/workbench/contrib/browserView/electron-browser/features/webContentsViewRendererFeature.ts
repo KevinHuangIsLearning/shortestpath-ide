@@ -24,6 +24,7 @@ import {
 } from '../browserEditor.js';
 import { BrowserOverlayManager, BrowserOverlayType } from '../overlayManager.js';
 import { ShortestPathBrowserOverlay } from '../shortestPathBrowserOverlay.js';
+import { IShortestPathModeService } from '../../../shortestpath/common/shortestPathMode.js';
 
 /**
  * Default browser renderer: drives a Chromium WebContentsView.
@@ -64,6 +65,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		editor: BrowserEditor,
 		@ILogService private readonly logService: ILogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IShortestPathModeService modeService: IShortestPathModeService,
 	) {
 		super(editor);
 
@@ -75,6 +77,7 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		this._overlayPauseContent = { location: BrowserWidgetLocation.ContentArea, element: this._overlayPauseEl, order: 200 };
 
 		this._register(this._overlayManager.onDidChangeOverlayState(() => this._refreshOverlayObscured()));
+		this._register(modeService.onDidChangeActiveBrowser(() => this._refresh()));
 		this._refresh();
 	}
 
@@ -254,6 +257,10 @@ export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			if (ownerDoc?.hasFocus() && ownerDoc.activeElement === this._container) {
 				this.tryFocus();
 			}
+		} else if (!this._editorVisible || this._container?.closest('[inert]')) {
+			// Surface switches must remove the native view before it can cover the next page.
+			this._cancelFocusTimeout();
+			void this._model.setVisible(false);
 		} else {
 			void this._doScreenshot();
 			// Defer the hide one frame so the latest screenshot has a chance to paint first.
