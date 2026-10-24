@@ -37,11 +37,6 @@ const result = await esbuild.build({
 });
 if (offlineFontReplacements !== 1) { throw new Error('Review the updated Excalidraw offline font loading before building.'); }
 await cp('node_modules/@excalidraw/excalidraw/dist/prod/fonts', 'dist/fonts', { recursive: true });
-await mkdir('dist/pdfjs', { recursive: true });
-await cp('node_modules/pdfjs-dist/build/pdf.worker.min.mjs', 'dist/pdfjs/pdf.worker.min.mjs');
-for (const folder of ['cmaps', 'standard_fonts', 'wasm', 'iccs']) {
-	await cp(`node_modules/pdfjs-dist/${folder}`, `dist/pdfjs/${folder}`, { recursive: true });
-}
 
 // Preserve the licenses of the packages that actually enter the Webview bundle.
 const names = new Set(Object.keys(result.metafile.inputs).flatMap(input => {

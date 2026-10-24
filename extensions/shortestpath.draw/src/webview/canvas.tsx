@@ -5,13 +5,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CaptureUpdateAction, Excalidraw, MainMenu, WelcomeScreen, convertToExcalidrawElements, exportToBlob, exportToSvg, restore, restoreLibraryItems, serializeAsJSON, serializeLibraryAsJSON, viewportCoordsToSceneCoords } from '@excalidraw/excalidraw';
+import { Excalidraw, MainMenu, WelcomeScreen, exportToBlob, exportToSvg, restore, restoreLibraryItems, serializeAsJSON, serializeLibraryAsJSON } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, ExcalidrawProps, LibraryItems } from '@excalidraw/excalidraw/types';
 import { initializeCompetitionLibrary, serializeCompetitionLibrary } from '../competitionLibrary';
 import { ClientMessage, DraftSnapshot, DrawingExportFormat, FileAction, HostMessage } from '../protocol';
 import { DrawStrings, getDrawStrings } from '../strings';
 import { SaveSession, SaveStatus } from './saveSession';
-import { isPdf, renderPdf } from './pdfImport';
 
 declare function acquireVsCodeApi(): { postMessage(message: ClientMessage): void; setState(state: { fileId?: string }): void };
 const vscode = acquireVsCodeApi();
@@ -76,37 +75,6 @@ function Sketchpad({ container }: { container: HTMLElement }) {
 	const [session] = useState(() => new SaveSession(post));
 	const api = useRef<ExcalidrawImperativeAPI>();
 	const getSnapshot = useRef<() => DraftSnapshot>();
-	useEffect(() => {
-		const drop = (event: DragEvent) => {
-			const files = Array.from(event.dataTransfer?.files ?? []).filter(isPdf);
-			if (!files.length) { return; }
-			event.preventDefault();
-			event.stopPropagation();
-			const target = api.current;
-			if (!target) { return; }
-			const position = viewportCoordsToSceneCoords({ clientX: event.clientX, clientY: event.clientY }, target.getAppState());
-			void (async () => {
-				try {
-					const pages = [];
-					for (const file of files) { pages.push(...await renderPdf(file, container.dataset.assets!)); }
-					// A document switch during rendering must not insert into the previous draft.
-					if (api.current !== target) { return; }
-					let y = position.y;
-					const elements = convertToExcalidrawElements(pages.map(page => {
-						const element = { type: 'image' as const, fileId: page.file.id, x: position.x, y, width: page.width, height: page.height, status: 'saved' as const };
-						y += page.height + 20;
-						return element;
-					}));
-					target.addFiles(pages.map(page => page.file));
-					target.updateScene({ elements: [...target.getSceneElements(), ...elements], captureUpdate: CaptureUpdateAction.IMMEDIATELY });
-				} catch {
-					if (api.current === target) { target.updateScene({ appState: { errorMessage: strings.importFailed } }); }
-				}
-			})();
-		};
-		container.addEventListener('drop', drop, true);
-		return () => container.removeEventListener('drop', drop, true);
-	}, [container, strings]);
 	useEffect(() => {
 		session.onStatus = setStatus;
 		const receive = (event: MessageEvent<HostMessage>) => {

@@ -3,11 +3,6 @@
 The fourth navigation tab embeds Excalidraw locally. Scripts, translations and fonts
 ship with the IDE; drawing requires no account, server or network connection.
 
-Drop PDFs and images directly onto the canvas without holding Shift. PDF pages
-are rendered locally as images, arranged vertically at the drop position and
-saved with the drawing for offline annotations. PDF.js and its worker, fonts and
-decoders ship with the extension. Invalid PDFs leave existing drawing content intact.
-
 The library starts with 16 editable competition templates: arrays, indexed grids,
 binary trees, a linked list, a key-value table, undirected graphs, coordinate axes,
 a number line, a Venn diagram, a triangle and a hexagon. Templates use consistent

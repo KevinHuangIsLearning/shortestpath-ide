@@ -177,6 +177,15 @@ export class WebviewEditor extends EditorPane {
 
 		this._webviewVisibleDisposables.clear();
 
+		if (input.webview.providedViewType === 'shortestpath.draw' || input.webview.providedViewType === 'shortestpath.draw.companion') {
+			// Let files reach the canvas before an editor split/drop overlay can cover it.
+			this._webviewVisibleDisposables.add(DOM.addDisposableListener(input.webview.container, DOM.EventType.DRAG_ENTER, event => {
+				if (event.dataTransfer?.types.includes('Files')) {
+					event.stopPropagation();
+				}
+			}, true));
+		}
+
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
 		this._webviewVisibleDisposables.add(this._editorGroupsService.createEditorDropTarget(input.webview.container, {
 			containsGroup: (group) => this.group.id === group.id

@@ -42,7 +42,6 @@ test('keeps a restored draft while the canvas API is loading, then saves live li
 			if (id === 'react') { return react; }
 			if (id === 'react/jsx-runtime') { return { jsx: (_type: object, props: object) => props, jsxs: (_type: object, props: object) => props }; }
 			if (id === 'react-dom/client') { return {}; }
-			if (id === './pdfImport') { return {}; }
 						if (id === '@excalidraw/excalidraw') { return excalidraw; }
 			return require(path.resolve(root, 'out/webview', id));
 		},
