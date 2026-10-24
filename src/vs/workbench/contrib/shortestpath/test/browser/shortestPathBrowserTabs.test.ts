@@ -12,9 +12,6 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { ShortestPathBrowserTabBar } from '../../browser/shortestPathBrowserTabBar.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { findGroup } from '../../../../services/editor/common/editorGroupFinder.js';
@@ -24,50 +21,6 @@ import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchIn
 
 suite('ShortestPath native browser container', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('favorites animation updates native scrolling without an explicit group layout', async () => {
-		store.add(registerTestEditor('nativeBrowserFavoritesCollapseTest', [new SyncDescriptor(TestFileEditorInput)]));
-		const instantiation = workbenchInstantiationService(undefined, store);
-		instantiation.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
-		const parts = await createEditorParts(instantiation, store.add(new DisposableStore()));
-		const root = document.createElement('div');
-		root.className = 'monaco-workbench';
-		document.body.appendChild(root);
-		store.add(toDisposable(() => root.remove()));
-		const container = document.createElement('div');
-		container.className = 'shortestpath-browser-host';
-		root.appendChild(container);
-		store.add(toDisposable(() => container.remove()));
-		const browse = store.add(parts.createEmbeddedEditorPart(container));
-		store.add(browse.enforcePartOptions({
-			showTabs: 'multiple', enablePreview: false, wrapTabs: false,
-			tabSizing: 'fixed', tabSizingFixedMinWidth: 160, tabSizingFixedMaxWidth: 160,
-			createTabsLeading: (target: unknown) => {
-				const bar = instantiation.invokeFunction(accessor => new ShortestPathBrowserTabBar(target as HTMLElement, {
-					select: async () => { }, editUrl: () => { }, close: () => { }, move: () => { }, create: () => { }, setVertical: () => { }, getMenu: () => [],
-				}, accessor.get(IHoverService), accessor.get(IContextMenuService)));
-				bar.element.classList.add('native-leading');
-				bar.update([], [{ key: 'favorite:one', title: 'Favorite page', url: 'https://one.example/', active: false, opened: true }]);
-				return bar;
-			},
-		}));
-		browse.layout(500, 600, 0, 0);
-		for (let index = 0; index < 6; index++) {
-			await browse.activeGroup.openEditor(store.add(new TestFileEditorInput(URI.parse(`test://browser/${index}`), 'nativeBrowserFavoritesCollapseInput')), { pinned: true });
-		}
-		await new Promise<void>(resolve => mainWindow.setTimeout(resolve, 300));
-		const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
-		const toggle = container.querySelector<HTMLButtonElement>('.browser-favorites-toggle')!;
-		const expandedScroll = tabs.scrollLeft;
-		toggle.click();
-		await new Promise<void>(resolve => mainWindow.setTimeout(resolve, 300));
-		const collapsedScroll = tabs.scrollLeft;
-		toggle.click();
-		await new Promise<void>(resolve => mainWindow.setTimeout(resolve, 300));
-		const active = tabs.querySelector<HTMLElement>('.tab.active')!;
-		assert.ok(expandedScroll > collapsedScroll && tabs.scrollLeft > collapsedScroll, JSON.stringify({ expandedScroll, collapsedScroll, reopenedScroll: tabs.scrollLeft, width: tabs.clientWidth, scrollWidth: tabs.scrollWidth, active: browse.activeGroup.activeEditor?.resource?.toString() }));
-		assert.ok(active.getBoundingClientRect().right <= tabs.getBoundingClientRect().right + 1);
-	});
 
 	test('native tabs keep independent models and unregister on disposal', async () => {
 		store.add(registerTestEditor('nativeBrowserContainerTest', [new SyncDescriptor(TestFileEditorInput)]));

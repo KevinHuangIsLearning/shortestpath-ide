@@ -32,10 +32,6 @@ export const browserTabBarLabels = {
 	// allow-any-unicode-next-line
 	favorites: chinese ? '收藏夹' : localize('sp.tabs.favorites', "Favorites"),
 	// allow-any-unicode-next-line
-	collapseFavorites: chinese ? '收起收藏夹' : localize('sp.tabs.collapseFavorites', "Collapse Favorites"),
-	// allow-any-unicode-next-line
-	expandFavorites: chinese ? '展开收藏夹' : localize('sp.tabs.expandFavorites', "Expand Favorites"),
-	// allow-any-unicode-next-line
 	tabs: chinese ? '浏览器标签页' : localize('sp.tabs.tabs', "Browser Tabs"),
 	// allow-any-unicode-next-line
 	new: chinese ? '新建标签页' : localize('sp.tabs.new', "New Tab"),
@@ -63,7 +59,6 @@ export interface BrowserTabBarItem {
 	readonly url: string;
 	readonly favicon?: string;
 	readonly active: boolean;
-	readonly opened?: boolean;
 	readonly loading?: boolean;
 	readonly groupLabel?: string;
 }
@@ -83,14 +78,8 @@ export class ShortestPathBrowserTabBar extends Disposable {
 	readonly element: HTMLElement;
 	private readonly rows = this._register(new DisposableStore());
 	private readonly list: HTMLElement;
-	private readonly favorites: HTMLElement;
-	private readonly favoritesSummary: HTMLElement;
-	private readonly favoritesContainer: HTMLElement;
-	private readonly favoritesToggle: HTMLButtonElement;
-	private favoritesCollapsed = false;
 	private readonly toggle: HTMLButtonElement;
 	private items: readonly BrowserTabBarItem[] = [];
-	private favoriteItems: readonly BrowserTabBarItem[] = [];
 	private readonly tabButtons = new Map<string, HTMLButtonElement>();
 	private readonly listButtons = new Map<HTMLElement, HTMLButtonElement[]>();
 	private vertical = false;
@@ -100,15 +89,6 @@ export class ShortestPathBrowserTabBar extends Disposable {
 		this.element = append(container, $('.shortestpath-browser-tabbar'));
 		this.toggle = this.button(this.element, browserTabBarLabels.vertical, 'layout-sidebar-left', () => actions.setVertical(!this.vertical), this._store);
 		this.toggle.classList.add('browser-layout-toggle');
-		this.favoritesContainer = append(this.element, $('.browser-favorites-container'));
-		this.favoritesToggle = this.button(this.favoritesContainer, browserTabBarLabels.collapseFavorites, 'star-full', () => this.setFavoritesCollapsed(!this.favoritesCollapsed), this._store);
-		this.favoritesToggle.classList.add('browser-favorites-toggle');
-		append(this.favoritesToggle, $('span.browser-favorites-chevron.codicon.codicon-chevron-left', { 'aria-hidden': 'true' }));
-		this.favoritesToggle.setAttribute('aria-expanded', 'true');
-		const reveal = append(this.favoritesContainer, $('.browser-favorites-reveal'));
-		this.favorites = append(reveal, $('.browser-favorites', { role: 'group', 'aria-label': browserTabBarLabels.favorites }));
-		this.favoritesSummary = append(this.favoritesContainer, $('.browser-favorites-summary', { role: 'group', 'aria-label': browserTabBarLabels.favorites }));
-		this.favoritesSummary.hidden = true;
 		this.list = append(this.element, $('.browser-tab-list', { role: 'tablist', 'aria-label': browserTabBarLabels.tabs }));
 		const create = this.button(this.element, browserTabBarLabels.new, 'add', () => actions.create(), this._store);
 		create.classList.add('browser-new-tab');
@@ -123,21 +103,8 @@ export class ShortestPathBrowserTabBar extends Disposable {
 		this.list.setAttribute('aria-orientation', vertical ? 'vertical' : 'horizontal');
 	}
 
-	update(items: readonly BrowserTabBarItem[], favorites: readonly BrowserTabBarItem[]): void {
+	update(items: readonly BrowserTabBarItem[]): void {
 		this.items = items;
-		this.favoriteItems = favorites;
-		this.render();
-	}
-
-	private setFavoritesCollapsed(collapsed: boolean): void {
-		this.favoritesCollapsed = collapsed;
-		if (this.favorites.contains(this.element.ownerDocument.activeElement) || this.favoritesSummary.contains(this.element.ownerDocument.activeElement)) {
-			this.favoritesToggle.focus();
-		}
-		this.favorites.inert = collapsed;
-		this.favoritesContainer.classList.toggle('collapsed', collapsed);
-		this.favoritesToggle.setAttribute('aria-expanded', String(!collapsed));
-		this.favoritesToggle.setAttribute('aria-label', collapsed ? browserTabBarLabels.expandFavorites : browserTabBarLabels.collapseFavorites);
 		this.render();
 	}
 
@@ -147,39 +114,26 @@ export class ShortestPathBrowserTabBar extends Disposable {
 		this.rows.clear();
 		this.tabButtons.clear();
 		this.listButtons.set(this.list, []);
-		this.listButtons.set(this.favorites, []);
-		this.listButtons.set(this.favoritesSummary, []);
 		this.list.replaceChildren();
-		this.favorites.replaceChildren();
-		this.favoritesSummary.replaceChildren();
-		this.favoritesSummary.hidden = !this.favoritesCollapsed;
-		this.favorites.hidden = this.favoriteItems.length === 0;
-		this.favoritesContainer.hidden = this.favoriteItems.length === 0;
-		for (const item of this.favoriteItems) {
-			this.row(this.favorites, item, true, !this.favoritesCollapsed);
-			if (this.favoritesCollapsed && item.opened) { this.row(this.favoritesSummary, item, true); }
-		}
 		let groupLabel: string | undefined;
 		for (const item of this.items) {
 			if (item.groupLabel && item.groupLabel !== groupLabel) {
 				groupLabel = item.groupLabel;
 				append(this.list, $('.browser-tab-group')).textContent = groupLabel;
 			}
-			this.row(this.list, item, false);
+			this.row(this.list, item);
 		}
 		if (focusKey) {
-			(this.tabButtons.get(focusKey) ?? (this.favoritesCollapsed ? this.favoritesToggle : this.tabButtons.values().next().value ?? this.toggle)).focus();
+			(this.tabButtons.get(focusKey) ?? this.tabButtons.values().next().value ?? this.toggle).focus();
 		}
 	}
 
-	private row(container: HTMLElement, item: BrowserTabBarItem, favorite: boolean, trackFocus = true): void {
+	private row(container: HTMLElement, item: BrowserTabBarItem): void {
 		const row = append(container, $('.browser-tab-row'));
 		row.classList.toggle('active', item.active);
-		row.classList.toggle('favorite', favorite);
-		row.classList.toggle('opened', !!item.opened);
-		const tab = append(row, $('button.browser-tab', { type: 'button', role: favorite ? 'button' : 'tab', 'aria-label': item.title, 'aria-selected': favorite ? undefined : String(item.active) })) as HTMLButtonElement;
+		const tab = append(row, $('button.browser-tab', { type: 'button', role: 'tab', 'aria-label': item.title, 'aria-selected': String(item.active) })) as HTMLButtonElement;
 		tab.dataset.key = item.key;
-		if (trackFocus) { this.tabButtons.set(item.key, tab); }
+		this.tabButtons.set(item.key, tab);
 		this.listButtons.get(container)!.push(tab);
 		const icon = append(tab, $('span.browser-tab-icon', { 'aria-hidden': 'true' }));
 		icon.classList.add('codicon', item.loading ? 'codicon-loading' : 'codicon-globe');
@@ -202,34 +156,28 @@ export class ShortestPathBrowserTabBar extends Disposable {
 			if (event.key === 'Home') { target = 0; }
 			if (event.key === 'End') { target = buttons.length - 1; }
 			if (target !== undefined) { event.preventDefault(); buttons[target].focus(); }
-			if (event.key === 'Delete' && (!favorite || item.opened)) { event.preventDefault(); this.actions.close(item.key); }
+			if (event.key === 'Delete') { event.preventDefault(); this.actions.close(item.key); }
 			if (event.key === 'F2' && item.active) { event.preventDefault(); this.actions.editUrl(item.key); }
 		}));
-		if (!favorite) {
-			tab.draggable = true;
-			this.rows.add(addDisposableListener(tab, EventType.DRAG_START, (event: DragEvent) => {
-				event.dataTransfer?.setData('application/shortestpath-browser-tab', item.key);
-			}));
-			this.rows.add(addDisposableListener(row, EventType.DRAG_OVER, (event: DragEvent) => {
-				if (event.dataTransfer?.types.includes('application/shortestpath-browser-tab')) { event.preventDefault(); }
-			}));
-			this.rows.add(addDisposableListener(row, EventType.DROP, (event: DragEvent) => {
-				const source = event.dataTransfer?.getData('application/shortestpath-browser-tab');
-				if (source) { event.preventDefault(); this.actions.move(source, item.key); }
-			}));
-		}
+		tab.draggable = true;
+		this.rows.add(addDisposableListener(tab, EventType.DRAG_START, (event: DragEvent) => {
+			event.dataTransfer?.setData('application/shortestpath-browser-tab', item.key);
+		}));
+		this.rows.add(addDisposableListener(row, EventType.DRAG_OVER, (event: DragEvent) => {
+			if (event.dataTransfer?.types.includes('application/shortestpath-browser-tab')) { event.preventDefault(); }
+		}));
+		this.rows.add(addDisposableListener(row, EventType.DROP, (event: DragEvent) => {
+			const source = event.dataTransfer?.getData('application/shortestpath-browser-tab');
+			if (source) { event.preventDefault(); this.actions.move(source, item.key); }
+		}));
 		const menu = () => this.contextMenu.showContextMenu({ getAnchor: () => tab, getActions: () => this.actions.getMenu(item.key) });
 		this.rows.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (event: MouseEvent) => { event.preventDefault(); menu(); }));
-		if (!favorite) {
-			const more = this.button(row, browserTabBarLabels.more, 'ellipsis', menu, this.rows);
-			more.classList.add('browser-tab-more');
-			more.dataset.key = item.key;
-		}
-		if (!favorite || item.opened) {
-			const close = this.button(row, browserTabBarLabels.close, 'close', () => this.actions.close(item.key), this.rows);
-			close.classList.add('browser-tab-close');
-			close.dataset.key = item.key;
-		}
+		const more = this.button(row, browserTabBarLabels.more, 'ellipsis', menu, this.rows);
+		more.classList.add('browser-tab-more');
+		more.dataset.key = item.key;
+		const close = this.button(row, browserTabBarLabels.close, 'close', () => this.actions.close(item.key), this.rows);
+		close.classList.add('browser-tab-close');
+		close.dataset.key = item.key;
 	}
 
 	private button(container: HTMLElement, label: string, icon: string, run: () => void, store: DisposableStore): HTMLButtonElement {

@@ -95,6 +95,8 @@ class FavoriteIndicator extends Disposable {
 /** Shared API for the existing workspace favorites, including external storage updates. */
 export class BrowserFavoritesStore extends Disposable {
 	private static readonly STORAGE_KEY = 'workbench.browser.favorites';
+	private static readonly DETAILS_KEY = 'workbench.browser.favoriteDetails';
+	private static readonly LAYOUT_KEY = 'workbench.browser.favoriteLayout';
 	private readonly change = this._register(new Emitter<void>());
 	readonly onDidChange = this.change.event;
 	private urls = new Set<string>();
@@ -105,11 +107,68 @@ export class BrowserFavoritesStore extends Disposable {
 			_storageService.store(BrowserFavoritesStore.STORAGE_KEY, JSON.stringify(['https://shortestpath.cn/']), StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 		this.load();
+		for (const key of [BrowserFavoritesStore.DETAILS_KEY, BrowserFavoritesStore.LAYOUT_KEY]) {
+			this._register(_storageService.onDidChangeValue(StorageScope.WORKSPACE, key, this._store)(() => this.change.fire()));
+		}
 		const listeners = this._register(new DisposableStore());
 		this._register(_storageService.onDidChangeValue(StorageScope.WORKSPACE, BrowserFavoritesStore.STORAGE_KEY, listeners)(() => {
 			this.load();
 			this.change.fire();
 		}));
+	}
+
+	get entries(): readonly { url: string; title?: string; favicon?: string; name?: string }[] {
+		const details = this.details();
+		return this.values.map(url => ({ url, ...details[url] }));
+	}
+
+	get compact(): boolean { return this._storageService.getBoolean(BrowserFavoritesStore.LAYOUT_KEY, StorageScope.WORKSPACE, false); }
+
+	setCompact(compact: boolean): void {
+		this._storageService.store(BrowserFavoritesStore.LAYOUT_KEY, compact, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.change.fire();
+	}
+
+	private details(): Record<string, { title?: string; favicon?: string; name?: string }> {
+		try {
+			const value: unknown = JSON.parse(this._storageService.get(BrowserFavoritesStore.DETAILS_KEY, StorageScope.WORKSPACE, '{}'));
+			if (!value || typeof value !== 'object' || Array.isArray(value)) { return {}; }
+			return Object.fromEntries(Object.entries(value).filter(([, item]) => !!item && typeof item === 'object').map(([url, item]) => {
+				const data = item as { title?: string; favicon?: string; name?: string };
+				return [url, { title: typeof data.title === 'string' ? data.title : undefined, favicon: typeof data.favicon === 'string' ? data.favicon : undefined, name: typeof data.name === 'string' ? data.name : undefined }];
+			}));
+		} catch { return {}; }
+	}
+
+	rename(url: string, name: string): void {
+		if (!this.isFavorite(url)) { return; }
+		const details = this.details();
+		details[url] = { ...details[url], name: name.trim() || undefined };
+		this.saveDetails(details);
+	}
+
+	updateMetadata(url: string, title?: string, favicon?: string): void {
+		if (!this.isFavorite(url)) { return; }
+		const details = this.details();
+		const previous = details[url];
+		const next = { ...previous, title: title && title !== url ? title : previous?.title, favicon: favicon || previous?.favicon };
+		if (next.title === previous?.title && next.favicon === previous?.favicon) { return; }
+		details[url] = next;
+		this.saveDetails(details);
+	}
+
+	private saveDetails(details: Record<string, { title?: string; favicon?: string; name?: string }>): void {
+		this._storageService.store(BrowserFavoritesStore.DETAILS_KEY, JSON.stringify(details), StorageScope.WORKSPACE, StorageTarget.USER);
+		this.change.fire();
+	}
+
+	move(url: string, target: string): void {
+		if (url === target || !this.isFavorite(url) || !this.isFavorite(target)) { return; }
+		const values = this.values.filter(value => value !== url);
+		values.splice(values.indexOf(target), 0, url);
+		this.urls = new Set(values);
+		this._storageService.store(BrowserFavoritesStore.STORAGE_KEY, JSON.stringify(values), StorageScope.WORKSPACE, StorageTarget.USER);
+		this.change.fire();
 	}
 
 	get values(): readonly string[] { return [...this.urls]; }
@@ -167,9 +226,7 @@ export class BrowserFavoritesStore extends Disposable {
  * Workspace-scoped favorites: persists a set of favorite URLs and surfaces
  * them as URL bar suggestions plus a toggle button in the picker chrome.
  *
- * Favorites are URL strings only — no titles, icons, or other metadata are
- * persisted. We can't reliably capture rich metadata for arbitrary pages
- * across reloads, and keeping the model simple avoids stale-display bugs.
+ * Page metadata and user names are stored separately to preserve the existing URL API.
  */
 export class BrowserFavoritesFeature extends BrowserEditorContribution {
 
@@ -279,6 +336,8 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 			this._refresh();
 			this._onDidChangeState.fire();
 		}));
+		store.add(model.onDidChangeTitle(() => this._refresh()));
+		store.add(model.onDidChangeFavicon(() => this._refresh()));
 		this._refresh();
 	}
 
@@ -303,6 +362,7 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 		const favorite = !!url && this.favorites.isFavorite(url);
 		this._isFavoriteContext.set(favorite);
 		this._indicator.setVisible(favorite);
+		if (favorite) { this.favorites.updateMetadata(url, this.editor.model?.title, this.editor.model?.favicon); }
 	}
 
 

@@ -92,7 +92,6 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	declare readonly _serviceBrand: undefined;
 	mode: ShortestPathMode = 'solve';
 	activeBrowser: BrowserEditorInput | undefined;
-	private readonly changeTabVisibility = this._register(new Emitter<void>());
 	private readonly changeActive = this._register(new Emitter<void>());
 	readonly onDidChangeActiveBrowser = this.changeActive.event;
 	private readonly navigation = new ShortestPathNavigation();
@@ -117,7 +116,6 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private verticalTabs = false;
 	private browserHost: HTMLElement | undefined;
 	private favorites: BrowserFavoritesStore | undefined;
-	private readonly favoriteTabs = new Map<string, BrowserEditorInput>();
 	private emptyTabPromise: Promise<void> | undefined;
 	private readonly pages = new Map<ShortestPathPageMode, WebviewInput>();
 	private readonly pageStores = this._register(new DisposableMap<ShortestPathPageMode, DisposableStore>());
@@ -858,20 +856,6 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.verticalBars.clearAndDisposeAll();
 		this.browserTabOptions.value = part.enforcePartOptions({
 			showTabs: vertical ? 'none' : 'multiple',
-			isTabVisible: (input: EditorInput, groupId: number) => !(input instanceof BrowserEditorInput && this.favorites?.values.some(url => this.findTab(`${groupId}|favorite:${url}`)?.input === input)),
-			onDidChangeTabVisibility: this.changeTabVisibility.event,
-			createTabsLeading: (container: unknown, groupId: number) => {
-				const store = new DisposableStore();
-				// A newly constructed group is registered after its title control is created.
-				queueMicrotask(() => {
-					const group = part.getGroup(groupId);
-					if (!store.isDisposed && group && isHTMLElement(container)) {
-						store.add(this.createTabBar(container, group, false));
-						this.refresh();
-					}
-				});
-				return store;
-			},
 			onActiveTabClick: (input: EditorInput, groupId: number) => { if (input instanceof BrowserEditorInput) { this.editTabUrl(`${groupId}:${input.id}`); } },
 		});
 		if (vertical) { part.groups.forEach(group => this.createVerticalBar(group)); }
@@ -892,13 +876,8 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		const entries = this.tabEntries().filter(entry => groupId === undefined || entry.group.id === groupId);
 		if (key.startsWith('favorite:')) {
 			const url = key.slice('favorite:'.length);
-			const favoriteKey = groupId === undefined ? undefined : `${groupId}|${key}`;
-			const linked = favoriteKey ? this.favoriteTabs.get(favoriteKey) : undefined;
-			const linkedEntry = linked ? entries.find(entry => entry.input === linked) : undefined;
-			if (linkedEntry && this.favorites?.isFavorite(url)) { return linkedEntry; }
-			const candidates = entries.filter(entry => ![...this.favoriteTabs].some(([binding, input]) => input === entry.input && binding !== favoriteKey && binding.startsWith(`${entry.group.id}|`)));
-			return candidates.find(entry => (groupId === undefined ? entry.input === this.activeBrowser : entry.group.activeEditor === entry.input) && entry.input.url === url)
-				?? candidates.find(entry => entry.input.url === url);
+			return entries.find(entry => (groupId === undefined ? entry.input === this.activeBrowser : entry.group.activeEditor === entry.input) && entry.input.url === url)
+				?? entries.find(entry => entry.input.url === url);
 		}
 		return entries.find(entry => entry.key === key);
 	}
@@ -966,10 +945,6 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private updateTabBar(): void {
 		if (!this.groupTabBars.size) { return; }
 		const entries = this.tabEntries();
-		const favoriteUrls = this.favorites?.values ?? [];
-		for (const [key, input] of this.favoriteTabs) {
-			if (!entries.some(entry => entry.input === input && key.startsWith(`${entry.group.id}|`)) || !favoriteUrls.includes(key.slice(key.indexOf('|favorite:') + '|favorite:'.length))) { this.favoriteTabs.delete(key); }
-		}
 		const item = (key: string, input: BrowserEditorInput, group: IEditorGroup): BrowserTabBarItem => ({
 			key, title: input.title || input.url || browserTabBarLabels.new, url: input.url ?? '', favicon: input.favicon,
 			active: group.activeEditor === input, loading: input.model?.loading,
@@ -978,20 +953,8 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		for (const [groupId, bar] of this.groupTabBars) {
 			const group = this.browserPart?.getGroup(groupId);
 			if (!group) { continue; }
-			const favorites = favoriteUrls.map(url => {
-				const key = `favorite:${url}`;
-				const entry = this.findTab(`${groupId}|${key}`);
-				if (entry) {
-					this.favoriteTabs.set(`${groupId}|${key}`, entry.input);
-					return { ...item(key, entry.input, entry.group), opened: true };
-				}
-				const model = entries.find(entry => entry.input.model)?.input.model;
-				const history = model?.history.entries.items.findLast(entry => entry.url === url);
-				return { key, title: history?.title || URL.parse(url)?.hostname || url, url, favicon: history?.icon ? model?.history.favicons.get(history.icon) : undefined, active: false };
-			});
-			bar.update(this.verticalTabs ? entries.filter(entry => entry.group === group).map(entry => item(entry.key, entry.input, group)) : [], favorites);
+			bar.update(this.verticalTabs ? entries.filter(entry => entry.group === group).map(entry => item(entry.key, entry.input, group)) : []);
 		}
-		this.changeTabVisibility.fire();
 	}
 
 	private openHomeIfOnlyBlankTab(): void {

@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BrowserFavoritesStore } from './browserFavoritesFeature.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { createShortestPathBrowserNewTab } from '../../../shortestpath/browser/shortestPathBrowserNewTab.js';
 import { IShortestPathModeService } from '../../../shortestpath/common/shortestPathMode.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
@@ -29,9 +33,13 @@ export class BrowserWelcomeFeature extends BrowserEditorContribution {
 	private readonly _container: HTMLElement;
 	private readonly _widget: IBrowserEditorWidget;
 	private readonly _startPage: HTMLElement;
+	private readonly favorites: BrowserFavoritesStore;
 
 	constructor(
 		editor: BrowserEditor,
+		@IHoverService hover: IHoverService,
+		@IContextMenuService contextMenu: IContextMenuService,
+		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IShortestPathModeService private readonly modeService: IShortestPathModeService,
 	) {
@@ -45,9 +53,10 @@ export class BrowserWelcomeFeature extends BrowserEditorContribution {
 				: localize('browser.welcomeSubtitle', "Enter a URL above to get started."),
 		);
 
+		this.favorites = this._register(new BrowserFavoritesStore(storageService));
 		this._startPage = createShortestPathBrowserNewTab(this._register(new DisposableStore()), url => {
 			if (this.editor.input instanceof BrowserEditorInput) { this.editor.input.navigate(url); }
-		});
+		}, this.favorites, { hover, contextMenu });
 		this._widget = { location: BrowserWidgetLocation.ContentArea, element: this._container, order: 50 };
 		this._setVisible(false);
 	}
@@ -63,6 +72,14 @@ export class BrowserWelcomeFeature extends BrowserEditorContribution {
 	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._setVisible(!model.url, this.editor.input);
 		store.add(model.onDidNavigate(event => this._setVisible(!event.url, this.editor.input)));
+		const hydrate = () => {
+			for (const url of this.favorites.values) {
+				const entry = model.history.entries.items.findLast(entry => entry.url === url);
+				this.favorites.updateMetadata(url, entry?.title, entry?.icon ? model.history.favicons.get(entry.icon) : undefined);
+			}
+		};
+		store.add(model.history.onDidChange(hydrate));
+		hydrate();
 	}
 
 	override onModelDetached(): void {

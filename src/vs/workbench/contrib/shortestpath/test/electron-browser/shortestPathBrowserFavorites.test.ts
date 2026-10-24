@@ -33,4 +33,23 @@ suite('ShortestPath browser favorites', () => {
 		assert.deepStrictEqual({ shared, corrupted: second.values }, { shared: ['https://two.example/'], corrupted: [] });
 	});
 
+	test('persists metadata, custom names, order and icon layout across stores and reloads', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const first = store.add(new BrowserFavoritesStore(storage));
+		first.toggle('https://one.example/');
+		first.toggle('https://two.example/');
+		first.updateMetadata('https://one.example/', 'Original title', 'https://one.example/icon.png');
+		first.rename('https://one.example/', 'My name');
+		first.updateMetadata('https://one.example/', 'Updated title');
+		first.move('https://two.example/', 'https://one.example/');
+		first.setCompact(true);
+		const reloaded = store.add(new BrowserFavoritesStore(storage));
+		assert.deepStrictEqual({ values: reloaded.values, item: reloaded.entries.find(entry => entry.url === 'https://one.example/'), compact: reloaded.compact }, {
+			values: ['https://shortestpath.cn/', 'https://two.example/', 'https://one.example/'],
+			item: { url: 'https://one.example/', title: 'Updated title', name: 'My name', favicon: 'https://one.example/icon.png' }, compact: true,
+		});
+		reloaded.rename('https://one.example/', '');
+		assert.strictEqual(first.entries.find(entry => entry.url === 'https://one.example/')!.name, undefined);
+	});
+
 });

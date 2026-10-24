@@ -84,3 +84,96 @@
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
+
+.shortestpath-browser-new-tab-favorites {
+	margin-top: 24px;
+}
+
+.shortestpath-browser-new-tab-favorites h2 {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 0 0 12px;
+}
+
+.shortestpath-browser-new-tab-favorites-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.shortestpath-browser-new-tab-favorite {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editorWidget-background);
+	text-align: left;
+}
+
+.shortestpath-browser-new-tab-favorite > span:last-child {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.shortestpath-browser-new-tab-favorite:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.shortestpath-browser-new-tab-favorites-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 12px;
+}
+
+.shortestpath-browser-new-tab-favorites-header h2 { margin: 0; }
+.shortestpath-browser-new-tab-layouts { display: flex; gap: 4px; }
+.shortestpath-browser-new-tab-layouts button {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 8px;
+	border: 1px solid transparent;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+}
+.shortestpath-browser-new-tab-layouts button[aria-pressed="true"] {
+	background: var(--vscode-toolbar-activeBackground);
+	border-color: var(--vscode-contrastActiveBorder, transparent);
+	color: var(--vscode-foreground);
+}
+.shortestpath-browser-new-tab-favorite-row {
+	display: flex;
+	align-items: center;
+	position: relative;
+	min-width: 0;
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-widget-border, transparent);
+}
+.shortestpath-browser-new-tab-favorite-row.drop-target { outline: 2px solid var(--vscode-focusBorder); }
+.shortestpath-browser-new-tab-favorite { flex: 1; min-width: 0; border: 0; background: transparent; }
+.shortestpath-browser-new-tab-favorite-icon { position: relative; flex: 0 0 20px; width: 20px; height: 20px; font-size: 20px; }
+.shortestpath-browser-new-tab-favorite-icon img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--vscode-editorWidget-background); }
+.shortestpath-browser-new-tab-favorite-icon:has(img)::before { visibility: hidden; }
+.shortestpath-browser-new-tab-favorite-label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.shortestpath-browser-new-tab-favorite-name,
+.shortestpath-browser-new-tab-favorite-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shortestpath-browser-new-tab-favorite-url { color: var(--vscode-descriptionForeground); font-size: 11px; }
+.shortestpath-browser-new-tab-favorite-edit,
+.shortestpath-browser-new-tab-favorite-more { border: 0; background: transparent; color: var(--vscode-descriptionForeground); padding: 6px; flex-shrink: 0; }
+.shortestpath-browser-new-tab-favorite-edit:hover,
+.shortestpath-browser-new-tab-favorite-more:hover { background: var(--vscode-toolbar-hoverBackground); }
+.shortestpath-browser-new-tab-favorite-rename { position: absolute; inset: 4px; width: calc(100% - 8px); box-sizing: border-box; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-focusBorder); padding: 6px; font: inherit; z-index: 1; }
+.shortestpath-browser-new-tab-favorites.compact .shortestpath-browser-new-tab-favorites-list { display: grid; grid-template-columns: repeat(auto-fill, 48px); gap: 12px; }
+.shortestpath-browser-new-tab-favorites.compact .shortestpath-browser-new-tab-favorite { width: 46px; height: 46px; justify-content: center; padding: 12px; }
+.shortestpath-browser-new-tab-favorites.compact .shortestpath-browser-new-tab-favorite-label,
+.shortestpath-browser-new-tab-favorites.compact .shortestpath-browser-new-tab-favorite-edit { display: none; }
+.shortestpath-browser-new-tab-favorites.compact .shortestpath-browser-new-tab-favorite-more { position: absolute; right: -6px; bottom: -6px; padding: 2px; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border, transparent); opacity: 0; }
+.shortestpath-browser-new-tab-favorites.compact .shortestpath-browser-new-tab-favorite-row:hover .shortestpath-browser-new-tab-favorite-more,
+.shortestpath-browser-new-tab-favorites.compact .shortestpath-browser-new-tab-favorite-row:focus-within .shortestpath-browser-new-tab-favorite-more { opacity: 1; }
+.shortestpath-browser-new-tab-favorites.compact .shortestpath-browser-new-tab-favorite-row:has(input) { grid-column: span 4; }
