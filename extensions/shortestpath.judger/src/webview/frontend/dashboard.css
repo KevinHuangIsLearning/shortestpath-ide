@@ -36,7 +36,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--vscode-foc
 .dashboard-metric + .dashboard-metric { border-left: 1px solid var(--vscode-widget-border, var(--vscode-editor-inactiveSelectionBackground)); }
 .dashboard-metric strong { font-size: 1.25em; font-weight: 500; overflow-wrap: anywhere; }
 .dashboard-metric span { color: var(--vscode-descriptionForeground); }
-.dashboard-metric small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-metric small { white-space: normal; overflow-wrap: anywhere; }
 .dashboard-activity { margin-top: 32px; }
 .dashboard-section-heading { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 12px; }
 .dashboard-section-heading span { color: var(--vscode-descriptionForeground); }
