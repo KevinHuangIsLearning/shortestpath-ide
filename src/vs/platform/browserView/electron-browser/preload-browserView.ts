@@ -34,7 +34,7 @@ let localizedStrings: IBrowserViewPreloadLocalizedStrings = {
 function init() {
 	const { contextBridge, ipcRenderer } = require('electron');
 
-	// AppKit supplies swipe progress and completion. This isolated preload only
+	// Native scroll phases supply swipe progress and physical release. This isolated preload only
 	// checks page scroll boundaries and renders the hint; it never sums wheel deltas.
 	if (navigator.platform.indexOf('Mac') >= 0 && window === window.top) {
 		let token = -1;
@@ -91,7 +91,7 @@ function init() {
 				shadow.appendChild(circle);
 				document.documentElement.appendChild(hint);
 			}
-			// This only scales the hint; AppKit alone decides whether to navigate.
+			// The native release check uses the same readiness threshold as this hint.
 			const progress = Math.min(Math.abs(amount) / 0.3, 1);
 			circle!.style.left = back ? `${-76 + progress * 88}px` : 'auto';
 			circle!.style.right = back ? 'auto' : `${-76 + progress * 88}px`;

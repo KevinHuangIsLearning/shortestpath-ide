@@ -50,7 +50,7 @@ suite('BrowserView history swipe', () => {
 		assert.deepStrictEqual(view.messages.at(-1), { channel: 'vscode:browserView:historySwipeStart', value: { token: 1, x: 60, y: 40, canGoBack: true, canGoForward: true } });
 	});
 
-	test('navigation requires page approval and an AppKit successful release', () => {
+	test('navigation requires page approval and a native committed release', () => {
 		const view = setup();
 		view.gesture('begin');
 		view.gesture('update', 0.9);
@@ -61,9 +61,9 @@ suite('BrowserView history swipe', () => {
 		view.allow();
 		view.gesture('update', 0.9);
 		assert.deepStrictEqual(view.navigations, [], 'progress alone never navigates');
-		view.gesture('end', 0.1);
-		view.gesture('end', 0.1);
-		assert.deepStrictEqual(view.navigations, ['back'], 'the system decides completion without a JS distance threshold');
+		view.gesture('end', 0.4);
+		view.gesture('end', 0.4);
+		assert.deepStrictEqual(view.navigations, ['back'], 'the native release decides completion and duplicate releases are ignored');
 	});
 
 	test('system cancellation, reversal to zero and stale animation cannot navigate', () => {

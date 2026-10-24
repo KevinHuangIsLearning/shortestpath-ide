@@ -6,7 +6,7 @@
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import type { ITrackpadGesture, ITrackpadGestureSubscription, TrackpadBackAction } from './browserViewTrackpadGesture.js';
 
-/** Lets AppKit settle history navigation while closing no-history tabs on release. */
+/** Executes page-approved navigation or tab closure on a native committed release. */
 export function registerBrowserViewHistorySwipe(
 	contents: Electron.WebContents,
 	isAvailable: () => boolean,
@@ -62,7 +62,7 @@ export function registerBrowserViewHistorySwipe(
 				if (backAction === 'navigate') {
 					navigate('back');
 				} else if (backAction === 'close') {
-					// The native close path stops AppKit tracking and clears its state
+					// The native release path clears its state
 					// before dispatching this asynchronous callback, so disposal is safe.
 					navigate('close');
 				}

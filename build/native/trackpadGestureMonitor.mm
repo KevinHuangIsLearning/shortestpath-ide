@@ -36,12 +36,13 @@ enum class BackAction : int32_t {
 
 struct Monitor {
 	__strong id observer;
-	__strong NSEvent* event;
 	napi_threadsafe_function callback;
 	uint32_t gesture = 0;
 	bool disposed = false;
 	State state = State::Idle;
-	bool physicalEnded = false;
+	bool approved = false;
+	int direction = 0;
+	double distance = 0;
 	BackAction backAction = BackAction::None;
 	bool canGoForward = false;
 	double horizontal = 0;
@@ -52,7 +53,9 @@ struct Monitor {
 
 static std::map<uint32_t, std::shared_ptr<Monitor>> monitors;
 static uint32_t nextId = 1;
-static constexpr CGFloat kSwipeCommitAmount = 0.3;
+static constexpr double kSwipeCommitAmount = 0.3;
+// Normalize precise scroll points to the progress used by the page hint.
+static constexpr double kSwipeDistance = 300;
 
 static void Deliver(napi_env env, napi_value callback, void*, void* data) {
 	std::unique_ptr<Gesture> gesture(static_cast<Gesture*>(data));
@@ -80,10 +83,11 @@ static void Send(const std::shared_ptr<Monitor>& monitor, const char* phase, dou
 // callback may dispose the BrowserView synchronously once it reaches JS.
 static void Finish(const std::shared_ptr<Monitor>& monitor) {
 	monitor->state = State::Idle;
-	monitor->physicalEnded = false;
+	monitor->approved = false;
+	monitor->direction = 0;
+	monitor->distance = 0;
 	monitor->backAction = BackAction::None;
 	monitor->canGoForward = false;
-	monitor->event = nil;
 }
 
 static void Cancel(const std::shared_ptr<Monitor>& monitor) {
@@ -91,60 +95,47 @@ static void Cancel(const std::shared_ptr<Monitor>& monitor) {
 	Send(monitor, "cancel");
 }
 
+static double Progress(const std::shared_ptr<Monitor>& monitor) {
+	const double amount = monitor->distance / kSwipeDistance;
+	return monitor->direction > 0 ? std::clamp(amount, 0.0, 1.0) : std::clamp(amount, -1.0, 0.0);
+}
+
 static void TryStart(const std::shared_ptr<Monitor>& monitor) {
-	if (monitor->state != State::AwaitingApproval || !monitor->event
+	if (monitor->state != State::AwaitingApproval || !monitor->approved
 		|| std::max(monitor->horizontal, monitor->vertical) < 4) { return; }
-	if (monitor->horizontal <= monitor->vertical) {
+	if (monitor->horizontal <= monitor->vertical || monitor->distance == 0) {
 		Cancel(monitor);
 		return;
 	}
-	NSEvent* event = monitor->event;
-	// AppKit uses positive progress for back, matching scrollingDeltaX.
-	const bool back = event.scrollingDeltaX > 0;
-	if (event.scrollingDeltaX == 0 || !(back ? monitor->backAction != BackAction::None : monitor->canGoForward)) {
+	monitor->direction = monitor->distance > 0 ? 1 : -1;
+	if (!(monitor->direction > 0 ? monitor->backAction != BackAction::None : monitor->canGoForward)) {
 		Cancel(monitor);
 		return;
 	}
 	monitor->state = State::Tracking;
-	const uint32_t gesture = monitor->gesture;
-	const BackAction backAction = monitor->backAction;
-	const bool endOnBackRelease = back && backAction != BackAction::None;
-	const bool canGoBack = backAction != BackAction::None;
-	const bool canGoForward = monitor->canGoForward;
-	[event trackSwipeEventWithOptions:NSEventSwipeTrackingLockDirection | NSEventSwipeTrackingClampGestureAmount
-		dampenAmountThresholdMin:canGoForward ? -1 : 0
-		max:canGoBack ? 1 : 0
-		usingHandler:^(CGFloat amount, NSEventPhase phase, BOOL complete, BOOL* stop) {
-			if (monitor->disposed || monitor->gesture != gesture || monitor->state != State::Tracking) {
-				*stop = YES;
-				return;
-			}
-			if ((phase & NSEventPhaseCancelled) || (phase & NSEventPhaseMayBegin)) {
-				*stop = YES;
-				Cancel(monitor);
-				return;
-			}
-			if (phase & NSEventPhaseEnded) {
-				// AppKit continues the tracking handler through its settle animation.
-				// A backward swipe commits on the physical release for both history
-				// navigation and closing a no-history tab. Stop before delivering the
-				// terminal JS callback so AppKit cannot settle after the action starts.
-				if (endOnBackRelease && amount >= kSwipeCommitAmount) {
-					*stop = YES;
-					Finish(monitor);
-					Send(monitor, "end", amount);
-					return;
-				}
-				monitor->physicalEnded = true;
-			}
-			if (complete) {
-				const bool ended = monitor->physicalEnded;
-				Finish(monitor);
-				Send(monitor, ended ? "end" : "cancel", amount);
-				return;
-			}
-			Send(monitor, "update", amount);
-		}];
+	Send(monitor, "update", Progress(monitor));
+}
+
+static void Move(const std::shared_ptr<Monitor>& monitor, double x, double y) {
+	if (!std::isfinite(x) || !std::isfinite(y)) { Cancel(monitor); return; }
+	monitor->distance += x;
+	monitor->horizontal += std::abs(x);
+	monitor->vertical += std::abs(y);
+	if (monitor->state == State::AwaitingApproval) {
+		TryStart(monitor);
+	} else if (monitor->state == State::Tracking) {
+		Send(monitor, "update", Progress(monitor));
+	}
+}
+
+static void Release(const std::shared_ptr<Monitor>& monitor) {
+	if (monitor->state == State::Idle) { return; }
+	const double amount = Progress(monitor);
+	const bool commit = monitor->state == State::Tracking && std::abs(amount) >= kSwipeCommitAmount;
+	// The physical Ended event is the only commit point. No timers, momentum or
+	// AppKit animation callbacks participate, so holding still cannot change it.
+	Finish(monitor);
+	Send(monitor, commit ? "end" : "cancel", commit ? amount : 0);
 }
 
 static void Remove(const std::shared_ptr<Monitor>& monitor) {
@@ -178,37 +169,30 @@ static napi_value Subscribe(napi_env env, napi_callback_info info) {
 	napi_unref_threadsafe_function(env, monitor->callback);
 	// App-local monitoring needs no global input permission. Only page-approved
 	// horizontal gestures are tracked; ordinary scrolling reaches Chromium.
+	// Use physical scroll phases directly instead of AppKit swipe animation tracking.
 	monitor->observer = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel handler:^NSEvent*(NSEvent* event) {
-		if (monitor->disposed || !event.hasPreciseScrollingDeltas) { return event; }
+		if (monitor->disposed || !event.hasPreciseScrollingDeltas || event.momentumPhase != NSEventPhaseNone) { return event; }
 		if (event.phase & NSEventPhaseBegan) {
 			Finish(monitor);
 			monitor->gesture++;
-			if (!NSEvent.swipeTrackingFromScrollEventsEnabled || event.momentumPhase != NSEventPhaseNone
+			if (!NSEvent.swipeTrackingFromScrollEventsEnabled
 				|| (event.modifierFlags & (NSEventModifierFlagControl | NSEventModifierFlagCommand | NSEventModifierFlagOption | NSEventModifierFlagShift))) { return event; }
 			monitor->state = State::AwaitingApproval;
 			monitor->horizontal = 0;
 			monitor->vertical = 0;
 			monitor->window = event.window ? event.window.windowNumber : -1;
 			monitor->point = event.locationInWindow;
-			if (event.scrollingDeltaX != 0) { monitor->event = event; }
-			monitor->horizontal += std::abs(event.scrollingDeltaX);
-			monitor->vertical += std::abs(event.scrollingDeltaY);
 			Send(monitor, "begin");
-			TryStart(monitor);
+			Move(monitor, event.scrollingDeltaX, event.scrollingDeltaY);
 			return event;
 		}
-		if (monitor->window != (event.window ? event.window.windowNumber : -1)) { return event; }
-		if (monitor->state == State::AwaitingApproval && event.momentumPhase == NSEventPhaseNone) {
-			if (event.phase & (NSEventPhaseEnded | NSEventPhaseCancelled)) {
-				Cancel(monitor);
-			} else if (event.phase & (NSEventPhaseBegan | NSEventPhaseChanged)) {
-				// Preserve a horizontal initiating event while the page replies,
-				// rather than replacing it with a zero-X jitter sample.
-				if (event.scrollingDeltaX != 0) { monitor->event = event; }
-				monitor->horizontal += std::abs(event.scrollingDeltaX);
-				monitor->vertical += std::abs(event.scrollingDeltaY);
-				TryStart(monitor);
-			}
+		if (monitor->window != (event.window ? event.window.windowNumber : -1) || monitor->state == State::Idle) { return event; }
+		if (event.phase & (NSEventPhaseCancelled | NSEventPhaseMayBegin)) {
+			Cancel(monitor);
+		} else if (event.phase & NSEventPhaseEnded) {
+			Release(monitor);
+		} else if (event.phase & NSEventPhaseChanged) {
+			Move(monitor, event.scrollingDeltaX, event.scrollingDeltaY);
 		}
 		return event;
 	}];
@@ -236,6 +220,7 @@ static napi_value Start(napi_env env, napi_callback_info info) {
 	if (found != monitors.end()) {
 		const auto& monitor = found->second;
 		if (monitor->state == State::AwaitingApproval && monitor->gesture == gesture) {
+			monitor->approved = true;
 			monitor->backAction = static_cast<BackAction>(back);
 			monitor->canGoForward = forward;
 			if (monitor->backAction == BackAction::None && !forward) {

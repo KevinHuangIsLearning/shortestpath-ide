@@ -7,7 +7,7 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { buildTrackpadGestureMonitor } from './trackpadGestureMonitor.ts';
 
 // Run with node build/next/testBrowserHistorySwipe.ts on macOS.
@@ -17,6 +17,17 @@ try {
 	const product = JSON.parse(await fs.readFile(path.join(root, 'product.json'), 'utf8'));
 	const executable = path.join(root, '.build/electron', `${product.nameLong}.app`, 'Contents/MacOS', product.nameShort);
 	await buildTrackpadGestureMonitor(root, temporary);
+	const version = /^target="([^"]+)"/m.exec(await fs.readFile(path.join(root, '.npmrc'), 'utf8'))![1];
+	const cachedHeaders = path.join(process.env.npm_config_devdir ?? path.join(os.homedir(), 'Library/Caches/node-gyp'), version, 'include/node');
+	const headers = await fs.access(path.join(cachedHeaders, 'node_api.h')).then(() => cachedHeaders,
+		() => path.join(root, '.build/trackpad-headers', version, 'include/node'));
+	const nativeTest = path.join(temporary, 'native-test');
+	const compilation = spawnSync('xcrun', ['clang++', '-std=c++17', '-fobjc-arc', '-undefined', 'dynamic_lookup', '-framework', 'AppKit', '-I', headers,
+		path.join(root, 'build/native/trackpadGestureMonitor.test.mm'), '-o', nativeTest], { stdio: 'inherit' });
+	if (compilation.error || compilation.status !== 0) { throw compilation.error ?? new Error('Native swipe test compilation failed'); }
+	const nativeResult = spawnSync(nativeTest, [], { stdio: 'inherit' });
+	if (nativeResult.error || nativeResult.status !== 0) { throw nativeResult.error ?? new Error('Native swipe state tests failed'); }
+
 	const native = path.join(temporary, 'vs/platform/browserView/electron-main/trackpadGestureMonitor.node');
 	const preload = path.join(temporary, 'preload.cjs');
 	await esbuild.build({

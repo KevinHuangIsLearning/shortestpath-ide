@@ -33,7 +33,7 @@ async function run() {
 	const port = (server.address() as import('node:net').AddressInfo).port;
 	const win = new BrowserWindow({ width: 800, height: 600, show: true });
 	// Load the real addon in Electron to check its ABI, exports and cleanup.
-	// This does not simulate or claim to validate physical AppKit recognition.
+	// This does not simulate or claim to validate physical trackpad recognition.
 	const native = createRequire(__filename)(HISTORY_SWIPE_TEST_NATIVE) as {
 		subscribe(callback: () => void): number;
 		start(id: number, gesture: number, backAction: number, canGoForward: boolean): void;
@@ -72,7 +72,7 @@ async function run() {
 	try {
 		await contents.loadURL(`http://127.0.0.1:${port}/first`);
 		await contents.loadURL(`http://127.0.0.1:${port}/second`);
-		// Simulated AppKit callbacks, real isolated preload, DOM, IPC and history.
+		// Simulated native callbacks, real isolated preload, DOM, IPC and history.
 		// Physical tracking is intentionally left for a real trackpad check.
 		const gesture = async (phase: 'begin' | 'update' | 'end' | 'cancel', amount = 0, x = 400, y = 300) => {
 			onGesture({ phase, amount, x, y });
@@ -118,8 +118,8 @@ async function run() {
 
 		await begin();
 		await gesture('update', 0.2);
-		await gesture('end', 0.2);
-		assert.ok(contents.getURL().endsWith('/first'), 'AppKit successful release goes back even below the visual readiness threshold');
+		await gesture('end', 0.4);
+		assert.ok(contents.getURL().endsWith('/first'), 'a native committed release goes back');
 		await gesture('update', 1);
 		await gesture('end', 1);
 		assert.deepStrictEqual([navigations, await hint()], [['back'], { visible: false }], 'stale progress cannot affect the new document');
@@ -129,7 +129,7 @@ async function run() {
 		await gesture('update', -0.4);
 		assert.deepStrictEqual(await hint(), { visible: true, opacity: '1', left: 'auto', right: '12px', transform: 'scaleX(-1)', sheets: 1 });
 		await gesture('end', -0.4);
-		assert.ok(contents.getURL().endsWith('/second'), 'AppKit successful release goes forward');
+		assert.ok(contents.getURL().endsWith('/second'), 'a native committed release goes forward');
 		assert.deepStrictEqual(navigations, ['back', 'forward']);
 
 		// A backward swipe on the first page has no history to consume, so it closes the tab.
