@@ -108,6 +108,30 @@ export function adaptScript(source: string): string {
 	return source.replaceAll('window.location.reload()', '__ojbetterReload()').replaceAll('location.reload()', '__ojbetterReload()');
 }
 
+/**
+ * Report the typesetting work Codeforces' MathJax still has queued for this page.
+ *
+ * Statements are typeset by the site's MathJax in the main world, which this isolated world cannot
+ * reach, so the KaTeX shim below answers upstream's `MathJax.Hub.queue` probe from the shared DOM.
+ * The answer has to be accurate: upstream converts statements to Markdown only after the queue is
+ * idle, and a formula whose `.MathJax`/`.MathJax_Display` node is still empty has no TeX to read,
+ * so the conversion would emit an empty `$$` and cache it for the rest of the page's lifetime.
+ */
+export function mathJaxQueueState(doc: Document): { pending: number; running: number } {
+	const processing = doc.querySelectorAll('.MathJax_Processing').length;
+	if (processing) {
+		return { pending: processing, running: 0 };
+	}
+	let pending = 0;
+	for (const preview of Array.from(doc.querySelectorAll('.MathJax_Preview'))) {
+		const rendered = preview.nextElementSibling;
+		if (rendered?.matches('.MathJax, .MathJax_Display') && !rendered.textContent?.trim()) {
+			pending++;
+		}
+	}
+	return { pending, running: 0 };
+}
+
 /** Read bundled payloads, allowing packaging transforms and local edits. */
 export class Assets {
 	readonly manifest: Manifest;
@@ -131,7 +155,8 @@ export class Assets {
 			${this.read('vendor/katex.min.js.txt')}
 			${this.read('vendor/katex-auto-render.min.js.txt')}
 			GM_addStyle(${JSON.stringify(this.read('vendor/katex.css.txt'))});
-			const MathJax = { Hub: { queue: {pending: 0, running: 0}, Queue: command => {
+			${mathJaxQueueState.toString()}
+			const MathJax = { Hub: { get queue() { return mathJaxQueueState(document); }, Queue: command => {
 				renderMathInElement(command[2], {throwOnError: false, delimiters: ${JSON.stringify([
 			{ left: '$$$$$$', right: '$$$$$$', display: true },
 			{ left: '$$$', right: '$$$', display: false },
