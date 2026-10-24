@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { browserBootstrap } from '../browserRuntime';
-import { Assets } from '../assets';
+import { Assets, mathJaxQueueState } from '../assets';
 import { platformForUrl } from '../sites';
 import { Preferences } from '../storage';
 
@@ -34,6 +34,26 @@ test('bundled payload coverage, adapter boundaries and complete script syntax ar
 	assert.equal(assets.manifest.scripts.codeforces.version, '1.87.1');
 	assert.equal(assets.localResource('https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/common.json?cache=1')?.includes('settings'), true);
 	assert.equal(/shortestpathMonaco|MonacoEnvironment|new Worker\(/.test(source), false);
+});
+
+test('upstream math queue probe follows page typesetting instead of a fixed idle queue', () => {
+	const assets = new Assets(join(__dirname, '../../resources'));
+	const source = assets.source('bridge', { atcoder: true, codeforces: true });
+	const math = source.match(/const MathJax = ([\s\S]*?);\n\s*const addIDEProblemEntry/)![1];
+	const probe = runInNewContext(`(${math})`, { renderMathInElement: () => { }, document: {}, mathJaxQueueState: () => ({ pending: 3, running: 0 }) }) as { Hub: { queue: { pending: number; running: number } } };
+	assert.deepEqual(probe.Hub.queue, { pending: 3, running: 0 });
+
+	// Codeforces' MathJax renders into `.MathJax` nodes next to their `.MathJax_Preview` marker.
+	const page = (processing: number, rendered: string[]) => ({
+		querySelectorAll(selector: string) {
+			return selector === '.MathJax_Processing'
+				? Array.from({ length: processing }, () => ({}))
+				: rendered.map(text => ({ nextElementSibling: { matches: () => true, textContent: text } }));
+		}
+	}) as unknown as Document;
+	assert.deepEqual(mathJaxQueueState(page(2, [''])), { pending: 2, running: 0 });
+	assert.deepEqual(mathJaxQueueState(page(0, ['', 'n'])), { pending: 1, running: 0 });
+	assert.deepEqual(mathJaxQueueState(page(0, ['n', 'x = 1'])), { pending: 0, running: 0 });
 });
 
 test('packaged JSON and locally edited payloads load without checksum validation', () => {
