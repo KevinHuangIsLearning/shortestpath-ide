@@ -30,8 +30,13 @@ suite('WebviewElement - fatal errors', () => {
 
 	teardown(() => sinon.restore());
 
-	for (const extensionId of [undefined, 'publisher.extension']) {
-		test(`reports errors ${extensionId ? 'with the owning extension' : 'without an extension owner'}`, async () => {
+	for (const { extensionId, providedViewType } of [
+		{ extensionId: undefined, providedViewType: undefined },
+		{ extensionId: 'publisher.extension', providedViewType: undefined },
+		{ extensionId: 'shortestpath.shortestpath-draw', providedViewType: 'shortestpath.draw' },
+		{ extensionId: 'shortestpath.shortestpath-draw', providedViewType: 'shortestpath.draw.companion' },
+	]) {
+		test(`routes file drops and reports errors for ${providedViewType ?? extensionId ?? 'an unowned webview'}`, async () => {
 			const initialized = new DeferredPromise<string>();
 			class TestWebviewElement extends WebviewElement {
 				protected override webviewContentEndpoint(encodedWebviewOrigin: string): string {
@@ -61,6 +66,7 @@ suite('WebviewElement - fatal errors', () => {
 
 			const webview = store.add(instantiationService.createInstance(TestWebviewElement, {
 				title: 'Test view',
+				providedViewType,
 				options: {},
 				contentOptions: {},
 				extension: extensionId ? { id: new ExtensionIdentifier(extensionId) } : undefined,
@@ -70,6 +76,15 @@ suite('WebviewElement - fatal errors', () => {
 			})));
 			const container = document.createElement('div');
 			webview.mountTo(container, mainWindow);
+			const frame = container.querySelector('iframe')!;
+			webview.windowDidDragStart(true);
+			const fileDrag = frame.style.pointerEvents;
+			webview.windowDidDragStart(false);
+			const editorDrag = frame.style.pointerEvents;
+			webview.windowDidDragEnd();
+			assert.deepStrictEqual({ fileDrag, editorDrag, ended: frame.style.pointerEvents }, {
+				fileDrag: providedViewType ? 'auto' : 'none', editorDrag: 'none', ended: 'auto',
+			});
 			const origin = await initialized.p;
 
 			const channel = new MessageChannel();

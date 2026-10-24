@@ -168,6 +168,8 @@ export default defineConfig(
 			'extensions/shortestpath.draw/src/drawingFiles.ts',
 			'extensions/shortestpath.draw/src/drawingTree.ts',
 			'extensions/shortestpath.draw/src/test/drawingFiles.test.ts',
+			'extensions/shortestpath.draw/src/webview/pdfImport.ts',
+			'extensions/shortestpath.draw/src/test/pdfImport.test.ts',
 			'extensions/shortestpath.setup/src/**/*.ts',
 			'build/lib/checkPackageSize.ts',
 			'build/lib/minifyDependency.ts',

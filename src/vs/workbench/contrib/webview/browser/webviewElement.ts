@@ -325,11 +325,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('drag-start', () => {
-			this._startBlockingIframeDragEvents();
+			if (!this.acceptsDirectFileDrops) {
+				this._startBlockingIframeDragEvents();
+			}
 		}));
 
 		this._register(this.on('drag', (event) => {
-			this.handleDragEvent('drag', event);
+			if (!this.acceptsDirectFileDrops) {
+				this.handleDragEvent('drag', event);
+			}
 		}));
 
 		this._register(this.on('updated-intrinsic-content-size', (event) => {
@@ -761,7 +765,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this.window?.dispatchEvent(emulatedDragEvent);
 	}
 
-	windowDidDragStart(): void {
+	private get acceptsDirectFileDrops(): boolean {
+		return this.providedViewType === 'shortestpath.draw' || this.providedViewType === 'shortestpath.draw.companion';
+	}
+
+	windowDidDragStart(isFileDrag = false): void {
+		if (isFileDrag && this.acceptsDirectFileDrops) {
+			this._stopBlockingIframeDragEvents();
+			return;
+		}
 		// Webview break drag and dropping around the main window (no events are generated when you are over them)
 		// Work around this by disabling pointer events during the drag.
 		// https://github.com/electron/electron/issues/18226

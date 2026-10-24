@@ -18,16 +18,16 @@ export class WebviewWindowDragMonitor extends Disposable {
 	constructor(targetWindow: CodeWindow, getWebview: () => IWebview | undefined) {
 		super();
 
-		const onDragStart = () => {
-			getWebview()?.windowDidDragStart();
+		const onDragStart = (event: DragEvent) => {
+			getWebview()?.windowDidDragStart(event.dataTransfer?.types.includes('Files'));
 		};
 
 		const onDragEnd = () => {
 			getWebview()?.windowDidDragEnd();
 		};
 
-		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG_START, () => {
-			onDragStart();
+		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG_START, event => {
+			onDragStart(event);
 		}));
 
 		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG_END, onDragEnd));
@@ -42,7 +42,7 @@ export class WebviewWindowDragMonitor extends Disposable {
 			if (event.shiftKey) {
 				onDragEnd();
 			} else {
-				onDragStart();
+				onDragStart(event);
 			}
 		}));
 
@@ -50,7 +50,7 @@ export class WebviewWindowDragMonitor extends Disposable {
 			if (event.shiftKey) {
 				onDragEnd();
 			} else {
-				onDragStart();
+				onDragStart(event);
 			}
 		}));
 
