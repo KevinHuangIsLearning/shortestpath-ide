@@ -103,6 +103,8 @@ ShortestPath IDE is licensed under [GPL-3.0-or-later](LICENSE). Open-source comp
 | Project | Purpose | License |
 | --- | --- | --- |
 | [Code - OSS](https://github.com/microsoft/vscode) | Upstream editor codebase | [MIT](licenses/MIT-VSCode.txt) |
+| [Excalidraw](https://github.com/excalidraw/excalidraw) | Built-in sketchpad | [MIT](extensions/shortestpath.draw/THIRD_PARTY_NOTICES.txt) |
+| [Excalidraw Libraries](https://github.com/excalidraw/excalidraw-libraries) | Selected and adapted competition drawing templates | [MIT](extensions/shortestpath.draw/THIRD_PARTY_NOTICES.txt) |
 | [Dark Reader](https://github.com/darkreader/darkreader) | Dark themes for integrated browser pages | MIT |
 | [Competitive Programming Helper Plus](https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus) | Contest problem and testing workflow | GPL-3.0-or-later |
 | [OJBetter](https://github.com/beijixiaohu/OJBetter) | AtCoder and Codeforces integrated-browser enhancements | [GPL-3.0](extensions/shortestpath.ojbetter/resources/vendor/OJBetter-LICENSE) |

@@ -96,6 +96,8 @@ ShortestPath IDE 的仓库许可证为 [GPL-3.0-or-later](LICENSE)。本项目�
 | 项目 | 用途 | 许可证 |
 | --- | --- | --- |
 | [Code - OSS](https://github.com/microsoft/vscode) | 上游编辑器代码库 | [MIT](licenses/MIT-VSCode.txt) |
+| [Excalidraw](https://github.com/excalidraw/excalidraw) | 内置画板 | [MIT](extensions/shortestpath.draw/THIRD_PARTY_NOTICES.txt) |
+| [Excalidraw Libraries](https://github.com/excalidraw/excalidraw-libraries) | 选用并适配的竞赛图示模板 | [MIT](extensions/shortestpath.draw/THIRD_PARTY_NOTICES.txt) |
 | [Dark Reader](https://github.com/darkreader/darkreader) | 内置浏览器网页深色主题 | MIT |
 | [Competitive Programming Helper Plus](https://github.com/KevinHuangIsLearning/competitive-programming-helper-plus) | 竞赛题目与测试工作流 | GPL-3.0-or-later |
 | [OJBetter](https://github.com/beijixiaohu/OJBetter) | AtCoder 与 Codeforces 内置浏览器增强 | [GPL-3.0](extensions/shortestpath.ojbetter/resources/vendor/OJBetter-LICENSE) |
