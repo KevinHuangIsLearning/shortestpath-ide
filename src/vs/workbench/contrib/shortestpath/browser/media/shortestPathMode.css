@@ -24,6 +24,78 @@
 	color: var(--vscode-titleBar-activeForeground);
 }
 
+/* The rail and the workspace gutter form one visual column. Lay out every
+ * control within that column, using the same inset at the window's bottom
+ * corner as at its left edge. The grid still owns the navigation width. */
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation.compact {
+	container-type: inline-size;
+	--compact-navigation-inset: var(--vscode-spacing-size40, 4px);
+	--compact-navigation-gutter: var(--vscode-spacing-size40, 4px);
+	--compact-navigation-column: calc(100cqw + var(--compact-navigation-gutter));
+	--compact-navigation-control: calc(var(--compact-navigation-column) - 2 * var(--compact-navigation-inset));
+	--compact-navigation-icon: min(18px, 60cqw);
+	--compact-navigation-radius: min(var(--vscode-cornerRadius-medium, 6px), 20cqw);
+	align-items: flex-start;
+	padding: var(--compact-navigation-inset) 0;
+}
+
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation.compact :is(.shortestpath-mode-switch, .shortestpath-navigation-actions) {
+	box-sizing: border-box;
+	flex-shrink: 0;
+	width: var(--compact-navigation-column);
+	min-width: 0;
+	gap: var(--compact-navigation-inset);
+	padding: 0 var(--compact-navigation-inset);
+}
+
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation.compact button {
+	box-sizing: border-box;
+	flex: 0 0 auto;
+	width: var(--compact-navigation-control);
+	height: var(--compact-navigation-control);
+	min-width: 0;
+	min-height: 0;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	border-radius: var(--compact-navigation-radius);
+}
+
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation.compact .shortestpath-navigation-actions {
+	margin-top: var(--compact-navigation-inset);
+}
+
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation.compact .shortestpath-update-indicator {
+	margin-left: var(--compact-navigation-inset);
+}
+
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation.compact .shortestpath-mode-icon {
+	flex: none;
+	width: var(--compact-navigation-icon);
+	height: var(--compact-navigation-icon);
+}
+
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation.compact .codicon {
+	font-size: var(--compact-navigation-icon);
+	line-height: 1;
+}
+
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation.compact button:active:not(:disabled) {
+	background: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation.compact .shortestpath-result-badge {
+	top: 2px;
+	right: 2px;
+	width: 4px;
+	height: 4px;
+}
+
+.monaco-workbench.shortestpath-dual-mode .workbench-navigation.compact .shortestpath-update-indicator > span:not(.codicon) {
+	display: none;
+}
+
 .monaco-workbench.shortestpath-dual-mode .part.sidebar > .header-or-footer.header {
 	padding-left: var(--vscode-spacing-size80, 8px);
 }

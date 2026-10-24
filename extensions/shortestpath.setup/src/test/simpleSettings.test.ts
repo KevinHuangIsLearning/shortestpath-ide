@@ -31,7 +31,7 @@ test('settings groups preserve each control and expose only the three left navig
 		controls[match[1]].push(...[...match[2].matchAll(/<(?:input|select|button|textarea)[^>]*id="([^"]+)"/g)].map(control => control[1]));
 	}
 	assert.deepStrictEqual(controls, {
-		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'tabSize', 'colorTheme', 'configureLocale', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
+		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'tabSize', 'colorTheme', 'configureLocale', 'compactMode', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
 		compiler: ['cppStandard', 'compilerFlags', 'executableCleanupEnabled', 'executableCleanupDelaySeconds', 'toolchainDiagnostics'],
 		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'shortestPathImportCategoryEnabled', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'timelineEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
 	});

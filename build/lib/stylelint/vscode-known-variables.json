@@ -994,6 +994,12 @@
 		"--vscode-modernSash-gripForeground"
 	],
 	"others": [
+		"--compact-navigation-column",
+		"--compact-navigation-control",
+		"--compact-navigation-gutter",
+		"--compact-navigation-icon",
+		"--compact-navigation-inset",
+		"--compact-navigation-radius",
 		"--browser-container-corner-radius",
 		"--action-widget-close-start-opacity",
 		"--action-widget-close-start-transform",

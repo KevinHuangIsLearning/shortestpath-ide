@@ -429,6 +429,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.doUpdateLayoutConfiguration();
 			}
 
+			if (e.affectsConfiguration('shortestpath.compactMode')) {
+				this.updateNavigationWidth();
+			}
+
 			// Shadows
 			if (e.affectsConfiguration(LayoutSettings.SHADOWS)) {
 				this.updateShadows();
@@ -610,6 +614,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	isModernUICompact(): boolean {
 		return this.isFloatingPanelsEnabled() && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact;
+	}
+
+	private updateNavigationWidth(): void {
+		const compact = this.configurationService.getValue<boolean>('shortestpath.compactMode') === true;
+		const width = compact ? this.titleBarPartView.minimumHeight : 48;
+		const previousWidth = this.navigationView?.minimumWidth;
+		this.navigationView?.setWidth(width, compact);
+		if (this.navigationView && previousWidth !== width && this.initialized) {
+			this.layout();
+		}
 	}
 
 	private updateFloatingPanels(): void {
@@ -1643,6 +1657,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.STATUSBAR_PART]: this.statusBarPartView,
 			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView
 		};
+
+		this.updateNavigationWidth();
+		this._register(titleBar.onDidChange(() => this.updateNavigationWidth()));
 
 		if (this.navigationView) {
 			viewMap[NavigationView.ID] = this.navigationView;

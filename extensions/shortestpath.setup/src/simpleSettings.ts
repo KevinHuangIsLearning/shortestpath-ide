@@ -52,6 +52,7 @@ type SimpleSettingsState = {
 	executableCleanupEnabled: boolean;
 	executableCleanupDelaySeconds: number;
 	colorTheme: string;
+	compactMode: boolean;
 	autoDetectColorScheme: boolean;
 	autoSave: string;
 	displayLanguage: string;
@@ -612,6 +613,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('shortestpath.executableCleanupEnabled')
 			|| event.affectsConfiguration('shortestpath.executableCleanupDelaySeconds')
 			|| event.affectsConfiguration('workbench.colorTheme')
+			|| event.affectsConfiguration('shortestpath.compactMode')
 			|| event.affectsConfiguration('window.autoDetectColorScheme')
 			|| event.affectsConfiguration('files.autoSave')
 			|| event.affectsConfiguration('shortestpath.useExtensionMarketplace')
@@ -661,6 +663,7 @@ function getState(): SimpleSettingsState {
 		executableCleanupEnabled,
 		executableCleanupDelaySeconds,
 		colorTheme,
+		compactMode: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('compactMode') ?? false,
 		autoDetectColorScheme: windowConfiguration.get<boolean>('autoDetectColorScheme') ?? false,
 		autoSave: files.get<string>('autoSave') ?? 'off',
 		displayLanguage: vscode.env.language,
@@ -736,6 +739,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('shortestpath.executableCleanupEnabled', value.executableCleanupEnabled !== false, vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.executableCleanupDelaySeconds', executableCleanupDelaySeconds, vscode.ConfigurationTarget.Global),
 		settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' ? value.colorTheme : 'One Monokai', vscode.ConfigurationTarget.Global),
+		settings.update('shortestpath.compactMode', value.compactMode === true, vscode.ConfigurationTarget.Global),
 		settings.update('window.autoDetectColorScheme', value.autoDetectColorScheme === true, vscode.ConfigurationTarget.Global),
 		// `window.systemColorTheme` is not a registered configuration on Linux,
 		// where native UI colors always follow the system color scheme.
@@ -817,6 +821,7 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 <section class="card" data-category="editor"><h3>外观与保存</h3>
 <div class="row"><div><label for="colorTheme">主题</label></div><select id="colorTheme"></select></div>
 <div class="row"><div><label>显示语言</label><div class="hint">当前：<span id="displayLanguage"></span>。选择后将按 VS Code 的正常流程确认并重启。</div></div><button id="configureLocale" class="secondary">切换显示语言</button></div>
+<div class="row"><div><label for="compactMode">Compact Mode</label><div class="hint">将左侧导航栏宽度缩小至标题栏高度。</div></div><label class="toggle"><input id="compactMode" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="autoDetectColorScheme">同步系统主题</label></div><label class="toggle"><input id="autoDetectColorScheme" type="checkbox"><span>启用</span></label></div>
 <div class="row"><div><label for="autoSave">自动保存</label></div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
 </section>
@@ -1055,6 +1060,7 @@ function apply(state) {
   state.themes.forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.label; theme.append(option); });
   theme.value = state.colorTheme;
 	byId('displayLanguage').textContent = state.displayLanguage === 'zh-cn' ? '中文（简体）' : state.displayLanguage === 'en' ? 'English' : state.displayLanguage;
+  byId('compactMode').checked = !!state.compactMode;
   byId('autoDetectColorScheme').checked = !!state.autoDetectColorScheme;
   byId('autoSave').value = state.autoSave;
 	byId('useExtensionMarketplace').checked = !!state.useExtensionMarketplace;
@@ -1066,7 +1072,7 @@ function apply(state) {
 	byId('timelineEnabled').checked = !!state.timelineEnabled;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), tabSize: Number(byId('tabSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathImportCategoryEnabled: byId('shortestPathImportCategoryEnabled').checked, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, timelineEnabled: byId('timelineEnabled').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked, browserDarkReaderMode: byId('browserDarkReaderMode').value, browserDarkReaderDetectDarkTheme: byId('browserDarkReaderDetectDarkTheme').checked, browserDarkReaderExcludedHosts: byId('browserDarkReaderExcludedHosts').value.split(/\\r?\\n/) }; }
+function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), tabSize: Number(byId('tabSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathImportCategoryEnabled: byId('shortestPathImportCategoryEnabled').checked, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, compactMode: byId('compactMode').checked, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, timelineEnabled: byId('timelineEnabled').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked, browserDarkReaderMode: byId('browserDarkReaderMode').value, browserDarkReaderDetectDarkTheme: byId('browserDarkReaderDetectDarkTheme').checked, browserDarkReaderExcludedHosts: byId('browserDarkReaderExcludedHosts').value.split(/\\r?\\n/) }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily), textarea').forEach(control => {

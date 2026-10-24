@@ -22,6 +22,7 @@ const english: Readonly<Record<string, string>> = {
 	'已在“{0}”中创建 .clangd 和 .clang-format。': 'Created .clangd and .clang-format in “{0}”.',
 	'“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？': '“{0}” has no OI project configuration yet. Create .clangd and .clang-format?',
 
+	'将左侧导航栏宽度缩小至标题栏高度。': 'Reduce the left navigation bar width to the title bar height.',
 	'新建文件': 'New Files',
 	'默认代码模板': 'Default Code Template',
 	'尚未获取到代码格式化结果，请稍后重试。': 'Code formatting is not available yet. Please retry shortly.',
