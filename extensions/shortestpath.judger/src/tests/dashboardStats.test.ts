@@ -103,6 +103,19 @@ test('period filters include pending creation dates and exclude records created 
 });
 
 
+test.each([DASHBOARD_TIME_LIMIT_MS, DASHBOARD_TIME_LIMIT_MS + 60000])('longest excludes durations of %i ms from local and server completions', elapsedMs => {
+	const records = [
+		record({ timeAcceptedAtUnixMs: now.getTime(), timeSpentMs: elapsedMs }),
+		record({ url: 'https://oj.test/partial', timePartialAcceptedAtUnixMs: now.getTime(), timeSpentMs: elapsedMs }),
+		record({ url: 'https://oj.test/server', serverAccepted: true, serverElapsedMs: elapsedMs, createdAtUnixMs: now.getTime() }),
+	];
+	const normal = record({ url: 'https://oj.test/normal', timeAcceptedAtUnixMs: now.getTime(), timeSpentMs: DASHBOARD_TIME_LIMIT_MS - 1 });
+	const data = buildDashboard([...records, normal], 2024, {}, now);
+	expect(data.highlights.longest).toMatchObject({ id: normal.url, elapsedMs: DASHBOARD_TIME_LIMIT_MS - 1 });
+	expect(data.totals).toEqual({ accepted: 3, partial: 1, unknown: 0 });
+	expect(buildDashboard(records, 2024, {}, now).highlights.longest).toBeUndefined();
+});
+
 test('longest excludes manual five-hour marks without changing activity or AC totals', () => {
 	const created = new Date(2024, 1, 29, 12).getTime();
 	const manual = record({ createdAtUnixMs: created, dashboardTimeCapped: true, dashboardCompletion: 'accepted' });

@@ -100,7 +100,7 @@ export function buildDashboard(records: DashboardRecord[], year?: number, filter
 	for (const problem of problems) { if (problem.status === 'accepted' && problem.date) { acceptedCounts.set(problem.date, acceptedCounts.get(problem.date)! + 1); } }
 	const peakCount = Math.max(0, ...acceptedCounts.values());
 	const completed = problems.filter(problem => problem.status === 'accepted' || problem.status === 'partial');
-	const longest = completed.filter(problem => !problem.manuallyMarked).reduce<DashboardProblem | undefined>((result, problem) => !result || problem.elapsedMs > result.elapsedMs ? problem : result, undefined);
+	const longest = completed.filter(problem => !problem.manuallyMarked && problem.elapsedMs < DASHBOARD_TIME_LIMIT_MS).reduce<DashboardProblem | undefined>((result, problem) => !result || problem.elapsedMs > result.elapsedMs ? problem : result, undefined);
 	return {
 		revision: 0, nextRefreshMs: [...merged.values()].filter(problem => problem.status === 'pending' && problem.clockRunning).reduce<number | undefined>((delay, problem) => Math.min(delay ?? DASHBOARD_TIME_LIMIT_MS, DASHBOARD_TIME_LIMIT_MS - problem.elapsedMs), undefined), days, sources, problems, highlights: { peakCount, peakDates: peakCount ? days.filter(day => acceptedCounts.get(day.date) === peakCount).map(day => day.date) : [], longest }, totals: {
 			accepted: problems.filter(problem => problem.status === 'accepted').length,
