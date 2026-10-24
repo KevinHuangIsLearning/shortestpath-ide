@@ -2149,6 +2149,11 @@ body {
 	margin-top: 12px;
 }
 
+.local-test [data-persist-key^="stderr:"] pre {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
 .local-test-output-grid > :only-child {
 	grid-column: 1 / -1;
 }

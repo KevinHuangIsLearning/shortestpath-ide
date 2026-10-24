@@ -221,6 +221,21 @@ test('inline mismatch marking compares tokens and preserves original text', () =
 	assert.doesNotMatch(renderLocalTests(state, parseProblemBindData(bindPayload), undefined, false, helpers), /local-test-mismatch/);
 });
 
+test('runtime errors expand stderr beneath actual output, while other verdicts keep it collapsed', () => {
+	const state = snapshot();
+	state.runId = 7;
+	const result: localTests.LocalTestResult = { id: 1, pass: false, stdout: 'partial output', stderr: '<crash>', code: 1, signal: null, time: 1, timeOut: false };
+	state.tests[0].result = result;
+	const render = () => renderLocalTests(state, parseProblemBindData(bindPayload), undefined, false, helpers);
+	assert.match(render(), /实际输出[\s\S]*<\/pre><details data-persist-key="stderr:1" open data-auto-expand-key="7:1:re"><summary>标准错误<\/summary><pre data-i18n-ignore>&lt;crash&gt;<\/pre><\/details><\/div><\/div>/);
+	for (const overrides of [{ code: 0 }, { code: 0, signal: 'SIGSEGV' }, { timeOut: true }, { outputLimitExceeded: true }]) {
+		state.tests[0].result = { ...result, ...overrides };
+		assert.equal(/data-persist-key="stderr:1" open/.test(render()), overrides.signal === 'SIGSEGV');
+	}
+	state.tests[0].result = { ...result, stderr: '' };
+	assert.doesNotMatch(render(), /data-persist-key="stderr:1"/);
+});
+
 test('bulk results collapse passed cards, while individual results stay open', () => {
 	const state = snapshot();
 	state.runMode = 'all'; state.runId = 1;
