@@ -111,7 +111,11 @@ function render(value) {
 		row.li.className = step.status;
 		row.indicator.textContent = step.status === 'complete' ? '✓' : step.status === 'error' ? '!' : step.status === 'running' ? '…' : '';
 		row.title.textContent = step.title; row.description.textContent = step.description; row.status.textContent = ui[step.status];
-		if (row.log.textContent !== step.log) row.log.textContent = step.log;
+		if (row.log.textContent !== step.log) {
+			const followsLatestLog = row.log.scrollHeight - row.log.scrollTop - row.log.clientHeight <= 24;
+			row.log.textContent = step.log;
+			if (followsLatestLog) { row.log.scrollTop = row.log.scrollHeight; }
+		}
 		row.log.hidden = !step.log;
 		row.guidance.textContent = step.status === 'error' ? (ui['issue_' + step.issue] || ui.issue_unknown) : '';
 		row.guidance.hidden = step.status !== 'error';
