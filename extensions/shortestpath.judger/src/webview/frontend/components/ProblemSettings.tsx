@@ -43,7 +43,10 @@ export function buildProblemPatch(draft: Draft): { patch?: Partial<Problem>; err
     if (!Number.isFinite(timeLimit) || timeLimit <= 0) { errors.timeLimit = t('invalidLimit'); }
     if (!Number.isFinite(memoryLimit) || memoryLimit <= 0) { errors.memoryLimit = t('invalidLimit'); }
     const parseArgs = (value: string): string[] | undefined => {
-        if (!value.trim()) { return undefined; }
+        // An empty array is the explicit "inherit the language defaults" signal.
+        // `undefined` cannot cross the webview boundary: JSON serialization
+        // drops it and the host would keep the previous override.
+        if (!value.trim()) { return []; }
         try {
             const parsed = JSON.parse(value);
             if (Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')) { return parsed; }
@@ -60,11 +63,13 @@ export function buildProblemPatch(draft: Draft): { patch?: Partial<Problem>; err
         url: draft.url,
         timeLimit,
         memoryLimit,
-        customCheckerPath: draft.customCheckerPath.trim() || undefined,
-        interactorPath: draft.interactorPath.trim() || undefined,
-        compilerCommand: draft.compilerCommand.trim() || undefined,
+        // Empty strings are the explicit "clear this override" signal, so they
+        // must survive the webview -> host JSON message (undefined would not).
+        customCheckerPath: draft.customCheckerPath.trim(),
+        interactorPath: draft.interactorPath.trim(),
+        compilerCommand: draft.compilerCommand.trim(),
         compilerArgs,
-        interpreterCommand: draft.interpreterCommand.trim() || undefined,
+        interpreterCommand: draft.interpreterCommand.trim(),
         interpreterArgs,
     };
     // The host re-checks the same shared rules before persisting.

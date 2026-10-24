@@ -2,6 +2,7 @@ import { dismissProblemDropHint, dropHintProblemKey } from './dropHint';
 import { connectJudgeMessages } from '../../webviewBootstrap';
 import { createOjTimerRequests, elapsedOjTime, elapsedProblemTime, isShortestPathProblem } from '../../problemTimer';
 import { expandAfterRun, sameTestcase } from '../../testcasePresentation';
+import { withoutClearedProblemFields } from '../../problemValidation';
 import { droppedPaths, droppedContents, claimTestcaseDrag } from './testcaseDrop';
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -1935,7 +1936,9 @@ function App() {
                     if (data.clear) { resultsBySource.current.delete(data.srcPath); setCases(previous => previous.map(value => ({ ...value, result: null }))); }
                     else { setProblem(previous => {
                         if (!previous) { return previous; }
-                        const next = { ...previous, ...data.patch };
+                        // Cleared overrides arrive as empty values; drop them so
+                        // the reopened settings page shows the defaults again.
+                        const next = withoutClearedProblemFields({ ...previous, ...data.patch });
                         if (data.completion && data.completion !== 'accepted') { delete next.timeAcceptedAtUnixMs; }
                         if (data.completion && data.completion !== 'partial') { delete next.timePartialAcceptedAtUnixMs; }
                         return next;

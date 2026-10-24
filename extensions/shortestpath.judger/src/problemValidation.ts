@@ -45,3 +45,33 @@ export function invalidProblemPatchFields(patch: Partial<Problem>): string[] {
     if (patch.name !== undefined && !patch.name.trim()) { invalid.push('name'); }
     return invalid;
 }
+
+/**
+ * Overrides where an empty value means "fall back to the language / global
+ * defaults" instead of an explicit empty setting.
+ */
+const CLEARABLE_PROBLEM_FIELDS = [
+    'compilerCommand',
+    'compilerArgs',
+    'interpreterCommand',
+    'interpreterArgs',
+    'customCheckerPath',
+    'interactorPath',
+] as const;
+
+const isClearedField = (value: unknown): boolean =>
+    value === undefined || value === '' || Array.isArray(value) && value.length === 0;
+
+/**
+ * Drops overrides the user cleared. Webview messages are JSON-serialized, so
+ * `undefined` never reaches the host: the settings form sends an empty string /
+ * array as the explicit "use the default" signal, and both the host and the
+ * webview normalize it through this helper before storing or displaying it.
+ */
+export function withoutClearedProblemFields(problem: Problem): Problem {
+    const normalized = { ...problem };
+    for (const key of CLEARABLE_PROBLEM_FIELDS) {
+        if (isClearedField(normalized[key])) { delete normalized[key]; }
+    }
+    return normalized;
+}
