@@ -734,6 +734,77 @@ suite('ShortestPath browser routing', () => {
 		assert.deepStrictEqual({ calls, errors, busy: instantiation.get(IContextKeyService).getContextKeyValue('shortestpath.browserImportingProblem') }, { calls: [['judger.importBrowserProblem', input.id, undefined, input.url]], errors: ['failed import'], busy: false });
 	});
 
+	test('recognized problem hints dismiss per page and persist opt-out across browser panes', async () => {
+		const { service, instantiation } = setup();
+		const modes = store.add(new Emitter<void>());
+		instantiation.stub(IShortestPathModeService, new class extends mock<IShortestPathModeService>() {
+			override readonly onDidChangeActiveBrowser = modes.event;
+		});
+		const input = await service.openBrowser('https://example.com/problem');
+		const changed = store.add(new Emitter<{ model: IBrowserViewModel | undefined; isNew: boolean }>());
+		instantiation.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(): Promise<T> { return true as T; }
+		});
+		const editor = new class extends mock<BrowserEditor>() {
+			override readonly onDidChangeModel = changed.event;
+			override get input() { return input; }
+			override layoutBrowserContainer(): void { }
+		};
+		const first = store.add(instantiation.createInstance(BrowserProblemImportFeature, editor));
+		const second = store.add(instantiation.createInstance(BrowserProblemImportFeature, editor));
+		changed.fire({ model: input.model, isNew: false });
+		await timeout(550);
+		const hint = first.widgets[0].element;
+		assert.deepStrictEqual([hint.hidden, second.widgets[0].element.hidden], [false, false]);
+		const root = document.createElement('div');
+		root.className = 'browser-root';
+		const container = document.createElement('div');
+		hint.style.width = '320px';
+		root.innerHTML = '<div class="browser-actions-toolbar"><span class="codicon-cloud-download" style="display:inline-block;width:20px;height:20px"></span></div>';
+		root.append(hint);
+		root.append(container);
+		document.body.append(root);
+		store.add(toDisposable(() => root.remove()));
+		first.onContainerCreated(container);
+		root.inert = true;
+		modes.fire();
+		assert.strictEqual(hint.hidden, true);
+		root.inert = false;
+		modes.fire();
+		assert.strictEqual(hint.hidden, false);
+		first.afterContainerLayout();
+		const target = root.querySelector<HTMLElement>('.codicon-cloud-download')!.getBoundingClientRect();
+		assert.strictEqual(parseFloat(hint.querySelector<HTMLElement>('.codicon-arrow-up')!.style.left), Math.max(16, Math.min(target.left + target.width / 2 - parseFloat(hint.style.left), hint.offsetWidth - 16)));
+		assert.strictEqual(parseFloat(hint.style.top), target.bottom + 12);
+		hint.querySelector<HTMLButtonElement>('button')!.click();
+		assert.deepStrictEqual([hint.hidden, second.widgets[0].element.hidden], [true, false]);
+		second.widgets[0].element.querySelectorAll<HTMLButtonElement>('button')[1].click();
+		changed.fire({ model: input.model, isNew: false });
+		await timeout(550);
+		assert.deepStrictEqual([hint.hidden, second.widgets[0].element.hidden, instantiation.get(IStorageService).getBoolean('shortestpath.browserImportHintDismissed', StorageScope.PROFILE)], [true, true, true]);
+	});
+
+	test('problem hint ignores detection that finishes after the browser is detached', async () => {
+		const { service, instantiation } = setup();
+		const input = await service.openBrowser('https://example.com/problem');
+		const changed = store.add(new Emitter<{ model: IBrowserViewModel | undefined; isNew: boolean }>());
+		const result = new DeferredPromise<boolean>();
+		instantiation.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(): Promise<T> { return await result.p as T; }
+		});
+		const editor = new class extends mock<BrowserEditor>() {
+			override readonly onDidChangeModel = changed.event;
+			override get input() { return input; }
+		};
+		const feature = store.add(instantiation.createInstance(BrowserProblemImportFeature, editor));
+		changed.fire({ model: input.model, isNew: false });
+		await timeout(550);
+		changed.fire({ model: undefined, isNew: false });
+		await result.complete(true);
+		await timeout(0);
+		assert.strictEqual(feature.widgets[0].element.hidden, true);
+	});
+
 	test('managed blank tabs show the custom start page and loaded tabs hide it', async () => {
 		const { service, instantiation } = setup();
 		service.mode = 'browse';

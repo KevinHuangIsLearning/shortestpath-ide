@@ -261,10 +261,13 @@ export class ShortestPathBrowserOverlay extends Disposable {
 			this.updateNavigation();
 			return;
 		}
+		for (const [element, portal] of this.portals) {
+			if (!element.isConnected) { portal.placeholder.remove(); this.portals.delete(element); }
+		}
 		// Preserve workbench layering only where a higher overlay overlaps a notification.
 		// Unrelated editor hovers must not pull notifications behind a still-visible page.
 		// eslint-disable-next-line no-restricted-syntax
-		const notifications = [...this.portals.keys(), ...this.source.document.querySelectorAll<HTMLElement>('.notifications-toasts, .notifications-center')].filter(element => element.classList.contains('visible')).map(element => {
+		const notifications = [...this.portals.keys(), ...this.source.document.querySelectorAll<HTMLElement>('.notifications-toasts, .notifications-center, .browser-problem-import-hint')].filter(element => element.classList.contains('visible')).map(element => {
 			const rect = element.getBoundingClientRect();
 			const offset = element.ownerDocument === this.target!.document ? this.offset : { x: 0, y: 0 };
 			return { left: rect.left + offset.x, right: rect.right + offset.x, top: rect.top + offset.y, bottom: rect.bottom + offset.y };
@@ -286,7 +289,7 @@ export class ShortestPathBrowserOverlay extends Disposable {
 			return;
 		}
 		// eslint-disable-next-line no-restricted-syntax
-		for (const element of this.source.document.querySelectorAll<HTMLElement>('.monaco-workbench > .notifications-toasts, .monaco-workbench > .notifications-center')) {
+		for (const element of this.source.document.querySelectorAll<HTMLElement>('.monaco-workbench > .notifications-toasts, .monaco-workbench > .notifications-center, .monaco-workbench > .browser-problem-import-hint')) {
 			const parent = element.parentElement!;
 			this.setRootClassName(parent);
 			const placeholder = mainWindow.document.createComment('native browser notification overlay');

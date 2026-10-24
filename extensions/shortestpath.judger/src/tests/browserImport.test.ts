@@ -9,7 +9,6 @@ jest.mock('vscode', () => ({
 	ProgressLocation: { Notification: 15 },
 }), { virtual: true });
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, text: string) => text }));
-jest.mock('../browserImportButton', () => ({ registerBrowserImportButtons: jest.fn() }));
 import vm from 'vm';
 import { parseBrowserProblems, registerBrowserImport, startShortestPathBrowserProblem, BrowserImportResult } from '../browserImport';
 import * as vscode from 'vscode';
@@ -201,4 +200,18 @@ test('manual import executes the shared runtime with its selected parser without
 	expect(await runImportCommand(testBrowser, importer, true)).toEqual({ count: 1 });
 	expect(read.mock.calls.map(call => call[0])).toEqual(['/extension/dist/static/competitive-companion/parsers.runtime.txt']);
 	expect(importer.mock.calls).toEqual([[tasks[0], testBrowser.tab.url]]);
+});
+
+
+test.each([true, false])('problem recognition returns the parser match (%s) without importing', async matched => {
+	const f = browser(matched);
+	Object.assign(vscode.window, { browserTabs: [f.tab], activeBrowserTab: undefined });
+	const read = jest.spyOn(fs.promises, 'readFile').mockResolvedValue('runtime');
+	const importer = jest.fn(); register(importer);
+	const command = jest.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'judger.canImportBrowserProblem')![1];
+	expect(await command(f.tab.id, f.tab.url)).toBe(matched);
+	expect([importer.mock.calls.length, f.session.close.mock.calls.length]).toEqual([0, 1]);
+	expect(await command(f.tab.id, 'https://example.com/changed')).toBe(false);
+	expect(read).toHaveBeenCalledTimes(1);
+	read.mockRestore();
 });

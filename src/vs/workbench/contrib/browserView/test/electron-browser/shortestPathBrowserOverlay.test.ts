@@ -67,6 +67,26 @@ suite('Live browser notification portal', () => {
 		});
 	});
 
+	test('problem import hints float above native pages with live dismiss controls and leave no orphan on disposal', async () => {
+		toasts.classList.remove('visible');
+		const hint = workbench.appendChild($('.browser-problem-import-hint.visible'));
+		hint.style.cssText = 'position:absolute;left:450px;top:40px;width:300px;height:100px';
+		const dismiss = hint.appendChild($('button'));
+		dismiss.addEventListener('click', () => { hint.classList.remove('visible'); hint.hidden = true; });
+		overlay.setVisible(workbench, true);
+		await settle();
+		assert.deepStrictEqual({ portaled: hint.ownerDocument === target.document, bounds: layouts.at(-1) }, {
+			portaled: true, bounds: { x: 442, y: 32, width: 316, height: 116, viewportWidth: 800, viewportHeight: 600, zoomFactor: 1 }
+		});
+		dismiss.click();
+		await settle();
+		assert.strictEqual(layouts.at(-1), undefined);
+		hint.remove();
+		await settle();
+		overlay.dispose();
+		assert.strictEqual(hint.isConnected, false);
+	});
+
 	test('keeps the native notification host transparent without cloned workbench chrome', async () => {
 		workbench.classList.add('border', 'mac', 'macos-tahoe');
 		workbench.style.setProperty('background-color', 'rgb(7, 8, 9)', 'important');

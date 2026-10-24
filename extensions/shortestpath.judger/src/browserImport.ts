@@ -86,6 +86,14 @@ export type BrowserImportResult = { count: number; error?: string; cancelled?: b
 
 export function registerBrowserImport(context: vscode.ExtensionContext, importProblem: (problem: Problem, sourceUrl: string) => Promise<{ created: boolean }>): void {
 	registerBrowserImportCleanup(context);
+	context.subscriptions.push(vscode.commands.registerCommand('judger.canImportBrowserProblem', async (tabId: string, expectedUrl: string): Promise<boolean> => {
+		const tab = vscode.window.browserTabs?.find(candidate => candidate.id === tabId);
+		if (!tab || tab.url !== expectedUrl || isShortestPathBrowserUrl(expectedUrl)) { return false; }
+		try {
+			const runtime = await fs.promises.readFile(path.join(context.extensionPath, 'dist/static/competitive-companion/parsers.runtime.txt'), 'utf8');
+			return await evaluateBrowserPage(tab, `(() => { ${runtime}; return globalThis.ShortestPathCompanionInspect().some(choice => choice.matched); })()`, expectedUrl) === true;
+		} catch { return false; }
+	}));
 	const running = new Set<string>();
 	context.subscriptions.push(vscode.commands.registerCommand('judger.importBrowserProblem', async (tabId?: string, parserId?: string, expectedUrl?: string): Promise<BrowserImportResult> => {
 		const tab = tabId ? vscode.window.browserTabs?.find(candidate => candidate.id === tabId) : vscode.window.activeBrowserTab;
