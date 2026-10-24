@@ -4,7 +4,7 @@
 import * as vscode from 'vscode';
 import { getProblem, saveProblem } from './parser';
 import { Problem } from './types';
-import { invalidProblemPatchFields } from './problemValidation';
+import { invalidProblemPatchFields, withoutClearedProblemFields } from './problemValidation';
 import localize from './i18n';
 
 export const testcaseDocumentUri = (srcPath: string, id: number, field: 'input' | 'output') => vscode.Uri.from({ scheme: 'judger-data', path: `/testcases/${id}.${field === 'input' ? 'in' : 'out'}`, query: encodeURIComponent(srcPath) });
@@ -45,7 +45,7 @@ export function applyProblemPatch(problem: Problem, patch: Partial<Problem>): Pr
     if (invalid.length) {
         throw new Error(localize('judger.problem.invalidPatch', 'Rejected problem settings: {0}', invalid.join(', ')));
     }
-    return { ...problem, ...patch };
+    return withoutClearedProblemFields({ ...problem, ...patch });
 }
 
 export function registerProblemDocuments(context: vscode.ExtensionContext, changed: (problem: Problem) => void): void {
