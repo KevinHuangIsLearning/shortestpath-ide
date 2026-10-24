@@ -120,6 +120,7 @@ export type OjTimer = {
 export type Problem = {
     importedFrom?: string;
     importedUrl?: string;
+    browserProblemUrl?: string;
     workspaceRelativeSourcePath?: string;
     shortestPath?: boolean;
     timeSpentMs?: number;

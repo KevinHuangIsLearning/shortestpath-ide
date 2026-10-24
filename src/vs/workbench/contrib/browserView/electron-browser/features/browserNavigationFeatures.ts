@@ -25,6 +25,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
+import { BrowserSourceEditorInput, findBrowserEditorOwner } from '../../common/browserSourceEditorInput.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import {
 	BROWSER_SEARCH_NONE,
 	BrowserSearchEngineId,
@@ -67,6 +69,8 @@ class BrowserNavigationBar extends Disposable {
 		scopedContextKeyService: IContextKeyService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _preferencesService: IPreferencesService,
+		private readonly _editorService: IEditorService,
+		private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -109,9 +113,10 @@ class BrowserNavigationBar extends Disposable {
 		));
 		this._navToolbar.context = editor;
 
+		const editorService = this._editorService;
 		const urlBarHost: IBrowserUrlBarHost = {
 			get input() { return editor.input instanceof BrowserEditorInput ? editor.input : undefined; },
-			get isReadonly() { return editor.input instanceof BrowserEditorInput && editor.input.associatedResource !== undefined; },
+			get isReadonly() { return editor.input instanceof BrowserEditorInput && editor.input.associatedResource !== undefined && !(findBrowserEditorOwner(editorService, editor.input)?.editor instanceof BrowserSourceEditorInput); },
 			ensureBrowserFocus: () => editor.ensureBrowserFocus(),
 			getPrimaryActions: (text) => this._resolvePrimaryActions(text),
 			getPlaceholder: () => this._searchEngine
@@ -201,7 +206,17 @@ class BrowserNavigationBar extends Disposable {
 			label: choice.label,
 			iconClass: ThemeIcon.asClassName(choice.search ? Codicon.search : Codicon.globe),
 			buttons: choice.search ? [configureEngineButton] : undefined,
-			apply: input => input.navigate(choice.url, choice.search ? { source: 'searchInput' } : undefined),
+			apply: async input => {
+				const owner = findBrowserEditorOwner(this._editorService, input);
+				if (owner?.editor instanceof BrowserSourceEditorInput && owner.editor.primary.resource?.scheme === 'file') {
+					const source = owner.editor.primary.resource;
+					await this._commandService.executeCommand('judger.setProblemBrowserUrl', source.fsPath, choice.url);
+					if (this._editorService.activeEditor !== owner.editor) { return; }
+					await this._commandService.executeCommand(BrowserViewCommandId.Open, { url: choice.url, openInEditor: true, sourceEditor: source.toString() });
+				} else {
+					input.navigate(choice.url, choice.search ? { source: 'searchInput' } : undefined);
+				}
+			},
 		}));
 	}
 }
@@ -231,9 +246,11 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IPreferencesService preferencesService: IPreferencesService,
+		@IEditorService editorService: IEditorService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super(editor);
-		this._navbar = this._register(new BrowserNavigationBar(editor, instantiationService, contextKeyService, configurationService, preferencesService));
+		this._navbar = this._register(new BrowserNavigationBar(editor, instantiationService, contextKeyService, configurationService, preferencesService, editorService, commandService));
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 

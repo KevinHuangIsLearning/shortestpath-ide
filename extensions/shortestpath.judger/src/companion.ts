@@ -33,7 +33,6 @@ import {
     getVjudgeOjNames,
     getVjudgeOpenInBrowser,
     getVjudgeUrlSuffix,
-    getVjudgeBrowserSplitRatio,
 } from './preferences';
 import {
     appendVjudgeUrlSuffix,
@@ -46,6 +45,7 @@ import { getProblemName } from './submit';
 import { runTool } from './toolProcess';
 import { getJudgeViewProvider } from './extension';
 import { initializeProblemSourceFile } from './problemSourceFile';
+import { openProblemBrowser } from './problemBrowser';
 import { getShortestPathProblemPath } from './shortestpathProblemPath';
 import {
     decodeShortestPathSourcePath,
@@ -577,6 +577,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         problem.url,
         vjudgeUrlToOpen,
     );
+    problem.browserProblemUrl = displayTarget ? (displayTarget.source === 'vjudge' ? appendVjudgeUrlSuffix(displayTarget.url, getVjudgeUrlSuffix()) : displayTarget.url) : undefined;
     // Add fields absent in competitive companion.
     problem.srcPath = srcPath;
     problem.tests = problem.tests.map((testcase, index) => ({
@@ -669,13 +670,7 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     }
 
     if (displayTarget) {
-        const suffix = displayTarget.source === 'vjudge' ? getVjudgeUrlSuffix() : '';
-        await vscode.commands.executeCommand('workbench.action.browser.open', {
-            url: appendVjudgeUrlSuffix(displayTarget.url, suffix),
-            openInEditor: true,
-            sourceEditor: vscode.Uri.file(srcPath).toString(),
-            sourceEditorRatio: getVjudgeBrowserSplitRatio(),
-        });
+        await openProblemBrowser(problem, displayTarget);
     }
 
     getJudgeViewProvider().extensionToJudgeViewMessage({

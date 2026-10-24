@@ -7,8 +7,10 @@ import { getAutoShowJudgePref, getDefaultOnlineJudge } from '../preferences';
 import { setOnlineJudgeEnv } from '../compiler';
 import { getRefreshSourcePath, JudgeDocument, shouldClearJudgeForActiveDocument } from './judgeLifecycle';
 import { Problem } from '../types';
+import { openProblemBrowser } from '../problemBrowser';
 
 let lastActiveSourcePath: string | undefined;
+const restoredBrowserTabs = new WeakSet<vscode.Tab>();
 
 /** Paired source tabs can become active without exposing a TextEditor. */
 export const updateActiveTabJudgeVisibility = () => {
@@ -44,6 +46,15 @@ export const editorChanged = async (e: vscode.TextEditor | undefined) => {
 /** Text editors and paired source tabs share the same path-based refresh. */
 const refreshJudgeForSource = (document: JudgeDocument, problem: Problem | undefined) => {
     updateJudgeVisibility(problem);
+    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const tabUri = (tab?.input as { uri?: vscode.Uri } | undefined)?.uri;
+    if (problem && tab && tabUri?.scheme === 'file' && tabUri.fsPath === document.fileName && !restoredBrowserTabs.has(tab)) {
+        restoredBrowserTabs.add(tab);
+        void openProblemBrowser(problem).catch(error => {
+            restoredBrowserTabs.delete(tab);
+            globalThis.logger.error('Failed to restore problem browser:', error);
+        });
+    }
 
     const sourcePath = getRefreshSourcePath(
         document,

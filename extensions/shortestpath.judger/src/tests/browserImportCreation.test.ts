@@ -194,6 +194,7 @@ test('other OJ imports pair the selected problem page after creating and opening
 	(getDefaultProblemSource as jest.Mock).mockReturnValueOnce('original');
 	const problem = { name: 'A', url: 'https://example.com/A', tests: [] } as unknown as Problem;
 	await handleNewProblem(problem);
+	expect(saveProblem).toHaveBeenCalledWith(problem.srcPath, expect.objectContaining({ browserProblemUrl: 'https://example.com/A' }));
 	const commands = (vscode.commands.executeCommand as jest.Mock).mock.calls;
 	expect(commands).toEqual([
 		['workbench.action.browser.open', { url: 'https://example.com/A', openInEditor: true, sourceEditor: 'file://' + path.resolve('/workspace/A.cpp'), sourceEditorRatio: 65 }],

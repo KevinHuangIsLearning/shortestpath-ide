@@ -21,6 +21,7 @@ import {
 } from './webview/editorChange';
 import { submitToCodeForces, submitToKattis } from './submit';
 import { registerBrowserSubmission } from './browserSubmission';
+import { registerProblemBrowser } from './problemBrowser';
 import JudgeViewProvider from './webview/JudgeView';
 import {
     getRetainWebviewContextPref,
@@ -51,6 +52,7 @@ const registerCommands = (context: vscode.ExtensionContext) => {
     globalThis.logger.log('Registering commands');
     registerDashboard(context);
     registerBrowserSubmission(context);
+    registerProblemBrowser(context, problem => judgeViewProvider?.extensionToJudgeViewMessage({ command: 'new-problem', problem, onlyIfActive: true }));
     context.subscriptions.push(vscode.commands.registerCommand('judger.selfTestEnvironment', runEnvironmentSelfTest));
     registerBrowserImport(context, (problem, sourceUrl) => handleNewProblem(problem, undefined, undefined, true, true, sourceUrl));
     context.subscriptions.push(vscode.commands.registerCommand('judger.getProblemDirectory', (srcPath: string) => getProblemDirectory(srcPath)));
@@ -143,7 +145,8 @@ export async function activate(context: vscode.ExtensionContext) {
     );
     statusBarItem.text = localize(
         'judger.extension.statusBarText',
-        ' $(run-all)  Run Testcases',
+        ' {0}  Run Testcases',
+        '$(run-all)',
     );
     statusBarItem.tooltip = localize(
         'judger.extension.statusBarTooltip',

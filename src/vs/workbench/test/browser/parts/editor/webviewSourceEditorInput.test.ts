@@ -16,7 +16,7 @@ import { IEditorReplacement } from '../../../../services/editor/common/editorGro
 import { ITextEditorService } from '../../../../services/textfile/common/textEditorService.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { RunSourceAction } from '../../../../contrib/shortestpath/browser/problemEditorActions.js';
+import { RunSourceAction, ToggleProblemAreaAction } from '../../../../contrib/shortestpath/browser/problemEditorActions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { BrowserSourceEditorInput } from '../../../../contrib/browserView/common/browserSourceEditorInput.js';
 import { WebviewSourceEditorInput } from '../../../../contrib/webviewPanel/browser/webviewSourceEditorInput.js';
@@ -251,6 +251,18 @@ suite('WebviewSourceEditorInput', () => {
 		instantiationService.stub(ICommandService, { executeCommand: async (command: string) => { invoked = { command, focused }; } });
 		await instantiationService.invokeFunction(accessor => new RunSourceAction().run(accessor));
 		assert.deepStrictEqual(invoked, { command: 'extension.CompileRun', focused: 'source' });
+	});
+
+	test('problem button opens a companion for a plain source editor', async () => {
+		const { source } = pair();
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const pane = store.add(instantiationService.createInstance(SideBySideEditor, new TestEditorGroupView(1)));
+		await EditorPane.prototype.setInput.call(pane, source, undefined, { newInGroup: true }, CancellationToken.None);
+		let invoked: object | undefined;
+		instantiationService.stub(IEditorService, { activeEditorPane: pane as IVisibleEditorPane });
+		instantiationService.stub(ICommandService, { executeCommand: async (command: string, sourcePath: string) => { invoked = { command, sourcePath }; } });
+		await instantiationService.invokeFunction(accessor => new ToggleProblemAreaAction().run(accessor));
+		assert.deepStrictEqual(invoked, { command: 'judger.openProblemBrowser', sourcePath: source.resource!.fsPath });
 	});
 
 	test('source stays on the left with a bounded horizontal split', () => {

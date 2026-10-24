@@ -24,6 +24,7 @@ export class RunSourceAction extends Action2 {
 	constructor() {
 		super({
 			id: 'shortestpath.action.runSource',
+			// allow-any-unicode-next-line
 			title: localize2('sp.runSource', "运行"),
 			icon: Codicon.play,
 			menu: {
@@ -50,21 +51,24 @@ export class ToggleProblemAreaAction extends Action2 {
 	constructor() {
 		super({
 			id: 'shortestpath.action.toggleProblemArea',
+			// allow-any-unicode-next-line
 			title: localize2('sp.toggleProblemArea', "收起／展开题目区域"),
 			icon: Codicon.layoutSidebarRight,
 			menu: {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(ContextKeyExpr.equals('activeEditor', 'workbench.editor.webviewSource'), ContextKeyExpr.equals('activeEditor', 'workbench.editor.browserSource'))
+				when: ContextKeyExpr.or(ContextKeyExpr.equals('resourceScheme', 'file'), ContextKeyExpr.equals('activeEditor', 'workbench.editor.webviewSource'), ContextKeyExpr.equals('activeEditor', 'workbench.editor.browserSource'))
 			}
 		});
 	}
 
-	override run(accessor: ServicesAccessor, _resource?: URI, context?: IEditorCommandsContext): void {
+	override async run(accessor: ServicesAccessor, _resource?: URI, context?: IEditorCommandsContext): Promise<void> {
 		const pane = getEditorPane(accessor, context);
 		if (pane instanceof SideBySideEditor && pane.input instanceof SourceEditorInput) {
 			pane.setSecondaryVisible(!pane.isSecondaryVisible);
+		} else if (pane?.input?.resource?.scheme === 'file') {
+			await accessor.get(ICommandService).executeCommand('judger.openProblemBrowser', pane.input.resource.fsPath);
 		}
 	}
 }

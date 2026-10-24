@@ -240,6 +240,8 @@ export default defineConfig(
 			'src/vs/workbench/services/localTranscription/test/electron-browser/localTranscriptionService.test.ts',
 			'src/vs/workbench/test/browser/parts/editor/editorGroupView.test.ts',
 			'extensions/shortestpath.judger/src/problemSourceFile.ts',
+			'extensions/shortestpath.judger/src/problemBrowser.ts',
+			'extensions/shortestpath.judger/src/tests/problemPatch.test.ts',
 			'extensions/shortestpath.judger/src/shortestpathProblemPath.ts',
 			'extensions/shortestpath.judger/src/integratedTests.ts',
 			'extensions/shortestpath.judger/src/integratedTestCommands.ts',
@@ -322,6 +324,7 @@ export default defineConfig(
 	// These inherited CPH files have no upstream copyright header.
 	{
 		files: [
+			'extensions/shortestpath.judger/src/extension.ts',
 			'extensions/shortestpath.judger/src/companion.ts',
 			'extensions/shortestpath.judger/src/webview/editorChange.ts',
 			'extensions/shortestpath.judger/src/compiler.ts',
@@ -348,6 +351,16 @@ export default defineConfig(
 		},
 	},
 	// Keep the runner's original GPL notice without inventing a copyright owner.
+	{
+		files: ['extensions/shortestpath.judger/src/problemDocument.ts'],
+		rules: {
+			'header/header': [2, 'block', [
+				'---------------------------------------------------------------------------------------------',
+				' * Part of ShortestPath Judger. Licensed under GPL-3.0-or-later.',
+				' *--------------------------------------------------------------------------------------------',
+			]],
+		},
+	},
 	{
 		files: ['extensions/shortestpath.judger/src/nativeRunner.ts'],
 		rules: {

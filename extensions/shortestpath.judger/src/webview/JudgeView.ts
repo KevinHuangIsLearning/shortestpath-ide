@@ -151,7 +151,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 							if (!current) { break; }
 							const merged = applyProblemPatch(current, message.patch);
 							saveProblem(merged.srcPath, merged);
-							this.extensionToJudgeViewMessage({ command: 'problem-options', srcPath: merged.srcPath, patch: { ...message.patch, storageRevision: merged.storageRevision } });
+							this.extensionToJudgeViewMessage({ command: 'problem-options', srcPath: merged.srcPath, patch: { ...message.patch, url: merged.url, browserProblemUrl: merged.browserProblemUrl, storageRevision: merged.storageRevision } });
 						} catch (error) { void vscode.window.showErrorMessage(String(error)); }
 						break;
 					}

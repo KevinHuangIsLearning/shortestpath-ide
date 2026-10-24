@@ -239,6 +239,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'**',
 	...inheritedCompileRunFiles,
 	// These inherited CPH files have no upstream copyright header.
+	'!extensions/shortestpath.judger/src/extension.ts',
 	'!extensions/shortestpath.judger/src/companion.ts',
 	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
 	'!extensions/shortestpath.judger/src/preferences.ts',
@@ -246,6 +247,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	// Preserve the inherited compiler's absent notice and the original Judger runner notice.
 	'!extensions/shortestpath.judger/src/compiler.ts',
 	'!extensions/shortestpath.judger/src/nativeRunner.ts',
+	'!extensions/shortestpath.judger/src/problemDocument.ts',
 	'!**/*.desktop',
 	'!**/*.json',
 	'!**/*.jsonc',
@@ -313,6 +315,7 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 	'extensions/**/*.ts',
 	...inheritedCompileRunFiles,
 	// Preserve the formatting of these inherited CPH files.
+	'!extensions/shortestpath.judger/src/extension.ts',
 	'!extensions/shortestpath.judger/src/companion.ts',
 	'!extensions/shortestpath.judger/src/webview/editorChange.ts',
 	'!extensions/shortestpath.judger/src/compiler.ts',
