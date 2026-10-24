@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 export const translations: Record<string, any> = {
     en: {
         dashboardAllProblems: 'All problems',
@@ -201,6 +206,7 @@ export const translations: Record<string, any> = {
         setAsExpectedOutput: 'Set As Expected Output',
         outputDifference: 'Output Difference:',
         standardError: 'Standard Error:',
+        signalLabel: 'Signal:',
         expand: 'Expand',
         minimize: 'Minimize',
         runAgain: 'Run Again',
@@ -535,6 +541,7 @@ int main() {
         setAsExpectedOutput: '设置为预期输出',
         outputDifference: '输出差异:',
         standardError: '标准错误:',
+        signalLabel: '信号:',
         expand: '展开',
         minimize: '折叠',
         runAgain: '重新运行',
@@ -835,6 +842,7 @@ int main() {
         setAsExpectedOutput: '예상 출력으로 설정',
         outputDifference: '출력 차이:',
         standardError: '표준 에러:',
+        signalLabel: '시그널:',
         expand: '펼치기',
         minimize: '접기',
         runAgain: '다시 실행',
@@ -1097,6 +1105,7 @@ int main() {
         setAsExpectedOutput: '期待される出力として設定',
         outputDifference: '出力の差異:',
         standardError: '標準エラー:',
+        signalLabel: 'シグナル:',
         expand: '展開',
         minimize: '折りたたむ',
         runAgain: '再実行',

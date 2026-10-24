@@ -121,9 +121,7 @@ export default function CaseView(props: {
     let resultText = '';
     const stderror = result?.stderr;
     // Handle several cases for result text
-    if (result?.signal) {
-        resultText = result?.signal;
-    } else if (result?.stdout) {
+    if (result?.stdout) {
         const rawStdout = result.stdout || ' ';
         if (rawStdout.endsWith('\r\n')) {
             resultText = rawStdout.slice(0, -2);
@@ -304,9 +302,16 @@ export default function CaseView(props: {
                         </section>
                     )}
 
-                    {(stderror || result?.stderrPath || result?.checkerRun) && !running && !checking && (
+                    {(result?.signal || stderror || result?.stderrPath || result?.checkerRun) &&
+                        !running &&
+                        !checking && (
                         <section className="case-section case-section-diagnostics" aria-label={t('diagnosticsSection')}>
                             <h4 className="case-section-title">{t('diagnosticsSection')}</h4>
+                            {result?.signal && (
+                                <div className="textarea-container">
+                                    {t('signalLabel')} <code>{result.signal}</code>
+                                </div>
+                            )}
                             {result?.stderrPath && fileReference(t('stderrFile'), result.stderrPath, () => props.openFile?.(result.stderrPath!))}
                             {!result?.stderrPath && stderror && stderror.length > 0 && (
                                 <div className="textarea-container">

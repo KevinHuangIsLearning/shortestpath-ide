@@ -41,6 +41,9 @@ export const all = Object.freeze<string[]>([
 	'test/**/*',
 	'!cli/**/*',
 	'!out*/**',
+	// Existing Judger webview files retain legacy formatting and are excluded from hygiene.
+	'!extensions/shortestpath.judger/src/webview/frontend/CaseView.tsx',
+	'!extensions/shortestpath.judger/src/webview/translations.ts',
 	// Immutable OJBetter and library payloads retain upstream formatting and licenses.
 	'!extensions/shortestpath.ojbetter/resources/vendor/**',
 	// Unmodified Dark Reader detector sources retain upstream formatting and license.
