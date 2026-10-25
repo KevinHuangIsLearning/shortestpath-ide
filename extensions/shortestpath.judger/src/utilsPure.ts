@@ -59,6 +59,41 @@ export const toAsciiFilename = (input: string): string => {
         .join('');
 };
 
+export type TemplateCursorPlaceholder = {
+    /** Offset of the cursor position in the original template. */
+    index: number;
+    /** Token ranges that must be removed from the created source file. */
+    ranges: readonly { index: number; length: number }[];
+};
+
+const legacyCursorPlaceholder = '$CURSOR_PLACEHOLDER';
+
+/**
+ * Finds the cursor placeholder in a code template. The legacy
+ * `$CURSOR_PLACEHOLDER` token wins when both forms are present; otherwise the
+ * standard snippet final tabstop (`$0` or `${0}`) is used. Every `$0`/`${0}`
+ * occurrence is returned so none is left in the created source file.
+ * `$0` parsing can be disabled for existing source files, where a literal `$0`
+ * may be part of the user's code.
+ */
+export function findTemplateCursorPlaceholder(text: string, includeSnippetFinalTabstop = true): TemplateCursorPlaceholder | undefined {
+    const legacyIndex = text.indexOf(legacyCursorPlaceholder);
+    if (legacyIndex !== -1) {
+        return { index: legacyIndex, ranges: [{ index: legacyIndex, length: legacyCursorPlaceholder.length }] };
+    }
+    if (!includeSnippetFinalTabstop) {
+        return undefined;
+    }
+
+    const pattern = /\$(?:0(?!\d)|\{0\})/g;
+    const ranges: { index: number; length: number }[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text)) !== null) {
+        ranges.push({ index: match.index, length: match[0].length });
+    }
+    return ranges.length ? { index: ranges[0].index, ranges } : undefined;
+}
+
 /**
  * Replaces placeholders in a filename template string with actual values.
  * Placeholders are in the format {key} and are replaced from the provided map.

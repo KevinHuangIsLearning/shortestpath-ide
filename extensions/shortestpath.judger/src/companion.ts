@@ -53,6 +53,7 @@ import {
     toPascalCase,
     replaceFileNamePlaceholders,
     sanitizeFileName,
+    findTemplateCursorPlaceholder,
 } from './utilsPure';
 import telmetry from './telmetry';
 import os from 'os';
@@ -588,7 +589,8 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
     }));
     problem = preserveIntegratedTests(problem, getProblem(srcPath) ?? (previousSourcePath ? getProblem(previousSourcePath) : null));
 
-    if (replaceSource || !existsSync(srcPath)) {
+    const initializeSource = replaceSource || !existsSync(srcPath);
+    if (initializeSource) {
         let sourceContents = cppTemplate ?? '';
 
         if (defaultLanguage) {
@@ -651,15 +653,18 @@ export const handleNewProblem = async (problem: Problem, preferredSourcePath?: s
         preview: false,
     });
 
-    // Move cursor to the first occurrence of $CURSOR_PLACEHOLDER and remove it
-    const cursorPlaceholder = '$CURSOR_PLACEHOLDER';
+    // Move the cursor to the template placeholder and remove it. Both the legacy
+    // $CURSOR_PLACEHOLDER token and the standard snippet final tabstop ($0/${0})
+    // are supported. Only interpret $0 when the source was initialized from the
+    // template; an existing solution may legitimately contain "$0".
     const text = doc.getText();
-    const index = text.indexOf(cursorPlaceholder);
-    if (index !== -1) {
-        const start = doc.positionAt(index);
-        const end = doc.positionAt(index + cursorPlaceholder.length);
+    const cursor = findTemplateCursorPlaceholder(text, initializeSource);
+    if (cursor) {
+        const start = doc.positionAt(cursor.index);
         await editor.edit((editBuilder) => {
-            editBuilder.delete(new vscode.Range(start, end));
+            for (const range of cursor.ranges) {
+                editBuilder.delete(new vscode.Range(doc.positionAt(range.index), doc.positionAt(range.index + range.length)));
+            }
         });
         // Set selection and reveal AFTER the edit so it isn't reset
         editor.selection = new vscode.Selection(start, start);
