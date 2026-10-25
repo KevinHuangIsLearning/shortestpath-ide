@@ -4,6 +4,7 @@ import {
     words_in_text,
     toPascalCase,
     replaceFileNamePlaceholders,
+    findTemplateCursorPlaceholder,
 } from '../utilsPure';
 
 test('ShortestPath paths support Unicode, legacy peers and reject injected controls', () => {
@@ -71,6 +72,53 @@ describe('problem name parser', () => {
         const output = ["grape's", "1's"];
         const input = "grape's 1's";
         expect(words_in_text(input, "[\\p{L}0-9']+")).toEqual(output);
+    });
+});
+
+describe('findTemplateCursorPlaceholder', () => {
+    test('recognizes the legacy cursor placeholder', () => {
+        expect(findTemplateCursorPlaceholder('int main() {\n    $CURSOR_PLACEHOLDER\n}')).toEqual({
+            index: 17,
+            ranges: [{ index: 17, length: 19 }],
+        });
+    });
+
+    test('recognizes the standard snippet final tabstop', () => {
+        expect(findTemplateCursorPlaceholder('int main() {\n    $0\n}')).toEqual({
+            index: 17,
+            ranges: [{ index: 17, length: 2 }],
+        });
+        expect(findTemplateCursorPlaceholder('int main() {\n    ${0}\n}')).toEqual({
+            index: 17,
+            ranges: [{ index: 17, length: 4 }],
+        });
+    });
+
+    test('removes every final tabstop and keeps the first position', () => {
+        expect(findTemplateCursorPlaceholder('$0 int x = 0; $0')).toEqual({
+            index: 0,
+            ranges: [{ index: 0, length: 2 }, { index: 14, length: 2 }],
+        });
+    });
+
+    test('does not treat longer tabstops or ordinary text as the final tabstop', () => {
+        expect(findTemplateCursorPlaceholder('$00 $10 $')).toBeUndefined();
+        expect(findTemplateCursorPlaceholder('int main() {}')).toBeUndefined();
+    });
+
+    test('prefers the legacy placeholder when both forms are present', () => {
+        expect(findTemplateCursorPlaceholder('$0 $CURSOR_PLACEHOLDER')).toEqual({
+            index: 3,
+            ranges: [{ index: 3, length: 19 }],
+        });
+    });
+
+    test('can ignore the snippet final tabstop for existing source files', () => {
+        expect(findTemplateCursorPlaceholder('int main() { $0 }', false)).toBeUndefined();
+        expect(findTemplateCursorPlaceholder('$CURSOR_PLACEHOLDER $0', false)).toEqual({
+            index: 0,
+            ranges: [{ index: 0, length: 19 }],
+        });
     });
 });
 

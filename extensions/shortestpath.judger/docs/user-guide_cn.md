@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
 - Competitive Companion 新建默认语言文件时加载的模板路径。
 - Java 模板中类名应写作 `CLASS_NAME`；新文件创建时它会自动替换为文件名。
-- 可在模板中放置 `$CURSOR_PLACEHOLDER`。创建文件后，光标会自动定位到这里，且该占位符会被移除。
+- 可在模板中放置 `$CURSOR_PLACEHOLDER`；也支持 VS Code Snippet 的最终光标位置 `$0`（或 `${0}`）。创建文件后，光标会自动定位到这里，且占位符会被移除。两种写法同时存在时优先 `$CURSOR_PLACEHOLDER`。
 
 ![模板](img/templateSettings.png) ![Java 模板](img/javaTemplate.png)
 
