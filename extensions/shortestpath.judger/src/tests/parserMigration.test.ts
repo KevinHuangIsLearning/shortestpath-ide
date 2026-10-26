@@ -155,6 +155,56 @@ test('a problem saved before opening its workspace migrates out of the nested di
     finally { Object.defineProperty(vscode.workspace, 'workspaceFolders', { value: [], configurable: true }); }
 });
 
+test('opening a subfolder after its parent keeps the parent workspace testcases', () => {
+    const parent = path.join(root, 'parent'), nested = path.join(parent, 'nested');
+    const folders = (values: string[]) => Object.defineProperty(vscode.workspace, 'workspaceFolders', { value: values.map(fsPath => ({ uri: { fsPath } })), configurable: true });
+    try {
+        fs.mkdirSync(nested, { recursive: true });
+        folders([parent]);
+        const source = path.join(nested, 'main.cpp');
+        saveProblem(source, { srcPath: source, tests: [{ id: 1, input: 'sample', output: 'answer' }], name: 'A', url: '', interactive: false, memoryLimit: 256, timeLimit: 1000, group: '' } as Problem);
+        const parentRecord = getProbSaveLocation(source);
+        expect(path.dirname(parentRecord)).toBe(path.join(parent, '.shortestpath'));
+        folders([nested]);
+        expect(path.dirname(getProbSaveLocation(source))).toBe(path.join(nested, '.shortestpath'));
+        const recovered = getProblem(source)!;
+        expect(recovered.tests.map(test => [test.input, test.output])).toEqual([['sample', 'answer']]);
+        expect(fs.existsSync(`${getProbSaveLocation(source)}.judger/problem.json`)).toBe(true);
+        expect(fs.existsSync(`${parentRecord}.judger/problem.json`)).toBe(true);
+    } finally { folders([]); }
+});
+
+test('adding a nested workspace folder relocates the record from the parent owner', () => {
+    const parent = path.join(root, 'project'), nested = path.join(parent, 'contest');
+    const folders = (values: string[]) => Object.defineProperty(vscode.workspace, 'workspaceFolders', { value: values.map(fsPath => ({ uri: { fsPath } })), configurable: true });
+    try {
+        fs.mkdirSync(nested, { recursive: true });
+        folders([parent]);
+        const source = path.join(nested, 'main.cpp');
+        saveProblem(source, { srcPath: source, tests: [{ id: 1, input: 'in', output: 'out' }], name: 'A', url: '', interactive: false, memoryLimit: 256, timeLimit: 1000, group: '' } as Problem);
+        expect(path.dirname(getProbSaveLocation(source))).toBe(path.join(parent, '.shortestpath'));
+        folders([parent, nested]);
+        expect(path.dirname(getProbSaveLocation(source))).toBe(path.join(nested, '.shortestpath'));
+        expect(getProblem(source)?.tests[0].input).toBe('in');
+    } finally { folders([]); }
+});
+
+test('recovery ignores a same-named record written for another source', () => {
+    const parent = path.join(root, 'parent'), nested = path.join(parent, 'nested');
+    const folders = (values: string[]) => Object.defineProperty(vscode.workspace, 'workspaceFolders', { value: values.map(fsPath => ({ uri: { fsPath } })), configurable: true });
+    try {
+        fs.mkdirSync(nested, { recursive: true });
+        const source = path.join(nested, 'main.cpp');
+        folders([nested]);
+        const foreign = { srcPath: path.join(root, 'other', 'main.cpp'), tests: [{ id: 1, input: 'foreign', output: '' }] } as Problem;
+        const hash = crypto.createHash('md5').update(path.join('nested', 'main.cpp')).digest('hex');
+        const stale = path.join(parent, '.shortestpath', `.main.cpp_${hash}.prob`);
+        fs.mkdirSync(path.dirname(stale), { recursive: true });
+        writeStoredProblem(stale, foreign);
+        expect(getProblem(source)).toBeNull();
+    } finally { folders([]); }
+});
+
 import { setProblemCompletion } from '../problemTimer';
 test('completion mutations persist and reject queued autosaves, including cancellation', () => {
     const source = path.join(root, 'completion.cpp');

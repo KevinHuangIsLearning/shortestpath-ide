@@ -52,18 +52,59 @@ function getSourceWorkspaceRoot(srcPath: string): string | undefined {
         }).sort((left, right) => right.length - left.length)[0];
 }
 
-/** Recover storage created before the workspace was opened or under the first workspace root. */
-function previousProblemLocations(srcPath: string): string[] {
-    const firstRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const preference = getSaveLocationPref();
-    const previousKeys = [srcPath, ...(firstRoot ? [path.relative(firstRoot, srcPath)] : [])];
-    const locations = previousKeys.flatMap(key => {
+/** Storage keys the source can have had under one candidate workspace folder. */
+function problemStorageNames(srcPath: string, root: string): string[] {
+    const keys = [srcPath];
+    const relative = path.relative(root, srcPath);
+    // The nested-folder owner stores only the path inside that folder; keep the
+    // absolute key for records saved before a workspace was open. Older
+    // versions also keyed on the first folder even when it did not contain the
+    // source, so a relative path escaping the folder remains a valid legacy key.
+    if (relative) { keys.unshift(relative); }
+    return keys.map(key => {
         const hash = crypto.createHash('md5').update(key).digest('hex');
-        const name = `.${path.basename(srcPath)}_${hash}.prob`;
-        if (preference) { return [path.join(preference, name)]; }
-        return [path.join(path.dirname(srcPath), '.shortestpath', name), ...(firstRoot ? [path.join(firstRoot, '.shortestpath', name)] : [])];
+        return `.${path.basename(srcPath)}_${hash}.prob`;
     });
-    return [...new Set([getProbSaveLocation(srcPath, true), ...locations])];
+}
+
+/**
+ * Recover storage created under any folder that could have been the workspace
+ * root for this source. Switching between a parent folder and one of its
+ * subfolders changes the relative storage key, so the current-only lookup
+ * would otherwise report the problem as missing and drop its testcases.
+ */
+function previousProblemLocations(srcPath: string): string[] {
+    const preference = getSaveLocationPref();
+    const folders = vscode.workspace.workspaceFolders?.map(folder => folder.uri.fsPath) ?? [];
+    const roots: string[] = [];
+    for (let directory = path.dirname(srcPath); ; directory = path.dirname(directory)) {
+        roots.push(directory);
+        if (path.dirname(directory) === directory) { break; }
+    }
+    for (const folder of folders) { if (!roots.includes(folder)) { roots.push(folder); } }
+    const locations: string[] = [];
+    const add = (file: string) => {
+        // Skip ancestors that never held ShortestPath data instead of statting
+        // every generated name below the filesystem root.
+        if (locations.includes(file) || !fs.existsSync(path.dirname(file))) { return; }
+        locations.push(file);
+    };
+    for (const root of roots) {
+        for (const name of problemStorageNames(srcPath, root)) {
+            add(path.join(root, '.shortestpath', name));
+            // Legacy CPH storage always keyed on the absolute source path.
+            add(path.join(root, '.cph', name));
+            if (preference) { add(path.join(preference, name)); }
+        }
+    }
+    return locations;
+}
+
+/** A missing source path predates identity fields; keep those records recoverable. */
+function recordBelongsToSource(problem: Problem, srcPath: string): boolean {
+    if (typeof problem.srcPath !== 'string' || !problem.srcPath) { return true; }
+    const normalize = (value: string) => process.platform === 'win32' || process.platform === 'darwin' ? path.resolve(value).toLowerCase() : path.resolve(value);
+    return normalize(problem.srcPath) === normalize(srcPath);
 }
 
 /** Copy managed legacy data into this problem, retaining the old files as migration backups. */
@@ -125,7 +166,9 @@ export const getProblem = (srcPath: string): Problem | null => {
     for (const legacy of previousProblemLocations(srcPath)) {
         if (legacy === current) { continue; }
         const problem = readStoredProblem(legacy);
-        if (!problem) { continue; }
+        // A shared custom storage folder can hold an identically named record
+        // for another file; only adopt records that name this source.
+        if (!problem || !recordBelongsToSource(problem, srcPath)) { continue; }
         writeStoredProblem(current, migrateManagedTestcases(initializeProblemTimer(problem), current, legacy));
         return readStoredProblem(current);
     }
