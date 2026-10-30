@@ -86,7 +86,7 @@ export function reconcileSourceRecords(records: DashboardRecord[], roots: string
 			const oldDirectory = `${base}.judger`, newDirectory = `${destination}.judger`;
 			const rebase = (value: unknown) => typeof value === 'string' && dashboardContains(oldDirectory, value) ? path.join(newDirectory, path.relative(oldDirectory, value)) : value;
 			for (const test of Array.isArray(stored.tests) ? stored.tests : []) { if (test && typeof test === 'object') { for (const key of ['inputPath', 'outputPath']) { if (test[key]) { test[key] = rebase(test[key]); } } } }
-			for (const key of ['customCheckerPath', 'interactorPath']) { if (metadata[key]) { metadata[key] = rebase(metadata[key]); } }
+			for (const key of ['customCheckerPath', 'interactorPath', 'stressGeneratorPath', 'stressStdPath']) { if (metadata[key]) { metadata[key] = rebase(metadata[key]); } }
 		}
 		const sourceEntry = versioned ? `${base}.judger` : base;
 		const destinationEntry = versioned ? `${destination}.judger` : destination;

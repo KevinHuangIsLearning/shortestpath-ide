@@ -120,7 +120,7 @@ function getLiveUserCount(): Promise<number> {
 
 function Judge(props: {
     problem: Problem;
-    updateProblem: (problem: Problem) => void;
+    updateProblem: React.Dispatch<React.SetStateAction<Problem | undefined>>;
     cases: Case[];
     updateCases: React.Dispatch<React.SetStateAction<Case[]>>;
     onlineJudgeEnv: boolean;
@@ -259,8 +259,12 @@ function Judge(props: {
     const [generatedJson, setGeneratedJson] = useState<any | null>(null);
     const [liveUserCount, setLiveUserCount] = useState<number>(0);
     const [extLogs, setExtLogs] = useState<string>('');
-    const [stressGeneratorPath, setStressGeneratorPath] = useState('');
-    const [stressStdPath, setStressStdPath] = useState('');
+    const [stressGeneratorPath, setStressGeneratorPath] = useState(
+        problem.stressGeneratorPath ?? '',
+    );
+    const [stressStdPath, setStressStdPath] = useState(
+        problem.stressStdPath ?? '',
+    );
     const [stressIterations, setStressIterations] = useState(0);
     const [stressRunning, setStressRunning] = useState(false);
     const [stressProgress, setStressProgress] = useState({
@@ -313,8 +317,6 @@ function Judge(props: {
             deleteProblemArmedTimer.current = null;
         }
         setSubmitShortestPathArmed(false);
-        setStressGeneratorPath('');
-        setStressStdPath('');
         setStressRunning(false);
         setStressMessage(null);
         setPendingStressFailure(null);
@@ -335,6 +337,13 @@ function Judge(props: {
             submitShortestPathArmedTimer.current = null;
         }
     }, [problem.srcPath]);
+
+    // The cached paths can also change outside this panel (another window, or a
+    // problem move that rebases them); keep the dialog in sync.
+    useEffect(() => {
+        setStressGeneratorPath(problem.stressGeneratorPath ?? '');
+        setStressStdPath(problem.stressStdPath ?? '');
+    }, [problem.stressGeneratorPath, problem.stressStdPath]);
 
     useEffect(() => {
         return () => {
@@ -498,11 +507,22 @@ function Judge(props: {
                 }
                 case 'stress-file-selected': {
                     const selected = data as StressFileSelectedCommand;
+                    const field =
+                        selected.role === 'std'
+                            ? 'stressStdPath'
+                            : 'stressGeneratorPath';
                     if (selected.role === 'std') {
                         setStressStdPath(selected.path);
                     } else {
                         setStressGeneratorPath(selected.path);
                     }
+                    // Cache the choice in the problem record so switching
+                    // problems or restarting keeps the same generator/std.
+                    updateProblem((previous) =>
+                        previous === undefined
+                            ? previous
+                            : { ...previous, [field]: selected.path },
+                    );
                     break;
                 }
                 case 'stress-status': {

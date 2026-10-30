@@ -148,6 +148,8 @@ export type Problem = {
     browserSubmissionKind?: 'custom' | 'vjudge';
     customCheckerPath?: string;
     interactorPath?: string;
+    stressGeneratorPath?: string;
+    stressStdPath?: string;
 };
 
 export type Case = {
