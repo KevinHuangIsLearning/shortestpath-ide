@@ -15,6 +15,8 @@ const STRING_FIELDS = [
     'interpreterCommand',
     'customCheckerPath',
     'interactorPath',
+    'stressGeneratorPath',
+    'stressStdPath',
 ] as const;
 
 const ARRAY_FIELDS = [
@@ -57,6 +59,8 @@ const CLEARABLE_PROBLEM_FIELDS = [
     'interpreterArgs',
     'customCheckerPath',
     'interactorPath',
+    'stressGeneratorPath',
+    'stressStdPath',
 ] as const;
 
 const isClearedField = (value: unknown): boolean =>

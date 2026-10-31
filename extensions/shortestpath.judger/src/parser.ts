@@ -117,6 +117,8 @@ export const getProblem = (srcPath: string): Problem | null => {
             existing.tests = existing.tests.map(test => ({ ...test, inputPath: rebase(test.inputPath), outputPath: rebase(test.outputPath) }));
             existing.customCheckerPath = rebase(existing.customCheckerPath);
             existing.interactorPath = rebase(existing.interactorPath);
+            existing.stressGeneratorPath = rebase(existing.stressGeneratorPath);
+            existing.stressStdPath = rebase(existing.stressStdPath);
             existing.srcPath = srcPath;
             writeStoredProblem(current, existing);
         }

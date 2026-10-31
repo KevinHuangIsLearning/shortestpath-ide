@@ -87,6 +87,17 @@ test('undefined fields from in-process callers clear the same way', () => {
 	expect(merged.interpreterArgs).toEqual(['-u']);
 });
 
+test('stress program paths survive unrelated settings and can be cleared', () => {
+	const problem = { ...stored(), stressGeneratorPath: '/gen.cpp', stressStdPath: '/std.cpp' };
+	expect(applyProblemPatch(problem, { name: 'B' })).toMatchObject({
+		stressGeneratorPath: '/gen.cpp',
+		stressStdPath: '/std.cpp',
+	});
+	const cleared = applyProblemPatch(problem, { stressGeneratorPath: '', stressStdPath: '' });
+	expect(cleared).not.toHaveProperty('stressGeneratorPath');
+	expect(cleared).not.toHaveProperty('stressStdPath');
+});
+
 test('changing a URL replaces the old imported page binding without changing tests', () => {
 	const previous = { ...stored(), url: 'https://example.com/old', browserProblemUrl: 'https://vjudge.net/problem/old' };
 	const merged = applyProblemPatch(previous, { url: ' https://example.com/new ' });

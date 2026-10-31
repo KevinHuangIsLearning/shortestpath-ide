@@ -65,13 +65,17 @@ test('moving the workspace preserves identity and rebases sample and checker pat
     try {
         fs.mkdirSync(first); folders(first);
         const source = path.join(first, 'main.cpp'); const input = path.join(first, '1.in'); const checker = path.join(first, 'checker.cpp');
+        const generator = path.join(first, 'generator.cpp'); const std = path.join(first, 'std.cpp');
         fs.writeFileSync(source, 'int main(){}'); fs.writeFileSync(input, 'data'); fs.writeFileSync(checker, 'int main(){}');
-        saveProblem(source, { srcPath: source, tests: [{ id: 1, input: '', output: '', inputPath: input }], customCheckerPath: checker } as Problem);
+        fs.writeFileSync(generator, 'int main(){}'); fs.writeFileSync(std, 'int main(){}');
+        saveProblem(source, { srcPath: source, tests: [{ id: 1, input: '', output: '', inputPath: input }], customCheckerPath: checker, stressGeneratorPath: generator, stressStdPath: std } as Problem);
         fs.renameSync(first, second); folders(second);
         const moved = getProblem(path.join(second, 'main.cpp'))!;
         expect(moved.srcPath).toBe(path.join(second, 'main.cpp'));
         expect(moved.tests[0].inputPath).toBe(path.join(second, '1.in'));
         expect(moved.customCheckerPath).toBe(path.join(second, 'checker.cpp'));
+        expect(moved.stressGeneratorPath).toBe(path.join(second, 'generator.cpp'));
+        expect(moved.stressStdPath).toBe(path.join(second, 'std.cpp'));
     } finally { Object.defineProperty(vscode.workspace, 'workspaceFolders', { value: [], configurable: true }); }
 });
 
