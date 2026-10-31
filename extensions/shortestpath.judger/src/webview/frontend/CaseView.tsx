@@ -296,7 +296,7 @@ export default function CaseView(props: {
                                     <small className="truncation-note">{t('previewTruncated')}</small>
                                 )}
                             </div>}
-                            {result != null && (result.diff?.preview || !result.pass) && result.diff != null && (window as any).showOutputDifference !== false && (
+                            {result?.diff != null && (result.diff.preview || (!result.pass && (window as any).showOutputDifference !== false)) && (
                                 <DiffView diff={result.diff} copyToClipboard={copyToClipboard} />
                             )}
                         </section>
