@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- * Part of ShortestPath Judger.
- * Licensed under GPL-3.0-or-later. See LICENSE for license information.
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import fs from 'fs';
@@ -44,9 +44,8 @@ export function builtinSubmissionRoute(
 		if (match) {
 			return {
 				name: 'atcoder',
-				url: `${parsed.origin}/contests/${
-					match[1]
-				}/submit?taskScreenName=${encodeURIComponent(match[2])}`,
+				url: `${parsed.origin}/contests/${match[1]
+					}/submit?taskScreenName=${encodeURIComponent(match[2])}`,
 				values: {},
 			};
 		}
@@ -84,9 +83,19 @@ export function resolveUserSubmission(
 	const config = vscode.workspace.getConfiguration('judger.submission');
 	const route = builtinSubmissionRoute(url);
 	const target = route?.url ?? url;
-	const files = config.get<string[]>('userScripts', []);
 	let source: string | undefined;
-	for (const file of files) {
+	// Bundled routes are fixed; installed scripts only extend other websites.
+	if (route) {
+		source = fs.readFileSync(
+			path.join(
+				globalThis.extensionContext.extensionPath,
+				'dist/static/userscripts',
+				`${route.name}.user.js`,
+			),
+			'utf8',
+		);
+	}
+	for (const file of route ? [] : config.get<string[]>('userScripts', [])) {
 		try {
 			const contents = fs.readFileSync(file, 'utf8');
 			if (matchesUserScript(parseUserScript(contents), target)) {
@@ -100,16 +109,6 @@ export function resolveUserSubmission(
 				String(error),
 			);
 		}
-	}
-	if (!source && route && config.get('builtinScripts', true)) {
-		source = fs.readFileSync(
-			path.join(
-				globalThis.extensionContext.extensionPath,
-				'dist/static/userscripts',
-				`${route.name}.user.js`,
-			),
-			'utf8',
-		);
 	}
 	if (!source) {
 		return undefined;
@@ -125,7 +124,7 @@ export function resolveUserSubmission(
 			autoSubmit: String(config.get('autoSubmit', false)),
 			languageValue:
 				config.get<Record<string, string>>('languages', {})[
-					new URL(url).hostname
+				new URL(url).hostname
 				] ?? '',
 		},
 		kind: 'custom',

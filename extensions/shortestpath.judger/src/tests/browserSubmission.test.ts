@@ -2,12 +2,34 @@
  *  Copyright (c) 2026 ShortestPath IDE contributors.
  *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-jest.mock('vscode', () => ({ commands: { executeCommand: jest.fn() }, workspace: { isTrusted: true }, window: { openBrowserTab: jest.fn(), showInformationMessage: jest.fn() } }), { virtual: true });
-jest.mock('../preferences', () => ({}));
+jest.mock('vscode', () => ({ commands: { executeCommand: jest.fn() }, workspace: { isTrusted: true, getConfiguration: jest.fn() }, window: { openBrowserTab: jest.fn(), showInformationMessage: jest.fn() } }), { virtual: true });
+jest.mock('../preferences', () => ({ getCustomSubmitScripts: jest.fn(), getOjMapping: jest.fn(), getVjudgeOjNames: jest.fn() }));
 jest.mock('../i18n', () => ({ __esModule: true, default: (_key: string, text: string) => text }));
 import * as vscode from 'vscode';
 import vm from 'vm';
-import { executeSubmissionScript } from '../browserSubmission';
+import fs from 'fs';
+import path from 'path';
+import { executeSubmissionScript, getBrowserSubmission } from '../browserSubmission';
+import { getCustomSubmitScripts } from '../preferences';
+
+test.each([
+	['luogu', 'https://www.luogu.com.cn/problem/P1000'],
+	['atcoder', 'https://atcoder.jp/contests/abc001/tasks/abc001_1'],
+	['codeforces', 'https://codeforces.com/contest/123/problem/A'],
+])('bundled %s submission ignores user overrides and the retired disable setting', (name, url) => {
+	globalThis.extensionContext = { extensionPath: path.resolve(__dirname, '../..') } as vscode.ExtensionContext;
+	const get = jest.fn((key: string, fallback: unknown) => {
+		if (key === 'builtinScripts') { return false; }
+		if (key === 'userScripts') { return ['/custom/override.user.js']; }
+		return fallback;
+	});
+	(vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({ get });
+	(getCustomSubmitScripts as jest.Mock).mockImplementation(() => { throw new Error('Built-in routes must bypass custom templates'); });
+	const resolved = getBrowserSubmission(url);
+	expect(resolved?.template.script).toBe(fs.readFileSync(path.resolve(__dirname, '../../static/userscripts', `${name}.user.js`), 'utf8'));
+	expect(get.mock.calls.map(([key]) => key)).not.toContain('userScripts');
+	expect(get.mock.calls.map(([key]) => key)).not.toContain('builtinScripts');
+});
 
 type Message = { id: number; method: string; sessionId?: string; params: Record<string, unknown> };
 function mockBrowser(failScript = false, navigateDuringStatus = false, delayedRun = false, pageLogs = false, readyToSubmit = false) {
@@ -197,7 +219,7 @@ test.each(['OK', undefined])('legacy VJudge only clicks final submit after confi
 	await executeSubmissionScript({ urlTemplate: 'https://vjudge.net/problem/UVA-1', script: vjudgeSubmitScript }, { code: 'int main(){}', confirmBeforeSubmit: 'true' });
 	const finalActions = browser.sent.filter(message => message.params.awaitPromise);
 	expect(finalActions).toHaveLength(answer === 'OK' ? 2 : 1);
-	expect(String(finalActions[0].params.expression)).toContain("#submitModal #btn-submit");
+	expect(String(finalActions[0].params.expression)).toContain('#submitModal #btn-submit');
 	if (answer === 'OK') { expect(String(finalActions[1].params.expression)).toContain('const action = window['); }
 });
 

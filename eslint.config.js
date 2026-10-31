@@ -243,6 +243,7 @@ export default defineConfig(
 			'extensions/shortestpath.judger/src/shortestpathProblemPath.ts',
 			'extensions/shortestpath.judger/src/integratedTests.ts',
 			'extensions/shortestpath.judger/src/integratedTestCommands.ts',
+			'extensions/shortestpath.judger/src/submissionUserScripts.ts',
 			'extensions/shortestpath.judger/src/tests/integrated*.test.ts',
 			'extensions/shortestpath.judger/src/tests/shortestpathProblemPath.test.ts',
 			'extensions/shortestpath.judger/src/tests/runTiming.test.ts',

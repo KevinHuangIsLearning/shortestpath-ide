@@ -10,7 +10,7 @@ import { defaultSubmissionTemplates, replaceSubmissionPlaceholders, resolveSubmi
 import { Problem } from './types';
 import localize from './i18n';
 import { parseUserScript, userScriptBootstrap } from './userScripts';
-import { resolveUserSubmission, registerUserScriptCommands } from './submissionUserScripts';
+import { builtinSubmissionRoute, resolveUserSubmission, registerUserScriptCommands } from './submissionUserScripts';
 import crypto from 'crypto';
 import { loadScriptResources } from './userScriptResources';
 import { handleScriptRequest, ScriptRequest } from './userScriptBridge';
@@ -225,6 +225,7 @@ export async function executeSubmissionScript(template: SubmissionTemplate, valu
 }
 
 export function getBrowserSubmission(url: string) {
+	if (builtinSubmissionRoute(url)) { return resolveUserSubmission(url); }
 	const legacy = resolveSubmission(url, getOjMapping() || {}, getVjudgeOjNames() || {}, getCustomSubmitScripts());
 	return legacy?.kind === 'custom' ? legacy : resolveUserSubmission(url) ?? legacy;
 }

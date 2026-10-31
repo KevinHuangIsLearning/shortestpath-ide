@@ -17,7 +17,9 @@ async function openPage(): Promise<void> {
 	const configured = config().get<Record<string, SubmitScript>>(setting) ?? {};
 	const aliases = await vscode.commands.executeCommand<Record<string, string>>('judger.getSubmitScriptAliases') || {};
 	const canonical = (name: string) => aliases[name.toLowerCase()] || name;
-	const names = new Set(['*', ...Object.keys(configured), ...Object.keys(defaults), ...Object.values(aliases)].map(canonical));
+	const builtinNames = new Set(['CodeForces', 'CF', 'AtCoder', 'AT', 'Luogu', '\u6d1b\u8c37', 'Hydro', 'VJudge'].map(name => canonical(name).toLowerCase()));
+	const isBuiltin = (name: string) => builtinNames.has(canonical(name).toLowerCase());
+	const names = new Set(['*', ...Object.keys(configured), ...Object.keys(defaults), ...Object.values(aliases)].map(canonical).filter(name => !isBuiltin(name)));
 	const canonicalDefaults: Record<string, SubmitScript> = Object.create(null);
 	const canonicalConfigured: Record<string, SubmitScript> = Object.create(null);
 	// Prefer the long VJudge name over its short alias for the built-in URL.
@@ -32,6 +34,7 @@ async function openPage(): Promise<void> {
 		try {
 			const oj = typeof message.oj === 'string' ? canonical(message.oj.trim()) : '';
 			if (!oj || ['__proto__', 'constructor', 'prototype'].includes(oj)) { throw new Error(localize('\u8bf7\u8f93\u5165\u6709\u6548\u7684 OJ \u540d\u79f0\u3002')); }
+			if (isBuiltin(oj)) { return; }
 			const template: SubmitScript = { urlTemplate: String(message.url ?? '').trim(), script: String(message.script ?? '') };
 			if (message.type !== 'reset') {
 				const preview = template.urlTemplate.replace(/\{(?:oj|ojName|contestId|problemId|code|language|fileName)\}/g, 'test').replace(/\{(?:url|vjudgeUrl)\}/g, 'https://vjudge.net/');

@@ -1293,12 +1293,6 @@
                     },
                     "scope": "resource"
                 },
-                "judger.submission.builtinScripts": {
-                    "type": "boolean",
-                    "default": true,
-                    "scope": "application",
-                    "description": "%judger.submission.builtinScripts.description%"
-                },
                 "judger.submission.autoSubmit": {
                     "type": "boolean",
                     "default": false,
