@@ -366,6 +366,7 @@ export type WebviewToVSEvent =
     | RunAllCommand
     | StressStartCommand
     | StressStopCommand
+    | GetStressStateCommand
     | OpenStressExampleCommand
     | PickStressFileCommand
     | CopyTextCommand
@@ -488,6 +489,46 @@ export type StressFinishedCommand = {
     message?: string;
 };
 
+/**
+ * The latest stress-test snapshot kept by the extension host. The dialog can be
+ * closed, or its webview destroyed and recreated, without losing the run: a new
+ * webview asks for this snapshot and continues from the same progress.
+ */
+export type StressSessionState = {
+    srcPath: string;
+    runId: number;
+    running: boolean;
+    iterations: number;
+    progress: { iteration: number; total: number };
+    status?: {
+        phase: 'compiling' | 'running';
+        role?: StressProgramRole | 'target';
+        iteration?: number;
+        total?: number;
+    };
+    failure?: {
+        iteration: number;
+        testcase: TestCase;
+        result: RunResult;
+    };
+    finished?: {
+        state: 'passed' | 'found' | 'stopped' | 'error';
+        iteration: number;
+        message?: string;
+    };
+};
+
+export type StressStateCommand = {
+    command: 'stress-state';
+    srcPath: string;
+    state: StressSessionState | null;
+};
+
+export type GetStressStateCommand = {
+    command: 'get-stress-state';
+    srcPath: string;
+};
+
 export type VSToWebViewMessage =
     | { command: 'oj-timer'; srcPath: string; url: string; requestId: string; timer?: OjTimer }
     | { command: 'problem-options'; srcPath: string; patch?: Partial<Problem>; clear?: boolean; completion?: 'none' | 'partial' | 'accepted' }
@@ -501,6 +542,7 @@ export type VSToWebViewMessage =
     | StressStatusCommand
     | StressFailureCommand
     | StressFinishedCommand
+    | StressStateCommand
     | StressFileSelectedCommand
     | RunAllInWebViewCommand
     | CompilingStartCommand

@@ -124,6 +124,9 @@ export default function StressDialog(props: {
                     {t('stopStress')}
                 </button>
             </div>
+            {props.running && (
+                <p className="stress-hint">{t('stressBackgroundHint')}</p>
+            )}
             {props.message && (
                 <div className="stress-status" role="status" aria-live="polite">
                     {props.running && (

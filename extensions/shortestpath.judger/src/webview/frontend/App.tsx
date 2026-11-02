@@ -18,6 +18,8 @@ import {
     CheckingCommand,
     StressFailureCommand,
     StressFinishedCommand,
+    StressSessionState,
+    StressStateCommand,
     StressStatusCommand,
     StressFileSelectedCommand,
     WebViewpersistenceState,
@@ -116,6 +118,50 @@ function getLiveUserCount(): Promise<number> {
             console.error('Failed to fetch live users', err);
             return 0;
         });
+}
+
+function stressRoleName(role?: StressStatusCommand['role']): string {
+    return role === 'generator'
+        ? t('stressGenerator')
+        : role === 'std'
+          ? t('stressStd')
+          : t('stressTarget');
+}
+
+function stressStatusMessage(
+    phase: StressStatusCommand['phase'],
+    role?: StressStatusCommand['role'],
+    iteration?: number,
+    total?: number,
+): string {
+    return phase === 'compiling'
+        ? `${t('stressCompiling')} ${stressRoleName(role)}...`
+        : `${t('stressRunning')} ${stressRoleName(role)} ${iteration || 0}${total ? ` / ${total}` : ''}`;
+}
+
+/** Text shown after a recreated webview asks for the latest run snapshot. */
+function restoredStressMessage(state: StressSessionState): string {
+    if (state.finished) {
+        return (
+            state.finished.message ||
+            (state.finished.state === 'passed'
+                ? `${t('stressPassed')} ${state.finished.iteration}`
+                : state.finished.state === 'found'
+                  ? t('stressFound')
+                  : state.finished.state === 'stopped'
+                    ? t('stressStopped')
+                    : t('stressFailed'))
+        );
+    }
+    if (state.status) {
+        return stressStatusMessage(
+            state.status.phase,
+            state.status.role,
+            state.status.iteration,
+            state.status.total,
+        );
+    }
+    return t('stressStarting');
 }
 
 function Judge(props: {
@@ -530,25 +576,36 @@ function Judge(props: {
                     if (status.runId !== stressRunIdRef.current) {
                         break;
                     }
-                    if (status.phase === 'compiling') {
-                        const role =
-                            status.role === 'generator'
-                                ? t('stressGenerator')
-                                : status.role === 'std'
-                                  ? t('stressStd')
-                                  : t('stressTarget');
-                        setStressMessage(`${t('stressCompiling')} ${role}...`);
-                    } else {
-                        const role =
-                            status.role === 'generator'
-                                ? t('stressGenerator')
-                                : status.role === 'std'
-                                  ? t('stressStd')
-                                  : t('stressTarget');
-                        setStressMessage(
-                            `${t('stressRunning')} ${role} ${status.iteration || 0}${status.total ? ` / ${status.total}` : ''}`,
-                        );
+                    setStressMessage(
+                        stressStatusMessage(
+                            status.phase,
+                            status.role,
+                            status.iteration,
+                            status.total,
+                        ),
+                    );
+                    break;
+                }
+                case 'stress-state': {
+                    const restored = data as StressStateCommand;
+                    if (restored.srcPath !== problem.srcPath || !restored.state) {
+                        break;
                     }
+                    const state = restored.state;
+                    stressRunIdRef.current = state.runId;
+                    setStressIterations(state.iterations);
+                    setStressRunning(state.running);
+                    setStressProgress(state.progress);
+                    setPendingStressFailure(
+                        state.failure
+                            ? {
+                                  ...state.failure,
+                                  command: 'stress-failure',
+                                  runId: state.runId,
+                              }
+                            : null,
+                    );
+                    setStressMessage(restoredStressMessage(state));
                     break;
                 }
                 case 'stress-failure': {
@@ -618,6 +675,9 @@ function Judge(props: {
             }
         };
         window.addEventListener('message', fn);
+        // A recreated webview starts with empty React state; the extension host
+        // still owns the running stress test, so ask for the latest snapshot.
+        sendMessageToVSCode({ command: 'get-stress-state', srcPath: problem.srcPath });
         return () => {
             window.removeEventListener('message', fn);
         };
@@ -810,9 +870,8 @@ function Judge(props: {
     };
 
     const closeStressDialog = () => {
-        if (stressRunning) {
-            stopStress();
-        }
+        // Closing only hides the dialog. The run lives in the extension host and
+        // keeps going; reopening reads its progress snapshot back.
         setStressDialogVisible(false);
     };
 
