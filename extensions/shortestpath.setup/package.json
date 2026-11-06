@@ -88,6 +88,15 @@
 		},
 		"commands": [
 			{
+				"command": "shortestpath.homepage.documentation",
+				"title": "%command.homepageDocumentation%"
+			},
+			{
+				"command": "shortestpath.homepage.open",
+				"title": "%command.openHomepage%",
+				"icon": "$(home)"
+			},
+			{
 				"command": "shortestpath.initializeOiWorkspace",
 				"title": "%command.initializeOiWorkspace%"
 			},

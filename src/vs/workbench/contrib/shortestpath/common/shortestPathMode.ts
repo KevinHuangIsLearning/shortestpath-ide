@@ -10,7 +10,7 @@ import type { PreferredGroup } from '../../../services/editor/common/editorServi
 import type { BrowserEditorInput } from '../../browserView/common/browserEditorInput.js';
 
 export type ShortestPathPageMode = 'snippets' | 'draw' | 'settings' | 'dashboard';
-export type ShortestPathMode = 'browse' | 'solve' | ShortestPathPageMode;
+export type ShortestPathMode = 'home' | 'browse' | 'solve' | ShortestPathPageMode;
 export const shortestPathPageCommands: Record<ShortestPathPageMode, string> = {
 	dashboard: 'judger.openDashboard',
 	snippets: 'shortestpath.configureCppSnippets',
@@ -63,7 +63,9 @@ export function isRestorableBrowserUrl(url: string): boolean {
 		return ['https:', 'http:', 'file:'].includes(parsed.protocol)
 			&& !parsed.username && !parsed.password
 			&& !['/ide/connect', '/login', '/logout'].includes(parsed.pathname)
-			&& !parsed.searchParams.has('token');
+			&& !parsed.searchParams.has('token')
+			// Home owns a loopback port for this extension host only.
+			&& !(parsed.hostname === '127.0.0.1' && parsed.searchParams.has('shortestpath-home'));
 	} catch {
 		return false;
 	}

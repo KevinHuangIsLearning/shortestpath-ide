@@ -15,6 +15,7 @@ import { withPlatformSettings } from './platformSettings';
 import { registerCphSettings } from './cphSettings';
 import { registerBrowserScriptTester } from './browserScriptTester';
 import { registerGettingStarted } from './gettingStarted';
+import { registerHomepage } from './homepage';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
 import { localize, localizeFormat } from './localization';
 import { managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
@@ -258,6 +259,7 @@ async function migrateLegacyClangdFloat128Workaround(): Promise<void> {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	registerHomepage(context);
 	configureCompilerRuntime(context);
 	const updateExtensionMarketplaceVisibility = () => vscode.commands.executeCommand('setContext', 'shortestpath.extensionMarketplaceEnabled', vscode.workspace.getConfiguration('shortestpath').get<boolean>('useExtensionMarketplace') === true);
 	await updateExtensionMarketplaceVisibility();

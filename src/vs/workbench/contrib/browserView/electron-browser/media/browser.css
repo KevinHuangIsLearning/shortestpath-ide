@@ -817,7 +817,6 @@
 	flex-wrap: wrap;
 	box-sizing: border-box;
 	width: 320px;
-	max-width: calc(100vw - 16px);
 	gap: 8px;
 	padding: 14px;
 	color: var(--vscode-editorWidget-foreground);
@@ -855,6 +854,7 @@
 
 .browser-problem-import-hint button {
 	font: inherit;
+	white-space: nowrap;
 	color: var(--vscode-button-secondaryForeground);
 	background: var(--vscode-button-secondaryBackground);
 	border: 1px solid var(--vscode-button-border, transparent);

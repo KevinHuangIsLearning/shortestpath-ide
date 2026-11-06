@@ -1,4 +1,6 @@
 {
+	"command.openHomepage": "ShortestPath IDE: Open Home",
+	"command.homepageDocumentation": "ShortestPath IDE: Open Documentation",
 	"configuration.title": "ShortestPath IDE Features",
 	"configuration.compactMode": "Reduce the left navigation bar width to the title bar height.",
 	"configuration.completed": "Whether the first-run setup has been completed.",

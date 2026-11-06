@@ -9,6 +9,13 @@ import { getShortestPathPageMode, isRestorableBrowserUrl, isShortestPathPageMode
 
 suite('ShortestPath browser workspace session', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+	test('does not restore a homepage port owned by a previous extension host', () => {
+		assert.deepStrictEqual([
+			'http://127.0.0.1:4317/releases/1.0.0/index.html?shortestpath-home=1',
+			'http://127.0.0.1:3000/',
+			'https://example.com/?shortestpath-home=1',
+		].map(isRestorableBrowserUrl), [false, true, true]);
+	});
 	test('restores the sketchpad mode and keeps its companion in editor groups', () => {
 		assert.deepStrictEqual({
 			modes: ['browse', 'solve', 'snippets', 'draw', 'settings', 'dashboard', undefined].map(isShortestPathPageMode),

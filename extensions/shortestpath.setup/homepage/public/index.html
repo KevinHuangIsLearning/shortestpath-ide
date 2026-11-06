@@ -1,0 +1,319 @@
+<!doctype html>
+<!-- Copyright (c) 2026 ShortestPath IDE contributors. GPL-3.0-or-later. -->
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+	<title>ShortestPath · Home</title>
+	<style>
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4
+ * Macrostructure: Split. Theme: IDE-owned tokens. Nav: native rail. Footer: inline.
+ * Audience: competitive programmers. Purpose: resume training. Tone: focused.
+ */
+:root {
+	--paper: var(--vscode-editor-background);
+	--ink: var(--vscode-editor-foreground);
+	--muted: var(--vscode-descriptionForeground);
+	--line: var(--vscode-widget-border, var(--vscode-panel-border));
+	--hover: var(--vscode-list-hoverBackground);
+	--accent: var(--vscode-textLink-foreground);
+	--button: var(--vscode-button-background);
+	--button-hover: var(--vscode-button-hoverBackground);
+	--button-ink: var(--vscode-button-foreground);
+	--focus: var(--vscode-focusBorder);
+	--radius: var(--vscode-cornerRadius-medium, 6px);
+	--font: var(--homepage-font, system-ui);
+	--mono: var(--vscode-editor-font-family, ui-monospace);
+	--heat-0: color-mix(in srgb, var(--ink) 7%, var(--paper));
+	--heat-1: color-mix(in srgb, var(--accent) 25%, var(--paper));
+	--heat-2: color-mix(in srgb, var(--accent) 45%, var(--paper));
+	--heat-3: color-mix(in srgb, var(--accent) 70%, var(--paper));
+	--heat-4: var(--accent);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; overflow-x: clip; }
+body { background: var(--paper); color: var(--ink); font: var(--homepage-font-size, 13px)/1.6 var(--font); }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { opacity: .55; cursor: wait; }
+button:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+[hidden] { display: none !important; }
+h1, h2, p { margin: 0; }
+h1, h2 { font-style: normal; overflow-wrap: anywhere; }
+.home { display: grid; grid-template-columns: minmax(230px, .8fr) minmax(0, 1.4fr); column-gap: clamp(36px, 5vw, 72px); max-width: 1280px; min-height: 100vh; align-content: center; margin: auto; padding: clamp(28px, 5vh, 60px) clamp(24px, 4.5vw, 64px) 24px; }
+.personal { min-width: 0; }
+.identity { display: flex; align-items: baseline; gap: 8px; margin-bottom: 42px; }
+.wordmark { font-size: 15px; font-weight: 650; letter-spacing: -.4px; }
+.edition { font: 10px var(--mono); color: var(--muted); letter-spacing: 1px; }
+.today { font-size: 11px; color: var(--muted); margin-bottom: 11px; }
+h1 { font-size: clamp(27px, 3vw, 36px); font-weight: 550; letter-spacing: -.7px; line-height: 1.45; }
+.intro > p:last-child { color: var(--muted); margin-top: 13px; font-size: 12px; max-width: 290px; line-height: 1.9; }
+.section-heading { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 18px; }
+h2 { font-size: 13px; font-weight: 600; }
+.section-note { color: var(--muted); font-size: 10px; }
+.quiet { background: none; border: 0; color: var(--accent); font-size: 11px; padding: 0; white-space: nowrap; }
+.quiet:hover { text-decoration: underline; }
+.countdown { margin-top: 31px; padding-top: 22px; border-top: 1px solid var(--line); }
+.countdown .section-heading { margin-bottom: 11px; }
+.countdown-target { display: block; font-size: 13px; font-weight: 500; margin-bottom: 9px; overflow-wrap: anywhere; }
+.countdown-value { display: flex; align-items: baseline; gap: 12px; }
+.countdown-value strong { font: 500 clamp(50px, 5.5vw, 72px)/1 var(--font); font-variant-numeric: tabular-nums; letter-spacing: -3px; }
+.countdown-value span { font-size: 11px; color: var(--muted); }
+.countdown-date { font: 10px var(--mono); color: var(--muted); display: block; margin-top: 10px; }
+.motivation { display: flex; gap: 11px; align-items: stretch; margin-top: 28px; max-width: 290px; }
+.quote-line { width: 2px; background: var(--accent); flex-shrink: 0; }
+.motivation p { font-size: 12px; line-height: 1.9; color: var(--muted); }
+.quick-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 27px; }
+.quick-actions > button { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 11px; background: none; font-size: 11px; white-space: nowrap; }
+.quick-actions > button:hover { background: var(--hover); }
+.quick-actions > .primary { background: var(--button); color: var(--button-ink); border-color: var(--button); display: flex; gap: 4px; }
+.quick-actions > .primary:hover { background: var(--button-hover); }
+.recent-link { margin-top: 13px; }
+.workspace { min-width: 0; border-left: 1px solid var(--line); padding-left: clamp(24px, 3vw, 40px); padding-top: 5px; }
+.empty { color: var(--muted); padding: 14px 0 26px; font-size: 12px; }
+.favorite-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 16px; align-content: start; min-height: 145px; max-height: 225px; overflow-y: auto; }
+.favorite-item { display: flex; align-items: center; gap: 10px; padding: 11px 8px; border: 0; border-radius: var(--radius); background: none; min-width: 0; text-align: left; font-size: 12px; }
+.favorite-item:hover { background: var(--hover); }
+.favorite-item span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.favorite-mark { display: grid; place-items: center; width: 29px; height: 29px; flex-shrink: 0; color: var(--muted); border: 1px solid var(--line); border-radius: var(--radius); font-size: 11px; }
+.favorite-mark img { display: block; width: 20px; height: 20px; object-fit: contain; border-radius: 3px; }
+.training { margin-top: 30px; border-top: 1px solid var(--line); padding-top: 24px; }
+.heading-with-note { display: flex; gap: 12px; align-items: baseline; }
+.heatmap-scroll { overflow-x: auto; padding: 2px 2px 7px; }
+.heatmap-calendar { min-width: 580px; }
+.heatmap-months { display: grid; font: 9px var(--font); color: var(--muted); margin-bottom: 8px; }
+.heatmap-months > span { white-space: nowrap; }
+.heatmap-grid { display: grid; grid-template-rows: repeat(7, 9px); grid-auto-flow: column; grid-auto-columns: minmax(8px, 1fr); gap: 3px; }
+.heatmap-day, .legend i { background: var(--heat-0); border: 0; border-radius: 2px; min-width: 0; padding: 0; }
+.heatmap-day { width: 100%; height: 9px; }
+.heatmap-day:hover { outline: 1px solid var(--focus); outline-offset: 1px; }
+.level-1 { background: var(--heat-1) !important; }
+.level-2 { background: var(--heat-2) !important; }
+.level-3 { background: var(--heat-3) !important; }
+.level-4 { background: var(--heat-4) !important; }
+.heatmap-caption { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 6px; min-height: 18px; }
+.heatmap-caption > p { color: var(--muted); font-size: 10px; }
+.legend { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); margin-left: auto; }
+.legend i { display: block; width: 9px; height: 9px; }
+.resources { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 31px; padding-top: 22px; border-top: 1px solid var(--line); }
+.resources > button { background: none; color: var(--muted); border: 0; padding: 0; text-align: left; font-size: 11px; white-space: nowrap; }
+.resources > button:hover { color: var(--accent); }
+footer { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); font: 10px var(--font); color: var(--muted); }
+.footer-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.footer-actions button { border: 0; background: none; color: var(--muted); font-size: 10px; padding: 0; white-space: nowrap; }
+.footer-actions button:hover { color: var(--accent); }
+.status { grid-column: 1 / -1; font-size: 11px; color: var(--muted); margin-top: 10px; min-height: 18px; }
+@media (max-width: 800px) {
+	.home { grid-template-columns: minmax(0, 1fr); align-content: start; }
+	.identity { margin-bottom: 26px; }
+	.intro > p:last-child, h1 { max-width: none; }
+	.workspace { border-left: 0; border-top: 1px solid var(--line); padding: 27px 0 0; margin-top: 32px; }
+	.countdown { max-width: 400px; }
+	.favorite-items { min-height: 0; }
+	footer { flex-direction: column; gap: 9px; margin-top: 30px; }
+}
+@media (max-width: 380px) {
+	.section-heading { flex-direction: column; gap: 7px; }
+	.quick-actions { gap: 6px; }
+	.quick-actions > button { padding: 8px 10px; }
+	.resources { gap: 17px; }
+}
+
+.countdown-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:17px; }
+.countdown-item { border:0; border-radius:var(--radius); background:none; padding:8px 0; text-align:left; min-width:0; }
+.countdown-item + .countdown-item { border-left:1px solid var(--line); padding-left:18px; border-radius:0; }
+.countdown-item .countdown-value { gap:7px; }
+.countdown-item .countdown-value strong { font-size:46px; letter-spacing:-2px; }
+.countdown-item .countdown-date { font-size:9px; }
+</style>
+
+</head>
+<body>
+	<main class="home">
+		<aside class="personal" aria-label="Personal">
+			<div class="identity"><span class="wordmark">ShortestPath</span><span class="edition">IDE</span></div>
+			<header class="intro"><p id="today" class="today"></p><h1 id="greeting">今天，也向前一步。</h1><p data-i18n="subtitle">专注眼前这一题。剩下的，一步一步来。</p></header>
+			<section class="countdown" aria-labelledby="countdown-heading">
+				<div class="section-heading"><h2 id="countdown-heading" data-i18n="countdown">目标倒计时</h2></div>
+				<div id="countdown" data-slot="countdown" aria-live="polite"></div>
+			</section>
+			<div class="motivation"><span class="quote-line" aria-hidden="true"></span><p id="motivation">多想一步，离答案就近一步。</p></div>
+			<div class="quick-actions"><button class="primary" data-command="workbench.action.files.newUntitledFile"><span aria-hidden="true">＋</span><span data-i18n="newFile">新建文件</span></button><button data-command="workbench.action.files.openFolder" data-i18n="openFolder">打开文件夹</button><button data-command="shortestpath.mode.browse" data-i18n="browse">浏览题库 ↗</button></div>
+			<button class="quiet recent-link" data-command="shortestpath.homepage.openRecent" data-i18n="allRecent">最近项目 ↗</button>
+		</aside>
+		<div class="workspace">
+			<section class="favorites" aria-labelledby="favorites-heading"><div class="section-heading"><h2 id="favorites-heading" data-i18n="favorites">收藏夹</h2><span class="section-note" data-i18n="browserFavorites">来自浏览器</span></div><div id="favorite-items" data-slot="browser-favorites" class="favorite-items"><p class="empty" data-i18n="loading">正在读取…</p></div></section>
+			<section data-slot="study-plan" id="study-plan" hidden></section>
+			<section class="training" aria-labelledby="training-heading">
+				<div class="section-heading"><div class="heading-with-note"><h2 id="training-heading" data-i18n="training">做题记录</h2><span class="section-note" data-i18n="pastYear">最近 365 天</span></div><button class="quiet" data-command="shortestpath.mode.dashboard" data-i18n="dashboard">做题统计 ↗</button></div>
+				<div id="heatmap" data-slot="dashboard-heatmap" class="heatmap-scroll" aria-live="polite"><p class="empty" data-i18n="loading">正在读取…</p></div>
+				<div class="heatmap-caption"><p id="heatmap-note"></p><div class="legend"><span data-i18n="less">少</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span data-i18n="more">多</span></div></div>
+			</section>
+			<nav class="resources" aria-label="Resources"><button data-command="shortestpath.homepage.documentation" data-i18n="docs">使用文档 ↗</button><button data-command="shortestpath.openSettings" data-i18n="settings">设置 ↗</button></nav>
+		</div>
+		<footer><span data-i18n="tagline">你的竞赛编程工作流</span><div class="footer-actions"><span id="version"></span><button id="check" hidden data-i18n="check">检查主页更新</button><button id="apply" hidden data-i18n="apply">打开新版 ↗</button><button data-command="shortestpath.action.checkForUpdates" data-i18n="ideUpdates">IDE 更新</button></div></footer>
+		<p id="status" class="status" role="status" aria-live="polite"></p>
+	</main>
+	<script type="application/json" id="homepage-content">
+{
+	"countdowns": [
+		{ "title": "NOIP 2026", "date": "2026-11-28", "source": "https://noi.cn/xw/2026-10-12/938849.shtml" },
+		{ "title": "NOI 2027", "date": null }
+	],
+	"motivation": {
+		"zh": "那些想不通的时刻，正在让你变得更强。",
+		"en": "Every problem you work through makes the next one more approachable."
+	}
+}
+	</script>
+	<script>
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+'use strict';
+const $ = selector => document.querySelector(selector);
+let english = false, revision, refreshInFlight, initialData = window.shortestpath.initialData;
+const distributed = JSON.parse(document.getElementById('homepage-content').textContent);
+const messages = {
+	headline: 'Pick up where you left off.', subtitle: 'Focus on this problem. Take the rest one step at a time.',
+	countdown: 'Milestones', allRecent: 'Recent Projects ↗', loading: 'Loading…', newFile: 'New File',
+	openFolder: 'Open Folder', browse: 'Browse Problems ↗', favorites: 'Favorites', browserFavorites: 'From your browser',
+	training: 'Problem Activity', pastYear: 'Past 365 days', dashboard: 'Problem Dashboard ↗', less: 'Less', more: 'More',
+	setup: 'Initial Setup ↗', setupHint: 'Prepare your toolchain', docs: 'Documentation ↗', docsHint: 'Get to know your workspace',
+	settings: 'Settings ↗', settingsHint: 'Make it yours', tagline: 'Your Competitive Programming Workflow',
+	check: 'Check Home Updates', apply: 'Open Updated Home ↗', ideUpdates: 'IDE Updates'
+};
+const text = (zh, en) => english ? en : zh;
+async function api(route, request) {
+	const response = await fetch(route, request ? { method: 'POST', headers: { 'X-ShortestPath-Homepage': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(request) } : {});
+	const value = await response.json();
+	if (!response.ok) throw new Error(value.error || text('请求失败', 'Request failed'));
+	return value;
+}
+async function command(id, args = []) {
+	$('#status').textContent = '';
+	try { await window.shortestpath.executeCommand(id, ...args); }
+	catch (error) { $('#status').textContent = error.message; }
+}
+document.querySelectorAll('[data-command]').forEach(button => button.onclick = async () => {
+	button.disabled = true;
+	try { await command(button.dataset.command); } finally { button.disabled = false; }
+});
+function empty(parent, message) {
+	const p = document.createElement('p'); p.className = 'empty'; p.textContent = message; parent.replaceChildren(p);
+}
+function personal(data) {
+	const hour = data.hour ?? 12;
+	$('#today').textContent = data.date || '';
+	$('#greeting').textContent = text(hour < 11 ? '早上好，向前一步。' : hour < 14 ? '中午好，继续积累。' : hour < 18 ? '下午好，保持专注。' : '晚上好，继续向前。', hour < 11 ? 'Good morning. Keep going.' : hour < 18 ? 'Good afternoon. Stay curious.' : 'Good evening. One step further.');
+	$('#motivation').textContent = english ? distributed.motivation.en : distributed.motivation.zh;
+	const targets = distributed.countdowns.slice(0, 2);
+	reconcile($('#countdown'), 'snapshot', [targets, data.today], () => {
+		const parent = $('#countdown'); parent.className = 'countdown-pair';
+		parent.replaceChildren(...targets.map(value => {
+			const item = document.createElement('div'); item.className = 'countdown-item';
+			const title = document.createElement('span'); title.className = 'countdown-target'; title.textContent = value.title;
+			const row = document.createElement('span'); row.className = 'countdown-value';
+			const number = document.createElement('strong'), unit = document.createElement('span');
+			const targetTime = value.date ? Date.parse(value.date + 'T00:00:00Z') : NaN;
+			const todayTime = Date.parse(data.today + 'T00:00:00Z');
+			const days = Number.isFinite(targetTime) && Number.isFinite(todayTime) ? (targetTime - todayTime) / 86400000 : null;
+			number.textContent = days === null ? '—' : String(days);
+			unit.textContent = days === null ? '' : text('天', 'days'); row.append(number, unit);
+			const date = document.createElement('span'); date.className = 'countdown-date'; date.textContent = days === null ? text('日期待公布', 'Date to be announced') : value.date;
+			item.append(title, row, date); return item;
+		}));
+	});
+}
+
+function favorites(items, failed) {
+	const parent = $('#favorite-items');
+	if (failed) {
+		empty(parent, text('无法读取收藏夹。', 'Could not load favorites.'));
+		const retry = document.createElement('button'); retry.className = 'quiet'; retry.textContent = text('重试 ↗', 'Retry ↗'); retry.onclick = () => refresh(); parent.append(retry); return;
+	}
+	if (!items?.length) { empty(parent, text('在浏览器中收藏常用网站，它们会出现在这里。', 'Save websites in the browser to see them here.')); return; }
+	parent.replaceChildren(...items.map(item => {
+		const button = document.createElement('button'); button.className = 'favorite-item';
+		const mark = document.createElement('span'); mark.className = 'favorite-mark'; mark.textContent = item.name.slice(0, 1).toUpperCase(); mark.setAttribute('aria-hidden', 'true');
+		if (item.favicon?.startsWith('data:image/')) {
+			const image = document.createElement('img'); image.alt = ''; image.referrerPolicy = 'no-referrer';
+			image.onload = () => mark.replaceChildren(image);
+			image.src = item.favicon;
+		}
+		const name = document.createElement('span'); name.textContent = item.name; button.append(mark, name); button.title = item.url;
+		button.onclick = () => command('shortestpath.homepage.openFavorite', [item.url]); return button;
+	}));
+}
+function heatmap(data) {
+	const parent = $('#heatmap'), days = data?.days;
+	if (!days?.length) { empty(parent, text('暂时无法读取做题记录，可打开 Dashboard 重试。', 'Problem activity is unavailable. Open the Dashboard to retry.')); return; }
+	const padding = new Date(days[0].date + 'T12:00:00').getDay();
+	const weeks = Math.ceil((padding + days.length) / 7), max = Math.max(1, ...days.map(day => day.count));
+	const calendar = document.createElement('div'); calendar.className = 'heatmap-calendar';
+	const months = document.createElement('div'); months.className = 'heatmap-months'; months.style.gridTemplateColumns = 'repeat(' + weeks + ',minmax(0,1fr))';
+	const grid = document.createElement('div'); grid.className = 'heatmap-grid'; grid.setAttribute('role', 'group'); grid.setAttribute('aria-label', text('做题活动热力图', 'Problem activity heatmap'));
+	let previousMonth = '';
+	days.forEach((day, index) => {
+		const month = day.date.slice(0, 7);
+		if (month !== previousMonth) {
+			const label = document.createElement('span'); label.textContent = new Date(day.date + 'T12:00:00').toLocaleDateString(english ? 'en' : 'zh-CN', { month: 'short' }); label.style.gridColumnStart = String(Math.floor((padding + index) / 7) + 1); months.append(label); previousMonth = month;
+		}
+	});
+	for (let i = 0; i < padding; i++) { const blank = document.createElement('span'); blank.setAttribute('aria-hidden', 'true'); grid.append(blank); }
+	days.forEach(day => {
+		const level = day.count === 0 ? 0 : Math.min(4, Math.max(1, Math.ceil(day.count / max * 4)));
+		const cell = document.createElement('button'); cell.className = 'heatmap-day level-' + level;
+		const description = day.date + text('：' + day.count + ' 道题', ': ' + day.count + ' problems'); cell.title = description; cell.setAttribute('aria-label', description);
+		cell.onclick = () => command('shortestpath.mode.dashboard'); grid.append(cell);
+	});
+	calendar.append(months, grid); parent.replaceChildren(calendar);
+	$('#heatmap-note').textContent = data.skipped ? text('部分本地记录无法读取。', 'Some local records could not be read.') : text('与做题统计同步', 'Synced with your Problem Dashboard');
+}
+function reconcile(parent, key, value, render) {
+	const serialized = JSON.stringify(value) ?? 'undefined';
+	if (parent.dataset[key] !== serialized) { render(); parent.dataset[key] = serialized; }
+}
+async function refresh() {
+	if (refreshInFlight) return refreshInFlight;
+	refreshInFlight = (async () => {
+		try {
+			const [data, update] = await Promise.all([initialData ? Promise.resolve(initialData) : api('/api/ide'), api('/api/status')]);
+			initialData = undefined;
+			english = !data.locale?.toLowerCase().startsWith('zh');
+			document.documentElement.lang = english ? 'en' : 'zh-CN';
+			document.title = text('ShortestPath · 主页', 'ShortestPath · Home');
+			$('.personal').setAttribute('aria-label', text('个人概览', 'Personal'));
+			$('.resources').setAttribute('aria-label', text('帮助与设置', 'Resources'));
+			if (english) document.querySelectorAll('[data-i18n]').forEach(node => { node.textContent = messages[node.dataset.i18n] || node.textContent; });
+			if (revision !== data.themeRevision) {
+				revision = data.themeRevision;
+				$('#ide-theme').onload = () => $('#ide-initial-theme')?.remove();
+				$('#ide-theme').href = '/ide-theme.css?revision=' + revision;
+			}
+			personal(data);
+			reconcile($('#favorite-items'), 'snapshot', [data.favorites, data.contextError], () => favorites(data.favorites, data.contextError));
+			reconcile($('#heatmap'), 'snapshot', data.heatmap, () => heatmap(data.heatmap));
+			$('#version').textContent = '';
+			$('#check').hidden = !update.configured; $('#apply').hidden = !update.pending;
+		} catch { $('#status').textContent = text('主页服务暂时不可用，请重新打开主页。', 'Home is unavailable. Please reopen it.'); }
+	})().finally(() => { refreshInFlight = undefined; });
+	return refreshInFlight;
+}
+$('#check').onclick = async () => {
+	$('#check').disabled = true;
+	try { const result = await api('/api/check', {}); $('#status').textContent = result.message; await refresh(); }
+	catch (error) { $('#status').textContent = error.message; }
+	finally { $('#check').disabled = false; }
+};
+$('#apply').onclick = () => location.assign('/?shortestpath-home=1');
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 3000);
+
+	</script>
+</body>
+</html>

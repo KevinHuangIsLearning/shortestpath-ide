@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 
 const english: Readonly<Record<string, string>> = {
+	'当前 IDE 版本不支持此功能，请升级 IDE。': 'This feature is not supported by this IDE version. Please upgrade the IDE.',
 	'导出环境检测日志': 'Export Environment Check Logs',
 	'导出日志': 'Export Logs',
 	'打开设置': 'Open Settings',

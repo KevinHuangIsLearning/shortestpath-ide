@@ -24,6 +24,7 @@ export interface IBrowserDarkReaderResource {
 export function browserDarkReaderHostname(url: string): string | undefined {
 	try {
 		const parsed = new URL(url);
+		if (parsed.hostname === '127.0.0.1' && parsed.searchParams.has('shortestpath-home')) { return undefined; }
 		return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.hostname.toLowerCase().replace(/\.$/, '') : undefined;
 	} catch {
 		return undefined;

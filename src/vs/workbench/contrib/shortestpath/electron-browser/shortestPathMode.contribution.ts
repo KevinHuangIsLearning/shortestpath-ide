@@ -5,6 +5,7 @@
 
 import '../browser/media/shortestPathMode.css';
 import '../browser/problemEditorActions.js';
+import './shortestPathHomepage.contribution.js';
 import { ShortestPathNavigation } from '../common/shortestPathNavigation.js';
 import { $, addDisposableListener, append, EventHelper, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
@@ -42,7 +43,7 @@ import { GroupsOrder, IEditorGroup, IEmbeddedEditorPart, IEditorGroupsService } 
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ViewContainerLocation } from '../../../common/views.js';
-import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { FLOATING_PANEL_MARGIN, IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorsOrder, IEditorWillOpenEvent } from '../../../common/editor.js';
@@ -70,6 +71,8 @@ const verticalTabsKey = 'shortestpath.browser.verticalTabs';
 const drawLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? '草稿' : localize('sp.draw', "Sketchpad");
 // allow-any-unicode-next-line
 const dashboardLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? '做题统计' : localize('sp.dashboard', "Dashboard");
+// allow-any-unicode-next-line
+const homeLabel = getNLSLanguage()?.toLowerCase().startsWith('zh') ? '主页' : localize('sp.home', "Home");
 const drawTitle = localize2('sp.switchDraw', "Open Sketchpad");
 // allow-any-unicode-next-line
 if (getNLSLanguage()?.toLowerCase().startsWith('zh')) { drawTitle.value = '打开草稿'; }
@@ -123,6 +126,12 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private readonly ready: Promise<void>;
 	private requestedMode: ShortestPathMode | undefined;
 	private surface!: HTMLElement;
+	private homeSurface!: HTMLElement;
+	private homePart: IEmbeddedEditorPart | undefined;
+	private homeInput: BrowserEditorInput | undefined;
+	private homeReady: Promise<void> | undefined;
+	private readonly homeStore = this._register(new MutableDisposable<DisposableStore>());
+	private homeButton!: HTMLButtonElement;
 	private browseButton!: HTMLButtonElement;
 	private solveButton!: HTMLButtonElement;
 	private snippetsButton!: HTMLButtonElement;
@@ -210,6 +219,8 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		// allow-any-unicode-next-line
 		this.switcher = append(this.layoutService.mainWindowNavigationContainer!, $('.shortestpath-mode-switch', { role: 'group', 'aria-label': localize('sp.mode', "工作模式") }));
 		this.switcher.parentElement!.prepend(this.switcher);
+		this.homeButton = this.button(this.switcher, homeLabel, () => this.switchMode('home'), 'home');
+		this.homeButton.classList.add('shortestpath-mode-home');
 		// allow-any-unicode-next-line
 		this.browseButton = this.button(this.switcher, localize('sp.browse', "浏览"), () => this.switchMode('browse'), 'globe');
 		this.browseButton.classList.add('shortestpath-mode-browse');
@@ -239,6 +250,8 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		const root = this.layoutService.mainContainer;
 		this.pageSurface = append(root, $('section.shortestpath-page-space'));
 		this.pageSurface.hidden = true;
+		this.homeSurface = append(this.pageSurface, $('.shortestpath-home-space'));
+		this.homeSurface.hidden = true;
 		this.drawingSurface = append(this.pageSurface, $('.shortestpath-drawing-space'));
 		// allow-any-unicode-next-line
 		this.surface = append(root, $('section.shortestpath-browser-space', { 'aria-label': localize('sp.browser', "网页浏览") }));
@@ -322,7 +335,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		if (this.requestedMode !== undefined) {
 			// An early navigation click takes precedence over the saved startup mode.
 			this.applyMode('solve');
-		} else if (isShortestPathPageMode(initialMode)) {
+		} else if (initialMode === 'home' || isShortestPathPageMode(initialMode)) {
 			this.applyMode('solve');
 			void this.ready.then(() => this.switchMode(initialMode)).catch(onUnexpectedError);
 		} else if (configured && initialMode !== 'solve') {
@@ -388,8 +401,20 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			await this.restoreDrawingTabs();
 			if (this.stopped || this.requestedMode !== mode) { return; }
 		}
+		if (mode === 'home') {
+			const existing = this.homeInput;
+			await this.ensureHomepage();
+			if (this.stopped || this.requestedMode !== mode) { return; }
+			if (existing && this.mode !== 'home') {
+				const url = await this.commands.executeCommand<string>('shortestpath.homepage.getUrl');
+				if (url) { await (await existing.resolve()).loadURL(url); }
+				if (this.stopped || this.requestedMode !== mode) { return; }
+			}
+		}
 		this.applyMode(mode);
-		if (mode === 'browse') {
+		if (mode === 'home') {
+			this.homePart?.activeGroup.focus();
+		} else if (mode === 'browse') {
 			if (!this.activeBrowser) { await this.ensureBrowserTab(); }
 			else { this.browserPart?.activeGroup.focus(); }
 			this.openHomeIfOnlyBlankTab();
@@ -430,7 +455,9 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	protected revealEditorMode(event: IEditorWillOpenEvent): void {
 		if (this.drawingPart?.groups.some(group => group.id === event.groupId)) { this.drawingEditorOptions.set(event.editor, event.options ?? {}); }
 		if (!shouldRevealSolveEditor(event)) { return; }
-		if (this.drawingPart?.groups.some(group => group.id === event.groupId)) {
+		if (this.homePart?.groups.some(group => group.id === event.groupId)) {
+			return;
+		} else if (this.drawingPart?.groups.some(group => group.id === event.groupId)) {
 			if (event.editor instanceof WebviewInput && getShortestPathPageMode(event.editor.extension?.id.value, event.editor.webview.providedViewType) === 'draw') {
 				if (this.mode !== 'draw') { this.applyMode('draw'); }
 			} else { void this.switchMode('solve').catch(onUnexpectedError); }
@@ -453,19 +480,23 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.mode = mode;
 		this.requestedMode = mode;
 		this.browsing.set(mode === 'browse');
-		this.pageMode.set(isShortestPathPageMode(mode));
+		this.pageMode.set(mode === 'home' || isShortestPathPageMode(mode));
 		this.drawing.set(mode === 'draw');
 		this.layoutService.mainContainer.classList.toggle('shortestpath-browsing', mode === 'browse');
-		this.layoutService.mainContainer.classList.toggle('shortestpath-page-mode', isShortestPathPageMode(mode));
+		this.layoutService.mainContainer.classList.toggle('shortestpath-page-mode', mode === 'home' || isShortestPathPageMode(mode));
+		this.layoutService.mainContainer.classList.toggle('shortestpath-home-mode', mode === 'home');
 		this.layoutService.mainContainer.classList.toggle('shortestpath-draw-mode', mode === 'draw');
 		this.surface.hidden = mode !== 'browse';
 		this.surface.inert = mode !== 'browse';
 		this.browserPart?.setVisible(mode === 'browse');
-		this.pageSurface.hidden = !isShortestPathPageMode(mode);
+		this.pageSurface.hidden = mode !== 'home' && !isShortestPathPageMode(mode);
+		if (this.homeSurface) { this.homeSurface.hidden = mode !== 'home'; }
+		this.homePart?.setVisible(mode === 'home');
 		this.drawingPart?.setVisible(mode === 'draw');
 		// allow-any-unicode-next-line
-		this.pageSurface.setAttribute('aria-label', mode === 'dashboard' ? dashboardLabel : mode === 'snippets' ? localize('sp.snippets', "代码片段") : mode === 'draw' ? drawLabel : localize('sp.settings', "设置"));
+		this.pageSurface.setAttribute('aria-label', mode === 'home' ? homeLabel : mode === 'dashboard' ? dashboardLabel : mode === 'snippets' ? localize('sp.snippets', "代码片段") : mode === 'draw' ? drawLabel : localize('sp.settings', "设置"));
 		this.browseButton.setAttribute('aria-pressed', String(mode === 'browse'));
+		this.homeButton?.setAttribute('aria-pressed', String(mode === 'home'));
 		this.solveButton.setAttribute('aria-pressed', String(mode === 'solve'));
 		this.snippetsButton.setAttribute('aria-pressed', String(mode === 'snippets'));
 		this.drawButton.setAttribute('aria-pressed', String(mode === 'draw'));
@@ -688,6 +719,35 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		const part = this._register(this.editorGroups.createEmbeddedEditorPart(container));
 		this._register(part.enforcePartOptions({ showTabs: 'multiple', enablePreview: false, closeEmptyGroups: true, pinnedTabsOnSeparateRow: false, wrapTabs: false }));
 		return part;
+	}
+
+	/** Home owns one native browser editor, outside the ordinary browser tabs. */
+	private ensureHomepage(): Promise<void> {
+		return this.homeReady ??= (async () => {
+			const url = await this.commands.executeCommand<string>('shortestpath.homepage.getUrl');
+			if (typeof url !== 'string') { throw new Error('Homepage service is unavailable'); }
+			const parsed = new URL(url);
+			if (parsed.protocol !== 'http:' || parsed.hostname !== '127.0.0.1' || !parsed.searchParams.has('shortestpath-home')) { throw new Error('Invalid homepage URL'); }
+			if (this.stopped) { return; }
+			if (!this.homePart) {
+				this.homePart = this._register(this.editorGroups.createEmbeddedEditorPart(this.homeSurface));
+				this._register(this.homePart.enforcePartOptions({ showTabs: 'none', enablePreview: false }));
+				this.homePart.setVisible(false);
+			}
+			const input = await this.browsers.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Ephemeral } });
+			if (this.stopped) { input.dispose(); return; }
+			this.homeInput = input;
+			const store = new DisposableStore();
+			this.homeStore.value = store;
+			store.add(input.onWillDispose(() => {
+				if (this.homeInput === input) { this.homeInput = undefined; this.homeReady = undefined; }
+				if (!this.stopped && this.mode === 'home') { void this.switchMode('solve').catch(onUnexpectedError); }
+			}));
+			try {
+				await (await input.resolve()).loadURL(url);
+				await this.editors.openEditor(input, { pinned: true, preserveFocus: true }, this.homePart.activeGroup);
+			} catch (error) { input.dispose(); this.homeInput = undefined; throw error; }
+		})().catch(error => { this.homeReady = undefined; throw error; });
 	}
 
 	protected createDrawingPart(container: HTMLElement): void {
@@ -995,7 +1055,10 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		const root = this.layoutService.mainContainer.getBoundingClientRect();
 		// Navigation can have transient collapsed bounds during workbench layout.
 		// Keep independent pages below the visible title bar and banner instead.
-		this.surface.style.top = `${this.layoutService.mainContainerOffset.top}px`;
+		const top = this.layoutService.mainContainerOffset.top;
+		// Independent surfaces live outside the grid, so they need the same perimeter
+		// gutter as the workspace when fullscreen hides the window chrome.
+		this.surface.style.top = `${top === 0 ? FLOATING_PANEL_MARGIN : top}px`;
 		this.surface.style.left = `${navigation.right - root.left}px`;
 		this.pageSurface.style.top = this.surface.style.top;
 		const editorContainer = this.layoutService.getContainer(mainWindow, Parts.EDITOR_PART);
@@ -1022,6 +1085,9 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		if (this.mode === 'browse') {
 			const bounds = (this.browserHost ?? this.surface).getBoundingClientRect();
 			this.browserPart?.layout(bounds.width, bounds.height, bounds.top, bounds.left);
+		} else if (this.mode === 'home' && this.homeSurface) {
+			const bounds = this.homeSurface.getBoundingClientRect();
+			this.homePart?.layout(bounds.width, bounds.height, bounds.top, bounds.left);
 		}
 	}
 
@@ -1047,6 +1113,8 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.saveTabs();
 		this.stopped = true;
 		this.browserPart?.setVisible(false);
+		this.homePart?.setVisible(false);
+		this.homeInput?.dispose();
 		for (const [mode, input] of this.pages) { if (mode !== 'draw') { input.dispose(); } }
 		this.surface?.remove();
 		this.pageSurface?.remove();
@@ -1087,6 +1155,7 @@ for (const [id, direction, title] of [
 }
 
 const modeTitles = {
+	home: { ...localize2('sp.switchHome', "Open Home"), value: homeLabel },
 	dashboard: { ...localize2('sp.switchDashboard', "Open Dashboard"), value: dashboardLabel },
 	// allow-any-unicode-next-line
 	browse: localize2('sp.switchBrowse', "切换到浏览模式"),
@@ -1098,7 +1167,7 @@ const modeTitles = {
 	// allow-any-unicode-next-line
 	settings: localize2('sp.switchSettings', "打开设置"),
 };
-for (const mode of ['browse', 'solve', 'snippets', 'draw', 'settings', 'dashboard'] as const) {
+for (const mode of ['home', 'browse', 'solve', 'snippets', 'draw', 'settings', 'dashboard'] as const) {
 	registerAction2(class extends Action2 {
 		constructor() { super({ id: `shortestpath.mode.${mode}`, title: modeTitles[mode], f1: true }); }
 		run(accessor: ServicesAccessor): Promise<void> { return accessor.get(IShortestPathModeService).switchMode(mode); }

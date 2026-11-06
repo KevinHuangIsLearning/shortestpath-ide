@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -42,7 +42,9 @@ import { QuickAccessPreviousRecentlyUsedEditorAction, QuickAccessLeastRecentlyUs
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
+import { BrowserFavoritesStore } from '../../../browserView/electron-browser/features/browserFavoritesFeature.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { canImportBrowserProblem, BrowserProblemImportFeature } from '../../../browserView/electron-browser/features/browserProblemImportFeature.js';
 import { BrowserEditor } from '../../../browserView/electron-browser/browserEditor.js';
@@ -73,6 +75,48 @@ class TestModeService extends ShortestPathModeService {
 suite('ShortestPath browser routing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('homepage favorites survive the command accessor lifetime and recent-project failures', async () => {
+		for (const failRecent of [false, true]) {
+			const instantiation = workbenchInstantiationService(undefined, store);
+			instantiation.stub(IWorkspacesService, new class extends mock<IWorkspacesService>() {
+				override async getRecentlyOpened() {
+					await Promise.resolve();
+					if (failRecent) { throw new Error('Recent projects unavailable'); }
+					return { workspaces: [], files: [] };
+				}
+			});
+			const storage = instantiation.invokeFunction(accessor => accessor.get(IStorageService));
+			const favorites = store.add(new BrowserFavoritesStore(storage));
+			favorites.toggle('https://example.com/');
+			favorites.rename('https://example.com/', 'Saved site');
+			favorites.updateMetadata('https://example.com/', undefined, 'data:image/png;base64,aWNvbg==');
+			favorites.toggle('https://remote-icon.example/');
+			favorites.updateMetadata('https://remote-icon.example/', undefined, 'https://remote-icon.example/favicon.ico');
+			const result = await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand('shortestpath.homepage.getContext')!.handler(accessor)) as unknown as { favorites: { url: string; name: string }[] };
+			assert.deepStrictEqual(result.favorites.find(item => item.url === 'https://example.com/'), { url: 'https://example.com/', name: 'Saved site', favicon: 'data:image/png;base64,aWNvbg==' });
+			assert.deepStrictEqual(result.favorites.find(item => item.url === 'https://remote-icon.example/'), { url: 'https://remote-icon.example/', name: 'remote-icon.example', favicon: undefined });
+		}
+	});
+
+	test('homepage owns a native editor surface without joining browser tabs', async () => {
+		const calls: string[] = [];
+		let options: object | undefined;
+		const group = {};
+		const model = { loadURL: async () => { calls.push('load'); } };
+		const input = { resolve: async () => model, onWillDispose: Event.None };
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			_register: (item: IDisposable) => store.add(item),
+			homeStore: store.add(new MutableDisposable<DisposableStore>()),
+			homeSurface: document.createElement('div'),
+			commands: { executeCommand: async (id: string) => { calls.push(id); return 'http://127.0.0.1:4317/?shortestpath-home=1'; } },
+			editorGroups: { createEmbeddedEditorPart: () => ({ dispose() { }, setVisible() { }, activeGroup: group, enforcePartOptions: (value: object) => { options = value; return toDisposable(() => { }); } }) },
+			browsers: { createBrowserView: async () => { calls.push('create'); return input; } },
+			editors: { openEditor: async (_input: object, _options: object, target: object) => { assert.strictEqual(target, group); calls.push('open'); } },
+		}) as { ensureHomepage(): Promise<void> };
+		await Promise.all([service.ensureHomepage(), service.ensureHomepage()]);
+		assert.deepStrictEqual({ options, calls }, { options: { showTabs: 'none', enablePreview: false }, calls: ['shortestpath.homepage.getUrl', 'create', 'load', 'open'] });
+	});
+
 	test('independent pages remain visible when navigation collapses at the window bottom', () => {
 		const root = document.createElement('div');
 		root.style.cssText = 'position:relative;width:600px;height:400px';
@@ -96,8 +140,9 @@ suite('ShortestPath browser routing', () => {
 			},
 			browserPart: { layout: (...size: number[]) => sizes.push(size) },
 		}) as { layout(): void };
-		for (const top of [35, 61, 0]) {
-			offset.top = top;
+		for (const chromeTop of [35, 61, 0, 35]) {
+			offset.top = chromeTop;
+			const top = chromeTop === 0 ? 4 : chromeTop;
 			service.layout();
 			const bounds = surface.getBoundingClientRect();
 			const pageBounds = pageSurface.getBoundingClientRect();

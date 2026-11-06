@@ -234,3 +234,7 @@ extensions/shortestpath.judger/webpack.preview.config.js
 # Existing build entrypoint and desktop extension-host test driver.
 extensions/shortestpath.draw/esbuild.mjs
 test/ide-bridge/host.cjs
+
+# Homepage server and Node test runner are loaded directly without a bundler.
+extensions/shortestpath.setup/homepage/server.cjs
+extensions/shortestpath.setup/homepage/server.test.cjs

@@ -7,7 +7,7 @@ import { confirmAndUpdateDashboardCompletion } from '../dashboardCompletion';
 import fs from 'fs/promises';
 import crypto from 'crypto';
 import { readDashboard, dashboardContains } from '../dashboardRepository';
-import { buildDashboard, DashboardFilter, DashboardProblem, DashboardRange, validDashboardRange } from '../dashboardStats';
+import { buildDashboard, dashboardDate, DashboardFilter, DashboardProblem, DashboardRange, validDashboardRange } from '../dashboardStats';
 import { isShortestPathProblem, elapsedOjTime } from '../problemTimer';
 import { getVjudgeOjNames, getSaveLocationPref } from '../preferences';
 import { restoreOriginalProblemUrl } from '../problemDisplay';
@@ -16,10 +16,34 @@ import { webviewBootstrap } from '../webviewBootstrap';
 import { translations } from './translations';
 import localize from '../i18n';
 
+/** Both the Dashboard and Home read the same normalized records and server timers. */
+async function loadDashboardData(year?: number, filter: DashboardFilter = {}, range?: DashboardRange) {
+	const roots = vscode.workspace.workspaceFolders?.filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath) ?? [];
+	const result = await readDashboard(roots, getSaveLocationPref() || undefined);
+	for (const record of result.records) {
+		record.originalUrl = restoreOriginalProblemUrl(record.url, getVjudgeOjNames());
+		if (!isShortestPathProblem(record.url)) { continue; }
+		// Existing API validates the cached problem and its source binding.
+		try {
+			const timer = await vscode.commands.executeCommand<OjTimer | undefined>('shortestpath.oj.getTimerForJudger', record.url, record.srcPath);
+			if (timer && typeof timer.accepted === 'boolean' && Number.isFinite(timer.elapsedMs) && timer.elapsedMs >= 0) { record.serverAccepted = timer.accepted; record.serverElapsedMs = elapsedOjTime(timer); record.serverRunning = timer.mode === 'timed' && timer.running && !timer.accepted; }
+		} catch { /* Missing or invalid cache has no inferred server state. */ }
+		// Local completion fields are not authoritative for server problems.
+		if (record.serverAccepted === undefined) { record.timeAcceptedAtUnixMs = undefined; record.timePartialAcceptedAtUnixMs = undefined; }
+	}
+	return { ...buildDashboard(result.records, year, filter, new Date(), range), skipped: result.skipped };
+}
+
 /** One standalone page per extension instance; all paths and URLs come from the host snapshot. */
 export function registerDashboard(context: vscode.ExtensionContext): void {
 	let panel: vscode.WebviewPanel | undefined;
 	let refresh: (() => Promise<void>) | undefined;
+	context.subscriptions.push(vscode.commands.registerCommand('judger.getHomepageHeatmap', async () => {
+		const now = new Date();
+		const range = { start: dashboardDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 364)), end: dashboardDate(now) };
+		const data = await loadDashboardData(undefined, {}, range);
+		return { days: data.days, skipped: data.skipped };
+	}));
 	context.subscriptions.push(vscode.commands.registerCommand('judger.refreshDashboard', () => refresh?.()));
 	context.subscriptions.push(vscode.commands.registerCommand('judger.openDashboard', () => {
 		if (panel) { const alreadyActive = panel.active; panel.reveal(); if (alreadyActive) { void refresh?.(); } return; }
@@ -33,21 +57,8 @@ export function registerDashboard(context: vscode.ExtensionContext): void {
 			selection = { year, filter, range };
 			const version = ++revision;
 			try {
-				const roots = vscode.workspace.workspaceFolders?.filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath) ?? [];
-				const result = await readDashboard(roots, getSaveLocationPref() || undefined);
-				for (const record of result.records) {
-					record.originalUrl = restoreOriginalProblemUrl(record.url, getVjudgeOjNames());
-					if (!isShortestPathProblem(record.url)) { continue; }
-					// Existing API validates the cached problem and its source binding.
-					try {
-						const timer = await vscode.commands.executeCommand<OjTimer | undefined>('shortestpath.oj.getTimerForJudger', record.url, record.srcPath);
-						if (timer && typeof timer.accepted === 'boolean' && Number.isFinite(timer.elapsedMs) && timer.elapsedMs >= 0) { record.serverAccepted = timer.accepted; record.serverElapsedMs = elapsedOjTime(timer); record.serverRunning = timer.mode === 'timed' && timer.running && !timer.accepted; }
-					} catch { /* Missing or invalid cache has no inferred server state. */ }
-					// Local completion fields are not authoritative for server problems.
-					if (record.serverAccepted === undefined) { record.timeAcceptedAtUnixMs = undefined; record.timePartialAcceptedAtUnixMs = undefined; }
-				}
+				const data = { ...await loadDashboardData(year, filter, range), revision: version };
 				if (disposed || version !== revision) { return; }
-				const data = { ...buildDashboard(result.records, year, filter, new Date(), range), revision: version, skipped: result.skipped };
 				problems = new Map(data.problems.map(problem => [problem.id, problem]));
 				await current.webview.postMessage({ command: 'dashboard-data', data });
 			} catch { if (!disposed && version === revision) { await current.webview.postMessage({ command: 'dashboard-error' }); } }

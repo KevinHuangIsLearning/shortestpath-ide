@@ -17,6 +17,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { localizeNewTab } from '../../../shortestpath/browser/shortestPathNewTabInput.js';
 import { IShortestPathModeService } from '../../../shortestpath/common/shortestPathMode.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
+import { BrowserSourceEditorInput } from '../../common/browserSourceEditorInput.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BROWSER_EDITOR_ACTIVE, BrowserActionGroup, BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget } from '../browserEditor.js';
 
@@ -86,7 +87,11 @@ export class BrowserProblemImportFeature extends BrowserEditorContribution {
 		}));
 	}
 
-	override prerenderInput(input: BrowserEditorInput): void { this.canImport.set(canImportBrowserProblem(input.url)); }
+	private canImportInput(input: BrowserEditorInput | undefined): boolean {
+		return !!input && canImportBrowserProblem(input.url) && !this.editor.group?.editors.some(owner => owner instanceof BrowserSourceEditorInput && owner.secondary === input);
+	}
+
+	override prerenderInput(input: BrowserEditorInput): void { this.canImport.set(this.canImportInput(input)); }
 
 	override get widgets(): readonly IBrowserEditorWidget[] {
 		return [{ location: BrowserWidgetLocation.Toolbar, element: this.hint, order: 1 }];
@@ -101,11 +106,11 @@ export class BrowserProblemImportFeature extends BrowserEditorContribution {
 
 	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this.model = model;
-		this.canImport.set(canImportBrowserProblem(model.url));
+		this.canImport.set(this.canImportInput(this.editor.input));
 		const schedule = () => {
 			this.generation++;
 			this.matched = false;
-			this.canImport.set(canImportBrowserProblem(model.url));
+			this.canImport.set(this.canImportInput(this.editor.input));
 			this.updateHint();
 			this.detect.schedule();
 		};
@@ -133,7 +138,7 @@ export class BrowserProblemImportFeature extends BrowserEditorContribution {
 
 	private async detectProblem(): Promise<void> {
 		const model = this.model, input = this.editor.input;
-		if (!model || model.loading || !this.isSurfaceVisible() || this.busy || !(input instanceof BrowserEditorInput) || !canImportBrowserProblem(model.url) || this.storage.getBoolean(hintDismissedKey, StorageScope.PROFILE, false) || this.dismissedUrl === model.url) { return; }
+		if (!model || model.loading || !this.isSurfaceVisible() || this.busy || !(input instanceof BrowserEditorInput) || !this.canImportInput(input) || this.storage.getBoolean(hintDismissedKey, StorageScope.PROFILE, false) || this.dismissedUrl === model.url) { return; }
 		const generation = this.generation, url = model.url;
 		try {
 			const matched = await this.commands.executeCommand<boolean>('judger.canImportBrowserProblem', input.id, url);
@@ -149,7 +154,7 @@ export class BrowserProblemImportFeature extends BrowserEditorContribution {
 	}
 
 	private updateHint(): void {
-		const hidden = !this.isSurfaceVisible() || !this.matched || this.busy || this.dismissedUrl === this.model?.url || this.storage.getBoolean(hintDismissedKey, StorageScope.PROFILE, false);
+		const hidden = !this.isSurfaceVisible() || !this.matched || !this.canImportInput(this.editor.input) || this.busy || this.dismissedUrl === this.model?.url || this.storage.getBoolean(hintDismissedKey, StorageScope.PROFILE, false);
 		if (this.hint.hidden !== hidden) {
 			this.hint.hidden = hidden;
 			this.hint.classList.toggle('visible', !hidden);
@@ -165,12 +170,16 @@ export class BrowserProblemImportFeature extends BrowserEditorContribution {
 
 	private positionArrow(): void {
 		if (this.hint.hidden) { return; }
+		const sourceWindow = dom.getWindow(this.anchorRoot ?? this.hint);
+		// The native overlay has its own small viewport. Size against the editor
+		// window so moving the hint into that viewport cannot shrink it repeatedly.
+		const maxWidth = `${Math.max(0, sourceWindow.innerWidth - 16)}px`;
+		if (this.hint.style.maxWidth !== maxWidth) { this.hint.style.maxWidth = maxWidth; }
 		// eslint-disable-next-line no-restricted-syntax
 		const target = (this.anchorRoot ?? this.hint.parentElement)?.querySelector<HTMLElement>('.browser-actions-toolbar .codicon-cloud-download');
 		const bounds = target?.getBoundingClientRect();
 		this.arrow.hidden = !bounds?.width;
 		if (bounds?.width) {
-			const sourceWindow = dom.getWindow(target!);
 			const width = this.hint.offsetWidth;
 			const left = Math.max(8, Math.min(bounds.right - width, sourceWindow.innerWidth - width - 8));
 			this.hint.style.left = `${left}px`;
@@ -187,7 +196,7 @@ export class BrowserProblemImportFeature extends BrowserEditorContribution {
 
 	async importProblem(): Promise<void> {
 		const input = this.editor.input;
-		if (this.busy || !(input instanceof BrowserEditorInput) || !canImportBrowserProblem(input.url)) { return; }
+		if (this.busy || !(input instanceof BrowserEditorInput) || !this.canImportInput(input)) { return; }
 		this.dismissHint();
 		this.busy = true;
 		this.importing.set(true);

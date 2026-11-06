@@ -511,7 +511,7 @@
 	display: none;
 }
 
-.monaco-workbench.shortestpath-page-mode:not(.shortestpath-draw-mode) .part:not(.titlebar):not(.banner):not(.modal-editor-part),
+.monaco-workbench.shortestpath-page-mode:not(.shortestpath-draw-mode) .part:not(.titlebar):not(.banner):not(.embedded-editor-part):not(.modal-editor-part),
 .monaco-workbench.shortestpath-draw-mode .part:not(.titlebar):not(.banner):not(.sidebar):not(.activitybar):not(.embedded-editor-part):not(.modal-editor-part) {
 	visibility: hidden;
 }
@@ -588,6 +588,21 @@
 .shortestpath-drawing-space {
 	width: 100%;
 	height: 100%;
+}
+
+.shortestpath-home-space {
+	width: 100%;
+	height: 100%;
+}
+
+.shortestpath-home-space[hidden],
+.shortestpath-home-space .browser-navbar {
+	display: none;
+}
+
+.shortestpath-mode-switch .shortestpath-mode-home[aria-pressed="true"],
+.shortestpath-mode-switch .shortestpath-mode-home:focus-visible {
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 /* Native tabs own the top corners; the canvas rounds only the workspace bottom edges. */

@@ -51,6 +51,9 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		const toolActions = this.addColumn(columns, localizeNewTab('Tools & Resources', '工具与资源'));
 
 		// allow-any-unicode-next-line
+		this.addAction(fileActions, localizeNewTab('Open Home', '打开主页'), 'codicon-home', () => this.commandService.executeCommand('shortestpath.homepage.open'));
+
+		// allow-any-unicode-next-line
 		this.addAction(fileActions, localizeNewTab('New File...', '新建文件...'), 'codicon-new-file', () => this.commandService.executeCommand('workbench.action.files.newUntitledFile', { languageId: this.configurationService.getValue<string>('shortestpath.newFile.defaultLanguage') || 'cpp' }));
 
 		// allow-any-unicode-next-line
