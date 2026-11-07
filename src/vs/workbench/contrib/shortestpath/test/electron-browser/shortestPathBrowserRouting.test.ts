@@ -98,6 +98,22 @@ suite('ShortestPath browser routing', () => {
 		}
 	});
 
+	test('only a remote boolean true permits switching to Home', async () => {
+		for (const enabled of [false, undefined, 'true', true]) {
+			const calls: string[] = [];
+			const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+				ready: Promise.resolve(), mode: 'solve',
+				commands: { executeCommand: async (id: string) => { calls.push(id); return enabled; } },
+				ensureHomepage: async () => { calls.push('create-home'); },
+				applyMode(mode: string) { this.mode = mode; },
+				homePart: { activeGroup: { focus() { } } },
+			}) as ShortestPathModeService;
+			await service.switchMode('home');
+			assert.strictEqual(service.mode, enabled === true ? 'home' : 'solve');
+			assert.deepStrictEqual(calls, enabled === true ? ['shortestpath.homepage.isEnabled', 'create-home'] : ['shortestpath.homepage.isEnabled']);
+		}
+	});
+
 	test('homepage owns a native editor surface without joining browser tabs', async () => {
 		const calls: string[] = [];
 		let options: object | undefined;

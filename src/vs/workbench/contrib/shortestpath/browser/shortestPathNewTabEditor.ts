@@ -13,6 +13,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { localizeNewTab } from './shortestPathNewTabInput.js';
@@ -32,6 +33,7 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(ShortestPathNewTabEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -51,7 +53,12 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		const toolActions = this.addColumn(columns, localizeNewTab('Tools & Resources', '工具与资源'));
 
 		// allow-any-unicode-next-line
-		this.addAction(fileActions, localizeNewTab('Open Home', '打开主页'), 'codicon-home', () => this.commandService.executeCommand('shortestpath.homepage.open'));
+		const homeAction = this.addAction(fileActions, localizeNewTab('Open Home', '打开主页'), 'codicon-home', () => this.commandService.executeCommand('shortestpath.homepage.open'));
+		const updateHomeAction = () => { homeAction.hidden = this.contextKeyService.getContextKeyValue<boolean>('shortestpath.homepageEnabled') !== true; };
+		updateHomeAction();
+		this._register(this.contextKeyService.onDidChangeContext(event => {
+			if (event.affectsSome(new Set(['shortestpath.homepageEnabled']))) { updateHomeAction(); }
+		}));
 
 		// allow-any-unicode-next-line
 		this.addAction(fileActions, localizeNewTab('New File...', '新建文件...'), 'codicon-new-file', () => this.commandService.executeCommand('workbench.action.files.newUntitledFile', { languageId: this.configurationService.getValue<string>('shortestpath.newFile.defaultLanguage') || 'cpp' }));

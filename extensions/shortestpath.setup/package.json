@@ -20,7 +20,7 @@
 	"activationEvents": ["*", "onCommand:shortestpath.setupEnvironment", "onCommand:shortestpath.redetectToolchain", "onCommand:shortestpath.repairToolchain", "onCommand:shortestpath.openSettings", "onCommand:shortestpath.configureCph", "onCommand:shortestpath.configureCppSnippets", "onCommand:shortestpath.configureAutoFormat", "onCommand:shortestpath.openGettingStarted", "onCommand:shortestpath.openToolchainDiagnostics"],
 	"main": "./out/extension.js",
 	"scripts": {
-		"compile": "node ../../node_modules/typescript/bin/tsc6 -p ./",
+		"compile": "node ../../node_modules/typescript/bin/tsc6 -p ./ && node -e \"const fs = require('node:fs'); fs.mkdirSync('homepage/public', { recursive: true }); fs.copyFileSync('../../remote_configurations/homepage/index.html', 'homepage/public/index.html');\"",
 		"test": "npm run compile && node --test out/test/*.test.js",
 		"vscode:prepublish": "npm run compile"
 	},
@@ -94,6 +94,7 @@
 			{
 				"command": "shortestpath.homepage.open",
 				"title": "%command.openHomepage%",
+				"enablement": "shortestpath.homepageEnabled",
 				"icon": "$(home)"
 			},
 			{
@@ -156,6 +157,9 @@
 			}
 		],
 		"menus": {
+			"commandPalette": [
+				{ "command": "shortestpath.homepage.open", "when": "shortestpath.homepageEnabled" }
+			],
 			"view/title": [
 				{
 					"command": "shortestpath.showAllFiles",

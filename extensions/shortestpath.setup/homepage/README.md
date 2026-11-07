@@ -1,6 +1,8 @@
 # Home
 
-`public/index.html` is the complete distributed page. Its CSS, JavaScript, countdown targets and motivational copy are inline. Configure `homepageSource` in `src/homepage.ts` before building: `owner`, `repository`, `ref` and `file` identify the published HTML. The updater requests GitHub first and tries GitCode if that download fails. Both raw URL forms are provided in `homepageSourceUrls`. GitCode requires a published repository there; its default coordinates are a template, not a provisioned mirror. There is no user setting for the source, resource archive or separate content/manifest JSON. Until the file is published, failed update checks retain the bundled/cached page.
+`remote_configurations/homepage/index.html` at the repository root is the complete distributed page. Its CSS, JavaScript, countdown targets and motivational copy are inline. Setup compilation copies it to `homepage/public/index.html` as the installed offline default; edit only the source in `remote_configurations`. Configure repository coordinates in `src/homepage.ts` before building. Both the page and feature flags request GitHub first and try GitCode if that request fails. GitCode requires a published mirror there. There is no user setting for the source or resource archive.
+
+Home is enabled only when the remote `remote_configurations/configurations/features.json` contains `"homepage": true`. Missing fields, non-boolean values, malformed files and failure of both sources disable Home. The committed default is false. Flags are fetched when Setup activates and every 12 hours, without persisting an enabled value offline. Disabled Home hides navigation and command entries and prevents its local server from starting; disabling it while open returns to solving and closes the server.
 
 Favorite icons reuse the browser's saved image data URIs. Home never requests favorite websites or `/favicon.ico`; missing icons display initials. The server does not inject a CSP.
 
@@ -19,3 +21,5 @@ The updater checks the direct HTML URL at server startup and every 12 hours. It 
 NOIP 2026 uses the [official November 28 date](https://noi.cn/xw/2026-10-12/938849.shtml). The bundled NOI 2027 target has no speculative date. Countdown targets and dates are owned exclusively by the distributed HTML. The IDE supplies the current time; there is no user configuration or local override.
 
 Build: `npm run compile` in the extension directory. Bridge/update checks: `node --test homepage/server.test.cjs`.
+
+Local development: launch the source IDE with `SHORTESTPATH_HOMEPAGE_DEBUG=1 ./scripts/code.sh` from the repository root. Home reads `remote_configurations/homepage/index.html` on every navigation, so edit the HTML and re-enter Home without rebuilding. Real IDE data and theme injection remain active. Source builds only; the environment variable cannot enable Home in packaged builds.

@@ -11,7 +11,7 @@ const hash = data => createHash('sha256').update(data).digest('hex');
 const validId = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 
 /** The remotely distributed artifact is one HTML file; IDE data and CSS stay local. */
-async function createHomepageServer({ dataDir, sourceUrl = '', fallbackSourceUrl = '', intervalMs = 12 * 60 * 60_000, getData = async () => ({}), getTheme = async () => '', executeCommand = async () => { throw new Error('Command bridge unavailable'); } }) {
+async function createHomepageServer({ dataDir, sourceUrl = '', fallbackSourceUrl = '', localHtmlPath, intervalMs = 12 * 60 * 60_000, getData = async () => ({}), getTheme = async () => '', executeCommand = async () => { throw new Error('Command bridge unavailable'); } }) {
 	const releases = path.join(dataDir, 'releases');
 	await mkdir(releases, { recursive: true });
 	const fallback = await readFile(path.join(__dirname, 'public', 'index.html'));
@@ -35,7 +35,7 @@ async function createHomepageServer({ dataDir, sourceUrl = '', fallbackSourceUrl
 			if (entry.isDirectory() && validId(entry.name) && entry.name !== current && entry.name !== pending) {await rm(path.join(releases, entry.name), { recursive: true, force: true });}
 		}
 	};
-	const status = () => ({ current, pending, message, configured: !!sourceUrl });
+	const status = () => ({ current, pending: localHtmlPath ? null : pending, message, configured: !localHtmlPath && !!sourceUrl });
 	async function download() {
 		let failure;
 		for (const url of [sourceUrl, fallbackSourceUrl].filter(Boolean)) {
@@ -54,7 +54,7 @@ async function createHomepageServer({ dataDir, sourceUrl = '', fallbackSourceUrl
 		throw failure;
 	}
 	async function performCheck() {
-		if (!sourceUrl) { message = '尚未配置主页更新地址。'; return; }
+		if (localHtmlPath || !sourceUrl) { message = '尚未配置主页更新地址。'; return; }
 		let staging;
 		try {
 			const { response, bytes, url } = await download();
@@ -102,12 +102,14 @@ async function createHomepageServer({ dataDir, sourceUrl = '', fallbackSourceUrl
 				return res.end(await getTheme());
 			}
 			if (url.pathname === '/') {
+				if (localHtmlPath) { res.writeHead(302, { Location: '/debug/index.html?shortestpath-home=1', 'Cache-Control': 'no-store' }); return res.end(); }
 				if (pending) { const previous = current; current = pending; pending = null; try { await persist(); } catch (error) { pending = current; current = previous; throw error; } await clean(); }
 				res.writeHead(302, { Location: '/releases/' + current + '/index.html?shortestpath-home=1', 'Cache-Control': 'no-store' }); return res.end();
 			}
 			const match = /^\/releases\/([a-f0-9]{64})\/index\.html$/.exec(url.pathname);
-			if (!match) {return json(res, 404, { error: 'Not found' });}
-			const html = await readFile(path.join(releases, match[1], 'index.html'), 'utf8');
+			const debug = localHtmlPath && url.pathname === '/debug/index.html';
+			if (!match && !debug) {return json(res, 404, { error: 'Not found' });}
+			const html = await readFile(debug ? localHtmlPath : path.join(releases, match[1], 'index.html'), 'utf8');
 			const [data, css] = await Promise.all([getData(), getTheme()]);
 			const safeData = JSON.stringify(data).replaceAll('<', '\\u003c');
 			const bootstrap = '<script>window.shortestpath={initialData:' + safeData + ',executeCommand:async function(command,...args){const response=await fetch("/api/command",{method:"POST",headers:{"Content-Type":"application/json","X-ShortestPath-Homepage":"1"},body:JSON.stringify({command,args})});const value=await response.json();if(!response.ok)throw new Error(value.error);return value;}};</script>';
@@ -123,7 +125,7 @@ async function createHomepageServer({ dataDir, sourceUrl = '', fallbackSourceUrl
 		async listen(port = 0) {
 			await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
 			origin = 'http://127.0.0.1:' + server.address().port;
-			if (sourceUrl) { void check(); timer = setInterval(check, intervalMs); timer.unref(); }
+			if (sourceUrl && !localHtmlPath) { void check(); timer = setInterval(check, intervalMs); timer.unref(); }
 			return origin;
 		},
 		async close() { clearInterval(timer); if (checking) {await checking;} server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }

@@ -94,6 +94,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/shortestpath.setup/src/localization.ts',
 	'!extensions/shortestpath.setup/src/homepage.ts',
 	'!extensions/shortestpath.setup/homepage/**',
+	'!remote_configurations/homepage/**',
 	'!extensions/shortestpath.setup/src/simpleSettings.ts',
 	'!extensions/shortestpath.setup/src/extension.ts',
 	'!extensions/shortestpath.setup/src/gettingStarted.ts',

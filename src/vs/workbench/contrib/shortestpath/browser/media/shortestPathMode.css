@@ -505,6 +505,7 @@
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
 }
 
+.shortestpath-mode-home[hidden],
 .shortestpath-result-badge[hidden],
 .shortestpath-page-space[hidden],
 .shortestpath-browser-space[hidden] {

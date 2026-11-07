@@ -7,18 +7,23 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { createHomepageServer, type HomepageServer } from '../homepage/server.cjs';
 import { localize } from './localization';
+import { fetchFeatureConfiguration } from './featureConfiguration';
 
 // Build-time configuration. GitCode requires publishing the same HTML in its repository.
 const homepageSource = {
 	owner: 'KevinHuangIsLearning',
 	repository: 'shortestpath-ide',
 	ref: 'main',
-	file: 'extensions/shortestpath.setup/homepage/public/index.html',
+	file: 'remote_configurations/homepage/index.html',
 };
 const homepageSourceUrls = {
 	github: `https://raw.githubusercontent.com/${homepageSource.owner}/${homepageSource.repository}/${homepageSource.ref}/${homepageSource.file}`,
 	gitcode: `https://raw.gitcode.com/${homepageSource.owner}/${homepageSource.repository}/raw/${homepageSource.ref}/${homepageSource.file}`,
 };
+const featureConfigurationUrls = [
+	`https://raw.githubusercontent.com/${homepageSource.owner}/${homepageSource.repository}/${homepageSource.ref}/remote_configurations/configurations/features.json`,
+	`https://raw.gitcode.com/${homepageSource.owner}/${homepageSource.repository}/raw/${homepageSource.ref}/remote_configurations/configurations/features.json`,
+];
 
 /** Own the loopback server per extension host; start it only when Home is opened. */
 export function registerHomepage(context: vscode.ExtensionContext): void {
@@ -27,6 +32,29 @@ export function registerHomepage(context: vscode.ExtensionContext): void {
 	let themeRevision = 0;
 	let data: Promise<object> | undefined;
 	let dataTime = 0;
+	let homepageEnabled = false;
+	let featureCheck: Promise<boolean> | undefined;
+	const debugPath = (async () => {
+		if (process.env.SHORTESTPATH_HOMEPAGE_DEBUG !== '1' || await vscode.commands.executeCommand('shortestpath.homepage.isDevelopment') !== true) { return undefined; }
+		return path.resolve(context.extensionPath, '../../remote_configurations/homepage/index.html');
+	})().catch(() => undefined);
+	const refreshFeatures = () => featureCheck ??= (async () => {
+		const features = await debugPath ? { homepage: true } : await fetchFeatureConfiguration(featureConfigurationUrls);
+		if (disposed) { return false; }
+		homepageEnabled = features.homepage;
+		await vscode.commands.executeCommand('setContext', 'shortestpath.homepageEnabled', homepageEnabled);
+		if (!homepageEnabled && instance) {
+			const previous = instance;
+			instance = undefined;
+			await previous.then(({ server }) => server.close()).catch(error => console.error('Failed to close disabled homepage', error));
+		}
+		return homepageEnabled;
+	})().finally(() => { featureCheck = undefined; });
+	void refreshFeatures().catch(error => console.error('Failed to load feature configuration', error));
+	const featureTimer = setInterval(() => refreshFeatures().catch(error => console.error('Failed to refresh feature configuration', error)), 12 * 60 * 60_000);
+	featureTimer.unref();
+	const isEnabled = () => featureCheck ?? Promise.resolve(homepageEnabled);
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.homepage.isEnabled', isEnabled));
 	const commands = new Map<string, (args: readonly string[]) => PromiseLike<unknown>>([
 		['workbench.action.files.newUntitledFile', async () => {
 			await vscode.commands.executeCommand('shortestpath.mode.solve');
@@ -59,10 +87,12 @@ export function registerHomepage(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => { data = undefined; }));
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(() => { data = undefined; }));
 	const start = async () => {
+		const localHtmlPath = await debugPath;
 		const server = await createHomepageServer({
-			dataDir: path.join(context.globalStorageUri.fsPath, 'homepage-html'),
-			sourceUrl: homepageSourceUrls.github,
-			fallbackSourceUrl: homepageSourceUrls.gitcode,
+			dataDir: path.join(context.globalStorageUri.fsPath, localHtmlPath ? 'homepage-debug' : 'homepage-html'),
+			sourceUrl: localHtmlPath ? '' : homepageSourceUrls.github,
+			fallbackSourceUrl: localHtmlPath ? '' : homepageSourceUrls.gitcode,
+			localHtmlPath,
 			getData,
 			getTheme: () => vscode.commands.executeCommand<string>('shortestpath.homepage.getTheme'),
 			executeCommand: async (command, args) => {
@@ -84,15 +114,18 @@ export function registerHomepage(context: vscode.ExtensionContext): void {
 		}
 	};
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.homepage.getUrl', async () => {
-		if (disposed) { return; }
+		if (disposed || !await isEnabled()) { return; }
 		instance ??= start().catch(error => { instance = undefined; throw error; });
 		const { origin } = await instance;
 		return `${origin}/?shortestpath-home=1`;
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.homepage.open', () => vscode.commands.executeCommand('shortestpath.mode.home')));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.homepage.open', async () => {
+		if (await isEnabled()) { await vscode.commands.executeCommand('shortestpath.mode.home'); }
+	}));
 	context.subscriptions.push({
 		dispose: () => {
 			disposed = true;
+			clearInterval(featureTimer);
 			void instance?.then(({ server }) => server.close()).catch(error => console.error('Failed to close homepage server', error));
 		}
 	});

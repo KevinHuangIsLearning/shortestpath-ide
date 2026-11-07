@@ -15,12 +15,15 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { BrowserFavoritesStore } from '../../browserView/electron-browser/features/browserFavoritesFeature.js';
 import { IShortestPathModeService } from '../common/shortestPathMode.js';
 
 function recentResource(item: IRecent): URI {
 	return isRecentFile(item) ? item.fileUri : isRecentFolder(item) ? item.folderUri : item.workspace.configPath;
 }
+
+CommandsRegistry.registerCommand('shortestpath.homepage.isDevelopment', accessor => !accessor.get(IWorkbenchEnvironmentService).isBuilt);
 
 CommandsRegistry.registerCommand('shortestpath.homepage.getContext', async accessor => {
 	const workspaces = accessor.get(IWorkspacesService);

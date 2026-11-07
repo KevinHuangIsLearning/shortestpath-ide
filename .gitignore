@@ -69,3 +69,6 @@ dist
 /resources/oi-defaults/toolchains/*.tar.zst
 /artifacts
 todos.md
+
+# Bundled homepage is copied from the remotely distributed source during Setup compilation.
+/extensions/shortestpath.setup/homepage/public/index.html

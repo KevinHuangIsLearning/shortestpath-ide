@@ -5,7 +5,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { mkdtemp, rm, access, readFile } = require('node:fs/promises');
+const { mkdtemp, rm, access, readFile, writeFile } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
 const { createHomepageServer } = require('./server.cjs');
@@ -16,12 +16,20 @@ test('IDE owns Home and fills placeholders, CSS, and commands through the local 
 	const dataDir = await mkdtemp(path.join(tmpdir(), 'homepage-command-'));
 	const callbacks = new Map(), subscriptions = [], calls = [];
 	let starts = 0, closed;
+	let featureEnabled = false, refreshFeatures;
 	const stopped = new Promise(resolve => { closed = resolve; });
 	const moduleExports = {};
 	const event = () => ({ dispose() {} });
 	vm.runInNewContext(await readFile(path.join(__dirname, '../out/homepage.js'), 'utf8'), {
-		exports: moduleExports, console,
+		exports: moduleExports, console, process: { env: {} },
+		setInterval: (callback, ms) => { assert.equal(ms, 12 * 60 * 60_000); refreshFeatures = callback; return { unref() {} }; },
+		clearInterval() {},
 		require: id => {
+			if (id === './featureConfiguration') {return { fetchFeatureConfiguration: async urls => {
+				assert.match(urls[0], /raw\.githubusercontent\.com\/.*\/remote_configurations\/configurations\/features\.json$/);
+				assert.match(urls[1], /raw\.gitcode\.com\/.*\/remote_configurations\/configurations\/features\.json$/);
+				return { homepage: featureEnabled };
+			} };}
 			if (id === './localization') {return { localize: value => value };}
 			if (id === 'vscode') {return {
 				commands: {
@@ -39,8 +47,8 @@ test('IDE owns Home and fills placeholders, CSS, and commands through the local 
 				env: { language: 'zh-cn' },
 			};}
 			if (id.endsWith('server.cjs')) {return { createHomepageServer: async options => {
-				assert.equal(options.sourceUrl, 'https://raw.githubusercontent.com/KevinHuangIsLearning/shortestpath-ide/main/extensions/shortestpath.setup/homepage/public/index.html');
-				assert.equal(options.fallbackSourceUrl, 'https://raw.gitcode.com/KevinHuangIsLearning/shortestpath-ide/raw/main/extensions/shortestpath.setup/homepage/public/index.html');
+				assert.equal(options.sourceUrl, 'https://raw.githubusercontent.com/KevinHuangIsLearning/shortestpath-ide/main/remote_configurations/homepage/index.html');
+				assert.equal(options.fallbackSourceUrl, 'https://raw.gitcode.com/KevinHuangIsLearning/shortestpath-ide/raw/main/remote_configurations/homepage/index.html');
 				starts++; const server = await createHomepageServer({ ...options, sourceUrl: '', fallbackSourceUrl: '' });
 				return { listen: port => server.listen(port), close: async () => { await server.close(); closed(); } };
 			} };}
@@ -49,6 +57,13 @@ test('IDE owns Home and fills placeholders, CSS, and commands through the local 
 	});
 	moduleExports.registerHomepage({ globalStorageUri: { fsPath: dataDir }, subscriptions });
 	t.after(async () => { subscriptions.forEach(item => item.dispose()); if (starts) {await stopped;} await rm(dataDir, { recursive: true, force: true }); });
+	assert.equal(await callbacks.get('shortestpath.homepage.isEnabled')(), false);
+	assert.equal(await callbacks.get('shortestpath.homepage.getUrl')(), undefined);
+	await callbacks.get('shortestpath.homepage.open')();
+	assert.equal(starts, 0);
+	assert.equal(calls.some(call => call[0] === 'shortestpath.mode.home'), false);
+	featureEnabled = true;
+	await refreshFeatures();
 	await callbacks.get('shortestpath.homepage.open')();
 	assert.deepEqual({ starts, command: calls.at(-1)[0] }, { starts: 0, command: 'shortestpath.mode.home' });
 	const url = await callbacks.get('shortestpath.homepage.getUrl')();
@@ -68,6 +83,77 @@ test('IDE owns Home and fills placeholders, CSS, and commands through the local 
 	assert.equal(calls.some(call => call[0] === 'shortestpath.mode.dashboard'), false);
 	assert.equal(calls.some(call => call[0] === 'arbitrary.command'), false);
 	assert.equal(starts, 1);
+	featureEnabled = false;
+	await refreshFeatures();
+	assert.equal(await callbacks.get('shortestpath.homepage.isEnabled')(), false);
+	assert.equal(await callbacks.get('shortestpath.homepage.getUrl')(), undefined);
+	await assert.rejects(fetch(origin));
+});
+
+test('local Home debugging is available only in source builds with an explicit environment flag', async () => {
+	const vm = require('node:vm');
+	for (const development of [false, true]) {
+		const callbacks = new Map(), subscriptions = [];
+		let options, flagRequests = 0;
+		const event = () => ({ dispose() {} });
+		const exports = {};
+		vm.runInNewContext(await readFile(path.join(__dirname, '../out/homepage.js'), 'utf8'), {
+			exports, console, process: { env: { SHORTESTPATH_HOMEPAGE_DEBUG: '1' } },
+			setInterval: () => ({ unref() {} }), clearInterval() {},
+			require: id => {
+				if (id === './localization') { return { localize: value => value }; }
+				if (id === './featureConfiguration') { return { fetchFeatureConfiguration: async () => { flagRequests++; return { homepage: false }; } }; }
+				if (id === 'vscode') { return {
+					commands: { registerCommand: (id, callback) => { callbacks.set(id, callback); return event(); }, executeCommand: async id => id === 'shortestpath.homepage.isDevelopment' ? development : undefined },
+					window: { onDidChangeActiveColorTheme: event },
+					workspace: { onDidChangeConfiguration: event, onDidChangeWorkspaceFolders: event, onDidSaveTextDocument: event },
+				}; }
+				if (id.endsWith('server.cjs')) { return { createHomepageServer: async value => { options = value; return { listen: async () => 'http://127.0.0.1:1234', close: async () => {} }; } }; }
+				return require(id);
+			},
+		});
+		exports.registerHomepage({ extensionPath: path.resolve(__dirname, '..'), globalStorageUri: { fsPath: '/debug-data' }, subscriptions });
+		assert.equal(await callbacks.get('shortestpath.homepage.isEnabled')(), development);
+		const url = await callbacks.get('shortestpath.homepage.getUrl')();
+		if (development) {
+			assert.match(url, /127\.0\.0\.1/);
+			assert.equal(flagRequests, 0);
+			assert.equal(options.localHtmlPath, path.resolve(__dirname, '../../../remote_configurations/homepage/index.html'));
+			assert.equal(options.sourceUrl, '');
+			assert.equal(options.fallbackSourceUrl, '');
+			assert.equal(path.basename(options.dataDir), 'homepage-debug');
+		} else {
+			assert.equal(url, undefined);
+			assert.equal(options, undefined);
+			assert.equal(flagRequests, 1);
+		}
+		subscriptions.forEach(item => item.dispose());
+	}
+});
+
+test('local debugging rereads HTML on navigation and retains real IDE data and theme injection', async t => {
+	const dataDir = await mkdtemp(path.join(tmpdir(), 'homepage-debug-'));
+	const localHtmlPath = path.join(dataDir, 'local.html');
+	await writeFile(localHtmlPath, '<html><head></head><body>First draft</body></html>');
+	let downloads = 0;
+	const nativeFetch = globalThis.fetch;
+	t.mock.method(globalThis, 'fetch', (url, options) => {
+		if (String(url).startsWith('https:')) { downloads++; throw new Error('Unexpected remote request'); }
+		return nativeFetch(url, options);
+	});
+	const app = await createHomepageServer({ dataDir, localHtmlPath, sourceUrl: 'https://updates.example/index.html', getData: async () => ({ favorites: [{ name: 'Real saved site' }] }), getTheme: async () => ':root{--vscode-editor-background:#123456}' });
+	t.after(async () => { await app.close(); await rm(dataDir, { recursive: true, force: true }); });
+	const origin = await app.listen(0);
+	const first = await fetch(origin);
+	assert.equal(new URL(first.url).pathname, '/debug/index.html');
+	const html = await first.text();
+	assert.match(html, /First draft/);
+	assert.match(html, /Real saved site/);
+	assert.match(html, /#123456/);
+	await writeFile(localHtmlPath, '<html><head></head><body>Second draft</body></html>');
+	assert.match(await (await fetch(origin)).text(), /Second draft/);
+	assert.equal((await (await post(origin, '/api/check')).json()).configured, false);
+	assert.equal(downloads, 0);
 });
 
 test('direct HTML updates delete the previous HTML after activation and retain the installed fallback', async t => {

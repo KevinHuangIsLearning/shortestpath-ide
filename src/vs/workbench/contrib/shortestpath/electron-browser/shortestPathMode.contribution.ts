@@ -63,6 +63,7 @@ const browsingContext = new RawContextKey<boolean>('shortestpath.browsing', fals
 const navigationContext = new RawContextKey<boolean>('shortestpath.navigation', false);
 const drawingContext = new RawContextKey<boolean>('shortestpath.drawMode', false);
 const pageContext = new RawContextKey<boolean>('shortestpath.page', false);
+const homepageEnabledContext = new RawContextKey<boolean>('shortestpath.homepageEnabled', false);
 const modeKey = 'shortestpath.mode';
 const tabsKey = 'shortestpath.browser.tabs';
 const drawingTabsKey = 'shortestpath.draw.tabs';
@@ -160,7 +161,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		@IEditorGroupsService private readonly editorGroups: IEditorGroupsService,
 		@IStorageService private readonly storage: IStorageService,
 		@ILifecycleService lifecycle: ILifecycleService,
-		@IContextKeyService contextKeys: IContextKeyService,
+		@IContextKeyService private readonly contextKeys: IContextKeyService,
 		@IHostService private readonly host: IHostService,
 		@IConfigurationService private readonly configuration: IConfigurationService,
 		@IHoverService private readonly hover: IHoverService,
@@ -177,6 +178,13 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.browsing = browsingContext.bindTo(contextKeys);
 		this.pageMode = pageContext.bindTo(contextKeys);
 		this.drawing = drawingContext.bindTo(contextKeys);
+		this._register(contextKeys.onDidChangeContext(event => {
+			if (event.affectsSome(new Set([homepageEnabledContext.key]))) {
+				const enabled = contextKeys.getContextKeyValue<boolean>(homepageEnabledContext.key) === true;
+				if (this.homeButton) { this.homeButton.hidden = !enabled; }
+				if (!enabled && this.mode === 'home') { void this.switchMode('solve').catch(onUnexpectedError); }
+			}
+		}));
 		this.ready = lifecycle.when(LifecyclePhase.Ready).then(async () => {
 			if (this.stopped) { return; }
 			// Show navigation with the workbench shell; native tabs still restore later.
@@ -221,6 +229,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.switcher.parentElement!.prepend(this.switcher);
 		this.homeButton = this.button(this.switcher, homeLabel, () => this.switchMode('home'), 'home');
 		this.homeButton.classList.add('shortestpath-mode-home');
+		this.homeButton.hidden = this.contextKeys.getContextKeyValue<boolean>(homepageEnabledContext.key) !== true;
 		// allow-any-unicode-next-line
 		this.browseButton = this.button(this.switcher, localize('sp.browse', "浏览"), () => this.switchMode('browse'), 'globe');
 		this.browseButton.classList.add('shortestpath-mode-browse');
@@ -402,6 +411,7 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 			if (this.stopped || this.requestedMode !== mode) { return; }
 		}
 		if (mode === 'home') {
+			if (await this.commands.executeCommand('shortestpath.homepage.isEnabled') !== true || this.requestedMode !== mode) { return; }
 			const existing = this.homeInput;
 			await this.ensureHomepage();
 			if (this.stopped || this.requestedMode !== mode) { return; }
@@ -1169,7 +1179,7 @@ const modeTitles = {
 };
 for (const mode of ['home', 'browse', 'solve', 'snippets', 'draw', 'settings', 'dashboard'] as const) {
 	registerAction2(class extends Action2 {
-		constructor() { super({ id: `shortestpath.mode.${mode}`, title: modeTitles[mode], f1: true }); }
+		constructor() { super({ id: `shortestpath.mode.${mode}`, title: modeTitles[mode], f1: true, precondition: mode === 'home' ? homepageEnabledContext : undefined }); }
 		run(accessor: ServicesAccessor): Promise<void> { return accessor.get(IShortestPathModeService).switchMode(mode); }
 	});
 }

@@ -12,6 +12,7 @@ export function createHomepageServer(options: {
 	dataDir: string;
 	sourceUrl: string;
 	fallbackSourceUrl?: string;
+	localHtmlPath?: string;
 	getData(): Promise<object>;
 	getTheme(): PromiseLike<string | undefined>;
 	executeCommand(command: string, args: readonly string[]): Promise<void>;
