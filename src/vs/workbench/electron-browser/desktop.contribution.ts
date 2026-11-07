@@ -28,7 +28,6 @@ import { NativeWindow } from './window.js';
 import { ModifierKeyEmitter } from '../../base/browser/dom.js';
 import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from '../common/configuration.js';
 import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-browser/window.js';
-import product from '../../platform/product/common/product.js';
 
 // Actions
 (function registerActions(): void {
@@ -281,7 +280,7 @@ import product from '../../platform/product/common/product.js';
 						localize(`window.menuStyle.native`, "Use the native menu. This is ignored when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`'),
 						localize(`window.menuStyle.inherit`, "Matches the menu style to the title bar style defined in {0}.", '`#window.titleBarStyle#`'),
 					],
-				'default': product.quality !== 'stable' ? 'inherit' : (isMacintosh ? 'native' : 'inherit'), // TODO@bpasero figure out the default
+				'default': 'native',
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': isMacintosh ?
 					localize('window.menuStyle.mac', "Adjust the context menu appearances to either be native by the OS, custom, or inherited from the title bar style defined in {0}.", '`#window.titleBarStyle#`') :
