@@ -18,7 +18,7 @@ export default function TaskStatusBar(props: {
     const busy = props.task !== 'idle';
 
     return (
-        <div className="judge-status">
+        <div className="judge-status" data-page-focus>
             <div className="task-line" role="status" aria-live="polite">
                 {busy && (
                     <span className="task-spinner" aria-hidden="true">

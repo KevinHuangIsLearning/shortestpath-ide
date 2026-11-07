@@ -68,6 +68,7 @@ import {
 	runStressTest,
 	StressFailure,
 } from '../stressTest';
+import { StressSessionTracker } from '../stressSession';
 class JudgeViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'judger.judgeView';
 
@@ -82,6 +83,8 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 	public isViewVisible(): boolean { return this._view?.visible === true; }
 	private readonly recentProblems = new Map<string, Problem>();
 
+	private readonly stressSession = new StressSessionTracker();
+
 	public isViewUninitialized() {
 		return this._view === undefined;
 	}
@@ -94,6 +97,11 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 			if (this._view === webviewView) {
 				this._view = undefined;
 			}
+		});
+		// A retained webview keeps its React state while the sidebar is hidden,
+		// so replay anything buffered meanwhile as soon as it is visible again.
+		webviewView.onDidChangeVisibility(() => {
+			if (webviewView.visible) { this.flushMessageBuffer(); }
 		});
 
 		webviewView.webview.options = {
@@ -273,6 +281,15 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 						if (isStressTestRunning()) {
 							killRunning();
 						}
+						break;
+					}
+
+					case 'get-stress-state': {
+						this.extensionToJudgeViewMessage({
+							command: 'stress-state',
+							srcPath: message.srcPath,
+							state: this.stressSession.snapshotFor(message.srcPath) ?? null,
+						});
 						break;
 					}
 
@@ -576,6 +593,11 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 		}
 
 		try {
+			this.stressSession.start(
+				message.problem.srcPath,
+				message.runId,
+				iterations,
+			);
 			const result = await runStressTest(
 				message.problem,
 				generatorPath,
@@ -583,6 +605,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 				iterations,
 				{
 					onStatus: (phase, role, iteration, total) => {
+						this.stressSession.status(phase, role, iteration, total);
 						this.extensionToJudgeViewMessage({
 							command: 'stress-status',
 							runId: message.runId,
@@ -593,6 +616,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 						});
 					},
 					onProgress: (iteration, total) => {
+						this.stressSession.progress(iteration, total);
 						this.extensionToJudgeViewMessage({
 							command: 'stress-progress',
 							runId: message.runId,
@@ -604,6 +628,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 						const current = getProblem(message.problem.srcPath) ?? message.problem;
 						while (current.tests.some(test => test.id === testcase.id)) { testcase.id++; }
 						runResult.id = testcase.id;
+						this.stressSession.failure(iteration, testcase, runResult);
 						const updated = { ...current, tests: [...current.tests, testcase] };
 						saveProblem(updated.srcPath, updated);
 						this.extensionToJudgeViewMessage({ command: 'new-problem', problem: updated, onlyIfActive: true });
@@ -618,6 +643,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 					},
 				},
 			);
+			this.stressSession.finish(result.state, result.iteration);
 			this.extensionToJudgeViewMessage({
 				command: 'stress-finished',
 				runId: message.runId,
@@ -626,6 +652,11 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 			});
 		} catch (error) {
 			const failure = error instanceof StressFailure ? error : undefined;
+			this.stressSession.finish(
+				'error',
+				failure?.iteration || 0,
+				failure?.message,
+			);
 			this.extensionToJudgeViewMessage({
 				command: 'stress-finished',
 				runId: message.runId,
@@ -686,6 +717,16 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	private flushMessageBuffer() {
+		const view = this._view;
+		if (!view) { return; }
+		this.messageBuffer.forEach((message) => {
+			globalThis.logger.log('Restored buffer command', message.command);
+			view.webview.postMessage(message);
+		});
+		this.messageBuffer = [];
+	}
+
 	private getInitialProblem() {
 		const doc = vscode.window.activeTextEditor?.document;
 		this.extensionToJudgeViewMessage({
@@ -702,12 +743,7 @@ class JudgeViewProvider implements vscode.WebviewViewProvider {
 		});
 
 		// also load any messages from before that were lost.
-		this.messageBuffer.forEach((message) => {
-			globalThis.logger.log('Restored buffer command', message.command);
-			this._view?.webview.postMessage(message);
-		});
-
-		this.messageBuffer = [];
+		this.flushMessageBuffer();
 
 		return;
 	}

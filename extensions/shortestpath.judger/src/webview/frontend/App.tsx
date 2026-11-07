@@ -18,6 +18,9 @@ import {
     CheckingCommand,
     StressFailureCommand,
     StressFinishedCommand,
+    StressProgressCommand,
+    StressSessionState,
+    StressStateCommand,
     StressStatusCommand,
     StressFileSelectedCommand,
     WebViewpersistenceState,
@@ -116,6 +119,50 @@ function getLiveUserCount(): Promise<number> {
             console.error('Failed to fetch live users', err);
             return 0;
         });
+}
+
+function stressRoleName(role?: StressStatusCommand['role']): string {
+    return role === 'generator'
+        ? t('stressGenerator')
+        : role === 'std'
+          ? t('stressStd')
+          : t('stressTarget');
+}
+
+function stressStatusMessage(
+    phase: StressStatusCommand['phase'],
+    role?: StressStatusCommand['role'],
+    iteration?: number,
+    total?: number,
+): string {
+    return phase === 'compiling'
+        ? `${t('stressCompiling')} ${stressRoleName(role)}...`
+        : `${t('stressRunning')} ${stressRoleName(role)} ${iteration || 0}${total ? ` / ${total}` : ''}`;
+}
+
+/** Text shown after a recreated webview asks for the latest run snapshot. */
+function restoredStressMessage(state: StressSessionState): string {
+    if (state.finished) {
+        return (
+            state.finished.message ||
+            (state.finished.state === 'passed'
+                ? `${t('stressPassed')} ${state.finished.iteration}`
+                : state.finished.state === 'found'
+                  ? t('stressFound')
+                  : state.finished.state === 'stopped'
+                    ? t('stressStopped')
+                    : t('stressFailed'))
+        );
+    }
+    if (state.status) {
+        return stressStatusMessage(
+            state.status.phase,
+            state.status.role,
+            state.status.iteration,
+            state.status.total,
+        );
+    }
+    return t('stressStarting');
 }
 
 function Judge(props: {
@@ -295,13 +342,6 @@ function Judge(props: {
     const ordinaryPassed = cases.filter(
         (testCase) => !testCase.testcase.disabled && testCase.result?.pass === true,
     ).length;
-    useEffect(() => {
-        if (infoPageVisible || stressDialogVisible || settingsPageVisible) {
-            document.body.classList.add('no-scroll');
-        } else {
-            document.body.classList.remove('no-scroll');
-        }
-    }, [infoPageVisible, stressDialogVisible, settingsPageVisible]);
 
     useEffect(() => {
         if (stressRunIdRef.current !== null) {
@@ -425,6 +465,20 @@ function Judge(props: {
         window.addEventListener('message', onImportMessage);
         return () => window.removeEventListener('message', onImportMessage);
     }, [problem.srcPath]);
+    useEffect(() => {
+        document.body.classList.toggle(
+            'no-scroll',
+            infoPageVisible ||
+                settingsPageVisible ||
+                stressDialogVisible ||
+                importPageVisible,
+        );
+    }, [
+        infoPageVisible,
+        settingsPageVisible,
+        stressDialogVisible,
+        importPageVisible,
+    ]);
     const [editableStateText, setEditableStateText] = useState(
         JSON.stringify(webviewState, null, 2),
     );
@@ -530,25 +584,47 @@ function Judge(props: {
                     if (status.runId !== stressRunIdRef.current) {
                         break;
                     }
-                    if (status.phase === 'compiling') {
-                        const role =
-                            status.role === 'generator'
-                                ? t('stressGenerator')
-                                : status.role === 'std'
-                                  ? t('stressStd')
-                                  : t('stressTarget');
-                        setStressMessage(`${t('stressCompiling')} ${role}...`);
-                    } else {
-                        const role =
-                            status.role === 'generator'
-                                ? t('stressGenerator')
-                                : status.role === 'std'
-                                  ? t('stressStd')
-                                  : t('stressTarget');
-                        setStressMessage(
-                            `${t('stressRunning')} ${role} ${status.iteration || 0}${status.total ? ` / ${status.total}` : ''}`,
-                        );
+                    setStressMessage(
+                        stressStatusMessage(
+                            status.phase,
+                            status.role,
+                            status.iteration,
+                            status.total,
+                        ),
+                    );
+                    break;
+                }
+                case 'stress-progress': {
+                    const progress = data as StressProgressCommand;
+                    if (progress.runId !== stressRunIdRef.current) {
+                        break;
                     }
+                    setStressProgress({
+                        iteration: progress.iteration,
+                        total: progress.total,
+                    });
+                    break;
+                }
+                case 'stress-state': {
+                    const restored = data as StressStateCommand;
+                    if (restored.srcPath !== problem.srcPath || !restored.state) {
+                        break;
+                    }
+                    const state = restored.state;
+                    stressRunIdRef.current = state.runId;
+                    setStressIterations(state.iterations);
+                    setStressRunning(state.running);
+                    setStressProgress(state.progress);
+                    setPendingStressFailure(
+                        state.failure
+                            ? {
+                                  ...state.failure,
+                                  command: 'stress-failure',
+                                  runId: state.runId,
+                              }
+                            : null,
+                    );
+                    setStressMessage(restoredStressMessage(state));
                     break;
                 }
                 case 'stress-failure': {
@@ -618,6 +694,9 @@ function Judge(props: {
             }
         };
         window.addEventListener('message', fn);
+        // A recreated webview starts with empty React state; the extension host
+        // still owns the running stress test, so ask for the latest snapshot.
+        sendMessageToVSCode({ command: 'get-stress-state', srcPath: problem.srcPath });
         return () => {
             window.removeEventListener('message', fn);
         };
@@ -810,9 +889,8 @@ function Judge(props: {
     };
 
     const closeStressDialog = () => {
-        if (stressRunning) {
-            stopStress();
-        }
+        // Closing only hides the dialog. The run lives in the extension host and
+        // keeps going; reopening reads its progress snapshot back.
         setStressDialogVisible(false);
     };
 
@@ -1641,11 +1719,12 @@ with open(sys.argv[2], "r") as f:
                   : task === 'checking'
                     ? t('checking')
                     : t('taskIdle');
-    // Only report a percentage when a real total exists.
+    // Only report a percentage when a real total exists; zero means
+    // "run until stopped", so the bar stays hidden.
     const taskProgress =
-        task === 'stress'
-              ? { value: stressProgress.iteration, total: stressProgress.total }
-              : null;
+        task === 'stress' && stressProgress.total > 0
+            ? { value: stressProgress.iteration, total: stressProgress.total }
+            : null;
 
     const userGuideHref = `${projectUrl}/blob/main/extensions/shortestpath.judger/${userGuidePath}`;
 
@@ -1671,30 +1750,6 @@ with open(sys.argv[2], "r") as f:
                     {notification}
                 </div>
             )}
-            {infoPageVisible && renderInfoPage()}
-            {settingsPageVisible && (
-                <ProblemSettings
-                    problem={problem}
-                    running={runningNow}
-                    onApply={applySettings}
-                    onClose={() => setSettingsPageVisible(false)}
-                    onOpenAdvancedActions={() =>
-                        sendMessageToVSCode({ command: 'problem-actions', problem })
-                    }
-                    onOpenGlobalSettings={() =>
-                        sendMessageToVSCode({ command: 'open-settings' })
-                    }
-                    advanced={advancedSettings}
-                />
-            )}
-            {stressDialogVisible && renderStressDialog()}
-            <ImportCases
-                t={t}
-                notify={notify}
-                importPageVisible={importPageVisible}
-                setImportPageVisible={setImportPageVisible}
-                importCases={importCases}
-            />
             <div className="judger-shell">
                 <ProblemHeader
                     name={problem.name}
@@ -1813,57 +1868,86 @@ with open(sys.argv[2], "r") as f:
                         {views}
                     </div>
                 </div>
-                <TaskStatusBar
-                    task={task}
-                    label={taskLabel}
-                    progress={taskProgress}
-                    onlineJudgeEnv={onlineJudgeEnv}
-                    onToggleOnlineJudge={toggleOnlineJudgeEnv}
-                    warning={renderTimeoutAVSuggestion()}
-                />
-                <JudgeActionBar
-                    running={task === 'running' || task === 'checking' || task === 'stress'}
-                    submitButton={renderSubmitButton('submit-action')}
-                    onRunAll={runAll}
-                    onStop={stopActiveTask}
-                    onStress={() => {
-                        setAuxOpen(false);
-                        setStressDialogVisible(true);
-                    }}
-                />
-                {webviewState.catCompanionEnabled && (
-                    <div className="judger-companion">
-                        <CatCompanion
-                            enabled={webviewState.catCompanionEnabled}
-                            total={ordinarySummary.total}
-                            numPassed={ordinaryPassed}
-                        />
-                    </div>
-                )}
-                {caseMenu && menuCase && (
-                    <CaseActionsMenu
-                        key={caseMenu.id}
-                        anchor={caseMenu.anchor}
-                        state={{
-                            disabled: menuCase.testcase.disabled === true,
-                            hasResult: menuCase.result !== null,
-                            inputIsFile: !!menuCase.testcase.inputPath,
-                            outputIsFile: !!menuCase.testcase.outputPath,
-                        }}
-                        onAction={(action, mode) =>
-                            sendMessageToVSCode({
-                                command: 'testcase-action',
-                                problem,
-                                id: menuCase.id,
-                                action,
-                                mode,
-                                result: menuCase.result,
-                            })
+                {infoPageVisible && renderInfoPage()}
+                {settingsPageVisible && (
+                    <ProblemSettings
+                        problem={problem}
+                        running={runningNow}
+                        onApply={applySettings}
+                        onClose={() => setSettingsPageVisible(false)}
+                        onOpenAdvancedActions={() =>
+                            sendMessageToVSCode({ command: 'problem-actions', problem })
                         }
-                        onClose={() => setCaseMenu(null)}
+                        onOpenGlobalSettings={() =>
+                            sendMessageToVSCode({ command: 'open-settings' })
+                        }
+                        advanced={advancedSettings}
                     />
                 )}
+                {stressDialogVisible && renderStressDialog()}
+                <ImportCases
+                    t={t}
+                    notify={notify}
+                    importPageVisible={importPageVisible}
+                    setImportPageVisible={setImportPageVisible}
+                    importCases={importCases}
+                />
             </div>
+            <TaskStatusBar
+                task={task}
+                label={taskLabel}
+                progress={taskProgress}
+                onlineJudgeEnv={onlineJudgeEnv}
+                onToggleOnlineJudge={toggleOnlineJudgeEnv}
+                warning={renderTimeoutAVSuggestion()}
+            />
+            <JudgeActionBar
+                running={task === 'running' || task === 'checking' || task === 'stress'}
+                submitButton={renderSubmitButton('submit-action')}
+                onRunAll={runAll}
+                onStop={stopActiveTask}
+                onStress={() => {
+                    // The action bar stays reachable while a page is open, so
+                    // make sure the stress page is not stacked on another one.
+                    setAuxOpen(false);
+                    setInfoPageVisible(false);
+                    setSettingsPageVisible(false);
+                    setImportPageVisible(false);
+                    setStressDialogVisible(true);
+                }}
+            />
+            {webviewState.catCompanionEnabled && (
+                <div className="judger-companion">
+                    <CatCompanion
+                        enabled={webviewState.catCompanionEnabled}
+                        total={ordinarySummary.total}
+                        numPassed={ordinaryPassed}
+                    />
+                </div>
+            )}
+            {caseMenu && menuCase && (
+                <CaseActionsMenu
+                    key={caseMenu.id}
+                    anchor={caseMenu.anchor}
+                    state={{
+                        disabled: menuCase.testcase.disabled === true,
+                        hasResult: menuCase.result !== null,
+                        inputIsFile: !!menuCase.testcase.inputPath,
+                        outputIsFile: !!menuCase.testcase.outputPath,
+                    }}
+                    onAction={(action, mode) =>
+                        sendMessageToVSCode({
+                            command: 'testcase-action',
+                            problem,
+                            id: menuCase.id,
+                            action,
+                            mode,
+                            result: menuCase.result,
+                        })
+                    }
+                    onClose={() => setCaseMenu(null)}
+                />
+            )}
         </div>
     );
 }

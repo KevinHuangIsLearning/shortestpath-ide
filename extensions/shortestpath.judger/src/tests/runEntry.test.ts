@@ -96,6 +96,7 @@ test('disposing an old Judge view cannot clear its replacement; disposing the cu
 	const callbacks: Array<() => void> = [];
 	const view = () => ({
 		onDidDispose: (callback: () => void) => { callbacks.push(callback); },
+		onDidChangeVisibility: jest.fn(),
 		webview: { onDidReceiveMessage: jest.fn() },
 	}) as unknown as vscode.WebviewView;
 	provider.resolveWebviewView(view());

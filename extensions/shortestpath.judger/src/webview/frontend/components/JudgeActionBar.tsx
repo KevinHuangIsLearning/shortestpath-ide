@@ -16,7 +16,7 @@ export default function JudgeActionBar(props: {
     onStress: () => void;
 }) {
     return (
-        <div className="actions">
+        <div className="actions" data-page-focus>
             <div className="actions-secondary-row">
                 {props.submitButton}
                 <button

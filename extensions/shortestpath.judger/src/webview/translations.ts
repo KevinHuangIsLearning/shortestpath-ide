@@ -284,6 +284,8 @@ export const translations: Record<string, any> = {
         stressPassed: 'Stress test passed all iterations:',
         stressStopped: 'Stress test stopped.',
         stressFailed: 'Stress test failed.',
+        stressBackgroundHint:
+            'Closing this window keeps the stress test running. Reopen it from “Stress Testing” to see the progress.',
         addCounterexample: 'Add counterexample to Judger',
         counterexampleAdded: 'Counterexample added to Judger.',
         generatorExampleTitle: 'Generator example (C++)',
@@ -612,6 +614,8 @@ int main() {
         stressPassed: '对拍完成，全部通过次数：',
         stressStopped: '对拍已停止。',
         stressFailed: '对拍失败。',
+        stressBackgroundHint:
+            '关闭此窗口不会停止对拍，可从底部“对拍”重新打开查看进度。',
         addCounterexample: '将反例添加到 Judger',
         counterexampleAdded: '反例已添加到 Judger。',
         generatorExampleTitle: '随机程序示例（C++）',
