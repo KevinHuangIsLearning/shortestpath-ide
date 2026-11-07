@@ -57,6 +57,9 @@ class ExtHostBrowserTab {
 			show(): Promise<void> {
 				return that._show();
 			},
+			hide(): Promise<void> {
+				return that._proxy.$hideBrowserTab(that.id);
+			},
 			moveToNewWindow(options?: vscode.BrowserTabMoveOptions): Promise<void> {
 				return that._moveToNewWindow(options);
 			},

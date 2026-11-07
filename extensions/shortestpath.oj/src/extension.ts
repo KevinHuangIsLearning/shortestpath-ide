@@ -1742,6 +1742,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 	};
 	bridge = new ShortestPathOjLocalBridge(bridgeHandlers, bridgePort, '127.0.0.1', 125_000, 1000, getAllowedBridgeOrigins());
 	const recoveryReturns = new WeakMap<object, number>();
+	const recoveryPresentations = new WeakMap<object, Promise<void>>();
 	const recovery = new ConnectionRecovery({
 		open: url => vscode.window.openBrowserTab(url, { hidden: true, preserveFocus: true }),
 		prepare: problem => bridge.prepareRecovery(problem),
@@ -1749,15 +1750,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<{ brid
 		isBound: ref => bridge.isBound(ref),
 		status: (ref, status) => panel.setRecoveryState(ref, status),
 		present: async page => {
-			await vscode.commands.executeCommand('shortestpath.mode.browse');
-			await page.show();
-			const revision = await vscode.commands.executeCommand<number | undefined>('_shortestpath.captureBrowserReturn', page.id);
-			if (revision !== undefined) { recoveryReturns.set(page, revision); }
+			const presentation = (async () => {
+				await page.show();
+				await vscode.commands.executeCommand('workbench.action.focusWindow');
+				const revision = await vscode.commands.executeCommand<number | undefined>('_shortestpath.captureBrowserReturn', page.id);
+				if (revision !== undefined) { recoveryReturns.set(page, revision); }
+			})();
+			recoveryPresentations.set(page, presentation);
+			await presentation;
 		},
 		returnToSolve: async page => {
+			const presentation = recoveryPresentations.get(page);
+			await presentation;
+			if (recoveryPresentations.get(page) !== presentation) { return; }
 			const revision = recoveryReturns.get(page);
 			recoveryReturns.delete(page);
 			if (revision !== undefined) { await vscode.commands.executeCommand('_shortestpath.returnFromBrowser', page.id, revision); }
+			if (recoveryPresentations.get(page) !== presentation) { return; }
+			await page.hide?.();
+			recoveryPresentations.delete(page);
 		},
 	});
 	context.subscriptions.push(recovery, vscode.window.onDidCloseBrowserTab(tab => recovery.pageClosed(tab.id)));

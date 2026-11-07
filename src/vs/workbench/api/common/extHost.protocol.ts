@@ -1442,6 +1442,7 @@ export interface MainThreadBrowsersShape extends IDisposable {
 	$openBrowserTab(url: string, viewColumn?: EditorGroupColumn, options?: IEditorOptions & { hidden?: boolean }): Promise<BrowserTabDto>;
 	$closeBrowserTab(browserId: string): Promise<void>;
 	$showBrowserTab(browserId: string): Promise<void>;
+	$hideBrowserTab(browserId: string): Promise<void>;
 	$moveBrowserTabToNewWindow(browserId: string, additionalBrowserIds: readonly string[], minimize?: boolean): Promise<void>;
 	$moveBrowserTabToMainWindow(browserId: string, additionalBrowserIds: readonly string[]): Promise<void>;
 	$minimizeBrowserTabWindow(browserId: string): Promise<void>;

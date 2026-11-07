@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -66,8 +65,9 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 			this._track(input);
 			try {
 				const model = await input.resolve();
-				const loaded = await raceTimeout(model.loadURL(url).then(() => true), 30_000);
-				if (!loaded) { throw new Error('Background browser navigation timed out'); }
+				// Return the tab before navigation finishes so a challenge encountered
+				// during loading can reveal this same view for user interaction.
+				void model.loadURL(url).catch(() => input.dispose());
 				return this._toDto(input);
 			} catch (error) {
 				input.dispose();
@@ -189,6 +189,19 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		}
 
 		await this.modeService.showBrowser(known.input);
+	}
+
+	async $hideBrowserTab(browserId: string): Promise<void> {
+		const input = this._ownedHiddenBrowsers.get(browserId);
+		if (!input) { return; }
+		// Closing an editor normally destroys its browser. Keep the hidden
+		// relay alive so completing a challenge does not disconnect it.
+		const keepAlive = input.onBeforeDispose(event => event.veto());
+		try {
+			for (const group of this.editorGroupsService.groups) {
+				if (group.contains(input)) { await group.closeEditor(input); }
+			}
+		} finally { keepAlive.dispose(); }
 	}
 
 	async $moveBrowserTabToNewWindow(browserId: string, additionalBrowserIds: readonly string[], minimize = false): Promise<void> {

@@ -224,7 +224,7 @@ test('inline hints fetch accepted answers once and remain available offline with
 	assert.deepEqual({ requests, posted }, { requests: 1, posted: [] });
 });
 
-test('verification switches to browsing before showing the existing recovery page', async () => {
+test('verification shows the recovery page in place and brings its window to the foreground', async () => {
 	const compiled = source();
 	const start = compiled.indexOf('present: async ');
 	const end = compiled.indexOf('returnToSolve: async ', start);
@@ -232,10 +232,35 @@ test('verification switches to browsing before showing the existing recovery pag
 	const calls: string[] = [];
 	const page = { id: 'verification', show: async () => { calls.push('show'); } };
 	const recoveryReturns = new WeakMap<object, number>();
-	const context = vm.createContext({ recoveryReturns, vscode: { commands: { executeCommand: async (command: string) => { calls.push(command); return 7; } } } });
+	const context = vm.createContext({ recoveryReturns, recoveryPresentations: new WeakMap(), vscode: { commands: { executeCommand: async (command: string) => { calls.push(command); return 7; } } } });
 	vm.runInContext(`globalThis.present = ({ ${compiled.slice(start, end)} }).present;`, context);
 	await context.present(page);
-	assert.deepEqual({ calls, revision: recoveryReturns.get(page) }, { calls: ['shortestpath.mode.browse', 'show', '_shortestpath.captureBrowserReturn'], revision: 7 });
+	assert.deepEqual({ calls, revision: recoveryReturns.get(page) }, { calls: ['show', 'workbench.action.focusWindow', '_shortestpath.captureBrowserReturn'], revision: 7 });
+});
+
+test('completing verification waits for presentation and hides the page without closing its connection', async () => {
+	const compiled = source();
+	const start = compiled.indexOf('present: async ');
+	const end = compiled.indexOf('context.subscriptions.push(recovery', start);
+	const handlers = compiled.slice(start, end).replace(/\}\);\s*$/, '');
+	const calls: string[] = [];
+	let finishShow!: () => void;
+	const showing = new Promise<void>(resolve => { finishShow = resolve; });
+	const page = {
+		id: 'verification',
+		show: async () => { calls.push('show'); await showing; },
+		hide: async () => { calls.push('hide'); },
+		close: async () => { calls.push('close'); },
+	};
+	const context = vm.createContext({ recoveryReturns: new WeakMap(), recoveryPresentations: new WeakMap(), vscode: { commands: { executeCommand: async (command: string) => { calls.push(command); return 7; } } } });
+	vm.runInContext(`globalThis.handlers = ({ ${handlers} });`, context);
+	const presented = context.handlers.present(page);
+	const completed = context.handlers.returnToSolve(page);
+	await Promise.resolve();
+	assert.deepEqual(calls, ['show']);
+	finishShow();
+	await Promise.all([presented, completed]);
+	assert.deepEqual(calls, ['show', 'workbench.action.focusWindow', '_shortestpath.captureBrowserReturn', '_shortestpath.returnFromBrowser', 'hide']);
 });
 
 test('an expired hint reads its question only when clicked, without revealing an answer or retrying', async () => {

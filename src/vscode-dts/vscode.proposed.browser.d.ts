@@ -34,6 +34,9 @@ declare module 'vscode' {
 		/** Reveal this browser tab in the window where it is open. */
 		show(): Thenable<void>;
 
+		/** Hide a tab created with `hidden: true`, keeping its page and connections alive. Other tabs are unchanged. */
+		hide(): Thenable<void>;
+
 		/** Move this browser tab into its own auxiliary window. */
 		moveToNewWindow(options?: BrowserTabMoveOptions): Thenable<void>;
 
@@ -88,7 +91,7 @@ declare module 'vscode' {
 		/** Load without an editor tab. Use BrowserTab.show() when interaction is needed. */
 		hidden?: boolean;
 
-		/** When `true`, open this browser tab in the VS Code modal editor part. */
+		/** When `true`, open this browser tab in the modal editor part. */
 		modal?: boolean;
 	}
 

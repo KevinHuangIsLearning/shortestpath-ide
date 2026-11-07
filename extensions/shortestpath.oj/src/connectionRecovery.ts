@@ -11,6 +11,7 @@ export interface RecoveryPage {
 	readonly id: string;
 	close(): PromiseLike<void>;
 	show(): PromiseLike<void>;
+	hide?(): PromiseLike<void>;
 }
 export interface RecoveryDependencies {
 	open(url: string): PromiseLike<RecoveryPage>;
