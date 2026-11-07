@@ -57,6 +57,9 @@ export class ShortestPathNewTabEditor extends EditorPane {
 		this.addAction(fileActions, localizeNewTab('New File...', '新建文件...'), 'codicon-new-file', () => this.commandService.executeCommand('workbench.action.files.newUntitledFile', { languageId: this.configurationService.getValue<string>('shortestpath.newFile.defaultLanguage') || 'cpp' }));
 
 		// allow-any-unicode-next-line
+		this.addAction(fileActions, localizeNewTab('New Browser Tab', '新建浏览器标签页'), 'codicon-globe', () => this.commandService.executeCommand('shortestpath.browser.newTab'));
+
+		// allow-any-unicode-next-line
 		this.addAction(fileActions, localizeNewTab('Open...', '打开...'), 'codicon-folder-opened', () => this.commandService.executeCommand('workbench.action.files.openFile'));
 
 		// allow-any-unicode-next-line
