@@ -18,6 +18,7 @@ import {
     CheckingCommand,
     StressFailureCommand,
     StressFinishedCommand,
+    StressProgressCommand,
     StressSessionState,
     StressStateCommand,
     StressStatusCommand,
@@ -591,6 +592,17 @@ function Judge(props: {
                             status.total,
                         ),
                     );
+                    break;
+                }
+                case 'stress-progress': {
+                    const progress = data as StressProgressCommand;
+                    if (progress.runId !== stressRunIdRef.current) {
+                        break;
+                    }
+                    setStressProgress({
+                        iteration: progress.iteration,
+                        total: progress.total,
+                    });
                     break;
                 }
                 case 'stress-state': {
@@ -1707,11 +1719,12 @@ with open(sys.argv[2], "r") as f:
                   : task === 'checking'
                     ? t('checking')
                     : t('taskIdle');
-    // Only report a percentage when a real total exists.
+    // Only report a percentage when a real total exists; zero means
+    // "run until stopped", so the bar stays hidden.
     const taskProgress =
-        task === 'stress'
-              ? { value: stressProgress.iteration, total: stressProgress.total }
-              : null;
+        task === 'stress' && stressProgress.total > 0
+            ? { value: stressProgress.iteration, total: stressProgress.total }
+            : null;
 
     const userGuideHref = `${projectUrl}/blob/main/extensions/shortestpath.judger/${userGuidePath}`;
 
