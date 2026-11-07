@@ -11,63 +11,57 @@ import { EditorPreview } from './editorPreview';
 export function defaultClangFormatConfig(tabSize: number): string {
 	return `BasedOnStyle: Google
 
-# --- 行为：尽量允许一行写完 ---
+# --- Short statements and blocks ---
 AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 AllowShortLoopsOnASingleLine: true
 AllowShortBlocksOnASingleLine: true
 AllowShortFunctionsOnASingleLine: None
 
-# --- 行长（核心关键，不然上面全白给） ---
+# --- Line length ---
 ColumnLimit: 0
 
-# --- 缩进 ---
+# --- Indentation ---
 IndentWidth: ${tabSize}
 TabWidth: ${tabSize}
 UseTab: Never
 
-# --- 访问修饰符 ---
+# --- Access modifiers ---
 AccessModifierOffset: -2
 
-# --- 大括号风格 ---
+# --- Braces ---
 BreakBeforeBraces: Attach
 AlwaysBreakTemplateDeclarations: No
 
-# --- 指针与注释 ---
+# --- Pointers and comments ---
 PointerAlignment: Left
 SpacesBeforeTrailingComments: 4
 
-# --- 代码块间距 ---
+# --- Definition spacing ---
 SeparateDefinitionBlocks: Always
 
-# --- 语言标准 ---
+# --- Language standard ---
 Standard: Latest
 `;
 }
 
-export async function findCppFormatConfig(directory: string): Promise<string | undefined> {
-	for (;;) {
-		for (const name of ['.clang-format', '_clang-format']) {
-			const file = path.join(directory, name);
-			try {
-				if ((await fs.stat(file)).isFile()) { return file; }
-			} catch (error) {
-				if ((error as NodeJS.ErrnoException).code !== 'ENOENT') { throw error; }
-			}
-		}
-		const parent = path.dirname(directory);
-		if (parent === directory) { return undefined; }
-		directory = parent;
+export async function ensureGlobalCppFormatConfig(context: Pick<vscode.ExtensionContext, 'globalStorageUri'>): Promise<vscode.Uri> {
+	const file = vscode.Uri.joinPath(context.globalStorageUri, '.clang-format');
+	await fs.mkdir(path.dirname(file.fsPath), { recursive: true });
+	try {
+		await fs.writeFile(file.fsPath, defaultClangFormatConfig(vscode.workspace.getConfiguration('editor', null).get<number>('tabSize') ?? 2), { flag: 'wx' });
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== 'EEXIST') { throw error; }
 	}
+	return file;
 }
 
-export function registerCppFormatting(context: Pick<vscode.ExtensionContext, 'subscriptions'>): void {
+export function registerCppFormatting(context: Pick<vscode.ExtensionContext, 'subscriptions' | 'globalStorageUri'>): void {
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.formatCpp', async (file: string, source: string, tabSize: number, range?: vscode.Range | vscode.Range[]) => {
-		// Explicit project rules take precedence. The temporary source also has
-		// its own rule file, so the nested clangd request follows its normal path.
-		if (await findCppFormatConfig(path.dirname(file))) { return undefined; }
+		if (EditorPreview.isPreviewFile(file)) { return undefined; }
+		const config = await ensureGlobalCppFormatConfig(context);
 		const preview = new EditorPreview();
 		try {
-			return await preview.format(source, Math.max(1, Math.min(32, Math.floor(tabSize))), range);
+			return await preview.format(source, Math.max(1, Math.min(32, Math.floor(tabSize))), range, config.fsPath);
 		} finally { preview.dispose(); }
 	}));
 }

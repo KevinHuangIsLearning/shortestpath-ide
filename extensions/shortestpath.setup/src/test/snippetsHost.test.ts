@@ -59,6 +59,7 @@ async function createHost(write: (source: string) => Promise<void> = async () =>
 			if (id === './platformSettings') { return require('../platformSettings'); }
 			if (id === './templateEditor') { return require('../templateEditor'); }
 			if (id === './settingsNavigation') { return require('../settingsNavigation'); }
+			if (id === './cppFormatting') { return {}; }
 			return require(id);
 		}
 	});

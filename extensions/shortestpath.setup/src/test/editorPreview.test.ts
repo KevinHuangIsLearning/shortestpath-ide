@@ -84,3 +84,22 @@ test('unchanged single and multiple ranges use the matching clangd API and selec
 		assert.deepEqual(host.dispatches, [{ kind: 'range', tabSize: 4, range }, { kind: 'ranges', tabSize: 8, range: [range, range] }]);
 	} finally { host.preview.dispose(); }
 });
+
+test('formatting reloads the shared configuration and marks temporary documents to avoid recursion', async () => {
+	const host = createPreview();
+	const directory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'shortestpath-global-format-test-'));
+	const config = path.join(directory, '.clang-format');
+	try {
+		for (const width of [4, 8]) {
+			fs.writeFileSync(config, `IndentWidth: ${width}\nColumnLimit: 80\n`);
+			await host.preview.format('source', 2, undefined, config);
+			const file = host.files.at(-1)!;
+			assert.equal(fs.readFileSync(path.join(path.dirname(file), '.clang-format'), 'utf8'), fs.readFileSync(config, 'utf8'));
+			assert.equal((host.preview.constructor as typeof EditorPreview).isPreviewFile(file), true);
+		}
+	} finally {
+		host.preview.dispose();
+		fs.rmSync(directory, { recursive: true, force: true });
+	}
+	assert.equal((host.preview.constructor as typeof EditorPreview).isPreviewFile(host.files[0]), false);
+});

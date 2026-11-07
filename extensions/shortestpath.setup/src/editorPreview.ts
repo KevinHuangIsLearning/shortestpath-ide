@@ -24,19 +24,30 @@ type ClangdFormattingApi = {
 };
 
 export class EditorPreview implements vscode.Disposable {
+	private static readonly files = new Set<string>();
+	private readonly files = new Set<string>();
 	private directory: Promise<string> | undefined;
 	private disposed = false;
 	private request = 0;
 
-	private async prepareDocument(source: string, tabSize: number): Promise<{ document: vscode.TextDocument; directory: string }> {
+	static isPreviewFile(file: string): boolean {
+		return EditorPreview.files.has(file);
+	}
+
+	private async prepareDocument(source: string, tabSize: number, configPath?: string): Promise<{ document: vscode.TextDocument; directory: string }> {
 		const request = ++this.request;
 		this.directory ??= fs.mkdtemp(path.join(os.tmpdir(), 'shortestpath-editor-preview-'));
 		const directory = path.join(await this.directory, String(request));
+		// allow-any-unicode-next-line
 		if (this.disposed) { throw new Error(localize('无法加载代码预览。')); }
 		await fs.mkdir(directory);
-		await fs.writeFile(path.join(directory, '.clang-format'), cppFallbackStyle(tabSize));
+		// clangd's formatting API discovers rules beside the source rather than
+		// accepting clang-format's --style=file:<path> command-line argument.
+		await fs.writeFile(path.join(directory, '.clang-format'), configPath ? await fs.readFile(configPath) : cppFallbackStyle(tabSize));
 		const file = path.join(directory, `preview-${tabSize}.cpp`);
 		await fs.writeFile(file, source);
+		this.files.add(file);
+		EditorPreview.files.add(file);
 		const document = await vscode.workspace.openTextDocument(file);
 		await vscode.extensions.getExtension('llvm-vs-code-extensions.vscode-clangd')?.activate();
 		return { document, directory };
@@ -63,11 +74,12 @@ export class EditorPreview implements vscode.Disposable {
 				await new Promise<void>(resolve => setTimeout(resolve, 300));
 			}
 		} finally { cancellation.dispose(); }
+		// allow-any-unicode-next-line
 		throw new Error(localize('尚未获取到代码格式化结果，请稍后重试。'));
 	}
 
-	async format(source: string, tabSize: number, range?: vscode.Range | vscode.Range[]): Promise<vscode.TextEdit[]> {
-		const { document } = await this.prepareDocument(source, tabSize);
+	async format(source: string, tabSize: number, range?: vscode.Range | vscode.Range[], configPath?: string): Promise<vscode.TextEdit[]> {
+		const { document } = await this.prepareDocument(source, tabSize, configPath);
 		return this.formatDocument(document, tabSize, range);
 	}
 
@@ -88,6 +100,7 @@ export class EditorPreview implements vscode.Disposable {
 			}
 		}
 		const lines = await vscode.commands.executeCommand<PreviewToken[][]>('_shortestpath.cppPreviewTokens', source);
+		// allow-any-unicode-next-line
 		if (!lines) { throw new Error(localize('无法加载代码预览。')); }
 		const result: PreviewResult = { source, lines, hints: [] };
 		if (!typeHints || this.disposed || !document) { return result; }
@@ -97,18 +110,23 @@ export class EditorPreview implements vscode.Disposable {
 			const hints = await vscode.commands.executeCommand<vscode.InlayHint[]>('vscode.executeInlayHintProvider', document.uri, new vscode.Range(0, 0, document.lineCount, 0));
 			const types = hints?.filter(hint => hint.kind === vscode.InlayHintKind.Type);
 			if (types?.length || (template !== undefined && hints !== undefined)) {
-				result.hints = (types ?? []).map(hint => ({ line: hint.position.line, character: hint.position.character,
-					label: typeof hint.label === 'string' ? hint.label : hint.label.map(part => part.value).join(''), paddingLeft: hint.paddingLeft, paddingRight: hint.paddingRight }));
+				result.hints = (types ?? []).map(hint => ({
+					line: hint.position.line, character: hint.position.character,
+					label: typeof hint.label === 'string' ? hint.label : hint.label.map(part => part.value).join(''), paddingLeft: hint.paddingLeft, paddingRight: hint.paddingRight
+				}));
 				return result;
 			}
 			await new Promise<void>(resolve => setTimeout(resolve, 300));
 		}
+		// allow-any-unicode-next-line
 		result.hintError = localize('尚未获取到 clang 类型提示，请稍后重试。');
 		return result;
 	}
 
 	dispose(): void {
 		this.disposed = true;
+		for (const file of this.files) { EditorPreview.files.delete(file); }
+		this.files.clear();
 		void this.directory?.then(directory => fs.rm(directory, { recursive: true, force: true })).catch(console.error);
 	}
 }

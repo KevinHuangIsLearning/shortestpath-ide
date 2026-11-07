@@ -219,6 +219,7 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 			if (id === './compilerRuntime') { return require('../compilerRuntime'); }
 			if (id === './platformSettings') { return require('../platformSettings'); }
 			if (id === './settingsNavigation') { return require('../settingsNavigation'); }
+			if (id === './cppFormatting') { return { ensureGlobalCppFormatConfig: async () => ({ fsPath: '/ide-data/.clang-format' }) }; }
 			if (['./cphSettings', './cphMappings', './browserScriptTester', './toolchainDiagnostics'].includes(id)) { return loadSettingsModule(id); }
 			return { localize: (text: string) => text, localizeWebviewHtml: (html: string) => html, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) };
 		}
@@ -260,7 +261,8 @@ test('formatting opens inside settings, saves its own state and restores the par
 	assert.deepEqual(outgoing.map(message => message.type), ['save', 'settingsBack']);
 	assert.equal(outgoing[0].value?.indentWidth, 4, 'the latest edit is flushed before leaving the page');
 	await host.receive({ type: 'save', value: { enabled: true, indentWidth: 4, tabWidth: 4 } });
-	assert.match(Buffer.from(host.files.get('/workspace/.clang-format')!).toString(), /IndentWidth: 4/);
+	assert.match(Buffer.from(host.files.get('/ide-data/.clang-format')!).toString(), /IndentWidth: 4/);
+	assert.equal(host.files.has('/workspace/.clang-format'), false);
 	assert.equal(host.savedValues.formatOnSave, true);
 	assert.equal(host.updates.includes('editor.fontFamily'), false, 'detail saves must not run the main settings serializer');
 	await host.receive({ type: 'settingsBack' });

@@ -24,7 +24,7 @@ const english: Readonly<Record<string, string>> = {
 	'编译器或系统头文件配置不完整。请在设置的“工具”中执行“修复工具链”，然后重新检测；使用自定义编译器时，也请检查其标准库是否完整。': 'The compiler or system headers are incomplete. Run Repair Toolchain under Tools in Settings, then check again. For a custom compiler, also check its standard library installation.',
 	'检测程序等待超时。请等待工具链安装结束，确认没有其他任务占用大量资源，再重试；持续超时可导出日志反馈。': 'The check timed out. Wait for toolchain installation to finish and check that other tasks are not using excessive resources, then retry. Export the logs if timeouts persist.',
 	'检测未通过。请展开本步骤查看具体错误，在设置的“工具”中运行“工具链诊断”或“修复工具链”；若仍失败，导出日志反馈给开发者。': 'The check failed. Expand this step for the error details, then run Toolchain Diagnostics or Repair Toolchain under Tools in Settings. Export the logs for the developer if it still fails.',
-	'已在“{0}”中创建 .clangd 和 .clang-format。': 'Created .clangd and .clang-format in “{0}”.',
+	'已在“{0}”中创建 .clangd。': 'Created .clangd in “{0}”.',
 	'“{0}”尚未包含 OI 项目配置。要创建 .clangd 和 .clang-format 吗？': '“{0}” has no OI project configuration yet. Create .clangd and .clang-format?',
 
 	'将左侧导航栏宽度缩小至标题栏高度。': 'Reduce the left navigation bar width to the title bar height.',
@@ -263,7 +263,7 @@ const english: Readonly<Record<string, string>> = {
 	, '启用自动格式化': 'Enable Automatic Formatting'
 	, '同时控制保存时格式化和粘贴时格式化。': 'Controls formatting on both save and paste.'
 	, '自动格式化规则': 'Automatic Formatting Rules'
-	, '配置当前工作目录的 .clang-format。': 'Configure .clang-format in the current workspace folder.'
+	, '配置 IDE 共用的全局 .clang-format。': 'Configure the global .clang-format shared by the IDE.'
 	, '配置格式化规则': 'Configure Formatting Rules'
 	, 'C++ 版本': 'C++ Version'
 	, 'ShortestPath OJ 提交语言': 'ShortestPath OJ Submission Language'
@@ -466,7 +466,7 @@ const english: Readonly<Record<string, string>> = {
 	, '7 / 9 · 格式化': '7 / 9 · Formatting'
 	, '8 / 9 · Judger': '8 / 9 · Judger'
 	, '9 / 9 · 模板': '9 / 9 · Snippets'
-	, '配置会实时保存到当前工作目录的': 'Settings are saved immediately to'
+	, '配置会实时保存到 IDE 数据目录下的全局': 'Settings are saved immediately to the global configuration in the IDE data directory:'
 	, '，并可选择同时启用保存和粘贴时格式化。': ', with optional formatting on save and paste.'
 	, '同时开启保存时格式化和粘贴时格式化。': 'Enable formatting on both save and paste.'
 	, '通用': 'General'

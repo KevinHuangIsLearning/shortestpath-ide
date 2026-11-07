@@ -15,6 +15,7 @@ import { withCompilerPathFlags } from './compilerRuntime';
 import { isSettingSupportedOnPlatform } from './platformSettings';
 import { templateEditorLayoutScript } from './templateEditor';
 import { SettingsNavigation, type SettingsPageHost } from './settingsNavigation';
+import { ensureGlobalCppFormatConfig } from './cppFormatting';
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 
@@ -109,7 +110,7 @@ let settingsPanel: vscode.WebviewPanel | undefined;
 export function registerSimpleSettings(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openSettings', () => openSimpleSettings(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.configureCppSnippets', () => openCppSnippets(context)));
-	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.configureAutoFormat', () => openAutoFormatSettings()));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.configureAutoFormat', () => openAutoFormatSettings(context)));
 }
 
 function defaultLanguageSnippets(language: string): string {
@@ -341,22 +342,18 @@ const defaultAutoFormatState: AutoFormatState = {
 	standard: 'Latest'
 };
 
-function getAutoFormatWorkspaceFolder(): vscode.Uri | undefined {
-	return vscode.workspace.workspaceFolders?.[0]?.uri;
-}
-
 function readAutoFormatValue(content: string, key: string): string | undefined {
 	const match = new RegExp(`^${key}:\\s*(.+?)\\s*(?:#.*)?$`, 'm').exec(content);
 	return match?.[1]?.trim();
 }
 
-async function readAutoFormatState(workspaceFolder: vscode.Uri): Promise<AutoFormatState> {
-	const tabSize = vscode.workspace.getConfiguration('editor', workspaceFolder).get<number>('tabSize') ?? 2;
+async function readAutoFormatState(configFile: vscode.Uri): Promise<AutoFormatState> {
+	const tabSize = vscode.workspace.getConfiguration('editor', null).get<number>('tabSize') ?? 2;
 	const state = { ...defaultAutoFormatState, indentWidth: tabSize, tabWidth: tabSize };
 	state.enabled = vscode.workspace.getConfiguration('editor', null).get<boolean>('formatOnSave') === true
 		&& vscode.workspace.getConfiguration('editor', null).get<boolean>('formatOnPaste') === true;
 	try {
-		const content = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(workspaceFolder, '.clang-format'))).toString('utf8');
+		const content = Buffer.from(await vscode.workspace.fs.readFile(configFile)).toString('utf8');
 		const stringKeys = [
 			'basedOnStyle', 'allowShortIfStatementsOnASingleLine', 'allowShortFunctionsOnASingleLine', 'useTab',
 			'breakBeforeBraces', 'alwaysBreakTemplateDeclarations', 'pointerAlignment', 'separateDefinitionBlocks', 'standard'
@@ -457,24 +454,20 @@ Standard: ${state.standard}
 `;
 }
 
-async function openAutoFormatSettings(host?: SettingsPageHost): Promise<void> {
-	const workspaceFolder = getAutoFormatWorkspaceFolder();
-	if (!workspaceFolder) {
-		void vscode.window.showWarningMessage(localize('请先打开一个工作目录，再配置自动格式化。'));
-		return;
-	}
+async function openAutoFormatSettings(context: vscode.ExtensionContext, host?: SettingsPageHost): Promise<void> {
+	const configFile = await ensureGlobalCppFormatConfig(context);
 	const panel = host ?? vscode.window.createWebviewPanel('shortestpath.autoFormat', localize('自动格式化'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
-	panel.webview.html = localizeWebviewHtml(getAutoFormatHtml(await readAutoFormatState(workspaceFolder), workspaceFolder.fsPath));
+	panel.webview.html = localizeWebviewHtml(getAutoFormatHtml(await readAutoFormatState(configFile), configFile.fsPath));
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'save') {
 			const state = normalizeAutoFormatState(message.value ?? {});
 			await Promise.all([
 				vscode.workspace.getConfiguration('editor', null).update('formatOnSave', state.enabled, vscode.ConfigurationTarget.Global),
 				vscode.workspace.getConfiguration('editor', null).update('formatOnPaste', state.enabled, vscode.ConfigurationTarget.Global),
-				vscode.workspace.fs.writeFile(vscode.Uri.joinPath(workspaceFolder, '.clang-format'), Buffer.from(serializeAutoFormat(state), 'utf8'))
+				vscode.workspace.fs.writeFile(configFile, Buffer.from(serializeAutoFormat(state), 'utf8'))
 			]);
 		} else if (message?.type === 'openFile') {
-			await vscode.window.showTextDocument(vscode.Uri.joinPath(workspaceFolder, '.clang-format'), { preview: false });
+			await vscode.window.showTextDocument(configFile, { preview: false });
 		}
 	});
 }
@@ -584,7 +577,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 		} else if (message?.type === 'openDocumentation') {
 			await openDocumentationPage();
 		} else if (message?.type === 'autoFormat') {
-			await openDetail(localize('自动格式化规则'), openAutoFormatSettings, message);
+			await openDetail(localize('自动格式化规则'), host => openAutoFormatSettings(context, host), message);
 		} else if (message?.type === 'toolchainDiagnostics') {
 			const { openToolchainDiagnostics } = await import('./toolchainDiagnostics');
 			await openDetail(localize('工具链诊断'), host => openToolchainDiagnostics(context, host), message);
@@ -1001,7 +994,7 @@ body.vscode-reduce-motion { --settings-feedback-duration: 0ms; }
 </section>
 <section class="card" data-category="editor"><h3>编辑行为</h3>
 <div class="row"><div><label for="autoFormat">启用自动格式化</label><div class="hint">同时控制保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="autoFormat" type="checkbox" role="switch"></label></div>
-<button id="autoFormatSettings" class="row disclosure-row" type="button"><span><span>自动格式化规则</span><span class="hint">配置当前工作目录的 .clang-format。</span></span><span aria-hidden="true">›</span></button>
+<button id="autoFormatSettings" class="row disclosure-row" type="button"><span><span>自动格式化规则</span><span class="hint">配置 IDE 共用的全局 .clang-format。</span></span><span aria-hidden="true">›</span></button>
 <div class="row"><div><label for="clangdVariableTypeHints">clangd 变量类型提示</label><div class="hint">在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。</div></div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox" role="switch"></label></div>
 <div class="row"><div><label for="errorLensEnabled">Error Lens Enable</label><div class="hint">启用 Error Lens，高亮错误行。</div></div><label class="toggle"><input id="errorLensEnabled" type="checkbox" role="switch"></label></div>
 </section>
@@ -1320,7 +1313,7 @@ input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-f
 ${booleanControlStyles}
 button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } #saved { color: var(--vscode-testing-iconPassed); } code { font-family: var(--vscode-editor-font-family); } section.card[hidden], .row[hidden] { display: none; } @media(max-width:900px) { main { padding-left: 28px; }.settings-sidebar { position: static; width: auto; margin: 20px 28px 0; }.settings-sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style></head><body><main>
-<h1>自动格式化</h1><p>配置会实时保存到当前工作目录的 <code>.clang-format</code>，并可选择同时启用保存和粘贴时格式化。</p>
+<h1>自动格式化</h1><p>配置会实时保存到 IDE 数据目录下的全局 <code>.clang-format</code>，并可选择同时启用保存和粘贴时格式化。</p>
 <section class="card"><div class="row"><div><label for="enabled">启用自动格式化</label><div class="hint">同时开启保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="enabled" type="checkbox" role="switch"></label></div></section>
 <h2>基础风格</h2><section class="card"><div class="row"><div><label for="basedOnStyle">基础风格（BasedOnStyle）</label><div class="hint">作为其他规则未覆盖部分的基准；下面的选项会覆盖它。</div></div><select id="basedOnStyle"><option value="Google">Google（Google C++ 风格）</option><option value="LLVM">LLVM（LLVM 默认风格）</option><option value="Chromium">Chromium（Chromium 项目风格）</option><option value="Mozilla">Mozilla（Mozilla 项目风格）</option><option value="WebKit">WebKit（WebKit 项目风格）</option></select></div></section>
 <h2>行为</h2><section class="card">
