@@ -18,8 +18,16 @@ export const vjudgeSubmitScript = `const waitFor = async (find) => {
 	}
 	throw new Error('VJudge submission form unavailable. Check that you are signed in.');
 };
-(await waitFor(() => document.getElementById('btn-submit'))).click();
-const editor = await waitFor(() => document.querySelector('#submitModal .CodeMirror')?.CodeMirror);
+let nextOpenAttempt = 0;
+const editor = await waitFor(() => {
+	const editor = document.querySelector('#submitModal .CodeMirror')?.CodeMirror;
+	if (editor) return editor;
+	const button = document.getElementById('btn-submit');
+	if (button && !button.disabled && Date.now() >= nextOpenAttempt) {
+		nextOpenAttempt = Date.now() + 1000;
+		button.click();
+	}
+});
 const personal = document.querySelector('#submitModal #submitter-type1');
 if (!personal || personal.disabled) {
 	throw new Error('VJudge personal-account submission is unavailable for this problem.');

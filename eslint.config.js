@@ -224,6 +224,8 @@ export default defineConfig(
 			'extensions/shortestpath.judger/src/browserImportButton.ts',
 			'extensions/shortestpath.judger/src/problemDisplay.ts',
 			'extensions/shortestpath.judger/src/submissionTemplates.ts',
+			'extensions/shortestpath.judger/src/tests/submissionEditorState.test.ts',
+			'extensions/shortestpath.judger/static/userscripts/vjudge.user.js',
 			'extensions/shortestpath.judger/src/tests/browserImport.test.ts',
 			'extensions/shortestpath.judger/src/tests/browserImportCreation.test.ts',
 			'extensions/shortestpath.judger/src/tests/browserImportButton.test.ts',

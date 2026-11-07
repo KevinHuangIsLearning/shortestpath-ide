@@ -204,7 +204,9 @@ export async function executeSubmissionScript(template: SubmissionTemplate, valu
 			}
 			if (!finished) { logSubmission(`Userscript timed out; last state: ${lastState ?? 'no execution context'}`); throw new Error(localize('judger.browserSubmit.timeout', 'Browser script execution timed out.')); }
 		} else {
-			const legacyConfirmation = template.script === vjudgeSubmitScript && values.confirmBeforeSubmit === 'true';
+			const target = new URL(url);
+			const vjudgeProblem = target.hostname === 'vjudge.net' && target.pathname.startsWith('/problem/');
+			const legacyConfirmation = values.confirmBeforeSubmit === 'true' && (template.script === vjudgeSubmitScript || vjudgeProblem);
 			const unavailableMessage = localize('judger.browserSubmit.submitUnavailable', 'VJudge submit button is unavailable.');
 			const finalAction = legacyConfirmation
 				? `window[${JSON.stringify(stateKey + '_submit')}] = async () => { const deadline = Date.now() + 25000; while (Date.now() < deadline) { const button = document.querySelector('#submitModal #btn-submit'); if (button && !button.disabled) { button.click(); return; } await new Promise(resolve => setTimeout(resolve, 100)); } throw new Error(${JSON.stringify(unavailableMessage)}); };`

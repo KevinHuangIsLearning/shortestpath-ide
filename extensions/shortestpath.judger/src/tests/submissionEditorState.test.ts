@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- * Part of ShortestPath Judger.
- * Licensed under GPL-3.0-or-later. See LICENSE for license information.
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import fs from 'fs';
 import path from 'path';
@@ -90,6 +90,24 @@ describe('submission editor and form state', () => {
 		expect({ status: window.status, submitted }).toEqual({
 			status: { state: 'done' }, submitted: [layout === 'default' ? 'python.17' : layout === 'only-main' ? 'cpp.17' : 'cpp.20', code],
 		});
+	});
+
+	test('VJudge retries opening every second until the editor is ready, then stops', async () => {
+		jest.useFakeTimers();
+		jest.setSystemTime(0);
+		const clicks: number[] = [];
+		let filled = '';
+		const window = run('vjudge', 'https://vjudge.net/problem/POJ-1000', {}, {
+			document: { querySelector: (selector: string) => {
+				if (selector === '#btn-submit') { return { click: () => clicks.push(Date.now()) }; }
+				if (selector === '#submitModal .CodeMirror' && clicks.length >= 3 && Date.now() >= 2300) {
+					return { CodeMirror: { setValue: (value: string) => { filled = value; }, save: () => {} } };
+				}
+				return null;
+			} },
+		});
+		await jest.advanceTimersByTimeAsync(5000);
+		expect({ status: window.status, clicks, filled }).toEqual({ status: { state: 'done' }, clicks: [0, 1000, 2000], filled: code });
 	});
 
 	test.each(['0', '1', '2'])('VJudge handles submission method %s without silently archiving code', async method => {

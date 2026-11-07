@@ -92,13 +92,28 @@ describe('browser submission templates', () => {
 		expect(filled).toBe(false);
 	});
 	test('default script opens form, selects personal account, preserves exact code without submitting', async () => {
+		jest.useFakeTimers();
+		jest.setSystemTime(0);
 		const code = 'quotes "\' ` ${globalThis.hacked = true}\n{problemId}\n</script>\\n';
 		const actions: string[] = [];
+		const clicks: number[] = [];
 		let filled = '';
-		const context = { document: { getElementById: (id: string) => id === 'btn-submit' ? { click: () => actions.push('open') } : undefined, querySelector: (selector: string) => selector === '#submitModal label[for="submitter-type1"]' ? { click: () => actions.push('personal') } : selector === '#submitModal #submitter-type1' ? { disabled: false } : selector === '#submitModal .CodeMirror' ? { CodeMirror: { save: () => actions.push('save'), setValue: (value: string) => { filled = value; } } } : undefined } };
-		await vm.runInNewContext(`(async () => { ${replaceSubmissionPlaceholders(vjudgeSubmitScript, { code, problemId: 'A' }, true)} })()`, context);
-		expect(actions).toEqual(['open', 'personal', 'save']);
-		expect(filled).toBe(code);
-		expect((context as { hacked?: boolean }).hacked).toBeUndefined();
+		const context = { Date, setTimeout, document: {
+			getElementById: (id: string) => id === 'btn-submit' ? { click: () => clicks.push(Date.now()) } : undefined,
+			querySelector: (selector: string) => selector === '#submitModal label[for="submitter-type1"]'
+				? { click: () => actions.push('personal') }
+				: selector === '#submitModal #submitter-type1' ? { disabled: false }
+					: selector === '#submitModal .CodeMirror' && clicks.length >= 3
+						? { CodeMirror: { save: () => actions.push('save'), setValue: (value: string) => { filled = value; } } } : undefined,
+		} };
+		try {
+			const execution = vm.runInNewContext(`(async () => { ${replaceSubmissionPlaceholders(vjudgeSubmitScript, { code, problemId: 'A' }, true)} })()`, context);
+			await jest.advanceTimersByTimeAsync(4000);
+			await execution;
+			expect({ clicks, actions, filled }).toEqual({ clicks: [0, 1000, 2000], actions: ['personal', 'save'], filled: code });
+			expect((context as { hacked?: boolean }).hacked).toBeUndefined();
+		} finally {
+			jest.useRealTimers();
+		}
 	});
 });

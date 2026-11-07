@@ -212,15 +212,24 @@ test.each(['OK', undefined])('only submits a filled userscript form after OK (an
 	expect(browser.session.close).toHaveBeenCalledTimes(1);
 });
 
-test.each(['OK', undefined])('legacy VJudge only clicks final submit after confirmation (answer=%s)', async answer => {
+test.each(['OK', undefined].flatMap(answer => [false, true].map(custom => ({ answer, custom }))))('plain VJudge only clicks final submit after confirmation ($answer, custom=$custom)', async ({ answer, custom }) => {
 	const { vjudgeSubmitScript } = await import('../submissionTemplates');
 	const browser = mockBrowser();
 	(vscode.window.showInformationMessage as jest.Mock).mockClear().mockResolvedValue(answer);
-	await executeSubmissionScript({ urlTemplate: 'https://vjudge.net/problem/UVA-1', script: vjudgeSubmitScript }, { code: 'int main(){}', confirmBeforeSubmit: 'true' });
+	await executeSubmissionScript({ urlTemplate: 'https://vjudge.net/problem/UVA-1', script: vjudgeSubmitScript + (custom ? '\n// Customized form filling script' : '') }, { code: 'int main(){}', confirmBeforeSubmit: 'true' });
 	const finalActions = browser.sent.filter(message => message.params.awaitPromise);
 	expect(finalActions).toHaveLength(answer === 'OK' ? 2 : 1);
+	expect((vscode.window.showInformationMessage as jest.Mock).mock.calls).toEqual([['Confirm submission?', { modal: true }, 'OK']]);
 	expect(String(finalActions[0].params.expression)).toContain('#submitModal #btn-submit');
 	if (answer === 'OK') { expect(String(finalActions[1].params.expression)).toContain('const action = window['); }
+});
+
+test('a custom plain script on another website does not receive the VJudge submit action', async () => {
+	const browser = mockBrowser();
+	(vscode.window.showInformationMessage as jest.Mock).mockClear();
+	await executeSubmissionScript({ urlTemplate: 'https://example.com/problem/UVA-1', script: 'fill({code})' }, { code: 'source', confirmBeforeSubmit: 'true' });
+	expect((vscode.window.showInformationMessage as jest.Mock).mock.calls).toEqual([]);
+	expect(browser.sent.filter(message => message.params.awaitPromise).map(message => message.params.expression)).toEqual(['(async () => {\nfill("source")\n\n})()']);
 });
 
 
