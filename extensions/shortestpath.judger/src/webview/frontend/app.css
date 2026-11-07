@@ -26,16 +26,20 @@
  *
  * Shape of the panel:
  *
- *   .judger-shell   full-height flex column
+ *   .judger-shell   full-height flex column; the auxiliary page overlay's
+ *                   containing block
  *     .judge-header     title, statistics, timer, auxiliary entry
  *     .judger-body      the only scrolling region
  *       .testcase-toolbar
  *       .results
- *     .judge-status     what the judger is doing right now
- *     .judger-companion zero-height overlay anchored above the action bar
- *     .actions          run / stop / submit / stress
+ *     .page             auxiliary surface, covers the content above the status
+ *                       and action bars
+ *   .judge-status     what the judger is doing right now
+ *   .judger-companion zero-height overlay anchored above the action bar
+ *   .actions          run / stop / submit / stress
  *
- * Auxiliary surfaces (.page) are overlays inside .ui, not fixed elements.
+ * The status and action bars live outside .judger-shell, so an auxiliary page
+ * never hides the ONLINE_JUDGE toggle or the run controls.
  */
 @import url('./tokens.css');
 
@@ -404,6 +408,7 @@ textarea::placeholder {
 }
 
 .judger-shell {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	flex: 1 1 auto;
@@ -1451,8 +1456,10 @@ textarea::placeholder {
 /* ---------------------------------------------------------- page/dialog -- */
 
 /*
- * One auxiliary surface at a time. It covers the panel instead of being
- * position:fixed, so it can never escape the webview frame.
+ * One auxiliary surface at a time. It is positioned inside .judger-shell rather
+ * than .ui, so it covers the header and testcases but leaves the status and
+ * action bars below reachable. That is what keeps the ONLINE_JUDGE toggle
+ * clickable while a page is open.
  */
 .page {
 	position: absolute;

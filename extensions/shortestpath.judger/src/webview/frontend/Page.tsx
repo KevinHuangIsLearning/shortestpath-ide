@@ -6,8 +6,9 @@ const FOCUSABLE =
 
 /**
  * Shared container for every auxiliary surface (settings, JSON import, stress
- * test, help/about). Only one page may be open at a time; the host keeps the
- * background inert by locking scrolling while a page is mounted.
+ * test, help/about). Only one page may be open at a time. The page covers the
+ * judger content, while the status and action bars stay outside its containing
+ * block and remain reachable; focus cycles through the page and those bars.
  */
 export default function Page(props: {
     content: React.ReactNode;
@@ -32,18 +33,30 @@ export default function Page(props: {
                 return;
             }
             if (event.key !== 'Tab' || !container.current) { return; }
-            const focusable = Array.from(
-                container.current.querySelectorAll<HTMLElement>(FOCUSABLE),
-            );
+            const isVisible = (element: HTMLElement) =>
+                element.getClientRects().length > 0;
+            const focusable = [
+                ...Array.from(
+                    container.current.querySelectorAll<HTMLElement>(FOCUSABLE),
+                ),
+                ...Array.from(
+                    document.querySelectorAll<HTMLElement>('[data-page-focus]'),
+                ).flatMap((scope) =>
+                    Array.from(scope.querySelectorAll<HTMLElement>(FOCUSABLE)),
+                ),
+            ].filter(isVisible);
             if (!focusable.length) { return; }
             const first = focusable[0];
             const last = focusable[focusable.length - 1];
-            const active = document.activeElement;
-            const outside = !active || !container.current.contains(active);
-            if (event.shiftKey && (active === first || outside)) {
-                event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && (active === last || outside)) {
+            const index = focusable.indexOf(
+                document.activeElement as HTMLElement,
+            );
+            if (event.shiftKey) {
+                if (index <= 0) {
+                    event.preventDefault();
+                    last.focus();
+                }
+            } else if (index === -1 || index === focusable.length - 1) {
                 event.preventDefault();
                 first.focus();
             }
@@ -56,7 +69,6 @@ export default function Page(props: {
         <div
             className="page selectable"
             role="dialog"
-            aria-modal="true"
             aria-labelledby="judger-page-title"
             ref={container}
         >

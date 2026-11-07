@@ -341,13 +341,6 @@ function Judge(props: {
     const ordinaryPassed = cases.filter(
         (testCase) => !testCase.testcase.disabled && testCase.result?.pass === true,
     ).length;
-    useEffect(() => {
-        if (infoPageVisible || stressDialogVisible || settingsPageVisible) {
-            document.body.classList.add('no-scroll');
-        } else {
-            document.body.classList.remove('no-scroll');
-        }
-    }, [infoPageVisible, stressDialogVisible, settingsPageVisible]);
 
     useEffect(() => {
         if (stressRunIdRef.current !== null) {
@@ -471,6 +464,20 @@ function Judge(props: {
         window.addEventListener('message', onImportMessage);
         return () => window.removeEventListener('message', onImportMessage);
     }, [problem.srcPath]);
+    useEffect(() => {
+        document.body.classList.toggle(
+            'no-scroll',
+            infoPageVisible ||
+                settingsPageVisible ||
+                stressDialogVisible ||
+                importPageVisible,
+        );
+    }, [
+        infoPageVisible,
+        settingsPageVisible,
+        stressDialogVisible,
+        importPageVisible,
+    ]);
     const [editableStateText, setEditableStateText] = useState(
         JSON.stringify(webviewState, null, 2),
     );
@@ -1730,30 +1737,6 @@ with open(sys.argv[2], "r") as f:
                     {notification}
                 </div>
             )}
-            {infoPageVisible && renderInfoPage()}
-            {settingsPageVisible && (
-                <ProblemSettings
-                    problem={problem}
-                    running={runningNow}
-                    onApply={applySettings}
-                    onClose={() => setSettingsPageVisible(false)}
-                    onOpenAdvancedActions={() =>
-                        sendMessageToVSCode({ command: 'problem-actions', problem })
-                    }
-                    onOpenGlobalSettings={() =>
-                        sendMessageToVSCode({ command: 'open-settings' })
-                    }
-                    advanced={advancedSettings}
-                />
-            )}
-            {stressDialogVisible && renderStressDialog()}
-            <ImportCases
-                t={t}
-                notify={notify}
-                importPageVisible={importPageVisible}
-                setImportPageVisible={setImportPageVisible}
-                importCases={importCases}
-            />
             <div className="judger-shell">
                 <ProblemHeader
                     name={problem.name}
@@ -1872,57 +1855,86 @@ with open(sys.argv[2], "r") as f:
                         {views}
                     </div>
                 </div>
-                <TaskStatusBar
-                    task={task}
-                    label={taskLabel}
-                    progress={taskProgress}
-                    onlineJudgeEnv={onlineJudgeEnv}
-                    onToggleOnlineJudge={toggleOnlineJudgeEnv}
-                    warning={renderTimeoutAVSuggestion()}
-                />
-                <JudgeActionBar
-                    running={task === 'running' || task === 'checking' || task === 'stress'}
-                    submitButton={renderSubmitButton('submit-action')}
-                    onRunAll={runAll}
-                    onStop={stopActiveTask}
-                    onStress={() => {
-                        setAuxOpen(false);
-                        setStressDialogVisible(true);
-                    }}
-                />
-                {webviewState.catCompanionEnabled && (
-                    <div className="judger-companion">
-                        <CatCompanion
-                            enabled={webviewState.catCompanionEnabled}
-                            total={ordinarySummary.total}
-                            numPassed={ordinaryPassed}
-                        />
-                    </div>
-                )}
-                {caseMenu && menuCase && (
-                    <CaseActionsMenu
-                        key={caseMenu.id}
-                        anchor={caseMenu.anchor}
-                        state={{
-                            disabled: menuCase.testcase.disabled === true,
-                            hasResult: menuCase.result !== null,
-                            inputIsFile: !!menuCase.testcase.inputPath,
-                            outputIsFile: !!menuCase.testcase.outputPath,
-                        }}
-                        onAction={(action, mode) =>
-                            sendMessageToVSCode({
-                                command: 'testcase-action',
-                                problem,
-                                id: menuCase.id,
-                                action,
-                                mode,
-                                result: menuCase.result,
-                            })
+                {infoPageVisible && renderInfoPage()}
+                {settingsPageVisible && (
+                    <ProblemSettings
+                        problem={problem}
+                        running={runningNow}
+                        onApply={applySettings}
+                        onClose={() => setSettingsPageVisible(false)}
+                        onOpenAdvancedActions={() =>
+                            sendMessageToVSCode({ command: 'problem-actions', problem })
                         }
-                        onClose={() => setCaseMenu(null)}
+                        onOpenGlobalSettings={() =>
+                            sendMessageToVSCode({ command: 'open-settings' })
+                        }
+                        advanced={advancedSettings}
                     />
                 )}
+                {stressDialogVisible && renderStressDialog()}
+                <ImportCases
+                    t={t}
+                    notify={notify}
+                    importPageVisible={importPageVisible}
+                    setImportPageVisible={setImportPageVisible}
+                    importCases={importCases}
+                />
             </div>
+            <TaskStatusBar
+                task={task}
+                label={taskLabel}
+                progress={taskProgress}
+                onlineJudgeEnv={onlineJudgeEnv}
+                onToggleOnlineJudge={toggleOnlineJudgeEnv}
+                warning={renderTimeoutAVSuggestion()}
+            />
+            <JudgeActionBar
+                running={task === 'running' || task === 'checking' || task === 'stress'}
+                submitButton={renderSubmitButton('submit-action')}
+                onRunAll={runAll}
+                onStop={stopActiveTask}
+                onStress={() => {
+                    // The action bar stays reachable while a page is open, so
+                    // make sure the stress page is not stacked on another one.
+                    setAuxOpen(false);
+                    setInfoPageVisible(false);
+                    setSettingsPageVisible(false);
+                    setImportPageVisible(false);
+                    setStressDialogVisible(true);
+                }}
+            />
+            {webviewState.catCompanionEnabled && (
+                <div className="judger-companion">
+                    <CatCompanion
+                        enabled={webviewState.catCompanionEnabled}
+                        total={ordinarySummary.total}
+                        numPassed={ordinaryPassed}
+                    />
+                </div>
+            )}
+            {caseMenu && menuCase && (
+                <CaseActionsMenu
+                    key={caseMenu.id}
+                    anchor={caseMenu.anchor}
+                    state={{
+                        disabled: menuCase.testcase.disabled === true,
+                        hasResult: menuCase.result !== null,
+                        inputIsFile: !!menuCase.testcase.inputPath,
+                        outputIsFile: !!menuCase.testcase.outputPath,
+                    }}
+                    onAction={(action, mode) =>
+                        sendMessageToVSCode({
+                            command: 'testcase-action',
+                            problem,
+                            id: menuCase.id,
+                            action,
+                            mode,
+                            result: menuCase.result,
+                        })
+                    }
+                    onClose={() => setCaseMenu(null)}
+                />
+            )}
         </div>
     );
 }
