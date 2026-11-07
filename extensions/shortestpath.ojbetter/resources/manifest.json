@@ -1,10 +1,10 @@
 {
-	"commit": "860106c63ef7bb7d4ec5dcd709f80a9f9a6f1a46",
+	"commit": "b60bfe65c18829a3bd5d069cfe4dfbe85e50af41",
 	"scripts": {
 		"atcoder": {
 			"file": "vendor/atcoder-better.user.js.txt",
 			"name": "Atcoder Better!",
-			"version": "1.25.1",
+			"version": "1.26.0",
 			"requires": [
 				"vendor/turndown.min.js.txt",
 				"vendor/markdown-it.js.txt",
@@ -29,7 +29,7 @@
 		"codeforces": {
 			"file": "vendor/codeforces-better.user.js.txt",
 			"name": "Codeforces Better!",
-			"version": "1.87.1",
+			"version": "1.88.0",
 			"requires": [
 				"vendor/turndown.min.js.txt",
 				"vendor/markdown-it.js.txt",
@@ -53,41 +53,6 @@
 		}
 	},
 	"assets": {
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/turndown/7.2.0/turndown.min.js": {
-			"file": "vendor/turndown.min.js.txt",
-			"sha256": "fd0e2aa0785c13c39fa1ddc0b3b19520e541b69801c1369ea4aabfe7913a0dea",
-			"integrity": "sha512-sJzEecN5Nk8cq81zKtGq6/z9Z/r3q38zV9enY75IVxiG7ybtlNUt864sL4L1Kf36bYIwxTMVKQOtU4VhD7hGrw=="
-		},
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/markdown-it/13.0.2/markdown-it.js": {
-			"file": "vendor/markdown-it.js.txt",
-			"sha256": "cfd2d33cc8aaed57d6cdb01176d1cf45901d73a3ae28e83d3e1e7331b7910057",
-			"integrity": "sha512-2LtYcLGnCbAWz9nDIrfG2pHFiFu9n+3oGecQlzLuYsLgen/oxiYscGWnDST9J9EZanlsQkDD0ZP2n/6peDuALQ=="
-		},
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/crypto-js/4.2.0/crypto-js.min.js": {
-			"file": "vendor/crypto-js.min.js.txt",
-			"sha256": "769a555de553babc35a3338f344dd7aa16260c93cea2c7db290707c90484e7cc",
-			"integrity": "sha512-a+SUDuwNzXDvz4XrIcXHuCf089/iJAoN4lmrXJg18XnduKK6YlDHNRalv4yd1N40OKI80tFidF+rqTFKGPoWFQ=="
-		},
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/chroma-js/2.4.2/chroma.min.js": {
-			"file": "vendor/chroma.min.js.txt",
-			"sha256": "a19aa0df3b7974028724b2666d8311a226acedc65a90947c7bc56eecb9a367ad",
-			"integrity": "sha512-zInFF17qBFVvvvFpIfeBzo7Tj7+rQxLeTJDmbxjBz5/zIr89YVbTNelNhdTT+/DCrxoVzBeUPVFJsczKbB7sew=="
-		},
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/xterm/5.5.0/xterm.js": {
-			"file": "vendor/xterm.js.txt",
-			"sha256": "1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495",
-			"integrity": "sha512-Gujw5GajF5is3nMoGv9X+tCMqePLL/60qvAv1LofUZTV9jK8ENbM9L+maGmOsNzuZaiuyc/fpph1KT9uR5w3CQ=="
-		},
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/dexie/4.0.7/dexie.min.js": {
-			"file": "vendor/dexie.min.js.txt",
-			"sha256": "03337c3ff922434111a698fc4c3a28da72d20fe543859ebae1a1421e42106f1e",
-			"integrity": "sha512-882VotT07mOQRzqIxsyxHzJX0XUaoeee3qXp4THg1A0KI0XFnWFAaLFQm0x6OW3pHSIipVZW+gzQ1w9b6uvkVw=="
-		},
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/i18next/23.11.5/i18next.min.js": {
-			"file": "vendor/i18next.min.js.txt",
-			"sha256": "9861e2df7a3a4d60502468fc6319c928696b3b7c39796c5fef248ed805beea0d",
-			"integrity": "sha512-3RSGkmT48HnO+hlmzGYDx5/w2LIBX0O5hSuYX6KWAxmvVlSjFgoxIaWa2tlMExheGvt3lLyxeTsXfpC47yb8CQ=="
-		},
 		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/i18next-http-backend/2.5.2/i18nextHttpBackend.min.js": {
 			"file": "vendor/i18nextHttpBackend.min.js.txt",
 			"sha256": "9f4abd83b14b09903d896e82cbd676f616e95649b676750b8ec7ae79b5a796cf",
@@ -97,16 +62,6 @@
 			"file": "vendor/jquery-i18next.min.js.txt",
 			"sha256": "568d70ac78e7cb88500cf03d4b0054a46fc405ac21bd4bac76a4476f721aef1f",
 			"integrity": "sha512-79RgNpOyaf8AvNEUdanuk1x6g53UPoB6Fh2uogMkOMGADBG6B0DCzxc+dDktXkVPg2rlxGvPeAFKoZxTycVooQ=="
-		},
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/highlight.js/11.9.0/highlight.min.js": {
-			"file": "vendor/highlight.min.js.txt",
-			"sha256": "837a6fa5b0c736b52bbde2b2b6190f305da3fc9ed41681db5321507057b5c846",
-			"integrity": "sha512-D9gUyxqja7hBtkWpPWGt9wfbfaMGVt9gnyCvYa+jojwwPHLCzUm5i8rpk7vD7wNee9bA35eYIjobYPaQuKS1MQ=="
-		},
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/dialog-polyfill/0.5.6/dialog-polyfill.min.js": {
-			"file": "vendor/dialog-polyfill.min.js.txt",
-			"sha256": "644e9d156c289902691291aa7e1388f2821965b08c177b075291e3fa3c6464dd",
-			"integrity": "sha512-qUIG93zKzcLBVD5RGRbx2PBmbVRu+tJIl+EPLTus0z8I1AMru9sQYdlf6cBacSzYmZVncB9rcc8rYBnazqgrxA=="
 		},
 		"https://aowuucdn.oss-accelerate.aliyuncs.com/acwing_cpp_code_completer-0.0.11.json": {
 			"file": "vendor/acwing_cpp_code_completer-0.0.11.json.txt",
@@ -118,20 +73,10 @@
 			"sha256": "bfec919fd107d03ecdeaa3ca200694e61dad3a9f315187da888bbe460bbef0a1",
 			"integrity": null
 		},
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/xterm/5.5.0/xterm.min.css": {
-			"file": "vendor/xterm.min.css.txt",
-			"sha256": "97377c0c258e109358121823f5790146c714989366481f90e554c42277efb500",
-			"integrity": "sha512-XpXUuzg5afNt1bsgnrOesXP70TLH8tXYYK5sK+Y0UV+YBvJn9EfRFYWy4HT3TVDfH0nl1CO0lwOxIrt2gk9qjg=="
-		},
 		"https://aowuucdn.oss-accelerate.aliyuncs.com/css/selectpage.css": {
 			"file": "vendor/selectpage.css.txt",
 			"sha256": "42a0d9e93b7e347234ffce8fb3f8e42840425adc0c5431577ec84c7fe53f08bf",
 			"integrity": "sha512-cRXJfA2tEcAxHEKylJfxteY17N7j9fia3waahHOVnvl63uVZT9OQ7jjjpofZMVZ4JSX3BRET+mI8UvKnsXd3NA=="
-		},
-		"https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/dialog-polyfill/0.5.6/dialog-polyfill.min.css": {
-			"file": "vendor/dialog-polyfill.min.css.txt",
-			"sha256": "8c06ee177c2c8700b9e92049132da55d6f48219264e44b597e28728f298d4fc1",
-			"integrity": "sha512-J2+1q+RsZuJXabBfH1q/fgRr6jMy9By5SwVLk7bScEW7NFJkMUXxfeOyyxtDe6fsaJ4jsciexSlGrPYn9YbBIg=="
 		},
 		"https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js": {
 			"file": "vendor/jquery.min.js.txt",
@@ -145,7 +90,7 @@
 		},
 		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/subs/atcoder-better.json": {
 			"file": "vendor/resources/subs/atcoder-better.json",
-			"sha256": "602e7cac4023fba8da05a153bccf53d7c8dbd350faa6b6b6ba8fbe59078b1339"
+			"sha256": "53c50ba9a67f981cd25a80dac66fc83c1cca3667cc02e778adb8cc120239a676"
 		},
 		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/subs/codeforces-better.json": {
 			"file": "vendor/resources/subs/codeforces-better.json",
@@ -189,7 +134,7 @@
 		},
 		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/announce.json": {
 			"file": "vendor/resources/locales/atcoder-better/announce.json",
-			"sha256": "276b491397821002ccad4b46f204e27456201adb6b9cc287da26b6c0f66744b3"
+			"sha256": "e5b95747029cd985b1f4c3c3873452dbacc17cd5627a1bf118b533aaf3623b4c"
 		},
 		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/codeEditor.json": {
 			"file": "vendor/resources/locales/atcoder-better/codeEditor.json",
@@ -233,7 +178,7 @@
 		},
 		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/announce.json": {
 			"file": "vendor/resources/locales/codeforces-better/announce.json",
-			"sha256": "f3f5124cd939de907c07ac0a3788a22da9bbaefa190c459d3773ae9faeb52778"
+			"sha256": "62a7dbaaf6ba94db74108648aab6b71f375ff6407153e6230159414bc191de81"
 		},
 		"https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/codeforces-better/codeEditor.json": {
 			"file": "vendor/resources/locales/codeforces-better/codeEditor.json",
@@ -1198,10 +1143,65 @@
 		"https://aowuucdn.oss-accelerate.aliyuncs.com/i18n/en/resources/locales/codeforces-better/codeEditor.json": {
 			"file": "vendor/i18n/en/resources/locales/codeforces-better/codeEditor.json",
 			"sha256": "652646467d0cf3a943530b5cf54e132c4f48bf22b5b379a79f6308fde219050f"
+		},
+		"https://registry.npmmirror.com/turndown/7.2.0/files/dist/turndown.js": {
+			"file": "vendor/turndown.min.js.txt",
+			"sha256": "ae3605eb07ab920a2d181008ace692ec560fa6cd67d2e291f77cbc5c4322cd38",
+			"integrity": "sha512-J0bvAX6gfqsaV2fRA6s7yzslKWJr4EhgWNxp9oxMXU3ankvQG9MvZuaUxlnBE/ihFGYgwQFC4a80LeHNyMAtQw=="
+		},
+		"https://registry.npmmirror.com/markdown-it/13.0.2/files/dist/markdown-it.js": {
+			"file": "vendor/markdown-it.js.txt",
+			"sha256": "cfd2d33cc8aaed57d6cdb01176d1cf45901d73a3ae28e83d3e1e7331b7910057",
+			"integrity": "sha512-2LtYcLGnCbAWz9nDIrfG2pHFiFu9n+3oGecQlzLuYsLgen/oxiYscGWnDST9J9EZanlsQkDD0ZP2n/6peDuALQ=="
+		},
+		"https://registry.npmmirror.com/crypto-js/4.2.0/files/crypto-js.js": {
+			"file": "vendor/crypto-js.min.js.txt",
+			"sha256": "ee02257ffbaf0a9b481c7039b0f3bb20c360c9674fe4be8b38ae709b2ea59bbe",
+			"integrity": "sha512-XRbFQ+ZhXm1gOO0z66M5IEMivMr+rXWYM9DrNkqgpGQ29XY7/E9PVov++wzIXa2Lt4Zv2gLDi3f1UKFlL60HFQ=="
+		},
+		"https://registry.npmmirror.com/chroma-js/2.4.2/files/chroma.min.js": {
+			"file": "vendor/chroma.min.js.txt",
+			"sha256": "a19aa0df3b7974028724b2666d8311a226acedc65a90947c7bc56eecb9a367ad",
+			"integrity": "sha512-zInFF17qBFVvvvFpIfeBzo7Tj7+rQxLeTJDmbxjBz5/zIr89YVbTNelNhdTT+/DCrxoVzBeUPVFJsczKbB7sew=="
+		},
+		"https://registry.npmmirror.com/%40xterm%2Fxterm/5.5.0/files/lib/xterm.js": {
+			"file": "vendor/xterm.js.txt",
+			"sha256": "1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495",
+			"integrity": "sha512-Gujw5GajF5is3nMoGv9X+tCMqePLL/60qvAv1LofUZTV9jK8ENbM9L+maGmOsNzuZaiuyc/fpph1KT9uR5w3CQ=="
+		},
+		"https://registry.npmmirror.com/dexie/4.0.7/files/dist/dexie.min.js": {
+			"file": "vendor/dexie.min.js.txt",
+			"sha256": "03337c3ff922434111a698fc4c3a28da72d20fe543859ebae1a1421e42106f1e",
+			"integrity": "sha512-882VotT07mOQRzqIxsyxHzJX0XUaoeee3qXp4THg1A0KI0XFnWFAaLFQm0x6OW3pHSIipVZW+gzQ1w9b6uvkVw=="
+		},
+		"https://registry.npmmirror.com/i18next/23.11.5/files/i18next.min.js": {
+			"file": "vendor/i18next.min.js.txt",
+			"sha256": "9c17cab6ab49fda358227f1e1015fa8f2417614e37ce3d4756edf8269ad3c97c",
+			"integrity": "sha512-00T1JxOw4CvOWv+GSaKmOqBonDKKSOuVbdrPt+53lM4g2lf6bdUi4M3nDe8B8nx4zAm4/2jyTsMVocYH2mnwTA=="
+		},
+		"https://registry.npmmirror.com/%40highlightjs%2Fcdn-assets/11.9.0/files/highlight.min.js": {
+			"file": "vendor/highlight.min.js.txt",
+			"sha256": "837a6fa5b0c736b52bbde2b2b6190f305da3fc9ed41681db5321507057b5c846",
+			"integrity": "sha512-D9gUyxqja7hBtkWpPWGt9wfbfaMGVt9gnyCvYa+jojwwPHLCzUm5i8rpk7vD7wNee9bA35eYIjobYPaQuKS1MQ=="
+		},
+		"https://registry.npmmirror.com/dialog-polyfill/0.5.6/files/dist/dialog-polyfill.js": {
+			"file": "vendor/dialog-polyfill.min.js.txt",
+			"sha256": "7d5b4a5c45b61245429184d1a4af62dcf5d3a05d346428c5b00dcf4d7e901994",
+			"integrity": "sha512-d1gAoN6CLVn7aa5fmtO42WW0wVKp7EoZe/pE+MsJHHNn98TL/+fIMbe6O1DfeGxt3BsMFFawEkKINNgXOCqb9w=="
+		},
+		"https://registry.npmmirror.com/%40xterm%2Fxterm/5.5.0/files/css/xterm.css": {
+			"file": "vendor/xterm.min.css.txt",
+			"sha256": "ba8e6985669488981ccf40c0cefe3aba80722cb6c92de7ad628b0bd717faf2b6",
+			"integrity": "sha512-AbNrj/oSHJaILgcdnkYm+DQ08SqVbZ8jlkJbFyyS1WDcAaXAcAfxJnCH69el7oVgTwVwyA5u5T+RdFyUykrV3Q=="
+		},
+		"https://registry.npmmirror.com/dialog-polyfill/0.5.6/files/dist/dialog-polyfill.css": {
+			"file": "vendor/dialog-polyfill.min.css.txt",
+			"sha256": "853d044f8b5f9beeccca37817a9060576379b4e9ac01529c4d6847f368efa1a0",
+			"integrity": "sha512-FH8aHFPbx/WeYvio2Fe/pZZTLwMe6TogMgQhXSspTK13X/mSwUdg+CGuqi/00POqqGWe/FlvtDFk+D9TFJYtPw=="
 		}
 	},
 	"files": {
-		"ThirdPartyNotices.txt": "e48d618b39c72615de963f6ebe57d6c7c3574a5a403547bca10589963a5a6c12",
+		"ThirdPartyNotices.txt": "da72f2cf545f0fc70d96fe3e7026af75d312852d8cc552c6a3c92e336a74fdeb",
 		"vendor/KaTeX-LICENSE": "766ccc1f306c885aa45542a9846bbd0a505b27a0374f146778171c2254ce18e3",
 		"vendor/LICENSE-@xterm-xterm.txt": "b569f629d00f2626a8100df2a1798210535621e42164dfd426a6fe5aac7b0ccd",
 		"vendor/LICENSE-chroma-js.txt": "c266032eef15ef0c01e7b0cca314b2944399d357f18d591e6ca72699d667cd23",
@@ -1218,13 +1218,13 @@
 		"vendor/LICENSE-turndown.txt": "a055e3a15db4b4cbb5af381230eba085603126d7d5d8c4dae45ee85b877a9729",
 		"vendor/OJBetter-LICENSE": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
 		"vendor/acwing_cpp_code_completer-0.0.11.json.txt": "552424e4401fba900953d2fd3fa71804e2c93cf04180a4d9aab12cf4b47e653f",
-		"vendor/atcoder-better.user.js.txt": "ac54e910d52ff40df1e9f25173a79cb2046eb4b9a1849bc1dcf5b6e07d79aa26",
+		"vendor/atcoder-better.user.js.txt": "6110a4dea326b6ecf9caf27e4febe9d9ec610f39dfb8af037b6152ac454fee95",
 		"vendor/chroma.min.js.txt": "a19aa0df3b7974028724b2666d8311a226acedc65a90947c7bc56eecb9a367ad",
-		"vendor/codeforces-better.user.js.txt": "f72ccf03d3875c0475eaf81af5f5ba3ec01357be036aaaeedfbc0dd49e3267cb",
-		"vendor/crypto-js.min.js.txt": "769a555de553babc35a3338f344dd7aa16260c93cea2c7db290707c90484e7cc",
+		"vendor/codeforces-better.user.js.txt": "cc58e638abf13269ca40ede596f9785c9916443b90fd5be58a15388b84bb3180",
+		"vendor/crypto-js.min.js.txt": "ee02257ffbaf0a9b481c7039b0f3bb20c360c9674fe4be8b38ae709b2ea59bbe",
 		"vendor/dexie.min.js.txt": "03337c3ff922434111a698fc4c3a28da72d20fe543859ebae1a1421e42106f1e",
-		"vendor/dialog-polyfill.min.css.txt": "8c06ee177c2c8700b9e92049132da55d6f48219264e44b597e28728f298d4fc1",
-		"vendor/dialog-polyfill.min.js.txt": "644e9d156c289902691291aa7e1388f2821965b08c177b075291e3fa3c6464dd",
+		"vendor/dialog-polyfill.min.css.txt": "853d044f8b5f9beeccca37817a9060576379b4e9ac01529c4d6847f368efa1a0",
+		"vendor/dialog-polyfill.min.js.txt": "7d5b4a5c45b61245429184d1a4af62dcf5d3a05d346428c5b00dcf4d7e901994",
 		"vendor/highlight.min.js.txt": "837a6fa5b0c736b52bbde2b2b6190f305da3fc9ed41681db5321507057b5c846",
 		"vendor/i18n/de/resources/locales/atcoder-better/alert.json": "2c55c286650b4618e4e25a8dd9520f150f601cb424e79c33c743134045d51bc3",
 		"vendor/i18n/de/resources/locales/atcoder-better/announce.json": "9765524f16e84bc88d692f048dc618910a65f0dfacca23a2da4dda03c3363473",
@@ -1466,7 +1466,7 @@
 		"vendor/i18n/zh-Hant/resources/locales/codeforces-better/translator.json": "cdde068f0adc241a7bed59d4cbce71e117d8ee8941a794d47b7f16c452a5606f",
 		"vendor/i18n/zh-Hant/resources/subs/atcoder-better.json": "2895e7d34638985b5ece33a4d4d0e19e97f4b12eda4d4da4b95313e4b308db59",
 		"vendor/i18n/zh-Hant/resources/subs/codeforces-better.json": "13c8cbc33e7383efe6a6db1b98d1d428b2feaf90e8672846b840299c7c12af13",
-		"vendor/i18next.min.js.txt": "9861e2df7a3a4d60502468fc6319c928696b3b7c39796c5fef248ed805beea0d",
+		"vendor/i18next.min.js.txt": "9c17cab6ab49fda358227f1e1015fa8f2417614e37ce3d4756edf8269ad3c97c",
 		"vendor/i18nextHttpBackend.min.js.txt": "9f4abd83b14b09903d896e82cbd676f616e95649b676750b8ec7ae79b5a796cf",
 		"vendor/iconfont.data.txt": "532c1ba29465bc0cfa86ca448d35bc858c9b7359b8f5dfa1df16627996ee3323",
 		"vendor/iconfont.woff2": "1b0b02858020c13042826686d39a8cb58e053dd7ccbfbf9fdb796b4485ddb02f",
@@ -1478,7 +1478,7 @@
 		"vendor/list.json.txt": "bfec919fd107d03ecdeaa3ca200694e61dad3a9f315187da888bbe460bbef0a1",
 		"vendor/markdown-it.js.txt": "cfd2d33cc8aaed57d6cdb01176d1cf45901d73a3ae28e83d3e1e7331b7910057",
 		"vendor/resources/locales/atcoder-better/alert.json": "298e71c5f497bfa7adc087a135b33db0a3857049cb51073cc3e15d0dda949eaf",
-		"vendor/resources/locales/atcoder-better/announce.json": "276b491397821002ccad4b46f204e27456201adb6b9cc287da26b6c0f66744b3",
+		"vendor/resources/locales/atcoder-better/announce.json": "e5b95747029cd985b1f4c3c3873452dbacc17cd5627a1bf118b533aaf3623b4c",
 		"vendor/resources/locales/atcoder-better/button.json": "0dfde1c021326d343c815dac784fe4409835a963a3ad518170cf0b8d4b4d67e3",
 		"vendor/resources/locales/atcoder-better/codeEditor.json": "12925352aa6f0dca446512f4e955375f8e88c905132d1dcf5ebbf1c7fbeb4c2f",
 		"vendor/resources/locales/atcoder-better/comments.json": "da00dc5051339d5ea389f32d93586d797d51fe736184ccae6f39adbd5528814c",
@@ -1489,7 +1489,7 @@
 		"vendor/resources/locales/atcoder-better/settings.json": "f750e44a00edcc7b1a9950cbac99c8877313fca936c1ed7b67e9f2eaefd17f71",
 		"vendor/resources/locales/atcoder-better/translator.json": "ce742b909d4105aa7a3295fe6c944fea2694e8e79fc4c6a0037d1fb919bb65f2",
 		"vendor/resources/locales/codeforces-better/alert.json": "66e8955154f0f126013700fbddcd8ffa07d96f28a0df4e08eaadb8d68dfba854",
-		"vendor/resources/locales/codeforces-better/announce.json": "f3f5124cd939de907c07ac0a3788a22da9bbaefa190c459d3773ae9faeb52778",
+		"vendor/resources/locales/codeforces-better/announce.json": "62a7dbaaf6ba94db74108648aab6b71f375ff6407153e6230159414bc191de81",
 		"vendor/resources/locales/codeforces-better/button.json": "7bb55964a916a70635a5c48dbbfdc26d329d622b233f3b5050eebf539d6a07c8",
 		"vendor/resources/locales/codeforces-better/codeEditor.json": "bf37c87d53a85a4bdfb957c3182eb1d040d81063912d279cc3a0021faa40e892",
 		"vendor/resources/locales/codeforces-better/comments.json": "da00dc5051339d5ea389f32d93586d797d51fe736184ccae6f39adbd5528814c",
@@ -1499,13 +1499,13 @@
 		"vendor/resources/locales/codeforces-better/logMessage.json": "0d4cf8f79e383dbec88f9a5e127940a35efce181a97a08ffb515d7697786febf",
 		"vendor/resources/locales/codeforces-better/settings.json": "9acee47de8e361cbdc7b417821aebb019a6f74fdfc383d9c5e4516743d76844c",
 		"vendor/resources/locales/codeforces-better/translator.json": "ce742b909d4105aa7a3295fe6c944fea2694e8e79fc4c6a0037d1fb919bb65f2",
-		"vendor/resources/subs/atcoder-better.json": "602e7cac4023fba8da05a153bccf53d7c8dbd350faa6b6b6ba8fbe59078b1339",
+		"vendor/resources/subs/atcoder-better.json": "53c50ba9a67f981cd25a80dac66fc83c1cca3667cc02e778adb8cc120239a676",
 		"vendor/resources/subs/codeforces-better.json": "eb2e761ff9c33fe83259e8ba7a6f1cd67cd885ad7c85c23c1e72364bd0172ec9",
 		"vendor/selectpage.css.txt": "42a0d9e93b7e347234ffce8fb3f8e42840425adc0c5431577ec84c7fe53f08bf",
 		"vendor/selectpage.min.js.txt": "70cc070f1f76058e67f3863e5f66c3e4863644316b588e341234c80c27ba0e97",
-		"vendor/turndown.min.js.txt": "fd0e2aa0785c13c39fa1ddc0b3b19520e541b69801c1369ea4aabfe7913a0dea",
+		"vendor/turndown.min.js.txt": "ae3605eb07ab920a2d181008ace692ec560fa6cd67d2e291f77cbc5c4322cd38",
 		"vendor/xterm.js.txt": "1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495",
-		"vendor/xterm.min.css.txt": "97377c0c258e109358121823f5790146c714989366481f90e554c42277efb500"
+		"vendor/xterm.min.css.txt": "ba8e6985669488981ccf40c0cefe3aba80722cb6c92de7ad628b0bd717faf2b6"
 	},
 	"katexVersion": "0.16.22"
 }

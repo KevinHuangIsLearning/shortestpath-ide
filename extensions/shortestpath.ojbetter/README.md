@@ -6,7 +6,7 @@
 
 ## 固定资源与许可
 
-来源：[beijixiaohu/OJBetter](https://github.com/beijixiaohu/OJBetter)，提交 `860106c63ef7bb7d4ec5dcd709f80a9f9a6f1a46`，作者北极小狐，GPL-3.0。Atcoder Better! **1.25.1**，Codeforces Better! **1.87.1**。`resources/vendor/*-better.user.js.txt` 保留原始脚本和文件头；`OJBetter-LICENSE` 保留上游许可。
+来源：[beijixiaohu/OJBetter](https://github.com/beijixiaohu/OJBetter)，提交 `b60bfe65c18829a3bd5d069cfe4dfbe85e50af41`，作者北极小狐，GPL-3.0。Atcoder Better! **1.26.0**，Codeforces Better! **1.88.0**。`resources/vendor/*-better.user.js.txt` 保留原始脚本和文件头；`OJBetter-LICENSE` 保留上游许可。
 
 依赖版本由脚本的 `@require` 固定：Turndown 7.2.0、markdown-it 13.0.2、CryptoJS 4.2.0、chroma-js 2.4.2、xterm 5.5.0、Dexie 4.0.7、i18next 23.11.5、i18next-http-backend 2.5.2、jquery-i18next 1.2.1、highlight.js 11.9.0、dialog-polyfill 0.5.6；另外内置 jQuery 3.7.1、SelectPage 2.19.0 和 KaTeX 0.16.22。完整第三方许可见 `resources/ThirdPartyNotices.txt` 和 `resources/vendor/`。
 

@@ -38,7 +38,7 @@ export function adaptScript(source: string): string {
 		throw new Error('OJBetter: unsupported dynamic library ' + url);
 	}`);
 	replace('checkScriptVersion', `async function checkScriptVersion() { /* Bundled scripts update with the IDE. */ }`);
-	replace('initMonacoEditor', `async function initMonacoEditor() { OJBetter.monaco.loaderOnload = true; }`);
+	replace('initMonacoEditor', `async function initMonacoEditor() { OJBetter.monaco.loaderOnload = true; return true; }`);
 	// Keep upstream language selection, sample execution and submission, using its
 	// actual source textarea directly instead of a second editor implementation.
 	replace('createMonacoEditor', `async function createMonacoEditor(language, form) {

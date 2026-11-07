@@ -30,10 +30,22 @@ test('bundled payload coverage, adapter boundaries and complete script syntax ar
 	const shim = runInNewContext('(' + math + ')', { renderMathInElement: (_element: unknown, options: { delimiters: typeof delimiters }) => { delimiters = options.delimiters; } });
 	shim.Hub.Queue(['Typeset', null, {}]);
 	assert.deepEqual(Array.from(delimiters, item => item.left), ['$$$$$$', '$$$', '$$', '$', '\\(', '\\[']);
-	assert.equal(assets.manifest.scripts.atcoder.version, '1.25.1');
-	assert.equal(assets.manifest.scripts.codeforces.version, '1.87.1');
+	assert.equal(assets.manifest.scripts.atcoder.version, '1.26.0');
+	assert.equal(assets.manifest.scripts.codeforces.version, '1.88.0');
 	assert.equal(assets.localResource('https://aowuucdn.oss-accelerate.aliyuncs.com/resources/locales/atcoder-better/common.json?cache=1')?.includes('settings'), true);
 	assert.equal(/shortestpathMonaco|MonacoEnvironment|new Worker\(/.test(source), false);
+});
+
+test('bundled editor readiness allows upstream to initialize the IDE paste form', async () => {
+	const assets = new Assets(join(__dirname, '../../resources'));
+	const source = assets.source('bridge', { atcoder: true, codeforces: true });
+	const initializers = [...source.matchAll(/async function initMonacoEditor\(\) \{[^}]+\}/g)];
+	assert.equal(initializers.length, 2);
+	for (const [initializer] of initializers) {
+		const state = { monaco: { loaderOnload: false } };
+		assert.equal(await runInNewContext(`(async () => { ${initializer}; return await initMonacoEditor(); })()`, { OJBetter: state }), true);
+		assert.equal(state.monaco.loaderOnload, true);
+	}
 });
 
 test('upstream math queue probe follows page typesetting instead of a fixed idle queue', () => {
