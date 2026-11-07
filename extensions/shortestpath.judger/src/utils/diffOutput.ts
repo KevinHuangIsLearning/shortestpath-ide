@@ -129,29 +129,34 @@ export function diffOutput(expected: string, received: string): DiffResult {
 	return { isMatch, lines, summary, tokenDiff };
 }
 
-/** Only inspect the first ten lines; cap a single long line as well as the row count. */
+/** Scan output line by line and retain only the first ten differing rows. */
 export function diffOutputPreview(expected: string, received: string): DiffResult {
-	const head = (text: string): string[] => {
-		const lines: string[] = [];
+	function* outputLines(raw: string): Generator<string> {
+		const text = raw.trimEnd();
 		let offset = 0;
-		while (offset < text.length && lines.length < 10) {
+		while (offset < text.length) {
 			const end = text.indexOf('\n', offset);
 			const stop = end < 0 ? text.length : end;
-			const length = stop - offset;
-			lines.push(text.slice(offset, Math.min(stop, offset + 1024)).replace(/\r$/, '') + (length > 1024 ? '…' : ''));
+			yield text.slice(offset, stop).trimEnd();
 			if (end < 0) { break; }
 			offset = end + 1;
 		}
-		return lines;
-	};
-	const exp = head(expected), actual = head(received);
-	const lines: DiffLine[] = Array.from({ length: Math.max(exp.length, actual.length) }, (_, index) => {
-		const left = exp[index] ?? null, right = actual[index] ?? null;
-		return {
-			lineNumber: index + 1, expected: left, received: right,
-			type: left === null ? 'extra' : right === null ? 'missing' : left === right ? 'match' : 'changed'
-		};
-	});
-	// A prefix cannot establish whether the complete outputs match.
-	return { preview: true, isMatch: false, lines, summary: '', tokenDiff: [] };
+	}
+	const truncate = (line: string | null): string | null => line !== null && line.length > 1024 ? line.slice(0, 1024) + '…' : line;
+	const exp = outputLines(expected), actual = outputLines(received);
+	const lines: DiffLine[] = [];
+	for (let lineNumber = 1; lines.length < 10; lineNumber++) {
+		const left = exp.next(), right = actual.next();
+		if (left.done && right.done) { break; }
+		const expectedLine = left.done ? null : left.value;
+		const receivedLine = right.done ? null : right.value;
+		if (expectedLine === receivedLine) { continue; }
+		lines.push({
+			lineNumber,
+			expected: truncate(expectedLine),
+			received: truncate(receivedLine),
+			type: expectedLine === null ? 'extra' : receivedLine === null ? 'missing' : 'changed',
+		});
+	}
+	return { preview: true, isMatch: lines.length === 0, lines, summary: '', tokenDiff: [] };
 }

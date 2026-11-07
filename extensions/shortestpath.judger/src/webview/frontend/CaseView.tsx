@@ -153,9 +153,7 @@ export default function CaseView(props: {
                   : 'failed'
                 : 'pending';
     const cardTime = result
-          ? result.timeOut
-            ? t('timedOut')
-            : `${result.time}ms${result.memoryBytes === undefined ? '' : ` · ${(result.memoryBytes / 1048576).toFixed(1)} MiB`}`
+          ? `${result.time}ms${result.memoryBytes === undefined ? '' : ` · ${(result.memoryBytes / 1048576).toFixed(1)} MiB`}`
           : undefined;
     const verdict = verdictOf(result);
     const executionFailure = result;
@@ -397,6 +395,9 @@ function DiffView({
     copyToClipboard: (text: string) => void;
 }) {
     if (diff.preview) {
+        if (diff.lines.every(line => line.type === 'match')) {
+            return null;
+        }
         return (
             <div className="output-diff-preview">
                 <h4 className="case-section-title">{t('diffPreview')}</h4>

@@ -6,7 +6,7 @@ import { diffOutputPreview } from '../utils/diffOutput';
 
 test('large output previews stay bounded by ten rows and a per-line length', () => {
 	const text = ('x'.repeat(10000) + '\n').repeat(100);
-	const preview = diffOutputPreview(text, text.replace(/^x/, 'y'));
+	const preview = diffOutputPreview(text, text.replace(/^x/gm, 'y'));
 	expect(preview.preview).toBe(true);
 	expect(preview.lines).toHaveLength(10);
 	expect(preview.lines[0].type).toBe('changed');
@@ -14,19 +14,34 @@ test('large output previews stay bounded by ten rows and a per-line length', () 
 	expect(preview.tokenDiff).toEqual([]);
 });
 
-test('includes differences through line ten and excludes line eleven', () => {
+test('skips matching rows and includes differences beyond line ten', () => {
 	const expected = Array.from({ length: 11 }, (_, index) => `expected ${index + 1}`).join('\n');
 	const received = Array.from({ length: 11 }, (_, index) => index < 5 ? `expected ${index + 1}` : `received ${index + 1}`).join('\n');
 	const preview = diffOutputPreview(expected, received);
-	expect(preview.lines.slice(5)).toEqual(Array.from({ length: 5 }, (_, index) => ({
+	expect(preview.lines).toEqual(Array.from({ length: 6 }, (_, index) => ({
 		lineNumber: index + 6, expected: `expected ${index + 6}`, received: `received ${index + 6}`, type: 'changed',
 	})));
 });
 
-test('a matching prefix does not claim that the complete outputs match', () => {
+test('finds a difference after a matching prefix', () => {
 	const prefix = 'same\n'.repeat(10);
 	const preview = diffOutputPreview(prefix + 'a', prefix + 'b');
 	expect(preview.isMatch).toBe(false);
-	expect(preview.lines.every(line => line.type === 'match')).toBe(true);
-	expect(diffOutputPreview('a\nb', 'a').lines[1].type).toBe('missing');
+	expect(preview.lines).toEqual([{ lineNumber: 11, expected: 'a', received: 'b', type: 'changed' }]);
+	expect(diffOutputPreview('a\nb', 'a').lines[0].type).toBe('missing');
+});
+
+test('matching outputs have no diff rows, including trailing whitespace and CRLF', () => {
+	expect(diffOutputPreview('a  \r\nb\r\n', 'a\nb\n')).toMatchObject({ isMatch: true, lines: [] });
+});
+
+test('compares the full line before truncating its displayed text', () => {
+	const prefix = 'x'.repeat(2000);
+	expect(diffOutputPreview(prefix + 'a', prefix + 'b').lines).toHaveLength(1);
+});
+
+test('retains the first ten differing rows with their original line numbers', () => {
+	const expected = Array.from({ length: 40 }, (_, index) => `line ${index}`).join('\n');
+	const received = Array.from({ length: 40 }, (_, index) => index % 2 ? `changed ${index}` : `line ${index}`).join('\n');
+	expect(diffOutputPreview(expected, received).lines.map(line => line.lineNumber)).toEqual([2, 4, 6, 8, 10, 12, 14, 16, 18, 20]);
 });

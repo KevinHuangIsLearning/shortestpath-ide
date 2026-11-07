@@ -2057,6 +2057,7 @@ textarea::placeholder {
 
 .output-diff-preview-line pre {
 	margin: 0;
+	padding: 0;
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 	max-height: 4em;
