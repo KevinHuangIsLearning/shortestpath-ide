@@ -15,9 +15,12 @@ test('opens toolchain diagnostics as a modal webview', () => {
 	assert.match(diagnostics, /createWebviewPanel\('shortestpath\.toolchainDiagnostics',[\s\S]{0,250}modal: true/);
 });
 
-test('closes simplified settings before opening toolchain diagnostics', () => {
+test('opens toolchain diagnostics inside simplified settings without closing the parent', () => {
 	const settings = fs.readFileSync(path.join(extensionRoot, 'src', 'simpleSettings.ts'), 'utf8');
-	assert.match(settings, /message\?\.type === 'toolchainDiagnostics'\) \{\s*panel\.dispose\(\);\s*await vscode\.commands\.executeCommand\('shortestpath\.openToolchainDiagnostics'\)/);
+	const route = settings.match(/message\?\.type === 'toolchainDiagnostics'\) \{([\s\S]*?)\n\t\t\} else/)?.[1];
+	assert.ok(route);
+	assert.match(route, /await openDetail\([^\n]+openToolchainDiagnostics\(context, host\)/);
+	assert.doesNotMatch(route, /panel\.dispose|executeCommand/);
 });
 
 test('opens documentation in the external browser', () => {

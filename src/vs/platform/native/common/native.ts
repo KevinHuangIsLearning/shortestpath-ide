@@ -300,6 +300,7 @@ export interface ICommonNativeHostService {
 	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
 
 	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
+	setWindowBackgroundMaterial(enabled: boolean, options?: INativeHostOptions & { ignorePerformance?: boolean }): Promise<boolean>;
 
 	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
 

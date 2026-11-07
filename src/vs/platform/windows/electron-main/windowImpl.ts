@@ -47,6 +47,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { errorHandler } from '../../../base/common/errors.js';
 import { FocusMode, IApplicationBadge } from '../../native/common/native.js';
+import { getNativeWindowMaterial, nativeWindowMaterialCompositors, nativeWindowMaterialWindows } from '../../native/electron-main/windowMaterial.js';
 import { Color } from '../../../base/common/color.js';
 
 export interface IWindowCreationOptions {
@@ -797,6 +798,15 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
+			const windowMaterial = configurationService.getValue<string>('shortestpath.windowMaterial') ?? 'auto';
+			if (isMacintosh && !config.isSessionsWindow && windowMaterial !== 'off'
+				&& getNativeWindowMaterial(true, windowMaterial === 'on') === 'sidebar') {
+				// Electron chooses compositor opacity during construction. Adding vibrancy
+				// later cannot turn an opaque compositor into a translucent one.
+				options.vibrancy = 'sidebar';
+				options.backgroundColor = '#00000000';
+				options.visualEffectState = 'active';
+			}
 			const iconPath = config.isSessionsWindow && isWindows ? join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico') : undefined;
 			if (iconPath) {
 				options.icon = iconPath;
@@ -806,6 +816,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
 			this._win = new electron.BrowserWindow(options);
+			if (options.vibrancy) {
+				nativeWindowMaterialCompositors.add(this._win);
+				nativeWindowMaterialWindows.add(this._win);
+			}
+			this.logService.info('[window material] initial', this._win.id, options.vibrancy ?? 'opaque');
 			mark('code/didCreateCodeBrowserWindow');
 
 			this._id = this._win.id;

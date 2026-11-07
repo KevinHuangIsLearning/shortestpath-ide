@@ -1,0 +1,76 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 ShortestPath IDE contributors.
+ *  Licensed under the GPL-3.0-or-later license. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Selected window chrome is translucent; editors and panels retain their own
+ * opaque surfaces. The host enables this marker after native material succeeds. */
+html.shortestpath-native-window-material,
+body.shortestpath-native-window-material {
+	background: transparent !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material {
+	background: color-mix(in srgb, var(--vscode-titleBar-activeBackground) 45%, transparent) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material > .monaco-grid-view,
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .part.titlebar,
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .workbench-navigation {
+	background: transparent !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .part.titlebar .command-center .action-item.command-center-center {
+	background: color-mix(in srgb, var(--vscode-commandCenter-background, var(--vscode-input-background)) 50%, transparent) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .part.titlebar .command-center .action-item.command-center-center:is(:hover, :focus-within) {
+	background: color-mix(in srgb, var(--vscode-commandCenter-activeBackground, var(--vscode-input-background)) 75%, transparent) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material :is(.notifications-center, .notification-toast) {
+	background: color-mix(in srgb, var(--vscode-notifications-background) 55%, transparent) !important;
+	backdrop-filter: blur(16px);
+	border-radius: var(--vscode-cornerRadius-large, 12px);
+	overflow: hidden;
+}
+
+/* Each toast owns its own surface; the stack must not become one large card. */
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .notifications-toasts {
+	background: transparent;
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .notification-toast :is(.notifications-list-container, .monaco-scrollable-element, .monaco-list-row) {
+	border-radius: var(--vscode-cornerRadius-large, 12px);
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material :is(.notifications-center, .notification-toast) :is(.notifications-list-container, .monaco-list-rows) {
+	background: transparent !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .notifications-center-header {
+	background: color-mix(in srgb, var(--vscode-notificationCenterHeader-background, var(--vscode-notifications-background)) 45%, transparent) !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .quick-input-widget {
+	background: color-mix(in srgb, var(--vscode-quickInput-background) 65%, transparent) !important;
+	backdrop-filter: blur(16px);
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .quick-input-widget .monaco-list-rows {
+	background: transparent !important;
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .quick-input-widget .monaco-inputbox {
+	background: color-mix(in srgb, var(--vscode-input-background) 65%, transparent) !important;
+}
+
+/* Theme variables cross Shadow DOM boundaries; menu interaction colors remain unchanged. */
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material {
+	--shortestpath-menu-background: color-mix(in srgb, var(--vscode-menu-background) 65%, transparent);
+	--vscode-menu-backdrop-filter: blur(16px);
+}
+
+.monaco-workbench.shortestpath-dual-mode.shortestpath-native-window-material .context-view {
+	--vscode-menu-background: var(--shortestpath-menu-background);
+}

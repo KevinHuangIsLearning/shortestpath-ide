@@ -75,6 +75,35 @@ class TestModeService extends ShortestPathModeService {
 suite('ShortestPath browser routing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('browser workspace locks tool parts and restores every solving layout combination', () => {
+		const parts = [Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART, Parts.PANEL_PART, Parts.ACTIVITYBAR_PART];
+		for (let mask = 0; mask < 16; mask++) {
+			const visible = new Map(parts.map((part, index) => [part, !!(mask & (1 << index))]));
+			const previous = [...visible];
+			const saved = new Map<string, object>();
+			const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+				mode: 'browse',
+				storage: {
+					store: (key: string, value: object) => saved.set(key, value),
+					remove: (key: string) => saved.delete(key),
+				},
+				layoutService: {
+					isVisible: (part: Parts) => visible.get(part),
+					setPartHidden: (hidden: boolean, part: Parts) => { visible.set(part, !hidden); },
+				},
+			}) as { mode: ShortestPathMode; synchronizeBrowserLayout(): void };
+			service.synchronizeBrowserLayout();
+			for (const part of parts) {
+				visible.set(part, true); // A shortcut or extension tries to open a tool part.
+				service.synchronizeBrowserLayout();
+			}
+			assert.deepStrictEqual([...visible.values()], [false, false, false, false]);
+			service.mode = 'solve';
+			service.synchronizeBrowserLayout();
+			assert.deepStrictEqual({ visible: [...visible], snapshots: saved.size }, { visible: previous, snapshots: 0 });
+		}
+	});
+
 	test('homepage favorites survive the command accessor lifetime and recent-project failures', async () => {
 		for (const failRecent of [false, true]) {
 			const instantiation = workbenchInstantiationService(undefined, store);
@@ -133,7 +162,30 @@ suite('ShortestPath browser routing', () => {
 		assert.deepStrictEqual({ options, calls }, { options: { showTabs: 'none', enablePreview: false }, calls: ['shortestpath.homepage.getUrl', 'create', 'load', 'open'] });
 	});
 
-	test('independent pages remain visible when navigation collapses at the window bottom', () => {
+	test('browser workspace follows the solving grid content instead of window overlay bounds', () => {
+		const surface = { style: {} };
+		const sizes: number[][] = [];
+		const content = { left: 62, top: 59, width: 940, height: 650 };
+		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
+			mode: 'browse', surface, pageSurface: { style: {} },
+			solveContent: { getBoundingClientRect: () => content },
+			browserHost: { getBoundingClientRect: () => content },
+			browserPart: { layout: (...size: number[]) => sizes.push(size) },
+			layoutService: {
+				mainContainer: { getBoundingClientRect: () => ({ left: 10, top: 20, right: 1010 }) },
+				mainWindowNavigationContainer: { getBoundingClientRect: () => ({ right: 58 }) },
+				mainContainerOffset: { top: 35 },
+				getContainer: () => ({ getBoundingClientRect: () => ({ left: 58, top: 55, right: 1006 }) }),
+			},
+		}) as { layout(): void };
+		service.layout();
+		assert.deepStrictEqual({ style: surface.style, sizes }, {
+			style: { top: '4px', left: '4px', width: '940px', height: '650px' },
+			sizes: [[940, 650, 59, 62]],
+		});
+	});
+
+	test('auxiliary pages remain visible when navigation collapses at the window bottom', () => {
 		const root = document.createElement('div');
 		root.style.cssText = 'position:relative;width:600px;height:400px';
 		document.body.appendChild(root);
@@ -147,30 +199,24 @@ suite('ShortestPath browser routing', () => {
 		const pageSurface = surface.cloneNode() as HTMLElement;
 		root.appendChild(pageSurface);
 		const offset = { top: 35, quickPickTop: 6 };
-		const sizes: number[][] = [];
 		const service = Object.assign(Object.create(ShortestPathModeService.prototype), {
-			mode: 'browse', surface, pageSurface,
+			mode: 'settings', surface, pageSurface,
 			layoutService: {
 				mainContainer: root, mainWindowNavigationContainer: navigation, mainContainerOffset: offset,
 				getContainer: () => undefined,
 			},
-			browserPart: { layout: (...size: number[]) => sizes.push(size) },
 		}) as { layout(): void };
 		for (const chromeTop of [35, 61, 0, 35]) {
 			offset.top = chromeTop;
 			const top = chromeTop === 0 ? 4 : chromeTop;
 			service.layout();
-			const bounds = surface.getBoundingClientRect();
 			const pageBounds = pageSurface.getBoundingClientRect();
 			const rootBounds = root.getBoundingClientRect();
 			assert.deepStrictEqual({
-				top: bounds.top - rootBounds.top, height: bounds.height,
 				pageTop: pageBounds.top - rootBounds.top, pageHeight: pageBounds.height,
-				left: bounds.left - rootBounds.left, width: bounds.width,
-				layout: sizes.at(-1),
+				left: pageBounds.left - rootBounds.left, width: pageBounds.width,
 			}, {
-				top, height: 400 - top, pageTop: top, pageHeight: 400 - top,
-				left: 48, width: 552, layout: [552, 400 - top, rootBounds.top + top, rootBounds.left + 48],
+				pageTop: top, pageHeight: 400 - top, left: 48, width: 552,
 			});
 		}
 	});

@@ -8,6 +8,7 @@ import { execFile } from 'child_process';
 import * as vscode from 'vscode';
 import { localize, localizeFormat, localizeWebviewHtml } from './localization';
 import { diagnoseClangdSystemHeaders } from './clangdSystemHeaders';
+import type { SettingsPageHost } from './settingsNavigation';
 
 type DiagnosticStatus = 'ok' | 'warning' | 'error';
 type DiagnosticItem = { label: string; status: DiagnosticStatus; detail: string; path?: string; repairable?: boolean };
@@ -16,11 +17,14 @@ export function registerToolchainDiagnostics(context: vscode.ExtensionContext): 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openToolchainDiagnostics', () => openToolchainDiagnostics(context)));
 }
 
-async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promise<void> {
+export async function openToolchainDiagnostics(context: vscode.ExtensionContext, host?: SettingsPageHost): Promise<void> {
 	const sourcePath = getActiveCppSourcePath();
-	const panel = vscode.window.createWebviewPanel('shortestpath.toolchainDiagnostics', localize('工具链诊断'), { viewColumn: vscode.ViewColumn.Active, preserveFocus: true }, { enableScripts: true, modal: true, retainContextWhenHidden: true });
+	const standalone = host ? undefined : vscode.window.createWebviewPanel('shortestpath.toolchainDiagnostics', localize('工具链诊断'), { viewColumn: vscode.ViewColumn.Active, preserveFocus: true }, { enableScripts: true, modal: true, retainContextWhenHidden: true });
+	const panel = host ?? standalone!;
+	let active = true;
 	const refresh = async () => {
 		const items = await collectDiagnostics(getActiveCppSourcePath() ?? sourcePath);
+		if (!active) { return; }
 		await panel.webview.postMessage({ type: 'state', value: { items, needsRepair: items.some(item => item.status === 'error' || (item.status === 'warning' && item.repairable !== false)) } });
 	};
 	panel.webview.onDidReceiveMessage(async message => {
@@ -38,16 +42,16 @@ async function openToolchainDiagnostics(context: vscode.ExtensionContext): Promi
 		}
 	}, undefined, context.subscriptions);
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
-		if (panel.visible && (event.affectsConfiguration('clangd.arguments') || event.affectsConfiguration('clangd.path') || event.affectsConfiguration('judger.language.cpp.Command') || event.affectsConfiguration('c-cpp-compile-run.cpp-compiler'))) {
+		if (active && (!standalone || standalone.visible) && (event.affectsConfiguration('clangd.arguments') || event.affectsConfiguration('clangd.path') || event.affectsConfiguration('judger.language.cpp.Command') || event.affectsConfiguration('c-cpp-compile-run.cpp-compiler'))) {
 			void refresh();
 		}
 	});
-	panel.onDidChangeViewState(event => {
+	const viewStateListener = standalone?.onDidChangeViewState(event => {
 		if (event.webviewPanel.visible) {
 			void refresh();
 		}
 	});
-	panel.onDidDispose(() => configurationListener.dispose());
+	panel.onDidDispose(() => { active = false; configurationListener.dispose(); viewStateListener?.dispose(); });
 	panel.webview.html = localizeWebviewHtml(getHtml());
 	await refresh();
 }

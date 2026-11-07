@@ -6,6 +6,10 @@
 import * as vscode from 'vscode';
 
 const english: Readonly<Record<string, string>> = {
+	'毛玻璃': 'Translucent Materials',
+	'自动': 'Auto',
+	'禁用': 'Disable',
+	'自动按设备性能和启动耗时调整。启用仍遵循系统减少透明度和高对比设置。': 'Auto adjusts to device performance and startup time. Enable still respects system reduced transparency and high contrast settings.',
 	'当前 IDE 版本不支持此功能，请升级 IDE。': 'This feature is not supported by this IDE version. Please upgrade the IDE.',
 	'导出环境检测日志': 'Export Environment Check Logs',
 	'导出日志': 'Export Logs',
@@ -175,6 +179,8 @@ const english: Readonly<Record<string, string>> = {
 	'代码模板': 'Code Snippets',
 	'自动格式化': 'Automatic Formatting',
 	'Judger 设置': 'Judger Settings',
+	'返回': 'Back',
+	'切换后若未生效，请重新打开 IDE 窗口。': 'If the change does not take effect, reopen the IDE window.',
 	'工具链诊断': 'Toolchain Diagnostics',
 	'在线评测映射': 'Online Judge Mappings',
 	'VJudge 映射': 'VJudge Mappings',

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import { localize, localizeFormat, localizeWebviewHtml } from './localization';
+import type { SettingsPageHost } from './settingsNavigation';
 
 type Field = { key: string; label: string; hint?: string; options?: readonly { value: string; label: string }[] };
 type Mapping = Record<string, Record<string, string>>;
@@ -18,16 +19,16 @@ const vjudgeFields: Field[] = [
 	{ key: 'problemIdRegex', label: localize('题号正则') }, { key: 'compositeFormat', label: localize('组合题号格式') }, { key: 'vjudgeUrlKey', label: localize('VJudge URL 名称覆盖') }
 ];
 
-export function openOjMappings(): void { open(localize('在线评测映射'), 'ojMapping', ojFields); }
-export function openVjudgeMappings(): void { open(localize('VJudge 映射'), 'vjudgeOjNames', vjudgeFields); }
+export function openOjMappings(host?: SettingsPageHost): void { open(localize('在线评测映射'), 'ojMapping', ojFields, host); }
+export function openVjudgeMappings(host?: SettingsPageHost): void { open(localize('VJudge 映射'), 'vjudgeOjNames', vjudgeFields, host); }
 
-function open(title: string, setting: 'ojMapping' | 'vjudgeOjNames', fields: readonly Field[]): void {
+function open(title: string, setting: 'ojMapping' | 'vjudgeOjNames', fields: readonly Field[], host?: SettingsPageHost): void {
 	const current = vscode.workspace.getConfiguration('judger.general').get<Record<string, unknown>>(setting) ?? {};
 	const entries = Object.entries(current).map(([name, value]) => {
 		const entry = { [fields[0].key]: name, ...(objectStrings(value)) };
 		return setting === 'ojMapping' && entry.oj === 'ShortestPath' ? { ...entry, problemSource: 'none' } : entry;
 	});
-	const panel = vscode.window.createWebviewPanel(`shortestpath.${setting}`, title, vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	const panel = host ?? vscode.window.createWebviewPanel(`shortestpath.${setting}`, title, vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
 	panel.webview.html = localizeWebviewHtml(html(title, fields, entries));
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type !== 'save' || !Array.isArray(message.entries)) { return; }

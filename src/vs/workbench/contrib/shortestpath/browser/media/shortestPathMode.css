@@ -113,6 +113,7 @@
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.sidebar,
+.monaco-workbench.shortestpath-dual-mode .part.panel,
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part):not(.embedded-editor-part),
 .monaco-workbench.shortestpath-dual-mode .part.editor:not(.modal-editor-part):not(.embedded-editor-part) > .content {
 	border-radius: 0 !important;
@@ -120,21 +121,25 @@
 
 /* Round only the workspace perimeter; the shared sidebar/editor seam stays square. */
 .monaco-workbench.shortestpath-dual-mode .part.sidebar.floating-part-outer-left.floating-part-outer-top,
+.monaco-workbench.shortestpath-dual-mode .part.panel.floating-part-outer-left.floating-part-outer-top,
 .monaco-workbench.shortestpath-dual-mode .part.editor.floating-editor-outer-left.floating-editor-outer-top:not(.modal-editor-part) {
 	border-top-left-radius: var(--vscode-cornerRadius-large, 12px) !important;
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.sidebar.floating-part-outer-left.floating-part-outer-bottom,
+.monaco-workbench.shortestpath-dual-mode .part.panel.floating-part-outer-left.floating-part-outer-bottom,
 .monaco-workbench.shortestpath-dual-mode .part.editor.floating-editor-outer-left.floating-editor-outer-bottom:not(.modal-editor-part) {
 	border-bottom-left-radius: var(--vscode-cornerRadius-large, 12px) !important;
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.sidebar.floating-part-outer-right.floating-part-outer-top,
+.monaco-workbench.shortestpath-dual-mode .part.panel.floating-part-outer-right.floating-part-outer-top,
 .monaco-workbench.shortestpath-dual-mode .part.editor.floating-editor-outer-right.floating-editor-outer-top:not(.modal-editor-part) {
 	border-top-right-radius: var(--vscode-cornerRadius-large, 12px) !important;
 }
 
 .monaco-workbench.shortestpath-dual-mode .part.sidebar.floating-part-outer-right.floating-part-outer-bottom,
+.monaco-workbench.shortestpath-dual-mode .part.panel.floating-part-outer-right.floating-part-outer-bottom,
 .monaco-workbench.shortestpath-dual-mode .part.editor.floating-editor-outer-right.floating-editor-outer-bottom:not(.modal-editor-part) {
 	border-bottom-right-radius: var(--vscode-cornerRadius-large, 12px) !important;
 }
@@ -539,7 +544,7 @@
 	color: var(--vscode-foreground);
 }
 
-.monaco-workbench.shortestpath-browsing .part:not(.titlebar):not(.banner):not(.embedded-editor-part):not(.modal-editor-part) {
+.monaco-workbench.shortestpath-browsing .part.editor:not(.embedded-editor-part):not(.modal-editor-part) > .content {
 	visibility: hidden;
 }
 
@@ -547,17 +552,18 @@
 	visibility: hidden !important;
 }
 
+/* Browser coordinates are relative to the editor card, including its outer gutter.
+ * The light theme already positions editor parts; dark themes need the same anchor. */
+.monaco-workbench.shortestpath-dual-mode .part.editor:has(> .shortestpath-browser-space) {
+	position: relative;
+}
+
 .shortestpath-browser-space {
 	/* Native web content and its placeholder must use the same radius tier as this surface. */
 	--browser-container-corner-radius: var(--vscode-cornerRadius-large, 12px);
 	position: absolute;
-	left: 0;
-	right: var(--vscode-spacing-size40, 4px);
-	bottom: var(--vscode-spacing-size40, 4px);
-	margin-left: var(--vscode-spacing-size40, 4px);
-	border-radius: var(--vscode-cornerRadius-large, 12px);
+	border-radius: inherit;
 	overflow: hidden;
-	z-index: 100;
 	display: flex;
 	flex-direction: column;
 	background: var(--vscode-editor-background);
@@ -569,8 +575,13 @@
 	height: 100%;
 }
 
-/* This independent surface keeps its full perimeter even in compact workspace layouts. */
-.monaco-workbench.shortestpath-dual-mode .shortestpath-browser-space.embedded-editor-part > .content {
+.monaco-workbench.shortestpath-dual-mode .shortestpath-browser-space > .shortestpath-browser-host.embedded-editor-part {
+	margin: 0 !important;
+	border-radius: inherit;
+}
+
+/* Both independent workspaces inherit the perimeter of the standard editor grid cell. */
+.monaco-workbench.shortestpath-dual-mode .shortestpath-browser-space > .shortestpath-browser-host > .content {
 	border-radius: inherit !important;
 	overflow: hidden;
 }

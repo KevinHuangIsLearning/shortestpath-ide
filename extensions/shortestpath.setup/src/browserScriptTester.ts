@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import { localize, localizeWebviewHtml } from './localization';
+import type { SettingsPageHost } from './settingsNavigation';
 type SubmitScript = { urlTemplate: string; script: string };
 const setting = 'customSubmitScripts';
 export function registerBrowserScriptTester(context: vscode.ExtensionContext): void {
-	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openCustomSubmitScripts', openPage));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.openCustomSubmitScripts', () => openPage()));
 }
-async function openPage(): Promise<void> {
+export async function openPage(host?: SettingsPageHost): Promise<void> {
 	let defaults: Record<string, SubmitScript>;
 	try { defaults = await vscode.commands.executeCommand<Record<string, SubmitScript>>('judger.getSubmitScriptDefaults') || {}; }
 	catch { void vscode.window.showErrorMessage(localize('\u8bf7\u5148\u542f\u7528 ShortestPath Judger \u63d2\u4ef6\u3002')); return; }
@@ -25,7 +26,7 @@ async function openPage(): Promise<void> {
 	// Prefer the long VJudge name over its short alias for the built-in URL.
 	for (const key of Object.keys(defaults).sort((a, b) => a.length - b.length || a.localeCompare(b))) { canonicalDefaults[canonical(key)] = defaults[key]; }
 	for (const key of Object.keys(configured).sort((a, b) => Number(a === canonical(a)) - Number(b === canonical(b)) || b.localeCompare(a))) { canonicalConfigured[canonical(key)] = configured[key]; }
-	const panel = vscode.window.createWebviewPanel('shortestpath.customSubmitScripts', localize('Judger \u81ea\u5b9a\u4e49\u63d0\u4ea4\u811a\u672c'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true, modal: true });
+	const panel = host ?? vscode.window.createWebviewPanel('shortestpath.customSubmitScripts', localize('Judger \u81ea\u5b9a\u4e49\u63d0\u4ea4\u811a\u672c'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true, modal: true });
 	panel.webview.html = localizeWebviewHtml(html(canonicalConfigured, canonicalDefaults, [...names].sort(), aliases));
 	let busy = false;
 	const messages = panel.webview.onDidReceiveMessage(async message => {

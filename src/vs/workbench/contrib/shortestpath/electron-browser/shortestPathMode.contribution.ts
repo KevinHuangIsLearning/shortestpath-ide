@@ -6,6 +6,7 @@
 import '../browser/media/shortestPathMode.css';
 import '../browser/problemEditorActions.js';
 import './shortestPathHomepage.contribution.js';
+import './shortestPathWindowMaterial.contribution.js';
 import { ShortestPathNavigation } from '../common/shortestPathNavigation.js';
 import { $, addDisposableListener, append, EventHelper, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
@@ -48,6 +49,7 @@ import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/c
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorsOrder, IEditorWillOpenEvent } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { BrowserEditorInput } from '../../browserView/common/browserEditorInput.js';
 import { BrowserSourceEditorInput } from '../../browserView/common/browserSourceEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
@@ -66,6 +68,9 @@ const pageContext = new RawContextKey<boolean>('shortestpath.page', false);
 const homepageEnabledContext = new RawContextKey<boolean>('shortestpath.homepageEnabled', false);
 const modeKey = 'shortestpath.mode';
 const tabsKey = 'shortestpath.browser.tabs';
+const browserLayoutKey = 'shortestpath.browser.solveLayout';
+const browserHiddenParts = [Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART, Parts.PANEL_PART, Parts.ACTIVITYBAR_PART] as const;
+type BrowserHiddenPart = typeof browserHiddenParts[number];
 const drawingTabsKey = 'shortestpath.draw.tabs';
 const verticalTabsKey = 'shortestpath.browser.verticalTabs';
 // allow-any-unicode-next-line
@@ -146,6 +151,10 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	private navigationActions!: HTMLElement;
 	private stopped = false;
 	private returnFocus: HTMLElement | undefined;
+	private solveContent: HTMLElement | undefined;
+	private browserLayout: Map<BrowserHiddenPart, boolean> | undefined;
+	private updatingBrowserLayout = false;
+	private readonly browserEditorOptions = new WeakMap<EditorInput, IEditorOptions>();
 	private readonly browsing;
 	private readonly pageMode;
 	private readonly drawing;
@@ -257,13 +266,19 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 
 	protected async create(): Promise<void> {
 		const root = this.layoutService.mainContainer;
+		const savedLayout = this.storage.getObject<Partial<Record<BrowserHiddenPart, boolean>>>(browserLayoutKey, StorageScope.WORKSPACE);
+		if (savedLayout) {
+			this.browserLayout = new Map(browserHiddenParts.map(part => [part, typeof savedLayout[part] === 'boolean' ? savedLayout[part]! : this.layoutService.isVisible(part)]));
+		}
 		this.pageSurface = append(root, $('section.shortestpath-page-space'));
 		this.pageSurface.hidden = true;
 		this.homeSurface = append(this.pageSurface, $('.shortestpath-home-space'));
 		this.homeSurface.hidden = true;
 		this.drawingSurface = append(this.pageSurface, $('.shortestpath-drawing-space'));
+		const editorContainer = this.layoutService.getContainer(mainWindow, Parts.EDITOR_PART)!;
+		this.solveContent = Array.from(editorContainer.children).find((element): element is HTMLElement => isHTMLElement(element) && element.classList.contains('content'));
 		// allow-any-unicode-next-line
-		this.surface = append(root, $('section.shortestpath-browser-space', { 'aria-label': localize('sp.browser', "网页浏览") }));
+		this.surface = append(editorContainer, $('section.shortestpath-browser-space', { 'aria-label': localize('sp.browser', "网页浏览") }));
 		this.surface.hidden = true;
 		this.surface.inert = true;
 		this.favorites = this._register(new BrowserFavoritesStore(this.storage));
@@ -274,7 +289,10 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.registerLayoutListeners();
 		this._register(addDisposableListener(mainWindow, 'focus', () => this.refresh()));
 		this._register(this.editors.onWillOpenEditor(event => this.revealEditorMode(event)));
-		this._register(this.editors.onDidActiveEditorChange(() => this.observeNavigation()));
+		this._register(this.editors.onDidActiveEditorChange(() => {
+			this.synchronizeSolveVisibility();
+			this.observeNavigation();
+		}));
 		this._register(this.changeActive.event(() => this.observeNavigation()));
 		this.layout();
 		await this.restoreBrowserTabs();
@@ -464,6 +482,11 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	/** Reveal the owning surface before a foreground editor is opened there. */
 	protected revealEditorMode(event: IEditorWillOpenEvent): void {
 		if (this.drawingPart?.groups.some(group => group.id === event.groupId)) { this.drawingEditorOptions.set(event.editor, event.options ?? {}); }
+		if (this.browserPart?.groups.some(group => group.id === event.groupId)) {
+			this.browserEditorOptions.set(event.editor, event.options ?? {});
+			// Files opened or dropped here belong to Solve, not to the browser workspace.
+			if (!(event.editor instanceof BrowserEditorInput)) { return; }
+		}
 		if (!shouldRevealSolveEditor(event)) { return; }
 		if (this.homePart?.groups.some(group => group.id === event.groupId)) {
 			return;
@@ -498,6 +521,9 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		this.layoutService.mainContainer.classList.toggle('shortestpath-draw-mode', mode === 'draw');
 		this.surface.hidden = mode !== 'browse';
 		this.surface.inert = mode !== 'browse';
+		this.synchronizeBrowserLayout();
+		this.synchronizeSolveVisibility();
+		if (this.solveContent) { this.solveContent.inert = mode !== 'solve'; }
 		this.browserPart?.setVisible(mode === 'browse');
 		this.pageSurface.hidden = mode !== 'home' && !isShortestPathPageMode(mode);
 		if (this.homeSurface) { this.homeSurface.hidden = mode !== 'home'; }
@@ -518,12 +544,45 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		}
 		for (const part of [Parts.EDITOR_PART, Parts.SIDEBAR_PART, Parts.PANEL_PART, Parts.ACTIVITYBAR_PART, Parts.AUXILIARYBAR_PART, Parts.STATUSBAR_PART]) {
 			const element = this.layoutService.getContainer(mainWindow, part);
-			if (element) { element.inert = mode !== 'solve' && !(mode === 'draw' && (part === Parts.SIDEBAR_PART || part === Parts.ACTIVITYBAR_PART)); }
+			if (element) { element.inert = mode !== 'solve' && !(mode === 'browse' && (part === Parts.EDITOR_PART || part === Parts.STATUSBAR_PART)) && !(mode === 'draw' && (part === Parts.SIDEBAR_PART || part === Parts.ACTIVITYBAR_PART)); }
 		}
 		this.storage.store(modeKey, mode, StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.changeActive.fire();
 		this.layout();
 		if (mode === 'draw' || mode === 'solve') { void this.synchronizeDrawingSidebar(mode).catch(onUnexpectedError); }
+	}
+
+	private synchronizeSolveVisibility(): void {
+		for (const group of this.editorGroups.mainPart.groups) {
+			const pane = group.activeEditorPane;
+			if (pane instanceof EditorPane && pane.isVisible() !== (this.mode === 'solve')) {
+				pane.setVisible(this.mode === 'solve');
+			}
+		}
+	}
+
+	/** Both workspaces use the workbench grid; only Solve may expose tool sidebars. */
+	private synchronizeBrowserLayout(): void {
+		if (this.updatingBrowserLayout) { return; }
+		this.updatingBrowserLayout = true;
+		try {
+			if (this.mode === 'browse') {
+				if (!this.browserLayout) {
+					this.browserLayout = new Map(browserHiddenParts.map(part => [part, this.layoutService.isVisible(part)]));
+					this.storage.store(browserLayoutKey, Object.fromEntries(this.browserLayout), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				}
+				for (const part of this.browserLayout.keys()) {
+					if (this.layoutService.isVisible(part)) { this.layoutService.setPartHidden(true, part); }
+				}
+			} else if (this.browserLayout) {
+				const previous = this.browserLayout;
+				this.browserLayout = undefined;
+				for (const [part, visible] of previous) {
+					if (this.layoutService.isVisible(part) !== visible) { this.layoutService.setPartHidden(!visible, part); }
+				}
+				this.storage.remove(browserLayoutKey, StorageScope.WORKSPACE);
+			}
+		} finally { this.updatingBrowserLayout = false; }
 	}
 
 	/** Serialize native sidebar activation so a late open cannot override the current mode. */
@@ -870,6 +929,16 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 	protected renderTabs(): void {
 		const part = this.browserPart;
 		if (!part || this.stopped) { return; }
+		for (const group of part.groups) {
+			for (const input of group.editors) {
+				if (input instanceof BrowserEditorInput) { continue; }
+				queueMicrotask(() => {
+					if (!this.stopped && group.contains(input)) {
+						group.moveEditor(input, this.editorGroups.mainPart.activeGroup, { ...(this.browserEditorOptions.get(input) ?? {}), pinned: true });
+					}
+				});
+			}
+		}
 		const inputs = part.getGroups(GroupsOrder.GRID_APPEARANCE).flatMap(group => group.editors.filter((input): input is BrowserEditorInput => input instanceof BrowserEditorInput && !input.isDisposed()));
 		inputs.forEach(input => this.adopt(input));
 		for (const [id, input] of this.tabs) {
@@ -1053,7 +1122,12 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 
 	protected registerLayoutListeners(): void {
 		this._register(this.layoutService.onDidLayoutMainContainer(() => this.layout()));
-		this._register(this.layoutService.onDidChangePartVisibility(() => this.layout()));
+		this._register(this.layoutService.onDidChangePartVisibility(() => {
+			// Let the grid finish its current visibility transition before enforcing policy.
+			queueMicrotask(() => {
+				if (!this.stopped) { this.synchronizeBrowserLayout(); this.layout(); }
+			});
+		}));
 		// Sash drags resize the editor without resizing the workbench container.
 		this._register(this.editorGroups.mainPart.onDidLayout(() => this.layout()));
 		this._register(onDidChangeZoomLevel(() => this.layout()));
@@ -1066,14 +1140,18 @@ export class ShortestPathModeService extends Disposable implements IShortestPath
 		// Navigation can have transient collapsed bounds during workbench layout.
 		// Keep independent pages below the visible title bar and banner instead.
 		const top = this.layoutService.mainContainerOffset.top;
-		// Independent surfaces live outside the grid, so they need the same perimeter
-		// gutter as the workspace when fullscreen hides the window chrome.
-		this.surface.style.top = `${top === 0 ? FLOATING_PANEL_MARGIN : top}px`;
-		this.surface.style.left = `${navigation.right - root.left}px`;
-		this.pageSurface.style.top = this.surface.style.top;
+		// Auxiliary pages retain their own bounds. Browsing shares Solve's grid cell.
+		this.pageSurface.style.top = `${top === 0 ? FLOATING_PANEL_MARGIN : top}px`;
 		const editorContainer = this.layoutService.getContainer(mainWindow, Parts.EDITOR_PART);
 		const editor = editorContainer?.getBoundingClientRect();
-		this.pageSurface.style.left = this.mode === 'draw' && editor ? `${editor.left - root.left}px` : this.surface.style.left;
+		const content = this.solveContent?.getBoundingClientRect();
+		if (editor && content) {
+			this.surface.style.top = `${content.top - editor.top}px`;
+			this.surface.style.left = `${content.left - editor.left}px`;
+			this.surface.style.width = `${content.width}px`;
+			this.surface.style.height = `${content.height}px`;
+		}
+		this.pageSurface.style.left = this.mode === 'draw' && editor ? `${editor.left - root.left}px` : `${navigation.right - root.left}px`;
 		this.pageSurface.style.right = this.mode === 'draw' && editor ? `${root.right - editor.right}px` : '';
 		if (this.mode === 'draw') {
 			const drawingContainer = this.drawingSurface;

@@ -31,7 +31,7 @@ test('settings groups preserve each control and expose only the three left navig
 		controls[match[1]].push(...[...match[2].matchAll(/<(?:input|select|button|textarea)[^>]*id="([^"]+)"/g)].map(control => control[1]));
 	}
 	assert.deepStrictEqual(controls, {
-		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'tabSize', 'colorTheme', 'configureLocale', 'compactMode', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
+		editor: ['fontFamily', 'fontLigatures', 'fontSize', 'tabSize', 'colorTheme', 'configureLocale', 'compactMode', 'windowMaterial', 'autoDetectColorScheme', 'autoSave', 'autoFormat', 'autoFormatSettings', 'clangdVariableTypeHints', 'errorLensEnabled'],
 		compiler: ['cppStandard', 'compilerFlags', 'executableCleanupEnabled', 'executableCleanupDelaySeconds', 'toolchainDiagnostics'],
 		tools: ['cphSettings', 'customSubmitScripts', 'shortestPathCppSubmissionLanguage', 'shortestPathImportCategoryEnabled', 'defaultSubmitMethod', 'browserDarkReaderMode', 'browserDarkReaderDetectDarkTheme', 'browserDarkReaderExcludedHosts', 'atcoderBetterEnabled', 'codeforcesBetterEnabled', 'timelineEnabled', 'useExtensionMarketplace', 'gettingStarted', 'checkForUpdates']
 	});
@@ -171,8 +171,12 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 	const savedFlags: Record<string, string> = {};
 	const savedValues: Record<string, string | number | boolean | string[]> = {};
 	const commands: string[] = [];
+	const commandCalls: Array<{ command: string; args: unknown[] }> = [];
 	const messages: Array<Record<string, unknown>> = [];
-	let receive!: (message: Record<string, unknown>) => Promise<void>;
+	const handlers = new Set<(message: Record<string, unknown>) => unknown>();
+	const receive = async (message: Record<string, unknown>) => { await Promise.all([...handlers].map(handler => handler(message))); };
+	const files = new Map<string, Uint8Array>();
+	let panelsCreated = 0;
 	let onTheme!: () => void;
 	let onConfiguration!: (event: { affectsConfiguration(key: string): boolean }) => void;
 	let onDispose!: () => void;
@@ -182,14 +186,17 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 		webview: {
 			html: '',
 			async postMessage(message: Record<string, unknown>) { messages.push(JSON.parse(JSON.stringify(message))); return true; },
-			onDidReceiveMessage(handler: typeof receive) { receive = handler; return listener(); }
+			onDidReceiveMessage(handler: (message: Record<string, unknown>) => unknown) { handlers.add(handler); return { dispose: () => { handlers.delete(handler); } }; }
 		},
 		onDidDispose(handler: () => void) { onDispose = handler; }, reveal() { }, dispose() { onDispose(); }
 	};
 	const vscode = {
 		ViewColumn: { Active: 1 }, ConfigurationTarget: { Global: 1 }, env: { language: 'en' }, extensions: { all: [] },
-		window: { createWebviewPanel: () => panel, onDidChangeActiveColorTheme(handler: () => void) { onTheme = handler; return listener(); } },
+		Uri: { joinPath: (base: { fsPath: string }, name: string) => ({ fsPath: base.fsPath + '/' + name }) },
+		window: { createWebviewPanel: () => { panelsCreated++; return panel; }, onDidChangeActiveColorTheme(handler: () => void) { onTheme = handler; return listener(); } },
 		workspace: {
+			workspaceFolders: [{ uri: { fsPath: '/workspace' } }],
+			fs: { async readFile(uri: { fsPath: string }) { if (!files.has(uri.fsPath)) { throw new Error('not found'); } return files.get(uri.fsPath); }, async writeFile(uri: { fsPath: string }, data: Uint8Array) { files.set(uri.fsPath, data); } },
 			getConfiguration: (section?: string) => ({ get: (key: string) => savedValues[section ? section + '.' + key : key] ?? compilerCommands[key], async update(key: string, value: string | number | boolean | string[], target: number) {
 				assert.equal(target, vscode.ConfigurationTarget.Global);
 				savedValues[key] = value;
@@ -198,12 +205,12 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 			} }),
 			onDidChangeConfiguration(handler: typeof onConfiguration) { onConfiguration = handler; return listener(); }
 		},
-		commands: { async executeCommand(command: string) { commands.push(command); return command === '_shortestpath.cppPreviewTokens' ? tokens() : undefined; } }
+		commands: { async executeCommand(command: string, ...args: unknown[]) { commands.push(command); commandCalls.push({ command, args }); return command === '_shortestpath.cppPreviewTokens' ? tokens() : undefined; } }
 	};
 	const exports: { open?: (context: object) => void } = {};
 	const source = fs.readFileSync(path.resolve(__dirname, '../simpleSettings.js'), 'utf8');
 	vm.runInNewContext(source + '\nexports.open = openSimpleSettings;', {
-		exports, console,
+		exports, console, Buffer,
 		require(id: string) {
 			if (id === 'vscode') { return vscode; }
 			if (id === './templateEditor') { return require('../templateEditor'); }
@@ -211,12 +218,110 @@ function createSettingsHost(tokens: () => Promise<PreviewToken[][]> = async () =
 			if (id === './systemFonts') { return { getSystemFonts: async () => ({ fonts: [] }) }; }
 			if (id === './compilerRuntime') { return require('../compilerRuntime'); }
 			if (id === './platformSettings') { return require('../platformSettings'); }
+			if (id === './settingsNavigation') { return require('../settingsNavigation'); }
+			if (['./cphSettings', './cphMappings', './browserScriptTester', './toolchainDiagnostics'].includes(id)) { return loadSettingsModule(id); }
 			return { localize: (text: string) => text, localizeWebviewHtml: (html: string) => html, localizeFormat: (text: string, argument: string) => text.replace('{0}', argument) };
 		}
 	});
+	function loadSettingsModule(id: string): object {
+		const moduleExports = {};
+		const code = fs.readFileSync(path.resolve(__dirname, '..', id + '.js'), 'utf8');
+		vm.runInNewContext(code + (id === './toolchainDiagnostics' ? '\ncollectDiagnostics = async () => [];' : ''), {
+			exports: moduleExports, Buffer,
+			require: (name: string) => name === 'vscode' ? vscode : name === './cphMappings' ? loadSettingsModule(name) : ({ localize: (text: string) => text, localizeWebviewHtml: (html: string) => html })
+		});
+		return moduleExports;
+	}
 	exports.open!({ subscriptions: [], globalState: { get: () => undefined } });
-	return { receive, onTheme, onConfiguration, onDispose, commands, updates, savedFlags, savedValues, panel, messages, disposedListeners: () => disposedListeners };
+	return { receive, onTheme, onConfiguration, onDispose, commands, commandCalls, updates, savedFlags, savedValues, panel, messages, files, handlers, panelsCreated: () => panelsCreated, disposedListeners: () => disposedListeners };
 }
+
+test('formatting opens inside settings, saves its own state and restores the parent position', async () => {
+	const host = createSettingsHost();
+	await host.receive({ type: 'autoFormat', category: 'editor', scrollTop: 312 });
+	assert.equal(host.panelsCreated(), 1);
+	assert.match(host.panel.webview.html, /class="detail-layout"/);
+	assert.match(host.panel.webview.html, /id="settingsBack"/);
+	assert.match(host.panel.webview.html, /<h1>ShortestPath IDE 设置<\/h1>/);
+	assert.match(host.panel.webview.html, /id="indentWidth"/);
+	assert.equal(host.handlers.size, 2);
+	for (const match of host.panel.webview.html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)) { assert.doesNotThrow(() => new Function(match[1])); }
+	const navigationScript = [...host.panel.webview.html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].at(-1)![1];
+	const back = { onclick: () => { } };
+	const outgoing: Array<{ type: string; value?: { indentWidth: number } }> = [];
+	let cleared = false;
+	vm.runInNewContext(navigationScript, {
+		document: { getElementById: (id: string) => id === 'settingsBack' ? back : null, querySelectorAll: () => [], addEventListener() { } },
+		vscode: { postMessage: (message: { type: string }) => outgoing.push(message) },
+		saveTimer: 1, clearTimeout() { cleared = true; }, value: () => ({ indentWidth: 4 })
+	});
+	back.onclick();
+	assert.equal(cleared, true);
+	assert.deepEqual(outgoing.map(message => message.type), ['save', 'settingsBack']);
+	assert.equal(outgoing[0].value?.indentWidth, 4, 'the latest edit is flushed before leaving the page');
+	await host.receive({ type: 'save', value: { enabled: true, indentWidth: 4, tabWidth: 4 } });
+	assert.match(Buffer.from(host.files.get('/workspace/.clang-format')!).toString(), /IndentWidth: 4/);
+	assert.equal(host.savedValues.formatOnSave, true);
+	assert.equal(host.updates.includes('editor.fontFamily'), false, 'detail saves must not run the main settings serializer');
+	await host.receive({ type: 'settingsBack' });
+	assert.equal(host.handlers.size, 1);
+	assert.match(host.panel.webview.html, /let selectedCategory = "editor"/);
+	assert.match(host.panel.webview.html, /scrollTop = 312/);
+	assert.equal(host.panelsCreated(), 1);
+});
+
+test('Judger and nested mappings reuse settings and dispose handlers on each back navigation', async () => {
+	const host = createSettingsHost();
+	await host.receive({ type: 'cphSettings', category: 'tools', scrollTop: 40 });
+	assert.equal(host.panelsCreated(), 1);
+	assert.match(host.panel.webview.html, /id="fileNameTemplate"/);
+	const hide = host.commandCalls.findLast(call => call.command === '_shortestpath.layoutTemplateEditor');
+	assert.deepEqual(JSON.parse(JSON.stringify(hide?.args[0])), { left: 0, top: 0, width: 0, height: 0, clipTop: 0, clipBottom: 0 });
+	const layoutCalls = host.commandCalls.length;
+	await host.receive({ type: 'templateEditorLayout', bounds: { width: 600, height: 360 } });
+	assert.equal(host.commandCalls.length, layoutCalls, 'late messages from the parent must not show its editor over a detail page');
+	assert.equal(host.handlers.size, 2);
+	await host.receive({ type: 'ojMapping' });
+	assert.match(host.panel.webview.html, /在线评测映射/);
+	assert.equal(host.handlers.size, 2);
+	await host.receive({ type: 'save', entries: [{ host: 'example.com', oj: 'CF', ojName: 'Codeforces' }] });
+	assert.equal(JSON.parse(JSON.stringify(host.savedValues.ojMapping))['example.com'].oj, 'CF');
+	await host.receive({ type: 'settingsBack' });
+	assert.match(host.panel.webview.html, /id="fileNameTemplate"/);
+	await host.receive({ type: 'vjudgeMapping' });
+	assert.match(host.panel.webview.html, /VJudge 映射/);
+	await host.receive({ type: 'settingsBack', category: 'compiler' });
+	assert.equal(host.handlers.size, 1);
+	assert.match(host.panel.webview.html, /let selectedCategory = "compiler"/);
+	assert.equal(host.panelsCreated(), 1);
+});
+
+test('custom submission scripts reuse settings and leave no handlers after returning', async () => {
+	const host = createSettingsHost();
+	await host.receive({ type: 'customSubmitScripts', category: 'tools', scrollTop: 90 });
+	assert.equal(host.panelsCreated(), 1);
+	assert.match(host.panel.webview.html, /id="script"/);
+	assert.equal(host.handlers.size, 2);
+	await host.receive({ type: 'settingsBack' });
+	assert.equal(host.handlers.size, 1);
+	assert.match(host.panel.webview.html, /let selectedCategory = "tools"/);
+	assert.match(host.panel.webview.html, /scrollTop = 90/);
+});
+
+test('toolchain diagnostics is a settings subpage and returns to its compiler category', async () => {
+	const host = createSettingsHost();
+	await host.receive({ type: 'toolchainDiagnostics', category: 'compiler', scrollTop: 70 });
+	assert.equal(host.panelsCreated(), 1);
+	assert.match(host.panel.webview.html, /<h1>ShortestPath IDE 设置<\/h1>/);
+	assert.match(host.panel.webview.html, /id="repair"/);
+	assert.match(host.panel.webview.html, /id="settingsBack"/);
+	await host.receive({ type: 'refresh' });
+	assert.equal(host.messages.at(-1)?.type, 'state');
+	await host.receive({ type: 'settingsBack' });
+	assert.equal(host.handlers.size, 1);
+	assert.match(host.panel.webview.html, /let selectedCategory = "compiler"/);
+	assert.match(host.panel.webview.html, /scrollTop = 70/);
+});
 
 test('tab width in the font settings saves globally and refreshes after external changes', async () => {
 	const host = createSettingsHost();
@@ -361,6 +466,34 @@ test('Better switches in custom settings preserve independent values and refresh
 	}
 });
 
+
+test('window material modes save globally and refresh after external changes', async () => {
+	const host = createSettingsHost();
+	const state = () => {
+		host.onConfiguration({ affectsConfiguration: key => key === 'shortestpath.windowMaterial' });
+		return host.messages.at(-1)!.value as { windowMaterial: string };
+	};
+	assert.equal(state().windowMaterial, 'auto');
+	for (const mode of ['auto', 'on', 'off']) {
+		await host.receive({ type: 'save', value: { windowMaterial: mode } });
+		assert.equal(host.savedValues['shortestpath.windowMaterial'], mode);
+		assert.equal(state().windowMaterial, mode);
+	}
+	host.savedValues['shortestpath.windowMaterial'] = 'on';
+	assert.equal(state().windowMaterial, 'on');
+	await host.receive({ type: 'save', value: { windowMaterial: 'invalid' } });
+	assert.equal(host.savedValues['shortestpath.windowMaterial'], 'on');
+	host.onDispose();
+});
+
+test('boolean settings share switch semantics and omit redundant state labels', () => {
+	const html = renderSettings();
+	const controls = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)];
+	assert.ok(controls.length > 10);
+	for (const [control] of controls) { assert.match(control, /role="switch"/); }
+	assert.doesNotMatch(html, /<span>启用<\/span>/);
+	assert.match(html, /id="windowMaterial"><option value="auto">自动<\/option><option value="on">启用<\/option><option value="off">禁用<\/option>/);
+});
 
 test('Dark Reader settings save globally, round-trip and refresh when changed from the browser toolbar', async () => {
 	const host = createSettingsHost();

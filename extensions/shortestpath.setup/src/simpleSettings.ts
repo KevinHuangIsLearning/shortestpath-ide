@@ -14,6 +14,7 @@ import { withBundledCodeFont } from './bundledFont';
 import { withCompilerPathFlags } from './compilerRuntime';
 import { isSettingSupportedOnPlatform } from './platformSettings';
 import { templateEditorLayoutScript } from './templateEditor';
+import { SettingsNavigation, type SettingsPageHost } from './settingsNavigation';
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23';
 
@@ -53,6 +54,7 @@ type SimpleSettingsState = {
 	executableCleanupDelaySeconds: number;
 	colorTheme: string;
 	compactMode: boolean;
+	windowMaterial: 'auto' | 'on' | 'off';
 	autoDetectColorScheme: boolean;
 	autoSave: string;
 	displayLanguage: string;
@@ -455,13 +457,13 @@ Standard: ${state.standard}
 `;
 }
 
-async function openAutoFormatSettings(): Promise<void> {
+async function openAutoFormatSettings(host?: SettingsPageHost): Promise<void> {
 	const workspaceFolder = getAutoFormatWorkspaceFolder();
 	if (!workspaceFolder) {
 		void vscode.window.showWarningMessage(localize('请先打开一个工作目录，再配置自动格式化。'));
 		return;
 	}
-	const panel = vscode.window.createWebviewPanel('shortestpath.autoFormat', localize('自动格式化'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	const panel = host ?? vscode.window.createWebviewPanel('shortestpath.autoFormat', localize('自动格式化'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
 	panel.webview.html = localizeWebviewHtml(getAutoFormatHtml(await readAutoFormatState(workspaceFolder), workspaceFolder.fsPath));
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'save') {
@@ -492,7 +494,18 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 	);
 	context.subscriptions.push(panel);
 	settingsPanel = panel;
-	panel.webview.html = withBundledCodeFont(localizeWebviewHtml(getHtml(getState(), isBuyMeACoffeeVisible(context))), panel.webview, context.extensionUri);
+	let returnCategory = 'editor';
+	let returnScroll = 0;
+	let detailOpening = false;
+	let pendingSave: Promise<void> = Promise.resolve();
+	const mainHtml = () => withBundledCodeFont(localizeWebviewHtml(getHtml(getState(), isBuyMeACoffeeVisible(context), returnCategory, returnScroll)), panel.webview, context.extensionUri);
+	const restore = () => {
+		if (isDisposed) { return; }
+		panel.webview.html = mainHtml();
+		void getSystemFonts().then(value => { if (!isDisposed && !navigation.active) { void panel.webview.postMessage({ type: 'systemFonts', value }); } });
+	};
+	const navigation = new SettingsNavigation(panel.webview, (html, title) => decorateSettingsSubpage(html, mainHtml(), title, returnCategory), restore);
+	panel.webview.html = mainHtml();
 	void getSystemFonts().then(async result => {
 		if (isDisposed) {
 			return;
@@ -509,10 +522,24 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 		}
 	});
 	panel.webview.onDidReceiveMessage(async message => {
+		if (message?.type === 'settingsHeaderAction') {
+			if (message.action === 'openDocumentation') { await openDocumentationPage(); }
+			else if (message.action === 'openBuyMeACoffee') { await openBuyMeACoffeePage(); }
+			else if (message.action === 'dismissBuyMeACoffee') { await context.globalState.update(buyMeACoffeeDismissedUntilKey, Date.now() + buyMeACoffeeHideDuration); }
+			else if (message.action === 'advanced') { await vscode.commands.executeCommand('workbench.action.openSettings2'); }
+			return;
+		}
+		if (message?.type === 'settingsBack') {
+			if (['editor', 'compiler', 'tools'].includes(message.category)) { returnCategory = message.category; returnScroll = 0; }
+			await navigation.back(typeof message.category === 'string');
+			return;
+		}
+		if (navigation.active || detailOpening) { return; }
 		if (message?.type === 'save') {
 			isSaving = true;
 			try {
-				await saveState(message.value);
+				pendingSave = pendingSave.catch(() => undefined).then(() => saveState(message.value));
+				await pendingSave;
 			} finally {
 				isSaving = false;
 			}
@@ -557,14 +584,16 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 		} else if (message?.type === 'openDocumentation') {
 			await openDocumentationPage();
 		} else if (message?.type === 'autoFormat') {
-			await vscode.commands.executeCommand('shortestpath.configureAutoFormat');
+			await openDetail(localize('自动格式化规则'), openAutoFormatSettings, message);
 		} else if (message?.type === 'toolchainDiagnostics') {
-			panel.dispose();
-			await vscode.commands.executeCommand('shortestpath.openToolchainDiagnostics');
+			const { openToolchainDiagnostics } = await import('./toolchainDiagnostics');
+			await openDetail(localize('工具链诊断'), host => openToolchainDiagnostics(context, host), message);
 		} else if (message?.type === 'cphSettings') {
-			await vscode.commands.executeCommand('shortestpath.configureCph');
+			const { openCphSettings } = await import('./cphSettings');
+			await openDetail(localize('Judger 设置'), openCphSettings, message);
 		} else if (message?.type === 'customSubmitScripts') {
-			await vscode.commands.executeCommand('shortestpath.openCustomSubmitScripts');
+			const { openPage } = await import('./browserScriptTester');
+			await openDetail(localize('Judger 自定义提交脚本'), openPage, message);
 		} else if (message?.type === 'checkForUpdates') {
 			await panel.webview.postMessage({ type: 'checkForUpdatesStatus', status: 'checking' });
 			try {
@@ -597,8 +626,21 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			await context.globalState.update(buyMeACoffeeDismissedUntilKey, Date.now() + buyMeACoffeeHideDuration);
 		}
 	}, undefined, context.subscriptions);
+	async function openDetail(title: string, render: (host: SettingsPageHost) => void | Promise<void>, message: { category?: string; scrollTop?: number }): Promise<void> {
+		if (isDisposed || navigation.active || detailOpening) { return; }
+		detailOpening = true;
+		try {
+			await pendingSave;
+			if (isDisposed) { return; }
+			returnCategory = ['editor', 'compiler', 'tools'].includes(message.category ?? '') ? message.category! : 'editor';
+			returnScroll = typeof message.scrollTop === 'number' && Number.isFinite(message.scrollTop) ? Math.max(0, message.scrollTop) : 0;
+			await vscode.commands.executeCommand('_shortestpath.flushTemplateEditor');
+			await vscode.commands.executeCommand('_shortestpath.layoutTemplateEditor', { left: 0, top: 0, width: 0, height: 0, clipTop: 0, clipBottom: 0 }, getState().cppTemplate);
+			await navigation.open(title, render);
+		} finally { detailOpening = false; }
+	}
 	const configurationListener = vscode.workspace.onDidChangeConfiguration(event => {
-		if (!isSaving && (event.affectsConfiguration('editor.fontFamily')
+		if (!isSaving && !navigation.active && (event.affectsConfiguration('editor.fontFamily')
 			|| event.affectsConfiguration('editor.fontLigatures')
 			|| event.affectsConfiguration('editor.fontSize')
 			|| event.affectsConfiguration('editor.tabSize')
@@ -614,6 +656,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 			|| event.affectsConfiguration('shortestpath.executableCleanupDelaySeconds')
 			|| event.affectsConfiguration('workbench.colorTheme')
 			|| event.affectsConfiguration('shortestpath.compactMode')
+			|| event.affectsConfiguration('shortestpath.windowMaterial')
 			|| event.affectsConfiguration('window.autoDetectColorScheme')
 			|| event.affectsConfiguration('files.autoSave')
 			|| event.affectsConfiguration('shortestpath.useExtensionMarketplace')
@@ -631,6 +674,7 @@ function openSimpleSettings(context: vscode.ExtensionContext): void {
 	panel.onDidDispose(() => {
 		if (settingsPanel === panel) { settingsPanel = undefined; }
 		isDisposed = true;
+		navigation.dispose();
 		configurationListener.dispose();
 		themeListener.dispose();
 	}, undefined, context.subscriptions);
@@ -664,6 +708,7 @@ function getState(): SimpleSettingsState {
 		executableCleanupDelaySeconds,
 		colorTheme,
 		compactMode: vscode.workspace.getConfiguration('shortestpath', null).get<boolean>('compactMode') ?? false,
+		windowMaterial: vscode.workspace.getConfiguration('shortestpath', null).get<SimpleSettingsState['windowMaterial']>('windowMaterial') ?? 'auto',
 		autoDetectColorScheme: windowConfiguration.get<boolean>('autoDetectColorScheme') ?? false,
 		autoSave: files.get<string>('autoSave') ?? 'off',
 		displayLanguage: vscode.env.language,
@@ -740,6 +785,7 @@ async function saveState(value: Partial<SimpleSettingsState>): Promise<void> {
 		settings.update('shortestpath.executableCleanupDelaySeconds', executableCleanupDelaySeconds, vscode.ConfigurationTarget.Global),
 		settings.update('workbench.colorTheme', typeof value.colorTheme === 'string' ? value.colorTheme : 'One Monokai', vscode.ConfigurationTarget.Global),
 		settings.update('shortestpath.compactMode', value.compactMode === true, vscode.ConfigurationTarget.Global),
+		...(value.windowMaterial === 'auto' || value.windowMaterial === 'on' || value.windowMaterial === 'off' ? [settings.update('shortestpath.windowMaterial', value.windowMaterial, vscode.ConfigurationTarget.Global)] : []),
 		settings.update('window.autoDetectColorScheme', value.autoDetectColorScheme === true, vscode.ConfigurationTarget.Global),
 		// `window.systemColorTheme` is not a registered configuration on Linux,
 		// where native UI colors always follow the system color scheme.
@@ -762,7 +808,71 @@ export function isCppStandard(value: unknown): value is CppStandard {
 	return value === 'c++11' || value === 'c++14' || value === 'c++17' || value === 'c++20' || value === 'c++23';
 }
 
-function getHtml(state: SimpleSettingsState, showBuyMeACoffee: boolean): string {
+const booleanControlStyles = `
+input[type="checkbox"] { appearance: none; -webkit-appearance: none; position: relative; display: inline-block; flex: none; width: 36px; height: 20px; min-height: 20px; margin: 0; padding: 0; border: 1px solid var(--vscode-checkbox-border, var(--vscode-input-border, transparent)); border-radius: 999px; background: color-mix(in srgb, var(--vscode-foreground) 24%, transparent); cursor: pointer; vertical-align: middle; transition: background-color 120ms ease; }
+input[type="checkbox"]::before { content: ''; position: absolute; width: 16px; height: 16px; left: 1px; top: 1px; border-radius: 50%; background: var(--vscode-button-foreground, #fff); box-shadow: 0 1px 2px #0003; transition: transform 120ms ease; }
+input[type="checkbox"]:checked { background: var(--vscode-button-background, var(--vscode-focusBorder)); border-color: transparent; }
+input[type="checkbox"]:checked::before { transform: translateX(16px); }
+input[type="checkbox"]:disabled { opacity: .45; cursor: default; }
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 3px; }
+.toggle { display: inline-flex; align-items: center; justify-self: end; gap: 8px; min-height: 30px; width: fit-content; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { input[type="checkbox"], input[type="checkbox"]::before { transition: none; } }
+@media (forced-colors: active) { input[type="checkbox"] { background: Canvas; border-color: ButtonText; } input[type="checkbox"]::before { background: ButtonText; } input[type="checkbox"]:checked { background: Highlight; } input[type="checkbox"]:checked::before { background: HighlightText; } }
+`;
+
+function decorateSettingsSubpage(html: string, parentHtml: string, title: string, category: string): string {
+	const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+	const styles = [...parentHtml.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n');
+	const sidebar = parentHtml.match(/<aside class="sidebar">[\s\S]*?<\/aside>/)?.[0] ?? '';
+	const parentHeader = parentHtml.match(/<header class="settings-header">[\s\S]*?<\/header>/)?.[0] ?? '';
+	const header = `<header class="settings-header detail-header"><button id="settingsBack" class="secondary" type="button" aria-label="${escape(localize('返回'))}">‹</button><h1>${escape(title)}</h1></header>`;
+	const navigationScript = `<script>
+function flushDetailSave() {
+  if (typeof saveTimer !== 'undefined' && typeof value === 'function') {
+    clearTimeout(saveTimer); vscode.postMessage({ type: 'save', value: value() });
+  } else if (typeof fields !== 'undefined' && typeof el === 'function') {
+    clearTimeout(timer); vscode.postMessage({ type: 'save', value: Object.fromEntries(fields.map(id => [id, el(id).type === 'checkbox' ? el(id).checked : el(id).type === 'number' ? Number(el(id).value) : el(id).value])) });
+  }
+}
+document.getElementById('settingsBack').onclick = () => { flushDetailSave(); vscode.postMessage({ type: 'settingsBack' }); };
+['openDocumentation', 'openBuyMeACoffee', 'dismissBuyMeACoffee', 'advanced'].forEach(action => {
+  const button = document.getElementById(action);
+  if (button) button.onclick = event => { event.preventDefault(); vscode.postMessage({ type: 'settingsHeaderAction', action }); if (action === 'dismissBuyMeACoffee') document.getElementById('buyMeACoffee')?.remove(); };
+});
+document.querySelectorAll('.sidebar .category').forEach(button => {
+  const active = button.dataset.category === ${JSON.stringify(category)};
+  button.classList.toggle('active', active);
+  if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+  button.removeAttribute('aria-controls');
+  button.onclick = () => { flushDetailSave(); vscode.postMessage({ type: 'settingsBack', category: button.dataset.category }); };
+});
+document.querySelectorAll('input[type="checkbox"]').forEach(input => {
+  input.setAttribute('role', 'switch');
+  const label = input.closest('.row')?.querySelector('label');
+  if (label && !label.contains(input)) input.setAttribute('aria-label', label.textContent.trim());
+});
+document.querySelectorAll('.toggle').forEach(label => { [...label.childNodes].filter(node => node.nodeType === 3).forEach(node => node.remove()); });
+document.addEventListener('click', event => { if (event.target.closest('#ojMapping, #vjudgeMapping')) flushDetailSave(); }, true);
+</script>`;
+	return html.replace('</head>', `<style>${styles}
+.detail-layout { display: grid; grid-template-columns: 156px minmax(0, 760px); grid-template-rows: auto auto minmax(0, 1fr); gap: 24px; height: 100vh; max-width: 1010px; margin: auto; padding: 24px; box-sizing: border-box; }
+.detail-layout > main { display: block; grid-column: 2; grid-row: 3; min-width: 0; min-height: 0; width: auto; height: auto; max-width: none; margin: 0; padding: 2px 4px 24px 2px; overflow: auto; }
+.detail-layout > main > h1, .settings-sidebar { display: none; }
+.detail-header { grid-column: 2; grid-row: 2; align-items: center; justify-content: flex-start; gap: 12px; }
+.detail-header h1 { margin: 0; font-size: 18px; }
+.detail-header button { min-width: 32px; font-size: 24px; line-height: 24px; padding: 0 8px; }
+.detail-layout .sidebar { grid-column: 1; grid-row: 2 / 4; }
+.detail-layout .card, .detail-layout .entry { border: 0; padding: 0; border-radius: var(--settings-group-radius); background: var(--settings-group-background); overflow: hidden; }
+.detail-layout .card > h2 { margin: 16px; font-size: 14px; }
+.detail-layout .row { grid-template-columns: minmax(0, 3fr) minmax(0, 7fr); border-bottom: 0; margin: 0; }
+.detail-layout .toggle { justify-content: flex-end; }
+.detail-layout input[type="checkbox"] { width: 36px; }
+@media(max-width: 900px) { .detail-layout .row { grid-template-columns: minmax(0, 1fr); } }
+@media(max-width: 600px) { .detail-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr); gap: 16px; padding: 16px; } .detail-layout .detail-header { grid-column: 1; grid-row: 3; } .detail-layout .sidebar { grid-row: 2; } .detail-layout > main { grid-column: 1; grid-row: 4; } }
+</style></head>`).replace('<body>', `<body><div class="detail-layout">${parentHeader}${header}${sidebar}`).replace('</body>', `</div>${navigationScript}</body>`);
+}
+
+function getHtml(state: SimpleSettingsState, showBuyMeACoffee: boolean, initialCategory = 'editor', initialScroll = 0): string {
 	const serializedState = JSON.stringify(state).replace(/</g, '\\u003c');
 	const previewText = fontPreviewSource.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	const advancedLink = '<a id="advanced" href="#">' + localize('高级设置') + '</a>';
@@ -781,30 +891,93 @@ function getHtml(state: SimpleSettingsState, showBuyMeACoffee: boolean): string 
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
 <title>ShortestPath IDE 设置</title>
 <style>
-body { color: var(--vscode-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); margin: 0; height: 100vh; overflow: hidden; }
-main { box-sizing: border-box; display: grid; grid-template-columns: 156px minmax(0, 760px); grid-template-rows: auto minmax(0, 1fr); column-gap: 32px; row-gap: 28px; height: 100vh; max-width: 1010px; margin: 0 auto; padding: 28px; }
-.settings-header { grid-column: 1 / -1; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }.settings-header h1 { font-size: 22px; font-weight: 600; margin: 0 0 8px; }.settings-header p { color: var(--vscode-descriptionForeground); margin: 0; line-height: 1.5; }
-.header-actions, .support-actions { display: flex; align-items: center; gap: 4px; flex: none; }.header-action { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; background: transparent; color: var(--vscode-foreground); border-radius: 4px; }.header-action:hover { background: var(--vscode-toolbar-hoverBackground); }.header-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }.dismiss-support { width: 24px; color: var(--vscode-descriptionForeground); }.dismiss-support svg { width: 12px; height: 12px; }
-.documentation-action { color: var(--vscode-textLink-foreground); background: color-mix(in srgb, var(--vscode-textLink-foreground) 12%, transparent); }.support-action { color: var(--vscode-editorWarning-foreground); background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, transparent); }
-.action-tooltip { display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 10; box-sizing: border-box; width: 240px; padding: 10px 12px; border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: 6px; background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); font-size: 12px; line-height: 1.5; text-align: left; white-space: normal; pointer-events: none; box-shadow: 0 4px 12px var(--vscode-widget-shadow); }.action-tooltip strong, .action-tooltip span { display: block; }.action-tooltip strong { margin-bottom: 4px; }.header-action:hover .action-tooltip, .header-action:focus-visible .action-tooltip { display: block; }
-a { color: var(--vscode-textLink-foreground); text-decoration: none; } a:hover { color: var(--vscode-textLink-activeForeground); text-decoration: underline; } a:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
-.sidebar { align-self: start; }.categories { display: grid; gap: 4px; }.category { width: 100%; border: 1px solid transparent; border-radius: 4px; padding: 10px 12px; color: var(--vscode-foreground); background: transparent; text-align: left; font: inherit; cursor: pointer; }.category:hover { background: var(--vscode-list-hoverBackground); }.category.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); border-color: var(--vscode-contrastActiveBorder, transparent); }
-.excluded-hosts { width: 100%; box-sizing: border-box; padding: 6px 8px; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 3px; resize: vertical; }
-.settings-content { min-width: 0; overflow-y: auto; padding-right: 4px; } h2 { font-size: 18px; font-weight: 600; margin: 0 0 16px; } h3 { font-size: 13px; font-weight: 600; color: var(--vscode-descriptionForeground); margin: 16px 0 0; }
-.card { border: 1px solid var(--vscode-editorWidget-border); border-radius: 6px; padding: 0 20px; margin: 0 0 16px; }
-.row { display: grid; grid-template-columns: 190px 1fr; gap: 20px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--vscode-editorWidget-border); }
-.row:last-child { border: 0; } label { font-weight: 600; } .hint { color: var(--vscode-descriptionForeground); font-size: 12px; margin-top: 4px; }
-input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); padding: 7px 9px; border-radius: 4px; font: inherit; }
-.code-template { height: 360px; min-width: 0; background: var(--vscode-editor-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; overflow: hidden; }
+:root {
+  --settings-control-radius: 8px;
+  --settings-group-radius: 12px;
+  --settings-separator: var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent));
+  --settings-group-background: color-mix(in srgb, var(--vscode-foreground) 4%, var(--vscode-editor-background));
+  --settings-feedback-duration: 120ms;
+  --settings-ease: cubic-bezier(.2, .8, .2, 1);
+}
+* { box-sizing: border-box; }
+body { margin: 0; height: 100vh; overflow: hidden; color: var(--vscode-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size, 13px); }
+main { display: grid; grid-template-columns: 156px minmax(0, 760px); grid-template-rows: auto minmax(0, 1fr); column-gap: 24px; row-gap: 24px; height: 100vh; max-width: 1010px; margin: 0 auto; padding: 24px; }
+.settings-header { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.settings-header h1 { margin: 0 0 8px; font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+.settings-header p { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.6; }
+.header-actions, .support-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.header-action { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; background: transparent; color: var(--vscode-foreground); border-radius: var(--settings-control-radius); }
+.header-action:hover { background: var(--vscode-toolbar-hoverBackground); }
+.header-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+.dismiss-support { width: 24px; color: var(--vscode-descriptionForeground); }
+.dismiss-support svg { width: 12px; height: 12px; }
+.documentation-action { color: var(--vscode-textLink-foreground); background: color-mix(in srgb, var(--vscode-textLink-foreground) 12%, transparent); }
+.support-action { color: var(--vscode-editorWarning-foreground); background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, transparent); }
+.action-tooltip { display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 10; width: 240px; max-width: calc(100vw - 32px); padding: 12px; border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: var(--settings-group-radius); background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); font-size: 12px; line-height: 1.6; text-align: left; white-space: normal; pointer-events: none; box-shadow: 0 4px 12px var(--vscode-widget-shadow); }
+.action-tooltip strong, .action-tooltip span { display: block; }
+.action-tooltip strong { margin-bottom: 4px; }
+.header-action:hover .action-tooltip, .header-action:focus-visible .action-tooltip { display: block; }
+a { color: var(--vscode-textLink-foreground); text-decoration: none; }
+a:hover { color: var(--vscode-textLink-activeForeground); text-decoration: underline; }
+a:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.sidebar { grid-column: 1; grid-row: 2; min-height: 0; overflow-y: auto; padding-right: 16px; border-right: 1px solid var(--settings-separator); }
+.categories { display: grid; gap: 4px; }
+.category { width: 100%; min-height: 32px; border: 1px solid transparent; border-radius: var(--settings-control-radius); padding: 8px 10px; color: var(--vscode-foreground); background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.category:hover { background: var(--vscode-list-hoverBackground); }
+.category.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); border-color: var(--vscode-contrastActiveBorder, transparent); }
+.settings-content { grid-column: 2; grid-row: 2; min-width: 0; min-height: 0; overflow-y: auto; padding: 2px 4px 12px 2px; }
+h2 { font-size: 18px; font-weight: 600; margin: 0 0 20px; }
+h3 { font-size: 13px; font-weight: 500; color: var(--vscode-descriptionForeground); margin: 0 4px 8px; }
+.card { border: 0; padding: 0; margin: 0 0 24px; }
+.row { position: relative; display: grid; grid-template-columns: minmax(160px, 1fr) minmax(0, 1fr); gap: 20px; align-items: center; padding: 14px 16px; background: var(--settings-group-background); }
+.row + .row::after { content: ''; position: absolute; top: 0; left: 16px; right: 16px; height: 1px; background: var(--settings-separator); pointer-events: none; }
+.row > select, .row > button { justify-self: end; width: auto; min-width: 140px; }
+.disclosure-row { width: 100%; text-align: left; color: var(--vscode-foreground); border: 0; border-radius: 0; }
+.disclosure-row:hover { background: var(--vscode-list-hoverBackground); }
+.disclosure-row > span:last-child { justify-self: end; color: var(--vscode-descriptionForeground); font-size: 22px; }
+.disclosure-row .hint { display: block; }
+.card > h3 + .row { border-top-left-radius: var(--settings-group-radius); border-top-right-radius: var(--settings-group-radius); }
+.row:last-child { border-bottom: 0; border-bottom-left-radius: var(--settings-group-radius); border-bottom-right-radius: var(--settings-group-radius); }
+.row > div { min-width: 0; }
+label { font-weight: 400; }
+.hint { color: var(--vscode-descriptionForeground); font-size: 12px; line-height: 1.6; margin-top: 4px; }
+input, select, textarea { max-width: 100%; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: var(--settings-control-radius); font: inherit; }
+input, select { width: 100%; min-height: 30px; padding: 5px 9px; }
+select { color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border-color: var(--vscode-dropdown-border, transparent); }
+${booleanControlStyles}
+.excluded-hosts { width: 100%; padding: 8px 10px; resize: vertical; }
+.code-template { height: 360px; min-width: 0; background: var(--vscode-editor-background); border: 1px solid var(--settings-separator); border-radius: var(--settings-control-radius); overflow: hidden; }
 .template-row { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
-input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { display: flex; align-items: center; gap: 10px; }
-.font-preview { color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size, 14px); font-weight: var(--vscode-editor-font-weight, normal); line-height: 1.6; margin: 12px 0 0; padding: 12px; white-space: pre; overflow-x: auto; }.row > div { min-width: 0; }
-.row.disabled { opacity: .6; } .row.disabled input, .row.disabled select { cursor: not-allowed; } .update-actions { display: grid; gap: 8px; } .update-actions button { width: 100%; } .inline-status { display: block; color: var(--vscode-descriptionForeground); font-size: 12px; }
-.actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } button { border: 0; border-radius: 4px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); } button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } #saved { color: var(--vscode-testing-iconPassed); }
-[hidden] { display: none !important; } button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
-@media (max-width: 900px) { .row { grid-template-columns: 1fr; gap: 8px; } }
-@media (max-width: 600px) { main { grid-template-columns: 100px minmax(0, 1fr); column-gap: 16px; row-gap: 20px; padding: 16px; }.settings-header { gap: 12px; }.settings-header h1 { font-size: 18px; }.settings-header p { font-size: 12px; }.category { padding: 8px; }.card { padding: 0 12px; }.font-preview { overflow-x: auto; } }
-
+.font-row { grid-template-columns: minmax(0, 3fr) minmax(0, 7fr); align-items: start; }
+.font-preview { color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); border: 1px solid var(--settings-separator); border-radius: var(--settings-control-radius); font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size, 14px); font-weight: var(--vscode-editor-font-weight, normal); line-height: 1.6; margin: 12px 0 0; padding: 12px; white-space: pre; overflow-x: auto; }
+.row.disabled { opacity: .6; }
+.row.disabled input, .row.disabled select { cursor: not-allowed; }
+.update-actions { display: grid; gap: 8px; }
+.update-actions button { width: 100%; }
+.inline-status { display: block; color: var(--vscode-descriptionForeground); font-size: 12px; }
+.actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
+button { min-height: 30px; border: 1px solid var(--vscode-contrastBorder, transparent); border-radius: var(--settings-control-radius); padding: 5px 12px; font: inherit; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); transition: background-color var(--settings-feedback-duration) var(--settings-ease), color var(--settings-feedback-duration) var(--settings-ease); }
+button:hover:not(:disabled):not(.category):not(.header-action):not(.secondary):not(.disclosure-row) { background: var(--vscode-button-hoverBackground); }
+button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); }
+button.secondary:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+button:disabled { opacity: .5; cursor: default; }
+#saved { color: var(--vscode-testing-iconPassed); }
+[hidden] { display: none !important; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+body.vscode-high-contrast .row, body.vscode-high-contrast-light .row { outline: 1px solid var(--vscode-contrastBorder); outline-offset: -1px; }
+body.vscode-reduce-motion { --settings-feedback-duration: 0ms; }
+@media (prefers-reduced-motion: reduce) { :root { --settings-feedback-duration: 0ms; } }
+@media (max-width: 900px) { .row { grid-template-columns: minmax(0, 1fr); gap: 8px; } }
+@media (max-width: 600px) {
+  main { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); gap: 16px; padding: 16px; }
+  .settings-header { grid-column: 1; grid-row: 1; gap: 12px; }
+  .settings-header h1 { font-size: 18px; }
+  .sidebar { grid-column: 1; grid-row: 2; padding: 0 0 12px; border-right: 0; border-bottom: 1px solid var(--settings-separator); overflow: visible; }
+  .categories { display: flex; flex-wrap: wrap; gap: 4px; }
+  .category { width: auto; padding: 6px 10px; }
+  .settings-content { grid-column: 1; grid-row: 3; }
+  .row { padding: 12px; }
+}
 </style>
 </head>
 <body><main>
@@ -813,53 +986,56 @@ input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { displa
 <div class="settings-content" id="settingsContent" role="region" aria-labelledby="categoryTitle">
 <h2 id="categoryTitle">编辑器</h2>
 <section class="card" data-category="editor"><h3>字体</h3>
-<div class="row"><div><label for="fontFamily">代码字体</label><div class="hint">可选择内置 Fira Code 或检测到的系统等宽字体。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" aria-describedby="fontLoadStatus"><option value="Fira Code">Fira Code</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div><pre id="fontPreview" class="font-preview" data-i18n-ignore>${previewText}</pre><div id="fontPreviewStatus" class="hint" role="status"></div></div></div>
-<div class="row"><div><label for="fontLigatures">启用字体连字</label><div id="fontLigaturesStatus" class="hint" role="status"></div></div><label class="toggle"><input id="fontLigatures" type="checkbox"><span>启用</span></label></div>
+<div class="row font-row"><div><label for="fontFamily">代码字体</label><div class="hint">可选择内置 Fira Code 或检测到的系统等宽字体。</div></div><div id="fontControl" aria-busy="true"><select id="fontFamily" aria-describedby="fontLoadStatus"><option value="Fira Code">Fira Code</option></select><div id="fontLoadStatus" class="hint" role="status" aria-live="polite">正在读取系统字体，请稍候。</div><pre id="fontPreview" class="font-preview" data-i18n-ignore>${previewText}</pre><div id="fontPreviewStatus" class="hint" role="status"></div></div></div>
+<div class="row"><div><label for="fontLigatures">启用字体连字</label><div id="fontLigaturesStatus" class="hint" role="status"></div></div><label class="toggle"><input id="fontLigatures" type="checkbox" role="switch"></label></div>
 <div class="row"><div><label for="fontSize">字体大小</label></div><input id="fontSize" type="number" min="1" step="1"></div>
 <div class="row"><div><label for="tabSize">缩进</label></div><input id="tabSize" type="number" min="1" max="100" step="1"></div>
 </section>
 <section class="card" data-category="editor"><h3>外观与保存</h3>
 <div class="row"><div><label for="colorTheme">主题</label></div><select id="colorTheme"></select></div>
 <div class="row"><div><label>显示语言</label><div class="hint">当前：<span id="displayLanguage"></span>。选择后将按 VS Code 的正常流程确认并重启。</div></div><button id="configureLocale" class="secondary">切换显示语言</button></div>
-<div class="row"><div><label for="compactMode">Compact Mode</label><div class="hint">将左侧导航栏宽度缩小至标题栏高度。</div></div><label class="toggle"><input id="compactMode" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="autoDetectColorScheme">同步系统主题</label></div><label class="toggle"><input id="autoDetectColorScheme" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="compactMode">Compact Mode</label><div class="hint">将左侧导航栏宽度缩小至标题栏高度。</div></div><label class="toggle"><input id="compactMode" type="checkbox" role="switch"></label></div>
+<div class="row"><div><label for="windowMaterial">毛玻璃</label><div class="hint">自动按设备性能和启动耗时调整。启用仍遵循系统减少透明度和高对比设置。</div><div class="hint">切换后若未生效，请重新打开 IDE 窗口。</div></div><select id="windowMaterial"><option value="auto">自动</option><option value="on">启用</option><option value="off">禁用</option></select></div>
+<div class="row"><div><label for="autoDetectColorScheme">同步系统主题</label></div><label class="toggle"><input id="autoDetectColorScheme" type="checkbox" role="switch"></label></div>
 <div class="row"><div><label for="autoSave">自动保存</label></div><select id="autoSave"><option value="off">关闭</option><option value="afterDelay">延迟后自动保存</option><option value="onFocusChange">切换焦点时保存</option><option value="onWindowChange">切换窗口时保存</option></select></div>
 </section>
 <section class="card" data-category="editor"><h3>编辑行为</h3>
-<div class="row"><div><label for="autoFormat">启用自动格式化</label><div class="hint">同时控制保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="autoFormat" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label>自动格式化规则</label><div class="hint">配置当前工作目录的 .clang-format。</div></div><button id="autoFormatSettings" class="secondary">配置格式化规则</button></div>
-<div class="row"><div><label for="clangdVariableTypeHints">clangd 变量类型提示</label><div class="hint">在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。</div></div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="errorLensEnabled">Error Lens Enable</label><div class="hint">启用 Error Lens，高亮错误行。</div></div><label class="toggle"><input id="errorLensEnabled" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="autoFormat">启用自动格式化</label><div class="hint">同时控制保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="autoFormat" type="checkbox" role="switch"></label></div>
+<button id="autoFormatSettings" class="row disclosure-row" type="button"><span><span>自动格式化规则</span><span class="hint">配置当前工作目录的 .clang-format。</span></span><span aria-hidden="true">›</span></button>
+<div class="row"><div><label for="clangdVariableTypeHints">clangd 变量类型提示</label><div class="hint">在 auto 等推断变量后显示类型；此开关使用 VS Code 的内嵌提示设置。</div></div><label class="toggle"><input id="clangdVariableTypeHints" type="checkbox" role="switch"></label></div>
+<div class="row"><div><label for="errorLensEnabled">Error Lens Enable</label><div class="hint">启用 Error Lens，高亮错误行。</div></div><label class="toggle"><input id="errorLensEnabled" type="checkbox" role="switch"></label></div>
 </section>
 <section class="card" data-category="compiler" hidden><h3>编译与运行</h3>
 <div class="row"><div><label for="cppStandard">C++ 版本</label></div><select id="cppStandard"><option>c++11</option><option>c++14</option><option>c++17</option><option>c++20</option><option>c++23</option></select></div>
 <div class="row"><div><label for="compilerFlags">编译选项</label><div class="hint">同时应用到 Judger 和 C/C++ Compile Run。</div></div><input id="compilerFlags" type="text"></div>
-<div class="row"><div><label for="executableCleanupEnabled">自动清理生成文件</label><div class="hint">同时作用于 Judger 和 C/C++ Compile Run。</div></div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="executableCleanupEnabled">自动清理生成文件</label><div class="hint">同时作用于 Judger 和 C/C++ Compile Run。</div></div><label class="toggle"><input id="executableCleanupEnabled" type="checkbox" role="switch"></label></div>
 <div class="row"><div><label for="executableCleanupDelaySeconds">生成文件保留时间</label><div class="hint">程序运行结束后自动删除 exe。单位：秒；0 表示立即删除。</div></div><input id="executableCleanupDelaySeconds" type="number" min="0" max="86400" step="1"></div>
 </section>
 <section class="card" data-category="compiler" hidden><h3>工具链诊断</h3>
-<div class="row"><div><label>工具链诊断</label><div class="hint">检查 Judger、Compile Run、clangd 与编译器是否可用且配置一致。</div></div><button id="toolchainDiagnostics" class="secondary">打开诊断页</button></div>
+<button id="toolchainDiagnostics" class="row disclosure-row" type="button"><span><span>工具链诊断</span><span class="hint">检查 Judger、Compile Run、clangd 与编译器是否可用且配置一致。</span></span><span aria-hidden="true">›</span></button>
 </section>
 <section class="card" data-category="tools" hidden><h3>新建文件</h3>
 <div class="row template-row"><div><label id="cppTemplateLabel">默认代码模板</label><div class="hint">Judger 新建 C++ 文件时会自动填入这份模版。</div></div><div id="cppTemplate" class="code-template" role="group" aria-labelledby="cppTemplateLabel" data-i18n-ignore></div></div>
 </section>
 <section class="card" data-category="tools" hidden><h3>提交与评测</h3>
-<div class="row"><div><label>Judger 设置</label><div class="hint">配置题目下载、Judge、VJudge 与 Judger 编译运行行为。</div></div><button id="cphSettings" class="secondary">配置 Judger</button></div><div class="row"><div><label>Judger 自定义提交脚本</label><div class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 Judger 提交按钮时打开并填写表单。</div></div><button id="customSubmitScripts" class="secondary">配置提交脚本</button></div><div class="row"><div><label for="shortestPathCppSubmissionLanguage">ShortestPath OJ 提交语言</label><div class="hint">“每次询问”会在 C++ 提交前选择 C++14 或 C++20。</div></div><select id="shortestPathCppSubmissionLanguage"><option value="ask">每次询问</option><option value="cpp14">C++14</option><option value="cpp20">C++20</option></select></div>
-<div class="row"><div><label for="shortestPathImportCategoryEnabled">ShortestPath OJ 按分类导入</label><div class="hint">在专题目录下添加 found/adv/chal/past 子目录，避免不同分类的题目路径冲突；已有绑定的解答文件保留原路径。</div></div><input id="shortestPathImportCategoryEnabled" type="checkbox" /></div>
+<button id="cphSettings" class="row disclosure-row" type="button"><span><span>Judger 设置</span><span class="hint">配置题目下载、Judge、VJudge 与 Judger 编译运行行为。</span></span><span aria-hidden="true">›</span></button>
+<button id="customSubmitScripts" class="row disclosure-row" type="button"><span><span>Judger 自定义提交脚本</span><span class="hint">按 OJ 配置提交页面 URL 和 JavaScript，点击 Judger 提交按钮时打开并填写表单。</span></span><span aria-hidden="true">›</span></button>
+<div class="row"><div><label for="shortestPathCppSubmissionLanguage">ShortestPath OJ 提交语言</label><div class="hint">“每次询问”会在 C++ 提交前选择 C++14 或 C++20。</div></div><select id="shortestPathCppSubmissionLanguage"><option value="ask">每次询问</option><option value="cpp14">C++14</option><option value="cpp20">C++20</option></select></div>
+<div class="row"><div><label for="shortestPathImportCategoryEnabled">ShortestPath OJ 按分类导入</label><div class="hint">在专题目录下添加 found/adv/chal/past 子目录，避免不同分类的题目路径冲突；已有绑定的解答文件保留原路径。</div></div><label class="toggle"><input id="shortestPathImportCategoryEnabled" type="checkbox" role="switch"></label></div>
 <div class="row"><div><label for="defaultSubmitMethod">Judger 默认提交方式</label><div class="hint">当原 OJ 提交和 VJudge 提交都可用时使用；单独 OJ 的自定义脚本不受影响。</div></div><select id="defaultSubmitMethod"><option value="ask">每次询问</option><option value="vjudge">VJudge</option><option value="native">原 OJ</option></select></div>
 </section>
 <section class="card" data-category="tools" hidden><h3>内置浏览器</h3>
 <div class="row"><div><label for="browserDarkReaderMode">Dark Reader 网页深色模式</label><div class="hint">为内置浏览器中的网页启用深色模式，更改立即生效。</div></div><select id="browserDarkReaderMode"><option value="auto">跟随 IDE 主题</option><option value="on">始终开启</option><option value="off">关闭</option></select></div>
-<div class="row"><div><label for="browserDarkReaderDetectDarkTheme">自动检测网页深色主题</label><div class="hint">网页已有深色主题时保留原样，避免重复转换。</div></div><label class="toggle"><input id="browserDarkReaderDetectDarkTheme" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="browserDarkReaderDetectDarkTheme">自动检测网页深色主题</label><div class="hint">网页已有深色主题时保留原样，避免重复转换。</div></div><label class="toggle"><input id="browserDarkReaderDetectDarkTheme" type="checkbox" role="switch"></label></div>
 <div class="row"><div><label for="browserDarkReaderExcludedHosts">Dark Reader 排除站点</label><div class="hint">每行一个主机名，例如 www.example.com；不含协议或路径，子域名单独匹配。</div></div><textarea class="excluded-hosts" id="browserDarkReaderExcludedHosts" rows="3" spellcheck="false" data-i18n-ignore></textarea></div>
-<div class="row"><div><label for="atcoderBetterEnabled">AtCoder Better</label><div class="hint">在 AtCoder 页面启用 Better 浏览增强。更改后刷新已有页面；详细选项在页面的 Better 设置中调整。</div></div><label class="toggle"><input id="atcoderBetterEnabled" type="checkbox"><span>启用</span></label></div>
-<div class="row"><div><label for="codeforcesBetterEnabled">Codeforces Better</label><div class="hint">在 Codeforces 页面启用 Better 浏览增强。更改后刷新已有页面；详细选项在页面的 Better 设置中调整。</div></div><label class="toggle"><input id="codeforcesBetterEnabled" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="atcoderBetterEnabled">AtCoder Better</label><div class="hint">在 AtCoder 页面启用 Better 浏览增强。更改后刷新已有页面；详细选项在页面的 Better 设置中调整。</div></div><label class="toggle"><input id="atcoderBetterEnabled" type="checkbox" role="switch"></label></div>
+<div class="row"><div><label for="codeforcesBetterEnabled">Codeforces Better</label><div class="hint">在 Codeforces 页面启用 Better 浏览增强。更改后刷新已有页面；详细选项在页面的 Better 设置中调整。</div></div><label class="toggle"><input id="codeforcesBetterEnabled" type="checkbox" role="switch"></label></div>
 </section>
 <section class="card" data-category="tools" hidden><h3>工作台</h3>
-<div class="row"><div><label for="timelineEnabled">Timeline 视图</label><div class="hint">在 Explorer 中显示文件时间线，可查看 Git 提交和本地历史记录。</div></div><label class="toggle"><input id="timelineEnabled" type="checkbox"><span>启用</span></label></div>
+<div class="row"><div><label for="timelineEnabled">Timeline 视图</label><div class="hint">在 Explorer 中显示文件时间线，可查看 Git 提交和本地历史记录。</div></div><label class="toggle"><input id="timelineEnabled" type="checkbox" role="switch"></label></div>
 </section>
 <section class="card" data-category="tools" hidden><h3>应用管理</h3>
-<div class="row"><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox"><span>启用</span></label></div><div class="row"><div><label>初始配置</label><div class="hint">检查编译环境并配置编辑器、模版和代码存放目录。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div>
+<div class="row"><div><label for="useExtensionMarketplace">使用插件市场</label><div class="hint">开启后显示扩展入口，并使用 Open VSX 插件市场。</div></div><label class="toggle"><input id="useExtensionMarketplace" type="checkbox" role="switch"></label></div><div class="row"><div><label>初始配置</label><div class="hint">检查编译环境并配置编辑器、模版和代码存放目录。</div></div><button id="gettingStarted" class="secondary">打开引导</button></div><div class="row"><div><label>ShortestPath IDE 更新</label><div class="hint">立即检查新版本，并在可用时打开下载页面。</div></div><div class="update-actions"><button id="checkForUpdates" class="secondary">检查更新</button><span id="checkForUpdatesStatus" class="inline-status" aria-live="polite"></span></div></div>
 </section>
 <div class="actions"><span id="saved" aria-live="polite"></span></div>
 </div>
@@ -874,7 +1050,7 @@ let fontLoadComplete = false;
 let fontDetectionInProgress = false;
 let fontDetectionGeneration = 0;
 let selectedFont = 'Fira Code';
-let selectedCategory = 'editor';
+let selectedCategory = ${JSON.stringify(initialCategory).replace(/</g, '\\u003c')};
 const normalizeFont = font => font.trim().replace(/^['"]|['"]$/g, '');
 ${codeFontDetectionScript}
 function selectCategory(category) {
@@ -1061,6 +1237,7 @@ function apply(state) {
   theme.value = state.colorTheme;
 	byId('displayLanguage').textContent = state.displayLanguage === 'zh-cn' ? '中文（简体）' : state.displayLanguage === 'en' ? 'English' : state.displayLanguage;
   byId('compactMode').checked = !!state.compactMode;
+  byId('windowMaterial').value = state.windowMaterial;
   byId('autoDetectColorScheme').checked = !!state.autoDetectColorScheme;
   byId('autoSave').value = state.autoSave;
 	byId('useExtensionMarketplace').checked = !!state.useExtensionMarketplace;
@@ -1072,7 +1249,7 @@ function apply(state) {
 	byId('timelineEnabled').checked = !!state.timelineEnabled;
   setPreview(); renderFonts();
 }
-function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), tabSize: Number(byId('tabSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathImportCategoryEnabled: byId('shortestPathImportCategoryEnabled').checked, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, compactMode: byId('compactMode').checked, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, timelineEnabled: byId('timelineEnabled').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked, browserDarkReaderMode: byId('browserDarkReaderMode').value, browserDarkReaderDetectDarkTheme: byId('browserDarkReaderDetectDarkTheme').checked, browserDarkReaderExcludedHosts: byId('browserDarkReaderExcludedHosts').value.split(/\\r?\\n/) }; }
+function value() { return { fontFamily: serializeFont(selectedFont), fontLigatures: byId('fontLigatures').checked, fontSize: Number(byId('fontSize').value), tabSize: Number(byId('tabSize').value), autoFormat: byId('autoFormat').checked, cppStandard: byId('cppStandard').value, shortestPathImportCategoryEnabled: byId('shortestPathImportCategoryEnabled').checked, shortestPathCppSubmissionLanguage: byId('shortestPathCppSubmissionLanguage').value, defaultSubmitMethod: byId('defaultSubmitMethod').value, compilerFlags: byId('compilerFlags').value, clangdVariableTypeHints: byId('clangdVariableTypeHints').checked, errorLensEnabled: byId('errorLensEnabled').checked, executableCleanupEnabled: byId('executableCleanupEnabled').checked, executableCleanupDelaySeconds: Number(byId('executableCleanupDelaySeconds').value), colorTheme: byId('colorTheme').value, compactMode: byId('compactMode').checked, windowMaterial: byId('windowMaterial').value, autoDetectColorScheme: byId('autoDetectColorScheme').checked, autoSave: byId('autoSave').value, useExtensionMarketplace: byId('useExtensionMarketplace').checked, timelineEnabled: byId('timelineEnabled').checked, atcoderBetterEnabled: byId('atcoderBetterEnabled').checked, codeforcesBetterEnabled: byId('codeforcesBetterEnabled').checked, browserDarkReaderMode: byId('browserDarkReaderMode').value, browserDarkReaderDetectDarkTheme: byId('browserDarkReaderDetectDarkTheme').checked, browserDarkReaderExcludedHosts: byId('browserDarkReaderExcludedHosts').value.split(/\\r?\\n/) }; }
 let saveTimer;
 function save(delay) { clearTimeout(saveTimer); saveTimer = setTimeout(() => { vscode.postMessage({ type: 'save', value: value() }); byId('saved').textContent = '已自动保存'; setTimeout(() => byId('saved').textContent = '', 1200); }, delay); }
 document.querySelectorAll('input:not(#fontFamily):not(#useExtensionMarketplace), select:not(#fontFamily), textarea').forEach(control => {
@@ -1094,9 +1271,14 @@ byId('advanced').addEventListener('click', event => { event.preventDefault(); vs
 byId('configureLocale').addEventListener('click', () => vscode.postMessage({ type: 'configureLocale' }));
 byId('gettingStarted').addEventListener('click', () => vscode.postMessage({ type: 'gettingStarted' }));
 byId('openDocumentation').addEventListener('click', () => vscode.postMessage({ type: 'openDocumentation' }));
-byId('autoFormatSettings').addEventListener('click', () => vscode.postMessage({ type: 'autoFormat' }));
-byId('cphSettings').addEventListener('click', () => vscode.postMessage({ type: 'cphSettings' }));
-byId('customSubmitScripts').addEventListener('click', () => vscode.postMessage({ type: 'customSubmitScripts' }));
+function openSettingsDetail(type) {
+  clearTimeout(saveTimer);
+  vscode.postMessage({ type: 'save', value: value() });
+  vscode.postMessage({ type, category: selectedCategory, scrollTop: byId('settingsContent').scrollTop });
+}
+byId('autoFormatSettings').addEventListener('click', () => openSettingsDetail('autoFormat'));
+byId('cphSettings').addEventListener('click', () => openSettingsDetail('cphSettings'));
+byId('customSubmitScripts').addEventListener('click', () => openSettingsDetail('customSubmitScripts'));
 const checkForUpdatesButton = byId('checkForUpdates');
 const checkForUpdatesStatus = byId('checkForUpdatesStatus');
 const updateCheckLabels = { checking: '正在检查更新…', latest: '当前已是最新版本。', available: '发现新版本，请查看更新窗口。', failed: '检查更新失败，请稍后重试。' };
@@ -1109,7 +1291,7 @@ window.addEventListener('message', event => {
   }
 });
 checkForUpdatesButton.addEventListener('click', () => vscode.postMessage({ type: 'checkForUpdates' }));
-byId('toolchainDiagnostics').addEventListener('click', () => vscode.postMessage({ type: 'toolchainDiagnostics' }));
+byId('toolchainDiagnostics').addEventListener('click', () => openSettingsDetail('toolchainDiagnostics'));
 const openBuyMeACoffeeButton = byId('openBuyMeACoffee');
 if (openBuyMeACoffeeButton) openBuyMeACoffeeButton.addEventListener('click', () => vscode.postMessage({ type: 'buyMeACoffee' }));
 const dismissBuyMeACoffeeButton = byId('dismissBuyMeACoffee');
@@ -1117,6 +1299,7 @@ if (dismissBuyMeACoffeeButton) dismissBuyMeACoffeeButton.addEventListener('click
 window.addEventListener('message', event => { if (event.data?.type === 'state') apply(event.data.value); if (event.data?.type === 'systemFonts') void applySystemFonts(event.data.value); if (event.data?.type === 'fontPreview') applyFontPreview(event.data); if (event.data?.type === 'refreshFontPreview') requestFontPreview(); });
 apply(${serializedState});
 selectCategory(selectedCategory);
+byId('settingsContent').scrollTop = ${initialScroll};
 scheduleTemplateLayout();
 requestFontPreview();
 </script></body></html>`;
@@ -1133,16 +1316,17 @@ body { margin: 0; color: var(--vscode-foreground); background: var(--vscode-edit
 main { max-width: 800px; margin: 0 auto; padding: 40px 28px 64px 250px; } .settings-sidebar { position: fixed; top: 28px; left: max(18px, calc(50vw - 505px)); width: 190px; }.settings-sidebar strong { display: block; margin-bottom: 12px; }.settings-sidebar input { margin-bottom: 10px; }.settings-sidebar nav { display: grid; gap: 3px; }.settings-sidebar button { text-align: left; padding: 7px 9px; background: transparent; color: var(--vscode-foreground); }.settings-sidebar button.active, .settings-sidebar button:hover { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
 .card { border: 1px solid var(--vscode-editorWidget-border); border-radius: 8px; padding: 4px 20px; margin: 14px 0; } h2 { font-size: 15px; margin: 18px 0 2px; color: var(--vscode-descriptionForeground); }
 .row { display: grid; grid-template-columns: 290px 1fr; gap: 18px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--vscode-editorWidget-border); } .row:last-child { border: 0; } label { font-weight: 600; } .hint { color: var(--vscode-descriptionForeground); font-size: 12px; margin-top: 4px; }
-input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 3px; padding: 7px 9px; font: inherit; } input[type="checkbox"] { width: auto; transform: scale(1.15); } .toggle { display: flex; align-items: center; gap: 10px; }
+input, select { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 3px; padding: 7px 9px; font: inherit; }
+${booleanControlStyles}
 button { border: 0; border-radius: 3px; padding: 8px 14px; font: inherit; cursor: pointer; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); } .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; } #saved { color: var(--vscode-testing-iconPassed); } code { font-family: var(--vscode-editor-font-family); } section.card[hidden], .row[hidden] { display: none; } @media(max-width:900px) { main { padding-left: 28px; }.settings-sidebar { position: static; width: auto; margin: 20px 28px 0; }.settings-sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style></head><body><main>
 <h1>自动格式化</h1><p>配置会实时保存到当前工作目录的 <code>.clang-format</code>，并可选择同时启用保存和粘贴时格式化。</p>
-<section class="card"><div class="row"><div><label for="enabled">启用自动格式化</label><div class="hint">同时开启保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="enabled" type="checkbox"><span>启用</span></label></div></section>
+<section class="card"><div class="row"><div><label for="enabled">启用自动格式化</label><div class="hint">同时开启保存时格式化和粘贴时格式化。</div></div><label class="toggle"><input id="enabled" type="checkbox" role="switch"></label></div></section>
 <h2>基础风格</h2><section class="card"><div class="row"><div><label for="basedOnStyle">基础风格（BasedOnStyle）</label><div class="hint">作为其他规则未覆盖部分的基准；下面的选项会覆盖它。</div></div><select id="basedOnStyle"><option value="Google">Google（Google C++ 风格）</option><option value="LLVM">LLVM（LLVM 默认风格）</option><option value="Chromium">Chromium（Chromium 项目风格）</option><option value="Mozilla">Mozilla（Mozilla 项目风格）</option><option value="WebKit">WebKit（WebKit 项目风格）</option></select></div></section>
 <h2>行为</h2><section class="card">
 <div class="row"><div><label for="allowShortIfStatementsOnASingleLine">单行 if 语句</label><div class="hint">控制短小 if / else 是否可以保持在同一行。</div></div><select id="allowShortIfStatementsOnASingleLine"><option value="Never">Never（始终换行）</option><option value="WithoutElse">WithoutElse（仅无 else 时允许）</option><option value="OnlyFirstIf">OnlyFirstIf（仅 if-else 链的第一个 if）</option><option value="AllIfsAndElse">AllIfsAndElse（if 与 else 都允许）</option></select></div>
-<div class="row"><div><label for="allowShortLoopsOnASingleLine">允许单行循环</label><div class="hint">如 <code>for (...) x++;</code> 不强制拆成多行。</div></div><label class="toggle"><input id="allowShortLoopsOnASingleLine" type="checkbox"><span>允许</span></label></div>
-<div class="row"><div><label for="allowShortBlocksOnASingleLine">允许单行代码块</label><div class="hint">如 <code>{ return 0; }</code> 不强制拆成多行。</div></div><label class="toggle"><input id="allowShortBlocksOnASingleLine" type="checkbox"><span>允许</span></label></div>
+<div class="row"><div><label for="allowShortLoopsOnASingleLine">允许单行循环</label><div class="hint">如 <code>for (...) x++;</code> 不强制拆成多行。</div></div><label class="toggle"><input id="allowShortLoopsOnASingleLine" type="checkbox" role="switch"></label></div>
+<div class="row"><div><label for="allowShortBlocksOnASingleLine">允许单行代码块</label><div class="hint">如 <code>{ return 0; }</code> 不强制拆成多行。</div></div><label class="toggle"><input id="allowShortBlocksOnASingleLine" type="checkbox" role="switch"></label></div>
 <div class="row"><div><label for="allowShortFunctionsOnASingleLine">单行函数</label><div class="hint">控制短小函数是否保持为一行。</div></div><select id="allowShortFunctionsOnASingleLine"><option value="None">None（所有函数拆行）</option><option value="InlineOnly">InlineOnly（仅 inline 函数）</option><option value="Empty">Empty（仅空函数）</option><option value="Inline">Inline（允许 inline 函数）</option><option value="All">All（所有短函数都允许）</option></select></div>
 </section>
 <h2>行长与缩进</h2><section class="card">

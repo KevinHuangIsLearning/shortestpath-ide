@@ -1168,6 +1168,8 @@
 		"--modern-ui-tab-hover-background",
 		"--search-editor-query-layout-offset",
 		"--scroll-shadow-surface",
+		"--shortestpath-menu-background",
+		"--vscode-menu-backdrop-filter",
 		"--vscode-chat-list-background",
 		"--vscode-chat-persistent-content-height",
 		"--vscode-colorPicker-colorDecoratorMargin",

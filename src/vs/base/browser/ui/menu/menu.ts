@@ -1034,6 +1034,7 @@ export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): s
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
+	backdrop-filter: var(--vscode-menu-backdrop-filter, none);
 	border-radius: var(--vscode-cornerRadius-large);
 	border: var(--vscode-strokeThickness) solid ${borderColor};
 	min-width: 160px;

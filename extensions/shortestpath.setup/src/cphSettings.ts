@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { openOjMappings, openVjudgeMappings } from './cphMappings';
 import { localize, localizeWebviewHtml } from './localization';
+import type { SettingsPageHost } from './settingsNavigation';
 
 type State = Record<string, string | number | boolean | string[]> & { availableOjNames: string[] };
 const fields = ['saveLocation', 'timeOut', 'defaultLanguage', 'hideStderrorWhenCompiledOK', 'ignoreSTDERROR', 'defaultOnlineJudge', 'includeProblemIndex', 'autoShowJudge', 'collectProblemsInRoot', 'fileNameTemplate', 'fileNameTemplateOverrides', 'useShortAtCoderName', 'useShortCodeForcesName', 'useShortLuoguName', 'vjudgeOpenInBrowser', 'defaultProblemSource', 'vjudgeUrlSuffix', 'vjudgeBrowserSplitRatio'] as const;
@@ -20,9 +21,9 @@ const defaultFileNameTemplateOverrides: Record<string, string> = {
 
 export function registerCphSettings(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
-		vscode.commands.registerCommand('shortestpath.configureCph', openCphSettings),
-		vscode.commands.registerCommand('shortestpath.configureOjMappings', openOjMappings),
-		vscode.commands.registerCommand('shortestpath.configureVjudgeMappings', openVjudgeMappings)
+		vscode.commands.registerCommand('shortestpath.configureCph', () => openCphSettings()),
+		vscode.commands.registerCommand('shortestpath.configureOjMappings', () => openOjMappings()),
+		vscode.commands.registerCommand('shortestpath.configureVjudgeMappings', () => openVjudgeMappings())
 	);
 }
 
@@ -73,14 +74,14 @@ async function save(value: State): Promise<void> {
 }
 function clamp(value: unknown, min: number, max: number, fallback: number): number { return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, Math.floor(value))) : fallback; }
 
-function openCphSettings(): void {
+export function openCphSettings(host?: SettingsPageHost): void {
 	let saving = false;
-	const panel = vscode.window.createWebviewPanel('shortestpath.cphSettings', localize('Judger 设置'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+	const panel = host ?? vscode.window.createWebviewPanel('shortestpath.cphSettings', localize('Judger 设置'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
 	panel.webview.html = localizeWebviewHtml(getCphSettingsHtml(getState()));
 	panel.webview.onDidReceiveMessage(async message => {
 		if (message?.type === 'save') { saving = true; try { await save(message.value); } finally { saving = false; } }
-		if (message?.type === 'ojMapping') { await vscode.commands.executeCommand('shortestpath.configureOjMappings'); }
-		if (message?.type === 'vjudgeMapping') { await vscode.commands.executeCommand('shortestpath.configureVjudgeMappings'); }
+		if (message?.type === 'ojMapping') { if (host?.openSubpage) { await host.openSubpage(localize('在线评测映射'), openOjMappings); } else { await vscode.commands.executeCommand('shortestpath.configureOjMappings'); } }
+		if (message?.type === 'vjudgeMapping') { if (host?.openSubpage) { await host.openSubpage(localize('VJudge 映射'), openVjudgeMappings); } else { await vscode.commands.executeCommand('shortestpath.configureVjudgeMappings'); } }
 	});
 	const listener = vscode.workspace.onDidChangeConfiguration(event => { if (!saving && event.affectsConfiguration('judger.general')) { void panel.webview.postMessage({ type: 'state', value: getState() }); } });
 	panel.onDidDispose(() => listener.dispose());

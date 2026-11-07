@@ -58,6 +58,7 @@ async function createHost(write: (source: string) => Promise<void> = async () =>
 			if (id === './compilerRuntime') { return require('../compilerRuntime'); }
 			if (id === './platformSettings') { return require('../platformSettings'); }
 			if (id === './templateEditor') { return require('../templateEditor'); }
+			if (id === './settingsNavigation') { return require('../settingsNavigation'); }
 			return require(id);
 		}
 	});

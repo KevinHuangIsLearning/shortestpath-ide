@@ -28,6 +28,7 @@ import { createDecorator, IInstantiationService } from '../../instantiation/comm
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { getNativeWindowMaterial, nativeWindowMaterialCompositors, nativeWindowMaterialWindows } from './windowMaterial.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
@@ -57,6 +58,7 @@ export const INativeHostMainService = createDecorator<INativeHostMainService>('n
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
+	private readonly materialWindows = nativeWindowMaterialWindows;
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -408,6 +410,38 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.updateWindowControls(options);
 	}
 
+	async setWindowBackgroundMaterial(windowId: number | undefined, enabled: boolean, options?: INativeHostOptions & { ignorePerformance?: boolean }): Promise<boolean> {
+		const win = this.windowById(options?.targetWindowId, windowId)?.win;
+		if (!win || win.isDestroyed()) {
+			return false;
+		}
+		const material = enabled ? getNativeWindowMaterial(false, options?.ignorePerformance) : undefined;
+		if (material && isMacintosh && !nativeWindowMaterialCompositors.has(win)) {
+			this.logService.debug('[window material] Translucent compositor requires a new window', win.id);
+			return false;
+		}
+		// Reapplying the same native material can recreate its backing surface.
+		if (!!material === this.materialWindows.has(win)) {
+			return !!material;
+		}
+		try {
+			if (isMacintosh) {
+				win.setVibrancy(material === 'sidebar' ? 'sidebar' : null);
+			} else if (isWindows && Number(release().split('.')[2]) >= 22621) {
+				win.setBackgroundMaterial(material === 'acrylic' ? 'acrylic' : 'none');
+			}
+			win.setBackgroundColor(material ? '#00000000' : this.themeMainService.getBackgroundColor());
+			if (material) { this.materialWindows.add(win); } else { this.materialWindows.delete(win); }
+			this.logService.info('[window material]', win.id, material ?? 'opaque');
+			return !!material;
+		} catch (error) {
+			this.materialWindows.delete(win);
+			win.setBackgroundColor(this.themeMainService.getBackgroundColor());
+			this.logService.warn('Unable to apply native window material', error);
+			return false;
+		}
+	}
+
 	async updateWindowAccentColor(windowId: number | undefined, color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void> {
 		if (!isWindows) {
 			return; // windows only
@@ -469,7 +503,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): Promise<void> {
 		const window = this.codeWindowById(windowId);
 
-		this.themeMainService.saveWindowSplash(windowId, window?.openedWorkspace, splash);
+		// Preserve the stored theme/layout, but skip the opaque window-background
+		// write entirely: resetting it to transparent afterward still flashes.
+		const backgroundWindowId = window?.win && this.materialWindows.has(window.win) ? undefined : windowId;
+		this.themeMainService.saveWindowSplash(backgroundWindowId, window?.openedWorkspace, splash);
 	}
 
 	async setBackgroundThrottling(windowId: number | undefined, allowed: boolean): Promise<void> {
