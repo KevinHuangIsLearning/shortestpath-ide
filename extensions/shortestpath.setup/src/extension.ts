@@ -9,7 +9,7 @@ import { execFile, spawn } from 'child_process';
 import * as vscode from 'vscode';
 import { compilerFallbackFlags, runToolchainCommand, runToolchainSelfTest, stripLegacyFloat128Flags } from './toolchainSelfTest';
 import { withCompilerRuntime } from './compilerRuntime';
-import { defaultClangFormatConfig, registerCppFormatting } from './cppFormatting';
+import { registerCppFormatting } from './cppFormatting';
 import { findCppStandard, initializeCppSnippets, registerSimpleSettings } from './simpleSettings';
 import { withPlatformSettings } from './platformSettings';
 import { registerCphSettings } from './cphSettings';
@@ -18,7 +18,7 @@ import { registerGettingStarted } from './gettingStarted';
 import { registerHomepage } from './homepage';
 import { registerToolchainDiagnostics } from './toolchainDiagnostics';
 import { localize, localizeFormat } from './localization';
-import { managedClangdConfigMarker, rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
+import { rebaseGeneratedClangdConfig, rebaseManagedQueryDriver, rebaseManagedToolchainPath } from './portableToolchain';
 import { installPortableAssets, portableToolchain, type PortableAsset } from './portableToolchainInstaller';
 
 type PlatformPreset = {
@@ -108,128 +108,43 @@ function clangdArgumentsForCompiler(compiler: string): string[] {
 	// libstdc++ headers (including bits/stdc++.h) undiscovered.
 	if (process.platform === 'darwin') {
 		return [
-			'--background-index',
+			'--background-index', '--header-insertion=never',
 			'--query-driver=/opt/homebrew/**/g++-*,/usr/local/**/g++-*'
 		];
 	}
-	return ['--background-index', `--query-driver=${compiler}`];
+	return ['--background-index', '--header-insertion=never', `--query-driver=${compiler}`];
 }
 
-function defaultClangdProjectConfig(compiler: string, cppStandard: FirstRunSelection['cppStandard']): string {
-	const includePath = process.platform === 'darwin' ? '\n    - -I/opt/homebrew/include' : '';
-	// Only MinGW's clang target needs the __float128 alias; on Linux and macOS
-	// it makes GCC 15's libstdc++ define numeric_limits<long double> twice.
-	const float128Workaround = process.platform === 'win32' ? '\n    - "-D__float128=long double"\n    - -U__SIZEOF_FLOAT128__' : '';
-	const compilerPath = compiler.replaceAll('\\', '/');
-	return `${managedClangdConfigMarker}
-CompileFlags:
-  Add:
-    - -std=${cppStandard}
-    - -Wall
-    - -Wextra
-    - -DDEBUG
-    - "-Drsize_t=size_t"
-    - "-D__STDC_WANT_LIB_EXT1__=1"${float128Workaround}${includePath}
-  BuiltinHeaders: QueryDriver
-  Compiler: ${JSON.stringify(compilerPath)}
-
-Completion:
-  HeaderInsertion: Never
-
-Index:
-  Background: Build
-`;
-}
-
-function createDefaultClangdConfig(configPath: string, compiler: string, cppStandard: FirstRunSelection['cppStandard']): void {
-	if (fs.existsSync(configPath)) {
-		return;
+/** Store defaults in IDE user data; clangd applies project config after fallback flags. */
+async function ensureGlobalClangdConfiguration(context: vscode.ExtensionContext): Promise<void> {
+	const configuration = vscode.workspace.getConfiguration(undefined, null);
+	const globalValue = <T>(key: string): T | undefined => {
+		const value = configuration.inspect<T>(key);
+		return value?.globalValue ?? value?.defaultValue;
+	};
+	const compiler = globalValue<string>('judger.language.cpp.Command');
+	if (!compiler) { return; }
+	const standard = findCppStandard(globalValue<string>('judger.language.cpp.Args') ?? '');
+	const signature = JSON.stringify([compiler, standard]);
+	const previousSignature = context.globalState.get<string>('shortestpath.clangdDefaults.v1');
+	if (previousSignature === signature && globalValue<string[]>('clangd.fallbackFlags')?.length) { return; }
+	const flags = await compilerFallbackFlags(compiler, runToolchainCommand, standard);
+	// The compiler may have changed while probing its headers.
+	if (compiler !== globalValue<string>('judger.language.cpp.Command') || standard !== findCppStandard(globalValue<string>('judger.language.cpp.Args') ?? '')) { return; }
+	const argumentsValue = globalValue<string[]>('clangd.arguments') ?? [];
+	const args = [...argumentsValue];
+	const previousCompiler = previousSignature ? (JSON.parse(previousSignature) as [string, string])[0] : undefined;
+	const previousQueryDriver = previousCompiler && clangdArgumentsForCompiler(previousCompiler).find(argument => argument.startsWith('--query-driver='));
+	for (const argument of clangdArgumentsForCompiler(compiler)) {
+		const option = argument.split('=')[0];
+		const index = args.findIndex(existing => existing.split('=')[0] === option);
+		if (index === -1) { args.push(argument); }
+		else if (option === '--query-driver' && args[index] === previousQueryDriver) { args[index] = argument; }
 	}
-	fs.mkdirSync(path.dirname(configPath), { recursive: true });
-	try {
-		fs.writeFileSync(configPath, defaultClangdProjectConfig(compiler, cppStandard), { encoding: 'utf8', flag: 'wx' });
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-			throw error;
-		}
-	}
-}
-
-function createDefaultClangdProjectConfig(workspaceFolder: string, compiler: string, cppStandard: FirstRunSelection['cppStandard'], updateGenerated = false): void {
-	const configPath = path.join(workspaceFolder, '.clangd');
-	if (updateGenerated && fs.existsSync(configPath)) {
-		const content = fs.readFileSync(configPath, 'utf8');
-		const expected = defaultClangdProjectConfig(compiler, cppStandard);
-		const updated = content.replace(/^    - -std=c\+\+(?:11|14|17|20|23)$/m, `    - -std=${cppStandard}`)
-			.replace(/^  Compiler: .*$/m, () => `  Compiler: ${JSON.stringify(compiler.replaceAll('\\', '/'))}`);
-		// Rewrite generated templates only. Also accept the previous Linux/macOS
-		// template which still had the MinGW-only __float128 workaround.
-		const withoutLegacyFloat128 = updated.replace(/\r\n/g, '\n')
-			.replace(/^    - "-D__float128=long double"\n    - -U__SIZEOF_FLOAT128__\n/m, '');
-		if (content !== expected && (updated === expected || (process.platform !== 'win32' && withoutLegacyFloat128 === expected))) {
-			fs.writeFileSync(configPath, expected, 'utf8');
-		}
-		return;
-	}
-	createDefaultClangdConfig(configPath, compiler, cppStandard);
-}
-
-function createDefaultClangFormatConfig(workspaceFolder: string): void {
-	const configPath = path.join(workspaceFolder, '.clang-format');
-	if (fs.existsSync(configPath)) {
-		return;
-	}
-	try {
-		fs.writeFileSync(configPath, defaultClangFormatConfig(vscode.workspace.getConfiguration('editor', vscode.Uri.file(workspaceFolder)).get<number>('tabSize') ?? 2), { encoding: 'utf8', flag: 'wx' });
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-			throw error;
-		}
-	}
-}
-
-function getSingleLocalWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
-	const workspaceFolders = vscode.workspace.workspaceFolders;
-	if (workspaceFolders?.length !== 1 || workspaceFolders[0].uri.scheme !== 'file') {
-		return undefined;
-	}
-	return workspaceFolders[0];
-}
-
-function hasOiWorkspaceConfig(workspaceFolder: vscode.WorkspaceFolder): boolean {
-	return fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clangd'))
-		&& fs.existsSync(path.join(workspaceFolder.uri.fsPath, '.clang-format'));
-}
-
-async function initializeOiWorkspace(context: vscode.ExtensionContext, silent = false): Promise<void> {
-	const workspaceFolder = getSingleLocalWorkspaceFolder();
-	if (!workspaceFolder) {
-		if (!silent) {
-			void vscode.window.showInformationMessage(localize('请先打开一个本地文件夹，再初始化 OI 项目配置。'));
-		}
-		return;
-	}
-
-	const configuration = vscode.workspace.getConfiguration('judger.language.cpp', workspaceFolder.uri);
-	const configuredCompiler = configuration.get<string>('Command');
-	const compiler = configuredCompiler || await findPreferredCompiler(loadPreset(context).compilerCandidates) || 'g++';
-	createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, findCppStandard(configuration.get<string>('Args') ?? ''));
-	createDefaultClangFormatConfig(workspaceFolder.uri.fsPath);
-	if (!silent) {
-		void vscode.window.showInformationMessage(localizeFormat('已在“{0}”中创建 .clangd 和 .clang-format。', workspaceFolder.name));
-	}
-}
-
-async function ensureOiWorkspaceInitialization(context: vscode.ExtensionContext): Promise<void> {
-	const workspaceFolder = getSingleLocalWorkspaceFolder();
-	if (!workspaceFolder || hasOiWorkspaceConfig(workspaceFolder)) {
-		return;
-	}
-
-	try {
-		await initializeOiWorkspace(context, true);
-	} catch (error) {
-		console.error('Failed to initialize OI workspace configuration', error);
+	await updateGlobalSettings({ 'clangd.fallbackFlags': flags, 'clangd.arguments': args });
+	await context.globalState.update('shortestpath.clangdDefaults.v1', signature);
+	if (vscode.extensions.getExtension('llvm-vs-code-extensions.vscode-clangd')?.isActive) {
+		await vscode.commands.executeCommand('clangd.restart');
 	}
 }
 
@@ -245,26 +160,23 @@ async function migrateLegacyClangdFloat128Workaround(): Promise<void> {
 			await clangdConfiguration.update('fallbackFlags', migrated, vscode.ConfigurationTarget.Global);
 		}
 	}
-	const configuration = vscode.workspace.getConfiguration('judger.language.cpp', null);
-	const compiler = configuration.get<string>('Command');
-	if (!compiler) {
-		return;
-	}
-	const cppStandard = findCppStandard(configuration.get<string>('Args') ?? '');
-	for (const workspaceFolder of vscode.workspace.workspaceFolders ?? []) {
-		if (workspaceFolder.uri.scheme === 'file') {
-			createDefaultClangdProjectConfig(workspaceFolder.uri.fsPath, compiler, cppStandard, true);
-		}
-	}
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	registerHomepage(context);
 	configureCompilerRuntime(context);
+	let clangdUpdate = Promise.resolve();
+	const updateClangdDefaults = () => {
+		clangdUpdate = clangdUpdate.then(() => ensureGlobalClangdConfiguration(context)).catch(error => {
+			console.error('Failed to configure global clangd defaults', error);
+		});
+		return clangdUpdate;
+	};
 	const updateExtensionMarketplaceVisibility = () => vscode.commands.executeCommand('setContext', 'shortestpath.extensionMarketplaceEnabled', vscode.workspace.getConfiguration('shortestpath').get<boolean>('useExtensionMarketplace') === true);
 	await updateExtensionMarketplaceVisibility();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
 		if (event.affectsConfiguration('judger.language.cpp.Command')) { configureCompilerRuntime(context); }
+		if (event.affectsConfiguration('judger.language.cpp.Command') || event.affectsConfiguration('judger.language.cpp.Args')) { void updateClangdDefaults(); }
 		if (event.affectsConfiguration('shortestpath.useExtensionMarketplace')) {
 			void updateExtensionMarketplaceVisibility();
 		}
@@ -289,7 +201,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.repairToolchain', () => repairToolchain(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.rerunFirstRunSetup', () => rerunFirstRunSetup()));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.pickWorkspaceFolder', pickWorkspaceFolder));
-	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.initializeOiWorkspace', () => initializeOiWorkspace(context)));
+	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.initializeOiWorkspace', updateClangdDefaults));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.showAllFiles', toggleHiddenFiles));
 	context.subscriptions.push(vscode.commands.registerCommand('shortestpath.hideSetupFiles', toggleHiddenFiles));
 	warnAboutPortablePathWithSpaces();
@@ -337,7 +249,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		if (event.affectsConfiguration('shortestpath.setup.pending')) { void applyPending(); }
 	}));
 	await applyPending();
-	await ensureOiWorkspaceInitialization(context);
+	await updateClangdDefaults();
 }
 
 async function removeLegacyWindowsCompilerLocale(context: vscode.ExtensionContext): Promise<void> {
@@ -502,12 +414,7 @@ async function configure(context: vscode.ExtensionContext, firstRunSelection?: F
 				if (updatedFlags !== flags) { settings[key] = updatedFlags; }
 			}
 		}
-		if (firstRunSelection?.workspaceFolder) {
-			createDefaultClangdProjectConfig(firstRunSelection.workspaceFolder, compiler, cppStandard, true);
-		}
-		if (firstRunSelection) {
-			settings['clangd.fallbackFlags'] = await compilerFallbackFlags(compiler, runToolchainCommand, cppStandard);
-		}
+		settings['clangd.fallbackFlags'] = await compilerFallbackFlags(compiler, runToolchainCommand, findCppStandard(String(settings['judger.language.cpp.Args'] ?? preservedCompilerFlags ?? '')));
 		settings['clangd.arguments'] = clangdArgumentsForCompiler(compiler);
 	}
 	if (clangd) {

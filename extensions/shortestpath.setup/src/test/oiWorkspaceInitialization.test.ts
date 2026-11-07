@@ -11,140 +11,108 @@ import * as vm from 'node:vm';
 import * as ts from 'typescript';
 import { test } from 'node:test';
 
-function createHost(folders: readonly { name: string; uri: { scheme: string; fsPath: string } }[], platform = process.platform) {
-	const notifications: string[] = [];
-	const failures: string[] = [];
-	const source = fs.readFileSync(path.join(__dirname, '../../src/extension.ts'), 'utf8') + '\nexport const testApi = { ensureOiWorkspaceInitialization, createDefaultClangdProjectConfig };';
-	const settingsSource = ts.createSourceFile('simpleSettings.ts', fs.readFileSync(path.join(__dirname, '../../src/simpleSettings.ts'), 'utf8'), ts.ScriptTarget.Latest, true);
-	const standardFunction = settingsSource.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === 'findCppStandard')!;
-	const settingsExports: { findCppStandard?: (flags: string) => string } = {};
-	vm.runInNewContext(ts.transpileModule(standardFunction.getText(settingsSource), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: settingsExports });
-	const exports: { testApi?: {
-		ensureOiWorkspaceInitialization(context: object): Promise<void>;
-		createDefaultClangdProjectConfig(folder: string, compiler: string, standard: string, updateGenerated: boolean): void;
-	}; } = {};
+function createHost(folder?: string) {
+	const settings = new Map<string, string | string[]>([
+		['judger.language.cpp.Command', '/tools/g++'], ['judger.language.cpp.Args', '-std=c++17 -O2']
+	]);
+	const state = new Map<string, string>();
+	const workspaceSettings = new Map<string, string | string[]>();
+	const probes: string[] = [];
+	const updates: string[] = [];
+	const source = fs.readFileSync(path.join(__dirname, '../../src/extension.ts'), 'utf8') + '\nexport const testApi = { ensureGlobalClangdConfiguration };';
+	const exports: { testApi?: { ensureGlobalClangdConfiguration(context: object): Promise<void> } } = {};
 	vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
-		exports, process: { ...process, platform }, console: { error: (message: string) => failures.push(message) },
+		exports, process, console,
 		require(id: string) {
 			if (id === 'vscode') {
 				return {
-					Uri: { file: (fsPath: string) => ({ fsPath }) },
-					workspace: { workspaceFolders: folders, getConfiguration: (section: string) => ({ get: (key: string) => section === 'editor' && key === 'tabSize' ? 4 : key === 'Args' ? '-std=c++17 -O2' : '/tools/g++' }) },
-					window: { showInformationMessage: (message: string) => notifications.push(message) }
+					ConfigurationTarget: { Global: 1 },
+					extensions: { getExtension: () => undefined },
+					workspace: {
+						workspaceFolders: folder ? [{ uri: { scheme: 'file', fsPath: folder } }] : undefined,
+						getConfiguration: () => ({
+							get: (key: string) => workspaceSettings.get(key) ?? settings.get(key),
+							inspect: (key: string) => ({ globalValue: settings.get(key), workspaceValue: workspaceSettings.get(key) }),
+							update: async (key: string, value: string | string[], target: number) => {
+								assert.equal(target, 1);
+								updates.push(key); settings.set(key, value);
+							}
+						})
+					}
 				};
 			}
-			if (id === './cppFormatting') { return { defaultClangFormatConfig: (width: number) => `IndentWidth: ${width}\n` }; }
-			if (id === './portableToolchain') { return { managedClangdConfigMarker: require('../portableToolchain').managedClangdConfigMarker }; }
-			if (id === './simpleSettings') { return settingsExports; }
+			if (id === './toolchainSelfTest') {
+				return { compilerFallbackFlags: async (compiler: string, _run: object, standard: string) => {
+					probes.push(compiler); return [`-std=${standard}`, '-isystem', `${compiler}/include`];
+				} };
+			}
+			if (id === './simpleSettings') { return { findCppStandard: (flags: string) => /-std=(c\+\+\d+)/.exec(flags)?.[1] ?? 'c++20' }; }
 			if (id.startsWith('./')) { return {}; }
 			return require(id);
 		}
 	});
-	// Previously dismissed prompts must not suppress automatic initialization.
-	const context = { workspaceState: { get() { assert.fail('automatic initialization must not read the old dismissal'); } } };
 	return {
-		run: () => exports.testApi!.ensureOiWorkspaceInitialization(context),
-		configure: (folder: string) => exports.testApi!.createDefaultClangdProjectConfig(folder, '/selected/g++', 'c++23', true),
-		notifications, failures
+		settings, workspaceSettings, probes, updates,
+		run: () => exports.testApi!.ensureGlobalClangdConfiguration({ globalState: { get: (key: string) => state.get(key), update: async (key: string, value: string) => { state.set(key, value); } } })
 	};
 }
 
-function temporaryFolder(t: { after(callback: () => void): void }) {
-	const fsPath = fs.mkdtempSync(path.join(os.tmpdir(), 'shortestpath-oi-config-'));
-	t.after(() => fs.rmSync(fsPath, { recursive: true, force: true }));
-	return { name: path.basename(fsPath), uri: { scheme: 'file', fsPath } };
-}
-
-test('automatically creates both missing configs without notifications and is idempotent', async t => {
-	const folder = temporaryFolder(t);
-	const host = createHost([folder]);
+test('sets global defaults for standalone files and avoids repeated compiler probes', async () => {
+	const host = createHost();
 	await host.run();
-	const clangd = fs.readFileSync(path.join(folder.uri.fsPath, '.clangd'), 'utf8');
-	assert.match(clangd, /Compiler: "\/tools\/g\+\+"/);
-	assert.match(clangd, /-std=c\+\+17/);
-	assert.doesNotMatch(clangd, /__float128/);
-	fs.writeFileSync(path.join(folder.uri.fsPath, '.clangd'), 'custom clangd');
+	const updates = host.updates.length;
 	await host.run();
-	assert.deepEqual({
-		clangd: fs.readFileSync(path.join(folder.uri.fsPath, '.clangd'), 'utf8'),
-		format: fs.readFileSync(path.join(folder.uri.fsPath, '.clang-format'), 'utf8'),
-		notifications: host.notifications, failures: host.failures
-	}, { clangd: 'custom clangd', format: 'IndentWidth: 4\n', notifications: [], failures: [] });
+	assert.deepEqual(Array.from(host.settings.get('clangd.fallbackFlags')!), ['-std=c++17', '-isystem', '/tools/g++/include']);
+	const args = host.settings.get('clangd.arguments') as string[];
+	assert.ok(args.includes('--header-insertion=never'));
+	assert.ok(args.includes('--background-index'));
+	assert.ok(args.some(argument => argument.startsWith('--query-driver=')));
+	assert.ok(!args.some(argument => /--compile-commands-dir|--enable-config=false/.test(argument)));
+	assert.deepEqual(host.probes, ['/tools/g++']);
+	assert.equal(host.updates.length, updates);
 });
 
-test('first-run selection refreshes the generated compiler and standard but preserves custom content', async t => {
-	const folder = temporaryFolder(t);
-	const host = createHost([folder]);
+test('refreshes defaults when compiler or standard changes and keeps custom startup options', async () => {
+	const host = createHost();
+	host.settings.set('clangd.arguments', ['--log=verbose', '--header-insertion=iwyu']);
 	await host.run();
-	host.configure(folder.uri.fsPath);
-	const configPath = path.join(folder.uri.fsPath, '.clangd');
-	const generated = fs.readFileSync(configPath, 'utf8');
-	assert.match(generated, /-std=c\+\+23/);
-	assert.match(generated, /Compiler: "\/selected\/g\+\+"/);
-	const custom = generated.replace('-std=c++23', '-std=c++11') + '\n# custom project setting\n';
-	fs.writeFileSync(configPath, custom);
-	host.configure(folder.uri.fsPath);
-	assert.equal(fs.readFileSync(configPath, 'utf8'), custom);
+	host.settings.set('judger.language.cpp.Command', '/new/g++');
+	host.settings.set('judger.language.cpp.Args', '-std=c++23');
+	await host.run();
+	assert.deepEqual(Array.from(host.settings.get('clangd.fallbackFlags')!), ['-std=c++23', '-isystem', '/new/g++/include']);
+	const args = host.settings.get('clangd.arguments') as string[];
+	assert.ok(args.includes('--log=verbose'));
+	assert.ok(args.includes('--header-insertion=iwyu'));
+	assert.ok(!args.includes('--header-insertion=never'));
+	if (process.platform !== 'darwin') { assert.ok(args.includes('--query-driver=/new/g++')); }
 });
 
-for (const platform of ['linux', 'darwin', 'win32'] as const) {
-	test(`migrates generated configs with the platform-appropriate float128 flags on ${platform}`, async t => {
-		const folder = temporaryFolder(t);
-		const configPath = path.join(folder.uri.fsPath, '.clangd');
-		fs.writeFileSync(configPath, `# Managed by ShortestPath IDE setup.
-CompileFlags:
-  Add:
-    - -std=c++23
-    - -Wall
-    - -Wextra
-    - -DDEBUG
-    - "-Drsize_t=size_t"
-    - "-D__STDC_WANT_LIB_EXT1__=1"
-    - "-D__float128=long double"
-    - -U__SIZEOF_FLOAT128__${platform === 'darwin' ? '\n    - -I/opt/homebrew/include' : ''}
-  BuiltinHeaders: QueryDriver
-  Compiler: "/selected/g++"
+test('does not promote workspace compiler settings into global defaults', async () => {
+	const host = createHost();
+	host.workspaceSettings.set('judger.language.cpp.Command', '/project/g++');
+	host.workspaceSettings.set('judger.language.cpp.Args', '-std=c++11');
+	host.workspaceSettings.set('clangd.arguments', ['--compile-commands-dir=/project/build']);
+	await host.run();
+	assert.deepEqual(host.probes, ['/tools/g++']);
+	assert.deepEqual(Array.from(host.settings.get('clangd.fallbackFlags')!), ['-std=c++17', '-isystem', '/tools/g++/include']);
+	assert.ok(!(host.settings.get('clangd.arguments') as string[]).some(argument => argument.startsWith('--compile-commands-dir')));
+});
 
-Completion:
-  HeaderInsertion: Never
+test('leaves clangd untouched when no compiler is configured', async () => {
+	const host = createHost();
+	host.settings.delete('judger.language.cpp.Command');
+	await host.run();
+	assert.deepEqual(host.probes, []);
+	assert.deepEqual(host.updates, []);
+});
 
-Index:
-  Background: Build
-`);
-		const host = createHost([folder], platform);
-		host.configure(folder.uri.fsPath);
-		const migrated = fs.readFileSync(configPath, 'utf8');
-		if (platform === 'win32') { assert.match(migrated, /-D__float128=long double/); }
-		else { assert.doesNotMatch(migrated, /__float128/); }
-		assert.match(migrated, /-std=c\+\+23/);
-		assert.match(migrated, /Compiler: "\/selected\/g\+\+"/);
+for (const existing of [undefined, '.clangd', 'compile_commands.json', '.clang-format']) {
+	test(`does not create or rewrite project files (${existing ?? 'empty folder'})`, async t => {
+		const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'shortestpath-oi-config-'));
+		t.after(() => fs.rmSync(folder, { recursive: true, force: true }));
+		if (existing) { fs.writeFileSync(path.join(folder, existing), 'user configuration'); }
+		await createHost(folder).run();
+		assert.deepEqual(fs.readdirSync(folder), existing ? [existing] : []);
+		if (existing) { assert.equal(fs.readFileSync(path.join(folder, existing), 'utf8'), 'user configuration'); }
 	});
 }
-
-for (const existing of ['.clangd', '.clang-format']) {
-	test(`preserves existing ${existing} while filling the missing config`, async t => {
-		const folder = temporaryFolder(t);
-		fs.writeFileSync(path.join(folder.uri.fsPath, existing), 'user configuration');
-		const host = createHost([folder]);
-		await host.run();
-		assert.deepEqual({
-			files: fs.readdirSync(folder.uri.fsPath).sort(),
-			existing: fs.readFileSync(path.join(folder.uri.fsPath, existing), 'utf8'),
-			notifications: host.notifications, failures: host.failures
-		}, { files: ['.clang-format', '.clangd'], existing: 'user configuration', notifications: [], failures: [] });
-	});
-}
-
-test('skips unsupported workspaces and handles write failures without rejecting activation', async t => {
-	const folder = temporaryFolder(t);
-	for (const folders of [[], [folder, folder], [{ ...folder, uri: { ...folder.uri, scheme: 'vscode-remote' } }]]) {
-		const host = createHost(folders);
-		await host.run();
-		assert.deepEqual([fs.readdirSync(folder.uri.fsPath), host.notifications, host.failures], [[], [], []]);
-	}
-	const file = path.join(folder.uri.fsPath, 'file');
-	fs.writeFileSync(file, '');
-	const host = createHost([{ ...folder, uri: { scheme: 'file', fsPath: file } }]);
-	await host.run();
-	assert.deepEqual([host.notifications, host.failures], [[], ['Failed to initialize OI workspace configuration']]);
-});
