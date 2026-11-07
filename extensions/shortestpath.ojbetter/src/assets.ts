@@ -44,7 +44,9 @@ export function adaptScript(source: string): string {
 	replace('createMonacoEditor', `async function createMonacoEditor(language, form) {
 		form.editorDiv.remove();
 		form.sourceDiv.css({display: 'block', width: '100%', minHeight: '240px', resize: 'vertical', boxSizing: 'border-box', padding: '8px', fontFamily: 'monospace'});
-		const label = document.getElementById('shortestpath-ojbetter-ide')?.dataset.pasteLabel;
+		const entry = document.getElementById('shortestpath-ojbetter-ide');
+		if (entry) form.sourceDiv.before(entry);
+		const label = entry?.dataset.pasteLabel;
 		if (label) form.sourceDiv.attr({placeholder: label, 'aria-label': label});
 		form.sourceDiv.attr({spellcheck: 'false', 'data-i18n-ignore': ''});
 		form.submitDiv.append(form.runButton, form.submitButton);
