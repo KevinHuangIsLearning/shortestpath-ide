@@ -265,6 +265,7 @@ export default defineConfig(
 			'extensions/shortestpath.judger/src/tests/templatePreferences.test.ts',
 			'extensions/shortestpath.judger/src/environmentSelfTest.ts',
 			'extensions/shortestpath.judger/src/tests/environmentSelfTest.test.ts',
+			'extensions/shortestpath.judger/src/tests/compilerParity.test.ts',
 			'src/vs/workbench/browser/parts/editor/shortestpath*.ts',
 			'src/vs/workbench/contrib/shortestpath/**/*.ts',
 			'src/vs/platform/browserView/electron-main/shortestPathBrowserOverlay.ts',

@@ -374,6 +374,15 @@ input[type='checkbox'] {
 	background: var(--judger-code-bg);
 }
 
+.input-textarea,
+.expected-textarea,
+.received-textarea,
+.stderror-textarea {
+	overflow: auto;
+	resize: none;
+	scrollbar-width: thin;
+}
+
 input::placeholder,
 textarea::placeholder {
 	color: var(--judger-fg-faint);
@@ -947,8 +956,9 @@ textarea::placeholder {
 
 .diff-view {
 	display: block;
-	max-height: 320px;
+	max-height: 20em;
 	overflow: auto;
+	scrollbar-width: thin;
 	padding: var(--judger-space-3);
 	border-radius: var(--judger-radius-control);
 	background: var(--judger-code-bg);

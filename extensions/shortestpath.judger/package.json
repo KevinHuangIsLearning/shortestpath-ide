@@ -1376,7 +1376,7 @@
                 },
                 "judger.execution.compilationTimeout": {
                     "type": "integer",
-                    "default": 10000,
+                    "default": 60000,
                     "minimum": 100,
                     "scope": "resource",
                     "description": "%judger.execution.compilationTimeout.description%"

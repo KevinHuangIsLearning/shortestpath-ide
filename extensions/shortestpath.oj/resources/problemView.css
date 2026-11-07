@@ -1829,6 +1829,14 @@ body {
 	background: transparent !important;
 }
 
+.sample .io-block pre,
+.local-test-value textarea,
+.local-test-add textarea {
+	max-height: 20em;
+	overflow: auto;
+	scrollbar-width: thin;
+}
+
 .rating-summary {
 	background: transparent;
 	border: 0;

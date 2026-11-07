@@ -67,7 +67,7 @@ export const getBinSaveLocation = (srcPath: string, language = getLanguage(srcPa
             break;
         }
         default: {
-            ext = '.bin';
+            ext = platform() === 'win32' ? '.exe' : '.bin';
         }
     }
     const savePreference = getSaveLocationPref();
@@ -247,7 +247,7 @@ const createDotnetProject = async (
             globalThis.logger.log('Creating new .NET project');
         }
         const args = ['new', 'console', '--force', '-o', projDir];
-        const newProj = spawn(language.compiler, args, { timeout: vscode.workspace.getConfiguration('judger.execution').get<number>('compilationTimeout', 10000), killSignal: 'SIGKILL' });
+        const newProj = spawn(language.compiler, args, { timeout: vscode.workspace.getConfiguration('judger.execution').get<number>('compilationTimeout', 60000), killSignal: 'SIGKILL' });
         runningCompilers.push(newProj);
 
         let error = '';
@@ -360,7 +360,7 @@ export const compileFile = async (
     const spawnOpts: SpawnOptionsWithoutStdio = {
         cwd: path.dirname(srcPath),
         killSignal: 'SIGKILL',
-        timeout: options.timeout ?? vscode.workspace.getConfiguration('judger.execution').get<number>('compilationTimeout', 10000),
+        timeout: options.timeout ?? vscode.workspace.getConfiguration('judger.execution').get<number>('compilationTimeout', 60000),
         env: process.env,
     };
 
@@ -496,19 +496,26 @@ export const compileFile = async (
             captureText(decoders.stdout.end());
             captureText(decoders.stderr.end());
             removeRunningCompiler(compiler);
-            const exitCode = exitcode ?? 0;
             const hideWarningsWhenCompiledOK = getHideStderrorWhenCompiledOK();
+            const artifactExists = fs.existsSync(compileArtifact);
 
-            if (launchFailed || exitcode === null || exitCode !== 0 || !fs.existsSync(compileArtifact)) {
-                options.reportProgress?.(JSON.stringify({ event: 'compileFailed', exitCode: exitcode, signal, artifactExists: fs.existsSync(compileArtifact) }) + '\n');
+            if (launchFailed || exitcode !== 0 || signal !== null || !artifactExists) {
+                const diagnostics = JSON.stringify({
+                    event: 'compileFailed',
+                    reason: launchFailed ? 'launch' : signal !== null ? 'signal' : exitcode === null ? 'terminated' : exitcode !== 0 ? 'exitCode' : 'missingArtifact',
+                    exitCode: exitcode, signal, artifactExists,
+                    artifact: compileArtifact, compiler: language.compiler, args: flags,
+                    cwd: spawnOpts.cwd, timeoutMs: spawnOpts.timeout,
+                }) + '\n';
+                options.reportProgress?.(diagnostics);
                 if (!silent) {
                     ocWrite(
-                        `Exit code: ${exitCode} Errors while compiling:\n` +
-                            error,
+                        `Exit code: ${exitcode} Errors while compiling:\n` +
+                            error + '\n' + diagnostics,
                     );
                     ocShow();
                 }
-                globalThis.logger.error('Compilation failed');
+                globalThis.logger.error('Compilation failed', diagnostics);
                 if (!silent) {
                     getJudgeViewProvider().extensionToJudgeViewMessage({
                         command: 'compiling-stop',
@@ -523,7 +530,7 @@ export const compileFile = async (
 
             if (!silent && !hideWarningsWhenCompiledOK && error.trim() !== '') {
                 ocWrite(
-                    `Exit code: ${exitCode} Warnings while compiling:\n ` +
+                    `Exit code: ${exitcode} Warnings while compiling:\n ` +
                         error,
                 );
                 // A successful compile must not steal focus from the source

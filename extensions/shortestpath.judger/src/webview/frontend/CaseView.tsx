@@ -233,6 +233,7 @@ export default function CaseView(props: {
                                 </div>
                                 <TextareaAutosize
                                     className="selectable input-textarea"
+                                    maxRows={10}
                                     onChange={handleInputChange}
                                     value={input}
                                     ref={inputBox}
@@ -256,6 +257,7 @@ export default function CaseView(props: {
                                 </div>
                                 <TextareaAutosize
                                     className="selectable expected-textarea"
+                                    maxRows={10}
                                     onChange={handleOutputChange}
                                     value={output}
                                 />
@@ -287,6 +289,7 @@ export default function CaseView(props: {
                                 </div>}
                                 <TextareaAutosize
                                     className="selectable received-textarea"
+                                    maxRows={10}
                                     value={preview.text}
                                     readOnly
                                 />
@@ -316,6 +319,7 @@ export default function CaseView(props: {
                                     {t('standardError')}
                                     <TextareaAutosize
                                         className="selectable stderror-textarea"
+                                        maxRows={10}
                                         value={stderrPreview.text}
                                         readOnly
                                     />
