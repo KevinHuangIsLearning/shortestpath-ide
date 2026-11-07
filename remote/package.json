@@ -20,6 +20,7 @@
     "@vscode/spdlog": "^0.15.8",
     "@vscode/sqlite3": "5.1.12-vscode",
     "@vscode/tree-sitter-wasm": "^0.3.1",
+    "@vscode/vsce-sign": "2.1.0",
     "@vscode/vscode-languagedetection": "1.0.23",
     "@vscode/windows-process-tree": "^0.8.0",
     "@vscode/windows-registry": "^1.2.0",
@@ -63,6 +64,7 @@
     "yauzl": "^3.3.1"
   },
   "allowScripts": {
+    "@vscode/vsce-sign@2.1.0": true,
     "kerberos@2.1.1": true,
     "koffi@3.2.1": false,
     "node-pty@1.2.0-beta.15": true,
